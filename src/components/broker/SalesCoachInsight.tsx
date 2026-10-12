@@ -56,7 +56,8 @@ const SalesCoachInsight = ({ brokerId }: SalesCoachInsightProps) => {
         return () => { supabase.removeChannel(channel); };
     }, [brokerId]);
 
-    if (loading) return <div className="h-48 flex items-center justify-center"><Brain className="animate-pulse text-pink-500" /></div>;
+    // Nothing until a real coached call exists: a placeholder that then vanishes would shift the page.
+    if (loading) return null;
     if (!latestCoaching) return null;
 
     const scorecard = latestCoaching.scorecard || {};

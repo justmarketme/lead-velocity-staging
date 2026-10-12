@@ -17,6 +17,10 @@ export interface BrokerPlanState {
   /** Set only while a paid cycle is running (or within the shortfall rollover). */
   cycle: { start: Date; end: Date; day: number; committed: number; delivered: number } | null;
   paidOrdersCount: number;
+  /** A signed agreement is on file (admin_documents kind='signed_agreement'). */
+  hasSignedAgreement: boolean;
+  /** FSP number as written in the signed agreement (content_data.fsp_number), for display until it is on the broker record. */
+  agreementFsp: string | null;
 }
 
 const DAY = 86_400_000;
@@ -50,7 +54,10 @@ export async function loadBrokerPlan(broker: { id: string; tier?: string | null 
       };
     }
   }
-  return { plan, planSource, paidOrder, cycle, paidOrdersCount: paid.length };
+  return {
+    plan, planSource, paidOrder, cycle, paidOrdersCount: paid.length,
+    hasSignedAgreement: !!agreement.data, agreementFsp: agreement.data?.content_data?.fsp_number ? String(agreement.data.content_data.fsp_number) : null,
+  };
 }
 
 /** Leads assigned per week for the last `weeks` weeks (oldest first), Monday-based. */

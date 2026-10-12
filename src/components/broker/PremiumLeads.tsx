@@ -3,10 +3,10 @@
  * Filters by broker id explicitly, so the admin "Preview as broker" view shows exactly the broker's own leads.
  */
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { AnimatePresence } from "motion/react";
 import { Database, Mail, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { FadeIn, Skeleton, m, stagger, item } from "./motion";
 
 interface LeadRow {
   id: string; first_name: string | null; last_name: string | null; phone: string; email: string | null;
@@ -26,45 +26,45 @@ export default function PremiumLeads({ brokerId }: { brokerId: string | null | u
   }, [brokerId]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-700">
+    <div className="space-y-6">
       <div>
-        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Your leads</h2>
-        <p className="text-slate-400 mt-1">Every lead Lead Velocity has delivered to you, newest first.</p>
+        <h2 className="text-2xl sm:text-3xl font-bold text-white">Your leads</h2>
+        <p className="text-slate-400 mt-1">Every lead delivered to you, newest first.</p>
       </div>
-      {rows === null ? (
-        <p className="text-sm text-slate-500">Loading…</p>
-      ) : error ? (
-        <p className="text-sm text-rose-400">We couldn't load your leads ({error}). Please try again or contact howzit@leadvelocity.co.za.</p>
-      ) : rows.length === 0 ? (
-        <Card className="bg-[#020617] border-white/5 rounded-[32px]">
-          <CardContent className="p-10 text-center space-y-3">
-            <Database className="w-12 h-12 text-slate-700 mx-auto" />
-            <p className="text-lg font-bold text-white">No leads yet</p>
-            <p className="text-sm text-slate-400 max-w-md mx-auto">Leads appear here as soon as they are delivered to you. Delivery starts once your plan's payment has cleared.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-xs text-slate-500">{rows.length} lead{rows.length === 1 ? "" : "s"}</p>
-          {rows.map((l) => (
-            <Card key={l.id} className="bg-[#020617] border-white/5 rounded-[20px]">
-              <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-bold text-white break-words">{[l.first_name, l.last_name].filter(Boolean).join(" ") || "Unnamed lead"}</p>
-                  <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-400 mt-1">
-                    <a href={`tel:${l.phone}`} className="inline-flex items-center gap-1.5 hover:text-white"><Phone className="h-3.5 w-3.5" />{l.phone}</a>
-                    {l.email && <a href={`mailto:${l.email}`} className="inline-flex items-center gap-1.5 hover:text-white break-all"><Mail className="h-3.5 w-3.5" />{l.email}</a>}
+      <AnimatePresence mode="wait">
+        {rows === null ? (
+          <m.div key="sk" className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-[84px] w-full" />)}</m.div>
+        ) : error ? (
+          <FadeIn key="err"><p className="text-sm text-rose-300">We couldn't load your leads ({error}). Please try again or email howzit@leadvelocity.co.za.</p></FadeIn>
+        ) : rows.length === 0 ? (
+          <FadeIn key="empty" className="rounded-[28px] border border-white/10 bg-white/[0.02] p-8 sm:p-10 text-center">
+            <Database className="w-10 h-10 text-slate-600 mx-auto" aria-hidden="true" />
+            <p className="mt-3 text-lg font-semibold text-white">No leads yet</p>
+            <p className="mt-1 text-sm text-slate-400 max-w-md mx-auto">Leads appear here as soon as they're delivered to you. Delivery starts once your plan's payment has cleared.</p>
+          </FadeIn>
+        ) : (
+          <m.div key="list">
+            <p className="text-xs text-slate-500 mb-3">{rows.length} lead{rows.length === 1 ? "" : "s"}</p>
+            <m.ul className="space-y-3" variants={stagger} initial="hidden" animate="show">
+              {rows.map((l) => (
+                <m.li key={l.id} layout variants={item} className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white break-words">{[l.first_name, l.last_name].filter(Boolean).join(" ") || "Unnamed lead"}</p>
+                    <div className="flex flex-wrap gap-x-5 text-sm text-slate-400">
+                      <a href={`tel:${l.phone}`} className="inline-flex min-h-[44px] items-center gap-1.5 hover:text-white"><Phone className="h-4 w-4" />{l.phone}</a>
+                      {l.email && <a href={`mailto:${l.email}`} className="inline-flex min-h-[44px] items-center gap-1.5 hover:text-white break-all"><Mail className="h-4 w-4" />{l.email}</a>}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  {l.current_status && <Badge variant="outline" className="border-white/10 text-slate-300">{l.current_status}</Badge>}
-                  {l.created_at && <span className="text-xs text-slate-500">{new Date(l.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                  <div className="flex items-center gap-3 shrink-0 text-sm">
+                    {l.current_status && <span className="rounded-full border border-white/15 px-3 py-1 text-slate-300">{l.current_status}</span>}
+                    {l.created_at && <span className="text-xs text-slate-500">{new Date(l.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</span>}
+                  </div>
+                </m.li>
+              ))}
+            </m.ul>
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

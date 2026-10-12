@@ -4,22 +4,29 @@
  * what actually happened for this broker, and empty states say so plainly.
  */
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnimatePresence } from "motion/react";
 import { Calendar as CalendarIcon, Clock, Package, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import SalesCoachInsight from "./SalesCoachInsight";
+import GettingStarted from "./GettingStarted";
+import { SignedAgreementCard } from "./PremiumDocuments";
+import { CountUp, EASE, FadeIn, Skeleton, Stagger, StaggerItem, m } from "./motion";
 import { BrokerPlanState, loadLeadsPerWeek } from "@/lib/brokerPlan";
 import { TERMS, zar } from "@/lib/pricing";
+
+type Tab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
 interface PremiumDashboardProps {
     brokerData: any;
     stats: { totalLeads: number; appointmentsScheduled: number };
     planState: BrokerPlanState | null;
+    onGo: (tab: Tab) => void;
 }
 
 const fmtDate = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+const card = "rounded-[28px] border border-white/10 bg-white/[0.02]";
 
-const PremiumDashboard = ({ brokerData, stats, planState }: PremiumDashboardProps) => {
+const PremiumDashboard = ({ brokerData, stats, planState, onGo }: PremiumDashboardProps) => {
     const [weeks, setWeeks] = useState<{ week: string; leads: number }[] | null>(null);
     useEffect(() => {
         if (!brokerData?.id) return;
@@ -34,104 +41,116 @@ const PremiumDashboard = ({ brokerData, stats, planState }: PremiumDashboardProp
     const firstName = String(brokerData?.contact_person || "").split(" ")[0];
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-700">
-            {/* Plan and cycle */}
-            <Card className="bg-[#020617] border-white/5 rounded-[32px] shadow-2xl overflow-hidden">
-                <CardContent className="p-6 sm:p-10 flex flex-col xl:flex-row justify-between gap-8">
-                    <div className="space-y-3 min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-pink-500">Your plan</p>
-                        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
-                            {firstName ? `Hi ${firstName}` : "Welcome"}
-                        </h1>
-                        <p className="text-slate-400 max-w-xl">
-                            {brokerData?.firm_name ? <><span className="text-white font-semibold">{brokerData.firm_name}</span> · </> : null}
-                            {plan
-                                ? <>{plan.name} plan: {plan.committed_leads} Qualified Leads per {TERMS.cycle_days}-day cycle, {zar(plan.price_zar)} excl. VAT, paid in advance.</>
-                                : <>Your plan hasn't been set up yet. Lead Velocity will confirm it with you.</>}
-                        </p>
-                    </div>
+        <Stagger className="space-y-6 sm:space-y-8">
+            <StaggerItem>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">{firstName ? `Hi ${firstName}` : "Welcome"}</h1>
+                {brokerData?.firm_name && <p className="text-slate-400 mt-1">{brokerData.firm_name}</p>}
+            </StaggerItem>
 
-                    <div className="bg-white/[0.03] p-6 rounded-[24px] border border-white/5 w-full xl:w-[380px] shrink-0">
+            <StaggerItem><GettingStarted broker={brokerData} planState={planState} onGo={onGo} /></StaggerItem>
+
+            {/* Plan and cycle */}
+            <StaggerItem>
+                <section className={`${card} p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] gap-6`} aria-labelledby="plan-title">
+                    <div className="min-w-0">
+                        <p id="plan-title" className="text-xs font-semibold uppercase tracking-[0.2em] text-pink-400">Your plan</p>
+                        <AnimatePresence mode="wait">
+                            {planState === null ? (
+                                <m.div key="sk" className="mt-3 space-y-2"><Skeleton className="h-7 w-40" /><Skeleton className="h-4 w-72 max-w-full" /></m.div>
+                            ) : (
+                                <FadeIn key="plan" className="mt-2">
+                                    <p className="text-2xl font-bold text-white">{plan ? `${plan.name}` : "Not set up yet"}</p>
+                                    <p className="text-slate-400 mt-1">
+                                        {plan
+                                            ? `${plan.committed_leads} Qualified Leads per ${TERMS.cycle_days}-day cycle · ${zar(plan.price_zar)} excl. VAT, paid in advance`
+                                            : "Lead Velocity will confirm your plan with you."}
+                                    </p>
+                                </FadeIn>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
                         {cycle ? (
                             <>
-                                <div className="flex justify-between items-end mb-3">
-                                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">This cycle</span>
-                                    <span className="text-3xl font-black text-white">{cycle.delivered} / {cycle.committed}</span>
+                                <div className="flex items-end justify-between">
+                                    <span className="text-sm text-slate-400">This cycle</span>
+                                    <span className="text-2xl font-bold text-white"><CountUp value={cycle.delivered} /> / {cycle.committed}</span>
                                 </div>
-                                <div className="h-3 bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-gradient-to-r from-pink-600 to-rose-500 rounded-full" style={{ width: `${Math.min(100, cycle.committed ? (cycle.delivered / cycle.committed) * 100 : 0)}%` }} />
+                                <div className="mt-3 h-2 rounded-full bg-white/10 overflow-hidden">
+                                    <m.div className="h-full w-full origin-left rounded-full bg-gradient-to-r from-pink-500 to-rose-400"
+                                        initial={{ scaleX: 0 }} animate={{ scaleX: Math.min(1, cycle.committed ? cycle.delivered / cycle.committed : 0) }} transition={{ duration: 0.9, ease: EASE }} />
                                 </div>
-                                <p className="text-xs text-slate-400 mt-3">
-                                    Leads delivered · day {cycle.day} of {TERMS.cycle_days} · cycle ends {fmtDate(cycle.end)}
-                                </p>
+                                <p className="text-xs text-slate-400 mt-3">Leads delivered · day {cycle.day} of {TERMS.cycle_days} · ends {fmtDate(cycle.end)}</p>
                             </>
                         ) : (
                             <div className="flex gap-3">
-                                <Clock className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                                <Clock className="h-5 w-5 text-amber-300 shrink-0 mt-0.5" aria-hidden="true" />
                                 <div>
-                                    <p className="text-sm font-bold text-white">Awaiting payment</p>
+                                    <p className="font-semibold text-white">Awaiting payment</p>
                                     <p className="text-sm text-slate-400 mt-1">
-                                        {plan
-                                            ? `Your ${plan.name} plan (${plan.committed_leads} leads / ${TERMS.cycle_days} days) starts when payment clears.`
-                                            : "Your first cycle starts when payment clears."}
+                                        {plan ? `Your ${plan.name} plan (${plan.committed_leads} leads / ${TERMS.cycle_days} days) starts when payment clears.` : "Your first cycle starts when payment clears."}
                                     </p>
                                 </div>
                             </div>
                         )}
                     </div>
-                </CardContent>
-            </Card>
+                </section>
+            </StaggerItem>
+
+            <StaggerItem><SignedAgreementCard brokerId={brokerData?.id} hideWhenEmpty /></StaggerItem>
 
             {/* Real counts */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                {[
-                    { title: "Leads delivered", icon: Users, color: "text-purple-400", value: stats.totalLeads, label: "All time" },
-                    { title: "Appointments", icon: CalendarIcon, color: "text-blue-400", value: stats.appointmentsScheduled, label: "Booked with you" },
-                    { title: "Paid orders", icon: Package, color: "text-emerald-400", value: planState?.paidOrdersCount ?? 0, label: planState?.paidOrder ? `Last paid ${fmtDate(new Date(planState.paidOrder.paid_at))}` : "None yet" },
-                ].map((item) => (
-                    <Card key={item.title} className="bg-[#020617] border-white/5 rounded-[24px] shadow-xl">
-                        <CardContent className="p-6 flex items-center gap-5">
-                            <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5"><item.icon className={`w-6 h-6 ${item.color}`} /></div>
-                            <div>
-                                <p className="text-3xl font-black text-white">{item.value}</p>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{item.title}</p>
-                                <p className="text-xs text-slate-500">{item.label}</p>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
+            <StaggerItem>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5">
+                    {[
+                        { title: "Leads delivered", icon: Users, color: "text-violet-300", value: stats.totalLeads, label: "All time", tab: "leads" as Tab },
+                        { title: "Appointments", icon: CalendarIcon, color: "text-sky-300", value: stats.appointmentsScheduled, label: "Booked with you", tab: "calendar" as Tab },
+                        { title: "Paid orders", icon: Package, color: "text-emerald-300", value: planState?.paidOrdersCount ?? 0, label: planState?.paidOrder ? `Last paid ${fmtDate(new Date(planState.paidOrder.paid_at))}` : "None yet", tab: "documents" as Tab },
+                    ].map((s) => (
+                        <m.button key={s.title} type="button" onClick={() => onGo(s.tab)} whileTap={{ scale: 0.98 }} whileHover={{ y: -2 }}
+                            className={`${card} p-5 flex items-center gap-4 text-left min-h-[44px] hover:border-white/20 transition-colors`}>
+                            <span className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"><s.icon className={`h-5 w-5 ${s.color}`} aria-hidden="true" /></span>
+                            <span className="min-w-0">
+                                <span className="block text-3xl font-bold text-white"><CountUp value={s.value} /></span>
+                                <span className="block text-sm font-medium text-slate-300">{s.title}</span>
+                                <span className="block text-xs text-slate-500">{s.label}</span>
+                            </span>
+                        </m.button>
+                    ))}
+                </div>
+            </StaggerItem>
 
             {/* Leads per week, from his own leads */}
-            <Card className="bg-[#020617] border-white/5 rounded-[32px] shadow-2xl overflow-hidden">
-                <CardHeader className="p-6 sm:p-8 pb-2">
-                    <CardTitle className="text-xl font-black text-white">Leads per week</CardTitle>
-                    <CardDescription className="text-slate-500">Leads delivered to you over the last 8 weeks.</CardDescription>
-                </CardHeader>
-                <CardContent className="p-6 sm:p-8 pt-4">
-                    {weeks === null ? (
-                        <p className="text-sm text-slate-500">Loading…</p>
-                    ) : !anyLeadsRecently ? (
-                        <p className="text-sm text-slate-500">No leads delivered in the last 8 weeks. Your leads will show here week by week once delivery starts.</p>
-                    ) : (
-                        <div className="h-[260px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={weeks}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff10" />
-                                    <XAxis dataKey="week" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-                                    <YAxis allowDecimals={false} stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
-                                    <Tooltip cursor={{ fill: "#ffffff08" }} contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #ffffff1a", borderRadius: 12 }} labelStyle={{ color: "#fff" }} itemStyle={{ color: "#ec4899" }} formatter={(v: number) => [v, "Leads"]} labelFormatter={(l) => `Week of ${l}`} />
-                                    <Bar dataKey="leads" fill="#ec4899" radius={[6, 6, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            <StaggerItem>
+                <section className={`${card} p-5 sm:p-7`} aria-labelledby="lpw-title">
+                    <h2 id="lpw-title" className="text-lg font-semibold text-white">Leads per week</h2>
+                    <p className="text-sm text-slate-400">Leads delivered to you over the last 8 weeks.</p>
+                    <div className="mt-4">
+                        <AnimatePresence mode="wait">
+                            {weeks === null ? (
+                                <m.div key="sk"><Skeleton className="h-[200px] w-full" /></m.div>
+                            ) : !anyLeadsRecently ? (
+                                <FadeIn key="empty"><p className="text-sm text-slate-400">No leads delivered in the last 8 weeks. They'll show here week by week once delivery starts.</p></FadeIn>
+                            ) : (
+                                <FadeIn key="chart" className="h-[240px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={weeks}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff10" />
+                                            <XAxis dataKey="week" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                                            <YAxis allowDecimals={false} stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} width={28} />
+                                            <Tooltip cursor={{ fill: "#ffffff08" }} contentStyle={{ backgroundColor: "#0f172a", border: "1px solid #ffffff1a", borderRadius: 12 }} labelStyle={{ color: "#fff" }} itemStyle={{ color: "#f472b6" }} formatter={(v: number) => [v, "Leads"]} labelFormatter={(l) => `Week of ${l}`} />
+                                            <Bar dataKey="leads" fill="#ec4899" radius={[6, 6, 0, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </FadeIn>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </section>
+            </StaggerItem>
 
-            {/* Call coaching: shown only when a real coached call exists for this broker */}
             {brokerData?.id && <SalesCoachInsight brokerId={brokerData.id} />}
-        </div>
+        </Stagger>
     );
 };
 

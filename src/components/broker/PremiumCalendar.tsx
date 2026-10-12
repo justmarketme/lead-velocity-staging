@@ -110,7 +110,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
     return (
         <div className="grid grid-cols-1 xl:grid-cols-[22rem_minmax(0,1fr)] gap-10 animate-in slide-in-from-bottom-10 duration-1000">
             {/* Calendar Control */}
-            <Card className="min-w-0 bg-[#020617] border-white/5 backdrop-blur-3xl overflow-hidden h-fit sticky top-32 rounded-[40px] shadow-2xl">
+            <Card className="min-w-0 bg-[#020617] border-white/5 backdrop-blur-3xl overflow-hidden h-fit xl:sticky xl:top-24 rounded-[40px] shadow-2xl">
                 <CardContent className="p-0">
                     <Calendar
                         mode="single"
@@ -126,15 +126,15 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                         }}
                     />
                     <div className="p-8 border-t border-white/[0.03] space-y-6 bg-white/[0.01]">
-                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] italic">Selected day</h4>
+                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Selected day</h4>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Appointments</span>
-                                <span className="text-lg font-black text-white italic">{dayAppointments.length}</span>
+                                <span className="text-lg font-black text-white">{dayAppointments.length}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Completed</span>
-                                <span className="text-lg font-black text-emerald-400 italic">{dayAppointments.filter((a) => String(a.appointment_status || "").toLowerCase() === "completed").length}</span>
+                                <span className="text-lg font-black text-emerald-400">{dayAppointments.filter((a) => String(a.appointment_status || "").toLowerCase() === "completed").length}</span>
                             </div>
                         </div>
                     </div>
@@ -145,7 +145,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
             <div className="min-w-0 space-y-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-6">
                     <div>
-                        <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-1">{date ? format(date, 'MMMM do, yyyy') : 'Select timing'}</h2>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-1">{date ? format(date, 'MMMM do, yyyy') : 'Select timing'}</h2>
                         <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Your appointments on this day</p>
                     </div>
                 </div>
@@ -158,8 +158,8 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                                     <div className="flex flex-col md:flex-row">
                                         <div className="md:w-40 bg-white/[0.01] p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-white/5 group-hover:bg-pink-500/5 transition-colors">
                                             <Clock className="w-6 h-6 text-slate-700 mb-3 group-hover:text-pink-500 transition-colors" />
-                                            <span className="text-3xl font-black text-white italic tracking-tighter">{appt.appointment_date ? format(new Date(appt.appointment_date), 'HH:mm') : "—"}</span>
-                                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mt-1 italic">SA time</span>
+                                            <span className="text-3xl font-black text-white tracking-tighter">{appt.appointment_date ? format(new Date(appt.appointment_date), 'HH:mm') : "—"}</span>
+                                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mt-1">SA time</span>
                                         </div>
                                         <div className="flex-1 p-8 relative">
                                             <div className="absolute top-0 right-0 p-8">
@@ -170,7 +170,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
 
                                             <div className="mb-6">
                                                 <div className="flex flex-wrap items-center gap-4 mb-3">
-                                                    <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic">{appt.first_name} {appt.last_name}</h3>
+                                                    <h3 className="text-2xl font-black text-white tracking-tighter uppercase">{appt.first_name} {appt.last_name}</h3>
                                                     {getStatusBadge(appt.appointment_status || "Scheduled")}
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-6 text-[10px] text-slate-500 font-black uppercase tracking-widest">
@@ -181,7 +181,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
 
                                             {appt.reason_notes && (
                                                 <div className="bg-white/[0.02] p-4 rounded-2xl border-l-4 border-slate-700 mb-6 group-hover:border-pink-500 transition-all">
-                                                    <p className="text-sm text-slate-400 font-medium italic leading-relaxed">"{appt.reason_notes}"</p>
+                                                    <p className="text-sm text-slate-400 font-medium leading-relaxed">"{appt.reason_notes}"</p>
                                                 </div>
                                             )}
 
@@ -201,7 +201,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                         <div className="bg-slate-900/50 p-6 rounded-[32px] mb-8 ring-8 ring-white/[0.02]">
                             <CalendarIcon className="w-16 h-16 text-slate-800" />
                         </div>
-                        <h3 className="text-2xl font-black text-slate-500 italic uppercase tracking-tighter">No appointments on this day</h3>
+                        <h3 className="text-2xl font-black text-slate-500 uppercase tracking-tighter">No appointments on this day</h3>
                         <p className="text-slate-600 max-w-[320px] mt-4 text-sm font-bold uppercase tracking-widest leading-relaxed">Pick another day on the calendar. Appointments clients book with you appear here.</p>
                     </div>
                 )}
@@ -211,7 +211,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
             <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                 <DialogContent className="bg-[#020617] border-white/5 text-white max-w-2xl rounded-[40px] p-0 overflow-hidden shadow-[0_0_100px_rgba(236,72,153,0.1)]">
                     <div className="p-10 pb-6 bg-gradient-to-br from-pink-500/10 to-transparent border-b border-white/5">
-                        <DialogTitle className="text-4xl font-black italic tracking-tighter uppercase mb-2">Appointment</DialogTitle>
+                        <DialogTitle className="text-4xl font-black tracking-tighter uppercase mb-2">Appointment</DialogTitle>
                         <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Outcome and notes for <span className="text-white font-black">{selectedAppointment?.first_name}</span></DialogDescription>
                     </div>
 
@@ -223,7 +223,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
 
                         <TabsContent value="status" className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                             <div className="space-y-4">
-                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] italic mb-4 block">What happened?</Label>
+                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] mb-4 block">What happened?</Label>
                                 <RadioGroup value={tempStatus} onValueChange={setTempStatus} className="grid grid-cols-2 gap-4">
                                     {[
                                         { id: 'completed', label: 'Meeting held', icon: CheckCircle2, color: 'text-emerald-400', bg: 'hover:border-emerald-500/30' },
@@ -246,7 +246,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                             </div>
 
                             <div className="space-y-4">
-                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] italic block">Note (optional)</Label>
+                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] block">Note (optional)</Label>
                                 <Textarea
                                     placeholder="Brief reason or context for the outcome..."
                                     className="bg-white/[0.02] border-white/5 min-h-[120px] text-sm rounded-[24px] focus:ring-pink-500/20 focus:border-pink-500/50 transition-all font-medium p-6"

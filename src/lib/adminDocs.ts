@@ -88,3 +88,9 @@ export async function uploadBrokerDocument(input: {
   }
   return { ok: true };
 }
+
+/** A short-lived signed URL for viewing a document in-page (the in-portal viewer). */
+export async function signAdminDocument(path: string): Promise<string | null> {
+  const { data } = await supabase.storage.from(ADMIN_DOCS_BUCKET).createSignedUrl(path, ADMIN_DOC_LINK_SECONDS);
+  return data?.signedUrl || null;
+}
