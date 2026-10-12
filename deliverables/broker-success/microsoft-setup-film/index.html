@@ -1,0 +1,1065 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Microsoft Calendar Setup</title>
+<meta name="description" content="Interactive film for Jono: register the Lead Velocity app in Microsoft Entra so brokers can connect their Outlook calendar.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a film player. Stage (16:10 on desktop, tall on phones) holds one scene at a time:
+   a narrative column on the left and a tappable mock screen on the right. Captions + controls under it, chapters below. */
+:root {
+  --navy: #0f172a; --ink: #1e293b; --slate: #475569; --muted: #64748b; --line: #e2e8f0;
+  --paper: #f6f4fa; --card: #ffffff; --soft: #f1eef8;
+  --pink: #db2777; --purple: #9333ea; --grad: linear-gradient(100deg, #db2777, #9333ea);
+  --ok: #059669; --ok-wash: #ecfdf5; --warn: #b45309; --warn-wash: #fffbeb; --bad: #dc2626; --bad-wash: #fef2f2;
+  --wash: #fdf2f8;
+  --display: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --shadow: 0 1px 2px rgba(15,23,42,.06), 0 18px 40px -20px rgba(15,23,42,.28);
+  /* Microsoft mock screens keep Microsoft's own light look in both themes */
+  --ms-font: "Segoe UI", "Segoe UI Web", system-ui, sans-serif;
+  --ms-bg: #faf9f8; --ms-card: #ffffff; --ms-text: #242424; --ms-sub: #616161; --ms-line: #e0e0e0;
+  --ms-blue: #0f6cbd; --ms-blue-wash: #ebf3fc; --ms-dark: #1b1a19;
+  --term: #0b1020; --term-text: #e2e8f0;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --navy: #f1f5f9; --ink: #e2e8f0; --slate: #cbd5e1; --muted: #94a3b8; --line: #2b2f45;
+  --paper: #0d0f1a; --card: #161a2b; --soft: #1d2136; --wash: #2a1424;
+  --ok: #34d399; --ok-wash: #0f2a22; --warn: #fbbf24; --warn-wash: #2a2210; --bad: #f87171; --bad-wash: #2c1414;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 18px 40px -20px rgba(0,0,0,.7);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --navy: #f1f5f9; --ink: #e2e8f0; --slate: #cbd5e1; --muted: #94a3b8; --line: #2b2f45;
+  --paper: #0d0f1a; --card: #161a2b; --soft: #1d2136; --wash: #2a1424;
+  --ok: #34d399; --ok-wash: #0f2a22; --warn: #fbbf24; --warn-wash: #2a2210; --bad: #f87171; --bad-wash: #2c1414;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 18px 40px -20px rgba(0,0,0,.7);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--slate); font-family: var(--body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--purple); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 14px; }
+
+/* header */
+.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.top img { width: 40px; height: 40px; border-radius: 10px; background: #fff; padding: 3px; }
+.top .t { min-width: 0; }
+.top .k { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--pink); }
+.top h1 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(20px, 3vw, 28px); color: var(--navy); letter-spacing: -.02em; line-height: 1.15; text-wrap: balance; }
+.top .bar { flex: 1 1 120px; height: 4px; border-radius: 4px; background: var(--grad); opacity: .85; min-width: 60px; }
+
+/* stage */
+.stage { position: relative; aspect-ratio: 16 / 10; width: 100%; max-width: 100%; border-radius: 18px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); border: 1px solid var(--line); container-type: inline-size; isolation: isolate; }
+.stage::before { content: ""; position: absolute; inset: 0; z-index: -1; background:
+  radial-gradient(60% 70% at 0% 0%, color-mix(in srgb, var(--pink) 13%, transparent), transparent 70%),
+  radial-gradient(60% 70% at 100% 100%, color-mix(in srgb, var(--purple) 13%, transparent), transparent 70%); }
+.stage::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--grad); }
+@media (max-width: 720px) { .stage { aspect-ratio: auto; height: clamp(640px, calc(100svh - 170px), 820px); } }
+
+.scene { position: absolute; inset: 0; padding: 4.2% 3.6% 3.6%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.85fr); gap: 3%;
+  font-size: clamp(10.5px, 1.28cqi, 16px); opacity: 0; visibility: hidden; transform: translateY(14px) scale(.985); transition: opacity .55s ease, transform .7s cubic-bezier(.2,.7,.2,1), visibility 0s .55s; }
+.scene.cur { opacity: 1; visibility: visible; transform: none; transition: opacity .55s ease .1s, transform .7s cubic-bezier(.2,.7,.2,1) .1s, visibility 0s; }
+@container (max-width: 640px) {
+  .scene { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding: 22px 14px 14px; gap: 12px; font-size: 12px; }
+  .lede .pts { display: none; }
+  .lede h2 { font-size: 1.75em; }
+}
+.lede { min-width: 0; display: flex; flex-direction: column; gap: .8em; }
+.eyebrow { font-size: .78em; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; color: var(--pink); }
+.lede h2 { margin: 0; font-family: var(--display); font-weight: 800; color: var(--navy); font-size: 2.35em; line-height: 1.06; letter-spacing: -.025em; text-wrap: balance; }
+.lede p { margin: 0; color: var(--slate); font-size: 1.02em; }
+.pts { list-style: none; margin: .4em 0 0; padding: 0; display: grid; gap: .55em; }
+.pts li { position: relative; padding-left: 1.8em; color: var(--muted); font-size: .98em; transition: color .3s; }
+.pts li::before { content: ""; position: absolute; left: 0; top: .22em; width: 1.05em; height: 1.05em; border-radius: 50%; border: 2px solid var(--line); transition: all .3s; }
+.pts li.on { color: var(--navy); }
+.pts li.on::before { border-color: transparent; background: var(--grad); box-shadow: inset 0 0 0 3px var(--card); }
+.pts code, .lede code { font-family: var(--mono); font-size: .9em; }
+.screen { min-width: 0; min-height: 0; position: relative; }
+
+/* generic beat: fades in */
+.b { opacity: 0; transform: translateY(8px); transition: opacity .45s ease, transform .55s cubic-bezier(.2,.7,.2,1); }
+.b.on { opacity: 1; transform: none; }
+.view { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .4s ease, visibility 0s .4s; }
+.view.on { opacity: 1; visibility: visible; transition: opacity .4s ease, visibility 0s; }
+.tag { display: inline-flex; align-items: center; gap: .35em; font-size: .74em; font-weight: 700; letter-spacing: .02em; padding: .2em .65em; border-radius: 99px; white-space: nowrap; }
+.tag.ok { background: var(--ok-wash); color: var(--ok); }
+.tag.warn { background: var(--warn-wash); color: var(--warn); }
+.tag.bad { background: var(--bad-wash); color: var(--bad); }
+.tag.pk { background: var(--wash); color: var(--pink); }
+.status { display: flex; gap: .7em; align-items: flex-start; padding: .8em 1em; border-radius: 12px; background: var(--warn-wash); color: var(--warn); font-size: .92em; font-weight: 500; }
+.status b { color: inherit; }
+
+/* LV cards (scene 1, 2, 7, 9, 10) */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 1em 1.1em; min-width: 0; }
+.card h3 { margin: 0 0 .3em; font-family: var(--display); color: var(--navy); font-size: 1.08em; font-weight: 700; }
+.card .s { color: var(--muted); font-size: .86em; }
+.flow { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .8em; height: 100%; align-content: center; }
+.flow .card { display: grid; gap: .35em; align-content: start; }
+.flow .card .n { font-size: .72em; font-weight: 800; letter-spacing: .14em; color: var(--pink); text-transform: uppercase; }
+.flow .wide { grid-column: 1 / -1; }
+.slots { display: flex; flex-wrap: wrap; gap: .35em; }
+.slots span { font-size: .8em; font-variant-numeric: tabular-nums; padding: .25em .55em; border-radius: 7px; border: 1px solid var(--line); color: var(--muted); }
+.slots span.busy { text-decoration: line-through; opacity: .5; }
+.slots span.free { border-color: color-mix(in srgb, var(--purple) 45%, transparent); color: var(--purple); font-weight: 700; }
+.slots span.pick { background: var(--grad); color: #fff; border-color: transparent; }
+.ev { border-left: 4px solid #8a4bd8; background: color-mix(in srgb, #8a4bd8 10%, var(--card)); border-radius: 8px; padding: .5em .7em; font-size: .86em; color: var(--ink); display: grid; gap: .15em; transition: all .5s; }
+.ev .teams { color: #5b5fc7; font-weight: 700; }
+.ev.moved .tm::after { content: " → 11:30-12:00"; color: var(--pink); font-weight: 700; }
+.ev.gone { opacity: .45; text-decoration: line-through; }
+.mail { font-size: .84em; display: grid; gap: .2em; color: var(--ink); }
+.mail .from b { color: var(--pink); }
+.mail .att { display: inline-flex; gap: .4em; align-items: center; font-size: .9em; border: 1px solid var(--line); border-radius: 6px; padding: .15em .5em; width: max-content; max-width: 100%; }
+
+/* scene 2: big picture */
+.big { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: .8em; align-content: center; height: 100%; }
+.big .card { text-align: left; display: grid; gap: .5em; align-content: start; min-height: 12em; }
+.big .ic { width: 2.6em; height: 2.6em; border-radius: 12px; background: var(--grad); display: grid; place-items: center; color: #fff; font-weight: 800; font-family: var(--display); font-size: 1.05em; }
+.big .note { grid-column: 1 / -1; text-align: center; font-family: var(--display); font-weight: 700; color: var(--navy); font-size: 1.2em; }
+@container (max-width: 640px) { .big { grid-template-columns: repeat(2, minmax(0,1fr)); } .big .card { min-height: 0; } }
+
+/* Microsoft Entra mock */
+.ms { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto minmax(0,1fr); border-radius: 12px; overflow: hidden; background: var(--ms-bg); color: var(--ms-text); font-family: var(--ms-font); border: 1px solid #d1d1d1; box-shadow: var(--shadow); font-size: .92em; }
+.ms .url { display: flex; align-items: center; gap: .6em; padding: .45em .8em; background: #f0f0f0; border-bottom: 1px solid #d6d6d6; font-size: .82em; color: #424242; }
+.ms .url .dots { display: flex; gap: .3em; } .ms .url .dots i { width: .7em; height: .7em; border-radius: 50%; background: #c8c8c8; display: block; }
+.ms .url .addr { flex: 1; min-width: 0; background: #fff; border-radius: 99px; padding: .2em .9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms .hdr { display: flex; align-items: center; gap: .8em; padding: .5em .9em; background: var(--ms-card); border-bottom: 1px solid var(--ms-line); min-width: 0; }
+.ms .hdr .w { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ms .hdr .sp { flex: 1; }
+.ms .hdr .acct { display: flex; align-items: center; gap: .5em; font-size: .85em; color: var(--ms-sub); white-space: nowrap; }
+.ms .hdr .av { width: 2em; height: 2em; border-radius: 50%; background: #c43e1c; color: #fff; display: grid; place-items: center; font-size: .8em; font-weight: 700; }
+.ms .bd { display: grid; grid-template-columns: 11.5em minmax(0,1fr); min-height: 0; }
+.ms .nav { background: var(--ms-card); border-right: 1px solid var(--ms-line); padding: .6em 0; font-size: .86em; overflow: hidden; }
+.ms .nav div { padding: .38em .9em; color: #424242; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid transparent; transition: all .3s; }
+.ms .nav .sub { padding-left: 1.8em; }
+.ms .nav .on, .ms .nav .hit.on { background: var(--ms-blue-wash); border-left-color: var(--ms-blue); color: var(--ms-text); font-weight: 600; }
+.ms .main { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.ms .crumb { font-size: .8em; color: var(--ms-blue); padding: .7em 1.1em 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms .ttl { font-size: 1.45em; font-weight: 600; padding: .15em 1.1em .1em; display: flex; align-items: center; gap: .5em; min-width: 0; }
+.ms .ttl small { font-size: .55em; font-weight: 400; color: var(--ms-sub); }
+.ms .pad { padding: .6em 1.1em; display: grid; gap: .7em; align-content: start; }
+.ms .cmd { display: flex; gap: 1.2em; padding: .4em 1.1em; border-bottom: 1px solid var(--ms-line); font-size: .86em; flex-wrap: wrap; }
+.ms .cmd span { color: var(--ms-text); white-space: nowrap; }
+.ms .cmd span b { color: var(--ms-blue); font-weight: 400; margin-right: .25em; }
+.ms .app { display: grid; grid-template-columns: 11em minmax(0,1fr); height: 100%; min-height: 0; }
+.ms .amenu { border-right: 1px solid var(--ms-line); padding: .4em 0; font-size: .84em; background: var(--ms-card); }
+.ms .amenu div { padding: .35em .8em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid transparent; color: #424242; }
+.ms .amenu .grp { font-size: .82em; color: var(--ms-sub); padding-top: .8em; }
+.ms .amenu .act { background: var(--ms-blue-wash); border-left-color: var(--ms-blue); color: var(--ms-text); font-weight: 600; }
+.ms .apane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.ms label.f { display: grid; gap: .3em; font-size: .88em; font-weight: 600; }
+.ms label.f small { font-weight: 400; color: var(--ms-sub); }
+.ms .inp { border: 1px solid #c7c7c7; border-bottom: 1px solid #616161; border-radius: 4px; background: #fff; padding: .4em .6em; min-height: 2.2em; font-weight: 400; font-size: .98em; display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; }
+.ms .inp.mono, .mono { font-family: var(--mono); font-size: .86em; }
+.ms .inp .ph { color: #8a8886; }
+.ms .typing::after, .ed .typing::after, .term .typing::after { content: ""; display: inline-block; width: 1px; height: 1.05em; background: currentColor; margin-left: 1px; vertical-align: -.15em; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.ms .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4em; padding: .42em 1.1em; border-radius: 4px; font-weight: 600; font-size: .9em; background: var(--ms-blue); color: #fff; border: 1px solid var(--ms-blue); width: max-content; cursor: pointer; transition: transform .12s, filter .2s; }
+.ms .btn.sec { background: #fff; color: var(--ms-text); border-color: #d1d1d1; }
+.ms .lnk { color: var(--ms-blue); cursor: pointer; white-space: nowrap; }
+.sh:not(.on) { display: none !important; }
+.ms .plain, .ms .tag.pk { background: #fdf2f8; color: #db2777; }
+.ms .tag.ok { background: #ecfdf5; color: #047857; }
+.ms .tag.bad { background: #fef2f2; color: #b91c1c; }
+.ms .tag.warn { background: #fffbeb; color: #92400e; }
+.ms .amenu .hit.on { background: var(--ms-blue-wash); border-left-color: var(--ms-blue); color: var(--ms-text); font-weight: 600; }
+.ms td.hit.on { outline: 2px solid var(--pink); outline-offset: -2px; background: #fff0f7; }
+.ms .opts .hit.on { background: var(--ms-blue-wash); }
+.slots span.pickme.on { background: var(--grad); color: #fff; border-color: transparent; }
+.pressed { transform: scale(.94) !important; filter: brightness(.9); }
+.ms .dd { position: relative; }
+.ms .dd .inp::after { content: "⌄"; margin-left: auto; padding-left: .6em; color: #616161; }
+.ms .opts { position: absolute; left: 0; right: 0; top: calc(100% + 2px); background: #fff; border: 1px solid #d1d1d1; border-radius: 6px; box-shadow: 0 8px 22px rgba(0,0,0,.16); z-index: 3; padding: .25em 0; font-weight: 400; }
+.ms .opts div { padding: .45em .8em; font-size: .92em; display: flex; justify-content: space-between; gap: .6em; align-items: center; transition: background .25s; }
+.ms .opts div.hl { background: var(--ms-blue-wash); }
+.ms .opts .no { opacity: 0; transition: opacity .3s; }
+.ms .opts .no.on { opacity: 1; }
+.ms table { width: 100%; border-collapse: collapse; font-size: .84em; }
+.ms th { text-align: left; font-weight: 600; color: var(--ms-sub); border-bottom: 1px solid var(--ms-line); padding: .4em .5em; white-space: nowrap; }
+.ms td { border-bottom: 1px solid #f0f0f0; padding: .42em .5em; vertical-align: top; }
+.ms .tbl { overflow: hidden; }
+.ms .panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(31em, 92%); background: #fff; border-left: 1px solid #d1d1d1; box-shadow: -10px 0 30px rgba(0,0,0,.14); padding: 1em 1.1em; display: grid; gap: .7em; align-content: start; transform: translateX(105%); transition: transform .5s cubic-bezier(.2,.7,.2,1); z-index: 4; overflow: hidden; }
+.ms .panel.on { transform: none; }
+.ms .panel h4 { margin: 0; font-size: 1.15em; font-weight: 600; }
+.ms .tiles { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .5em; }
+.ms .tile { border: 1px solid #d1d1d1; border-radius: 6px; padding: .55em .7em; font-size: .86em; display: grid; gap: .2em; }
+.ms .tile b { font-weight: 600; }
+.ms .tile small { color: var(--ms-sub); }
+.ms .tile.big { padding: .9em; }
+.ms .tile.hit.on { border-color: var(--ms-blue); background: var(--ms-blue-wash); box-shadow: 0 0 0 1px var(--ms-blue); }
+.ms .perm { display: grid; grid-template-columns: 1.4em minmax(0,1fr) auto; gap: .5em; align-items: center; padding: .38em .2em; border-bottom: 1px solid #f0f0f0; font-size: .86em; }
+.ms .perm .nm { font-weight: 600; font-family: var(--mono); font-size: .92em; }
+.ms .perm .ds { color: var(--ms-sub); font-size: .92em; display: block; }
+.cb { width: 1.15em; height: 1.15em; border: 1.5px solid #616161; border-radius: 3px; display: grid; place-items: center; background: #fff; transition: all .25s; }
+.cb.on, .cb.pre { background: var(--ms-blue); border-color: var(--ms-blue); }
+.cb.on::after, .cb.pre::after { content: ""; width: .32em; height: .6em; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px,-1px); }
+.plain { font-family: var(--body); font-size: .8em; font-weight: 700; color: var(--pink); background: var(--wash); padding: .15em .55em; border-radius: 99px; white-space: nowrap; }
+.ms .bar-msg { display: flex; gap: .6em; align-items: flex-start; padding: .55em .8em; border-radius: 4px; font-size: .86em; background: #fff4ce; color: #3d2f00; border: 1px solid #f2d677; }
+.ms .bar-msg.info { background: var(--ms-blue-wash); color: #0e3a64; border-color: #b4d6fa; }
+.ms .hl-cell { outline: 2px solid var(--pink); outline-offset: -2px; border-radius: 3px; background: #fff0f7; }
+.ms .x-out { position: relative; }
+.ms .x-out.on::after { content: "Don't click"; position: absolute; left: calc(100% + .5em); top: 50%; transform: translateY(-50%); font-family: var(--body); font-size: .8em; font-weight: 800; color: #fff; background: var(--bad); padding: .15em .6em; border-radius: 99px; white-space: nowrap; }
+.ms .ess { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: .45em 1.2em; font-size: .88em; }
+.ms .ess dt { color: var(--ms-sub); } .ms .ess dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy { display: inline-grid; place-items: center; width: 1.6em; height: 1.6em; border-radius: 4px; color: var(--ms-blue); cursor: pointer; vertical-align: middle; }
+.copy::before { content: ""; width: .7em; height: .85em; border: 1.5px solid currentColor; border-radius: 2px; box-shadow: 2px -2px 0 -0.5px #fff, 3px -3px 0 0 currentColor; }
+.copied { position: relative; }
+.copied.on::after { content: "Copied"; position: absolute; left: 100%; top: -.2em; margin-left: .3em; font-family: var(--ms-font); font-size: .78em; background: var(--ms-dark); color: #fff; padding: .1em .5em; border-radius: 4px; white-space: nowrap; }
+.logo-drop { width: 5.2em; height: 5.2em; border: 1.5px dashed #8a8886; border-radius: 6px; display: grid; place-items: center; font-size: .8em; color: var(--ms-sub); position: relative; overflow: hidden; background: #fff; }
+.logo-drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: .4em; background: #fff; opacity: 0; transition: opacity .4s; }
+.logo-drop img.on { opacity: 1; }
+@container (max-width: 640px) {
+  .ms .nav, .ms .amenu, .ms .hdr .acct span { display: none; }
+  .ms .bd, .ms .app { grid-template-columns: minmax(0,1fr); }
+  .ms .ttl { font-size: 1.25em; }
+  .ms .panel { width: 100%; }
+  .ms .tiles { grid-template-columns: minmax(0,1fr); }
+  .ms .x-out.on::after { left: auto; right: 0; top: -1.6em; transform: none; }
+}
+
+/* editor + terminal (scene 7) */
+.hand { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .8em; align-content: center; height: 100%; }
+.hand .opt { display: grid; gap: .5em; align-content: start; min-width: 0; }
+.hand .opt .k { font-size: .74em; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+.ed, .term { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); font-family: var(--mono); font-size: .8em; min-width: 0; }
+.ed .tb, .term .tb { padding: .45em .8em; font-size: .92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed .tb { background: #e8e6ef; color: #3b3b4f; } .ed .code { background: #fbfaff; color: #1f2937; padding: .7em .8em; display: grid; gap: .25em; min-height: 6.5em; }
+.term .tb { background: #1c2236; color: #94a3b8; } .term .code { background: var(--term); color: var(--term-text); padding: .7em .8em; min-height: 6.5em; white-space: pre-wrap; word-break: break-all; }
+.ed .ln { white-space: pre-wrap; word-break: break-all; }
+.ed .k1 { color: #7c3aed; } .ed .cm { color: #6b7280; }
+.term .pr { color: #f472b6; }
+.never { grid-column: 1 / -1; display: flex; gap: .6em; align-items: center; padding: .7em 1em; border-radius: 12px; background: var(--bad-wash); color: var(--bad); font-weight: 700; font-size: .95em; }
+.todo { grid-column: 1 / -1; }
+.todo ul { list-style: none; margin: .3em 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .35em 1.2em; font-size: .88em; }
+.todo li { position: relative; padding-left: 1.5em; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.todo li::before { content: ""; position: absolute; left: 0; top: .3em; width: .9em; height: .9em; border-radius: 3px; border: 2px solid var(--line); transition: all .3s; }
+.todo li.on { color: var(--navy); }
+.todo li.on::before { background: var(--ok); border-color: var(--ok); }
+.todo code { font-family: var(--mono); font-size: .9em; }
+@container (max-width: 640px) { .hand, .todo ul { grid-template-columns: minmax(0,1fr); } .hand .opt:nth-child(2) .ed .code, .hand .opt .code { min-height: 0; } }
+
+/* phone mock (scene 8) */
+.phonewrap { height: 100%; display: grid; grid-template-columns: minmax(0,1fr) minmax(0, 1.05fr); gap: 1em; align-items: center; }
+.phone { position: relative; height: 100%; max-height: 40em; aspect-ratio: 9 / 18; max-width: 100%; justify-self: center; border-radius: 2.2em; background: #0b0b12; padding: .55em; box-shadow: var(--shadow); }
+.phone .scr { position: relative; height: 100%; border-radius: 1.75em; overflow: hidden; background: #fff; color: var(--ms-text); font-family: var(--ms-font); font-size: .86em; }
+.phone .view { padding: 2.2em 1.1em 1em; display: grid; gap: .7em; align-content: start; }
+.phone .ptop { position: absolute; top: .55em; left: 50%; width: 30%; height: 1.1em; transform: translateX(-50%); background: #0b0b12; border-radius: 99px; z-index: 5; }
+.lvp { background: #0f1424; color: #e2e8f0; font-family: var(--body); }
+.lvp h5 { margin: 0; font-size: 1.15em; color: #fff; font-family: var(--display); }
+.lvp .pc { background: #171d33; border: 1px solid #2a3150; border-radius: 12px; padding: .8em; display: grid; gap: .5em; }
+.lvp .pill { width: max-content; font-size: .78em; font-weight: 700; padding: .15em .6em; border-radius: 99px; background: #1e2745; color: #a5b4fc; }
+.lvp .pill.ok { background: #0f2a22; color: #34d399; } .lvp .pill.warn { background: #2a2210; color: #fbbf24; }
+.lvp .pbtn { background: linear-gradient(100deg, #db2777, #9333ea); color: #fff; border-radius: 10px; padding: .6em; text-align: center; font-weight: 700; cursor: pointer; transition: transform .12s; }
+.lvp .pbtn.sec { background: #232a46; }
+.lvp .sm { font-size: .82em; color: #94a3b8; }
+.lvp ul { margin: 0; padding-left: 1.1em; font-size: .82em; color: #cbd5e1; display: grid; gap: .2em; }
+.msv .mslogo { display: grid; grid-template-columns: repeat(2, .55em); gap: 2px; }
+.msv .mslogo i { width: .55em; height: .55em; display: block; } .msv .mslogo i:nth-child(1){background:#f25022} .msv .mslogo i:nth-child(2){background:#7fba00} .msv .mslogo i:nth-child(3){background:#00a4ef} .msv .mslogo i:nth-child(4){background:#ffb900}
+.msv h6 { margin: 0; font-size: 1.3em; font-weight: 600; }
+.msv .acc { display: flex; gap: .6em; align-items: center; padding: .6em; border-radius: 4px; border: 1px solid var(--ms-line); cursor: pointer; }
+.msv .acc .av { width: 2.2em; height: 2.2em; border-radius: 50%; background: #5b5fc7; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: .85em; flex: none; }
+.msv .appl { display: flex; gap: .6em; align-items: center; }
+.msv .appl img { width: 2.6em; height: 2.6em; border-radius: 6px; border: 1px solid var(--ms-line); background: #fff; padding: 2px; }
+.msv .unv { color: #a4262c; font-size: .82em; }
+.msv ul { margin: 0; padding-left: 1.1em; display: grid; gap: .3em; font-size: .9em; }
+.msv .btns { display: flex; justify-content: flex-end; gap: .5em; }
+.msv .b2 { padding: .38em 1em; border-radius: 4px; border: 1px solid #8a8886; font-weight: 600; cursor: pointer; transition: transform .12s; }
+.msv .b2.pri { background: var(--ms-blue); border-color: var(--ms-blue); color: #fff; }
+.msv .fine { font-size: .74em; color: var(--ms-sub); }
+.steps8 { display: grid; gap: .45em; align-content: center; }
+.steps8 .st { display: grid; grid-template-columns: 1.9em minmax(0,1fr); gap: .5em; align-items: start; font-size: .92em; color: var(--muted); transition: color .3s; }
+.steps8 .st i { width: 1.6em; height: 1.6em; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-style: normal; font-size: .78em; font-weight: 800; transition: all .3s; }
+.steps8 .st.on { color: var(--navy); } .steps8 .st.on i { background: var(--grad); border-color: transparent; color: #fff; }
+.steps8 .sep { font-size: .74em; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--warn); margin-top: .4em; }
+@container (max-width: 640px) { .phonewrap { grid-template-columns: minmax(0,1fr); } .steps8 { display: none; } .phone { max-height: none; aspect-ratio: auto; width: 100%; } }
+
+/* CRM mock (scene 9) */
+.test { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: .8em; height: 100%; align-content: center; }
+.test .todo { grid-column: auto; }
+.test .todo ul { grid-template-columns: minmax(0,1fr); }
+.crm { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); display: grid; grid-template-columns: 10em minmax(0,1fr); min-height: 21em; font-size: .86em; position: relative; }
+.crm .side { background: var(--soft); padding: .7em 0; display: grid; gap: .1em; align-content: start; }
+.crm .side div { padding: .35em .8em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid transparent; transition: all .3s; }
+.crm .side .hit.on { color: var(--navy); font-weight: 700; border-left-color: var(--pink); background: var(--card); }
+.crm .cmain { position: relative; min-width: 0; }
+.crm .cmain .view { padding: .8em; display: grid; gap: .5em; align-content: start; }
+.crm .row { display: flex; justify-content: space-between; gap: .5em; padding: .45em .6em; border: 1px solid var(--line); border-radius: 8px; align-items: center; min-width: 0; }
+.crm .row.hit.on { border-color: var(--pink); box-shadow: 0 0 0 1px var(--pink); }
+.crm .pv { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; padding: .25em .7em; font-weight: 600; color: var(--navy); width: max-content; cursor: pointer; transition: transform .12s; }
+.mk { grid-column: 1 / -1; text-align: center; font-family: var(--display); font-weight: 800; color: var(--navy); font-size: 1.25em; }
+.mk span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@container (max-width: 640px) { .test { grid-template-columns: minmax(0,1fr); align-content: start; } .crm { min-height: 16em; grid-template-columns: minmax(0,1fr); } .crm .side { display: none; } .test .todo ul { font-size: .82em; gap: .2em; } }
+
+/* scene 10 */
+.later { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .8em; align-content: center; height: 100%; }
+.later .card { display: grid; gap: .5em; align-content: start; }
+.badge-row { display: flex; gap: .6em; align-items: center; font-family: var(--ms-font); font-size: .86em; background: #fff; color: #242424; border: 1px solid #e0e0e0; border-radius: 8px; padding: .5em .7em; }
+.badge-row img { width: 2em; height: 2em; }
+.badge-row .v { color: #a4262c; } .badge-row .v.ok { color: #0f6cbd; font-weight: 600; }
+.endcard { grid-column: 1 / -1; display: flex; gap: .6em; justify-content: center; align-items: center; flex-wrap: wrap; font-family: var(--display); font-weight: 700; color: var(--navy); font-size: 1.1em; }
+.endcard span { padding: .45em .9em; border-radius: 99px; background: var(--soft); }
+.endcard span:last-child { background: var(--grad); color: #fff; }
+@container (max-width: 640px) { .later { grid-template-columns: minmax(0,1fr); align-content: start; } }
+
+/* pointer */
+.ptr { position: absolute; left: 0; top: 0; width: 22px; height: 22px; z-index: 20; pointer-events: none; opacity: 0; transition: transform .65s cubic-bezier(.3,.7,.2,1), opacity .3s; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.ptr.on { opacity: 1; }
+.ptr::after { content: ""; position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #db2777; opacity: 0; transform: scale(.4); }
+.ptr.tap::after { animation: tap .45s ease-out; }
+@keyframes tap { 0% { opacity: .9; transform: scale(.4); } 100% { opacity: 0; transform: scale(2.2); } }
+
+/* overlay play */
+.ov { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; place-items: end; padding: 4% 3% 3%; background: linear-gradient(to top, color-mix(in srgb, var(--card) 85%, transparent), transparent); pointer-events: none; }
+.ov button { pointer-events: auto; }
+.ov[hidden] { display: none !important; }
+.ov button { display: flex; align-items: center; gap: .8em; border: 0; cursor: pointer; background: var(--grad); color: #fff; font-family: var(--display); font-weight: 800; font-size: clamp(14px, 1.7cqi, 19px); padding: .75em 1.3em; border-radius: 99px; box-shadow: 0 16px 40px -12px rgba(147,51,234,.6); }
+.ov button svg { width: 1.2em; height: 1.2em; }
+.ov .sub { display: block; font-weight: 500; font-size: .7em; opacity: .9; }
+
+/* caption + controls */
+.cap { min-height: 3.6em; display: grid; place-items: center; text-align: center; padding-inline: 8px; }
+.cap span { font-size: clamp(15px, 1.9vw, 19px); color: var(--navy); font-weight: 500; max-width: 60ch; text-wrap: balance; }
+.cap.off span { visibility: hidden; }
+.ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ctl .ib { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; min-width: 40px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--card); color: var(--navy); cursor: pointer; font-weight: 700; font-size: 13px; }
+.ctl .ib svg { width: 18px; height: 18px; }
+.ctl .ib.pri { background: var(--grad); border-color: transparent; color: #fff; width: 48px; height: 48px; padding: 0; }
+.ctl .ib[aria-pressed="true"] { background: var(--soft); border-color: var(--purple); }
+.ctl .time { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.prog { flex: 1 1 260px; min-width: 0; height: 28px; position: relative; cursor: pointer; display: flex; align-items: center; touch-action: none; }
+.prog .segs { position: absolute; left: 0; right: 0; height: 6px; display: flex; gap: 3px; }
+.prog .segs i { height: 100%; border-radius: 3px; background: var(--line); position: relative; overflow: hidden; display: block; }
+.prog .segs i b { position: absolute; inset: 0; background: var(--grad); transform-origin: left; transform: scaleX(0); }
+.prog .knob { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: var(--card); border: 3px solid var(--purple); transform: translateX(-50%); left: 0; }
+.chap { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.chap button { width: 100%; text-align: left; display: grid; grid-template-columns: 2.2em minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--slate); cursor: pointer; }
+.chap button .n { font-weight: 800; color: var(--pink); font-variant-numeric: tabular-nums; }
+.chap button .tt { font-weight: 600; color: var(--navy); min-width: 0; }
+.chap button .d { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chap button[aria-current="true"] { border-color: var(--purple); background: var(--soft); }
+.fine { font-size: 12.5px; color: var(--muted); max-width: 80ch; }
+.fine b { color: var(--slate); }
+
+@media (prefers-reduced-motion: reduce) {
+  .scene, .scene.cur, .b, .view, .view.on, .ms .panel, .ptr, .pts li, .todo li, .ev { transition: opacity .2s linear, visibility 0s !important; transform: none !important; }
+  .ms .panel { transform: none !important; display: none; } .ms .panel.on { display: grid; }
+  .ptr.tap::after, .typing::after { animation: none !important; }
+  .sh:not(.on) { display: none !important; }
+.ms .amenu .hit.on { background: var(--ms-blue-wash); border-left-color: var(--ms-blue); color: var(--ms-text); font-weight: 600; }
+.ms td.hit.on { outline: 2px solid var(--pink); outline-offset: -2px; background: #fff0f7; }
+.ms .opts .hit.on { background: var(--ms-blue-wash); }
+.slots span.pickme.on { background: var(--grad); color: #fff; border-color: transparent; }
+.pressed { transform: none !important; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <img src="logo.png" alt="Lead Velocity">
+    <div class="t">
+      <div class="k">Lead Velocity · for Jono</div>
+      <h1>Connect my Outlook calendar: the Microsoft setup</h1>
+    </div>
+    <div class="bar" aria-hidden="true"></div>
+  </header>
+
+  <div class="stage" id="stage">
+
+    <!-- 1 -->
+    <section class="scene" data-id="s01" data-title="Why">
+      <div class="lede">
+        <div class="eyebrow">1 · Why</div>
+        <h2>One button. Real bookings in the broker's own calendar.</h2>
+        <ul class="pts">
+          <li data-at="routed">Lead routed to the broker</li>
+          <li data-at="free">Only real free times offered</li>
+          <li data-at="lands">Meeting in the broker's Outlook, with Teams</li>
+          <li data-at="howzitleadvelocitycoza">Email from howzit@, not the broker</li>
+          <li data-at="moves">Move or cancel follows</li>
+        </ul>
+        <div class="status b" data-at="honest"><span>●</span><span><b>Built, not switched on yet.</b> The booking workflows (W01 to W10) are off, waiting for the gate test.</span></div>
+      </div>
+      <div class="screen">
+        <div class="flow">
+          <div class="card b" data-at="routed">
+            <span class="n">New lead</span>
+            <h3>Thandi · SortMyCover</h3>
+            <span class="s">Routed to <b>Mark</b> · brand broker, active, order has leads left</span>
+          </div>
+          <div class="card b" data-at="free">
+            <span class="n">Mark's free times · Tue 14 Oct</span>
+            <div class="slots"><span class="busy">09:00</span><span class="free">09:30</span><span class="busy">10:00</span><span class="free pickme" data-at="picks">10:30</span><span class="free">11:30</span><span class="busy">14:00</span><span class="free">15:00</span></div>
+            <span class="s">From his Outlook free/busy plus our own bookings</span>
+          </div>
+          <div class="card b" data-at="lands">
+            <span class="n">Mark's Outlook</span>
+            <div class="ev"><b>SortMyCover call – Thandi – Teams</b><span class="tm">Tue 14 Oct · 10:30-11:00</span><span class="tag pk sh" data-at="moves#2" data-until="removed" style="width:max-content">Moved to 11:30</span><span class="tag bad sh" data-at="removed" style="width:max-content">Cancelled: event removed</span><span class="teams b" data-at="Teams">Join Teams meeting</span><span class="s">Organiser: Mark</span></div>
+          </div>
+          <div class="card b" data-at="confirmation">
+            <span class="n">Client's inbox</span>
+            <div class="mail"><span class="from">From <b>howzit@leadvelocity.co.za</b></span><span>Your call with Mark on Tue 14 Oct at 10:30 (South African time)</span><span class="att">📎 sortmycover-call.ics</span></div>
+          </div>
+          <div class="card wide b" data-at="moves">
+            <span class="n">Client moves, then cancels</span>
+            <span class="s">The same Outlook event is updated, then deleted. No typing for Mark.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="scene" data-id="s02" data-title="The big picture">
+      <div class="lede">
+        <div class="eyebrow">2 · The big picture</div>
+        <h2>You set it up once. Brokers just tap Connect.</h2>
+        <p>One multi-tenant Microsoft Entra app, called <b>Lead Velocity</b>, shared by every broker.</p>
+      </div>
+      <div class="screen">
+        <div class="big">
+          <div class="card b" data-at="register"><span class="ic">1</span><h3>You register one app</h3><span class="s">Once, in Microsoft Entra. Name: Lead Velocity.</span></div>
+          <div class="card b" data-at="taps"><span class="ic">2</span><h3>Broker taps Connect</h3><span class="s">Connect my Outlook calendar, in the portal.</span></div>
+          <div class="card b" data-at="asks"><span class="ic">3</span><h3>Microsoft asks</h3><span class="s">Work account sign-in, then "Permissions requested".</span></div>
+          <div class="card b" data-at="Accept"><span class="ic">✓</span><h3>Connected</h3><span class="s">Back in the portal: Connected as …</span></div>
+          <div class="note b" data-at="No">No broker ever registers anything.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="scene" data-id="s03" data-title="Register the app">
+      <div class="lede">
+        <div class="eyebrow">3 · Register the app</div>
+        <h2>New registration, then two redirect addresses</h2>
+        <ul class="pts">
+          <li data-at="Open">Entra ID › App registrations › New registration</li>
+          <li data-at="Type">Name: <b>Lead Velocity</b></li>
+          <li data-at="Multiple">Supported account types: <b>Multiple Entra ID tenants</b></li>
+          <li data-at="Register">Register</li>
+          <li data-at="Authentication">Authentication › Add Redirect URI › Web › Configure</li>
+          <li data-at="second">Second Web URI for IT admins</li>
+        </ul>
+      </div>
+      <div class="screen">
+        <div class="ms">
+          <div class="url"><span class="dots"><i></i><i></i><i></i></span><span class="addr">🔒 entra.microsoft.com</span></div>
+          <div class="hdr"><span class="w">Microsoft Entra admin center</span><span class="sp"></span><span class="acct"><span>jono@vantagestack.co.za</span><span class="av">JJ</span></span></div>
+          <div class="bd">
+            <nav class="nav"><div>Home</div><div class="hit" data-at="Entra">Entra ID</div><div class="sub">Overview</div><div class="sub">Users</div><div class="sub">Groups</div><div class="sub hit" data-at="App">App registrations</div><div class="sub">Enterprise apps</div></nav>
+            <div class="main">
+              <div class="view" data-at="0" data-until="New+0.7">
+                <div class="crumb">Home › Entra ID</div>
+                <div class="ttl">App registrations</div>
+                <div class="cmd"><span class="click" data-click="New"><b>+</b>New registration</span><span>Endpoints</span><span>Troubleshooting</span></div>
+                <div class="pad"><span style="font-size:.86em;color:var(--ms-sub)">All applications · Owned applications</span><div class="bar-msg info">This account has no app registrations yet.</div></div>
+              </div>
+              <div class="view" data-at="New+0.7" data-until="Authentication">
+                <div class="crumb">Home › App registrations</div>
+                <div class="ttl">Register an application</div>
+                <div class="pad">
+                  <label class="f">Name <small>The user-facing display name for this application</small><span class="inp"><span data-type="name,+0.2" data-dur="1.1">Lead Velocity</span></span></label>
+                  <label class="f">Supported account types
+                    <span class="dd"><span class="inp"><span class="ph sh" data-at="0" data-until="Multiple+0.3">Select an option</span><span class="sh" data-at="Multiple+0.3">Multiple Entra ID tenants</span></span>
+                      <span class="opts view" data-at="Supported+0.4" data-until="Click" style="position:absolute;inset:auto 0 auto 0;top:calc(100% + 2px)">
+                        <div>Single tenant only - your directory <small style="color:var(--ms-sub)">Recommended</small></div>
+                        <div class="hit" data-at="Multiple" style="font-weight:600">Multiple Entra ID tenants <span class="tag ok b" data-at="Multiple+0.2">Choose this</span></div>
+                        <div>Any Entra ID Tenant + Personal Microsoft accounts <span class="tag bad no" data-at="Don't">Not this</span></div>
+                        <div>Personal accounts only <span class="tag bad no" data-at="Don't">Not this</span></div>
+                      </span>
+                    </span>
+                  </label>
+                  <span class="btn click" data-click="Register.">Register</span>
+                </div>
+              </div>
+              <div class="view" data-at="Authentication">
+                <div class="app">
+                  <div class="amenu"><div>Overview</div><div class="grp">Manage</div><div>Branding &amp; properties</div><div class="act">Authentication</div><div>Certificates &amp; secrets</div><div>API permissions</div></div>
+                  <div class="apane">
+                    <div class="crumb">Home › App registrations › Lead Velocity</div>
+                    <div class="ttl">Lead Velocity <small>| Authentication</small></div>
+                    <div class="pad">
+                      <span style="font-size:.86em;font-weight:600;border-bottom:2px solid var(--ms-blue);width:max-content;padding-bottom:.2em">Redirect URI configuration</span>
+                      <span class="btn sec click" data-click="add">+ Add Redirect URI</span>
+                      <div class="tbl b" data-at="Configure.+0.6">
+                        <table><tr><th>Platform: Web</th></tr>
+                          <tr><td class="mono">https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/ms-oauth/callback</td></tr>
+                          <tr><td class="mono"><span data-type="second+0.1" data-dur="1.8">https://leadvelocity.co.za/broker/calendar</span></td></tr>
+                        </table>
+                      </div>
+                    </div>
+                    <div class="panel" data-at="add+0.5" data-until="Configure.+0.4">
+                      <h4>Select a platform to add redirect URI</h4>
+                      <div class="tiles sh" data-at="0" data-until="Web+0.6">
+                        <div class="tile hit" data-at="Web"><b class="click" data-click="Web">Web</b><small>Server-side apps</small></div>
+                        <div class="tile"><b>Single-page application</b></div>
+                        <div class="tile"><b>iOS / macOS</b></div>
+                        <div class="tile"><b>Android</b></div>
+                        <div class="tile"><b>Mobile and desktop applications</b></div>
+                      </div>
+                      <div class="sh" style="display:grid;gap:.7em" data-at="Web+0.6">
+                        <label class="f">Redirect URI <span class="inp mono"><span data-type="paste" data-dur="2.2">https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/ms-oauth/callback</span></span></label>
+                        <span class="bar-msg b" data-at="exactly">Exact match. One wrong character and sign-in fails.</span>
+                        <span class="btn click" data-click="Configure.">Configure</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="scene" data-id="s04" data-title="Permissions">
+      <div class="lede">
+        <div class="eyebrow">4 · API permissions</div>
+        <h2>Five delegated permissions. No mail.</h2>
+        <ul class="pts">
+          <li data-at="openid"><code>openid</code>: signs them in</li>
+          <li data-at="offline_access"><code>offline_access</code>: stays connected</li>
+          <li data-at="User.Read"><code>User.Read</code>: name and email</li>
+          <li data-at="Calendars.ReadWrite"><code>Calendars.ReadWrite</code>: free times, bookings</li>
+          <li data-at="OnlineMeetings.ReadWrite"><code>OnlineMeetings.ReadWrite</code>: the Teams link</li>
+        </ul>
+      </div>
+      <div class="screen">
+        <div class="ms">
+          <div class="url"><span class="dots"><i></i><i></i><i></i></span><span class="addr">🔒 entra.microsoft.com</span></div>
+          <div class="hdr"><span class="w">Microsoft Entra admin center</span><span class="sp"></span><span class="acct"><span>jono@vantagestack.co.za</span><span class="av">JJ</span></span></div>
+          <div class="app">
+            <div class="amenu"><div>Overview</div><div class="grp">Manage</div><div>Branding &amp; properties</div><div>Authentication</div><div>Certificates &amp; secrets</div><div class="act">API permissions</div></div>
+            <div class="apane">
+              <div class="crumb">Home › App registrations › Lead Velocity</div>
+              <div class="ttl">Lead Velocity <small>| API permissions</small></div>
+              <div class="cmd"><span class="click" data-click="Add"><b>+</b>Add a permission</span><span class="x-out hit" data-at="Grant">✓ Grant admin consent for …</span></div>
+              <div class="pad">
+                <span style="font-size:.86em;font-weight:600">Configured permissions</span>
+                <table>
+                  <tr><th>API / Permissions name</th><th>Type</th><th>Admin consent required</th></tr>
+                  <tr><td>▾ Microsoft Graph</td><td></td><td></td></tr>
+                  <tr class="b" data-at="Add#2+0.8"><td class="mono">openid</td><td>Delegated</td><td>No</td></tr>
+                  <tr class="b" data-at="Add#2+0.9"><td class="mono">offline_access</td><td>Delegated</td><td>No</td></tr>
+                  <tr><td class="mono">User.Read</td><td>Delegated</td><td>No</td></tr>
+                  <tr class="b" data-at="Add#2+1.0"><td class="mono">Calendars.ReadWrite</td><td>Delegated</td><td>No</td></tr>
+                  <tr class="b" data-at="Add#2+1.1"><td class="mono">OnlineMeetings.ReadWrite</td><td>Delegated</td><td>No</td></tr>
+                </table>
+                <span class="tag pk b" data-at="mail" style="font-size:.86em">No Mail permission. Lead Velocity never reads email.</span>
+              </div>
+              <div class="panel" data-at="Add+0.5" data-until="Add#2+0.5">
+                <h4>Request API permissions</h4>
+                <div class="sh" style="display:grid;gap:.6em" data-at="0" data-until="Graph+0.6">
+                  <span style="font-size:.86em;color:var(--ms-sub)">Microsoft APIs · Commonly used Microsoft APIs</span>
+                  <div class="tiles"><div class="tile big hit click" data-at="Graph" data-click="Graph"><b>Microsoft Graph</b><small>Take advantage of the tremendous amount of data in Office 365, Enterprise Mobility + Security, and Windows 10.</small></div><div class="tile big"><b>Azure Service Management</b></div></div>
+                </div>
+                <div class="sh" style="display:grid;gap:.6em" data-at="Graph+0.6" data-until="Delegated+0.7">
+                  <span style="font-size:.9em;font-weight:600">What type of permissions does your application require?</span>
+                  <div class="tiles"><div class="tile big hit click" data-at="Delegated" data-click="Delegated"><b>Delegated permissions</b><small>Your application needs to access the API as the signed-in user.</small></div><div class="tile big"><b>Application permissions</b><small>Your application runs as a background service or daemon without a signed-in user.</small></div></div>
+                </div>
+                <div class="sh" style="display:grid;gap:.3em" data-at="Delegated+0.7">
+                  <span style="font-size:.86em;font-weight:600">Select permissions</span>
+                  <div class="perm"><span class="cb" data-at="openid"></span><span><span class="nm">openid</span><span class="ds">Sign users in</span></span><span class="plain b" data-at="openid">signs in</span></div>
+                  <div class="perm"><span class="cb" data-at="offline_access"></span><span><span class="nm">offline_access</span><span class="ds">Maintain access to data you have given it access to</span></span><span class="plain b" data-at="offline_access">stays on</span></div>
+                  <div class="perm"><span class="cb pre"></span><span><span class="nm">User.Read</span><span class="ds">Sign in and read user profile</span></span><span class="plain b" data-at="User.Read">name, email</span></div>
+                  <div class="perm"><span class="cb" data-at="Calendars.ReadWrite"></span><span><span class="nm">Calendars.ReadWrite</span><span class="ds">Have full access to user calendars</span></span><span class="plain b" data-at="Calendars.ReadWrite">free times, bookings</span></div>
+                  <div class="perm"><span class="cb" data-at="OnlineMeetings.ReadWrite"></span><span><span class="nm">OnlineMeetings.ReadWrite</span><span class="ds">Read and create user's online meetings</span></span><span class="plain b" data-at="OnlineMeetings.ReadWrite">Teams link</span></div>
+                  <span class="btn click" data-click="Add#2" style="margin-top:.4em">Add permissions</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="scene" data-id="s05" data-title="The secret and the ID">
+      <div class="lede">
+        <div class="eyebrow">5 · Secret and ID</div>
+        <h2>Copy the Value now. Microsoft shows it once.</h2>
+        <ul class="pts">
+          <li data-at="New">Certificates &amp; secrets › New client secret</li>
+          <li data-at="24">Expires: 24 months (the maximum)</li>
+          <li data-at="Value">Copy the <b>Value</b>, not the Secret ID</li>
+          <li data-at="Overview">Overview › copy Application (client) ID</li>
+        </ul>
+      </div>
+      <div class="screen">
+        <div class="ms">
+          <div class="url"><span class="dots"><i></i><i></i><i></i></span><span class="addr">🔒 entra.microsoft.com</span></div>
+          <div class="hdr"><span class="w">Microsoft Entra admin center</span><span class="sp"></span><span class="acct"><span>jono@vantagestack.co.za</span><span class="av">JJ</span></span></div>
+          <div class="app">
+            <div class="amenu"><div class="hit" data-at="Overview">Overview</div><div class="grp">Manage</div><div>Branding &amp; properties</div><div>Authentication</div><div class="hit" data-at="0" data-until="Overview">Certificates &amp; secrets</div><div>API permissions</div></div>
+            <div class="apane">
+              <div class="view" data-at="0" data-until="Overview">
+                <div class="crumb">Home › App registrations › Lead Velocity</div>
+                <div class="ttl">Lead Velocity <small>| Certificates &amp; secrets</small></div>
+                <div class="pad">
+                  <div style="display:flex;gap:1.2em;font-size:.86em"><span>Certificates (0)</span><span style="font-weight:600;border-bottom:2px solid var(--ms-blue)">Client secrets (<span class="sh" data-at="0" data-until="Add.+0.5">0</span><span class="sh" data-at="Add.+0.5">1</span>)</span><span>Federated credentials (0)</span></div>
+                  <span class="btn sec click" data-click="New" style="font-weight:400">+ New client secret</span>
+                  <div class="bar-msg b" data-at="once">Copy the Value now. It is never displayed again after you leave this page.</div>
+                  <div class="tbl b" data-at="Add.+0.5">
+                    <table><tr><th>Description</th><th>Expires</th><th>Value</th><th>Secret ID</th></tr>
+                      <tr><td>Lead Velocity portal</td><td>13/10/2028</td><td class="hit" data-at="Value"><span class="mono">Xq8~EXAMPLE·not·real</span> <span class="copy click copied" data-click="Copy" data-at="Copy+0.2" data-until="Not"></span></td><td><span class="mono" style="opacity:.6">8f3c…example</span> <span class="tag bad b" data-at="Not">not this</span></td></tr>
+                    </table>
+                  </div>
+                </div>
+                <div class="panel" data-at="New+0.5" data-until="Add.+0.4">
+                  <h4>Add a client secret</h4>
+                  <label class="f">Description<span class="inp"><span data-type="Call" data-dur="1.2">Lead Velocity portal</span></span></label>
+                  <label class="f">Expires<span class="dd"><span class="inp"><span class="ph sh" data-at="0" data-until="24">180 days (6 months) (Recommended)</span><span class="sh" data-at="24">730 days (24 months)</span></span></span></label>
+                  <span style="font-size:.8em;color:var(--ms-sub)" class="b" data-at="longest">Microsoft allows two years at most and suggests shorter. Claude tracks the expiry date.</span>
+                  <span class="btn click" data-click="Add.">Add</span>
+                </div>
+              </div>
+              <div class="view" data-at="Overview">
+                <div class="crumb">Home › App registrations</div>
+                <div class="ttl">Lead Velocity <small>| Overview</small></div>
+                <div class="pad">
+                  <span style="font-size:.9em;font-weight:600">Essentials</span>
+                  <dl class="ess">
+                    <dt>Display name</dt><dd>Lead Velocity</dd>
+                    <dt>Application (client) ID</dt><dd class="hl-cell"><span class="mono">00000000-0000-0000-0000-000000000000</span> <span class="copy click copied" data-click="copy#2" data-at="copy#2+0.2"></span></dd>
+                    <dt>Object ID</dt><dd class="mono" style="opacity:.6">example</dd>
+                    <dt>Directory (tenant) ID</dt><dd class="mono" style="opacity:.6">example</dd>
+                  </dl>
+                  <span class="tag ok b" data-at="isn't" style="font-size:.86em">The ID isn't secret. The Value is.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="scene" data-id="s06" data-title="Make it look trustworthy">
+      <div class="lede">
+        <div class="eyebrow">6 · Branding &amp; properties</div>
+        <h2>What brokers see on the Microsoft screen</h2>
+        <ul class="pts">
+          <li data-at="Upload">Logo: square PNG, 215 × 215 px, solid background, under 100 KB</li>
+          <li data-at="home">Home page: leadvelocity.co.za</li>
+          <li data-at="terms">Terms and privacy: pages not built yet, leave empty</li>
+          <li data-at="Save.">Save</li>
+        </ul>
+      </div>
+      <div class="screen">
+        <div class="ms">
+          <div class="url"><span class="dots"><i></i><i></i><i></i></span><span class="addr">🔒 entra.microsoft.com</span></div>
+          <div class="hdr"><span class="w">Microsoft Entra admin center</span><span class="sp"></span><span class="acct"><span>jono@vantagestack.co.za</span><span class="av">JJ</span></span></div>
+          <div class="app">
+            <div class="amenu"><div>Overview</div><div class="grp">Manage</div><div class="act">Branding &amp; properties</div><div>Authentication</div><div>Certificates &amp; secrets</div><div>API permissions</div></div>
+            <div class="apane">
+              <div class="crumb">Home › App registrations › Lead Velocity</div>
+              <div class="ttl">Lead Velocity <small>| Branding &amp; properties</small></div>
+              <div class="pad">
+                <label class="f">Name<span class="inp">Lead Velocity</span></label>
+                <div style="display:flex;gap:1em;align-items:center;flex-wrap:wrap">
+                  <span class="f" style="font-size:.88em;font-weight:600">Logo</span>
+                  <span class="logo-drop click" data-click="Upload">Upload<img src="logo.png" alt="" data-at="Upload+0.4"></span>
+                  <span style="display:flex;gap:.3em;flex-wrap:wrap"><span class="tag pk b" data-at="215">215 × 215 px</span><span class="tag pk b" data-at="solid">solid, not transparent</span><span class="tag pk b" data-at="100">≤ 100 KB</span></span>
+                </div>
+                <label class="f">Home page URL<span class="inp"><span data-type="home+0.3" data-dur="1.3">https://leadvelocity.co.za</span></span></label>
+                <label class="f">Terms of service URL<span class="inp"><span class="ph">empty for now</span><span class="tag warn b" data-at="terms" style="margin-left:auto">page not built yet</span></span></label>
+                <label class="f">Privacy statement URL<span class="inp"><span class="ph">empty for now</span><span class="tag warn b" data-at="privacy" style="margin-left:auto">page not built yet</span></span></label>
+                <span class="btn click" data-click="Save.">Save</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="scene" data-id="s07" data-title="Hand it to Claude">
+      <div class="lede">
+        <div class="eyebrow">7 · Hand-off</div>
+        <h2>Two values to Claude. Never through chat.</h2>
+        <p>The Application (client) ID and the secret Value. Pick one way.</p>
+      </div>
+      <div class="screen">
+        <div class="hand">
+          <div class="never b" data-at="Never">✕ Never paste the secret into a chat, an email or WhatsApp.</div>
+          <div class="opt b" data-at="Option">
+            <span class="k">Option 1 · a local file</span>
+            <div class="ed"><div class="tb">lv-release\supabase\.env.ms-oauth</div>
+              <div class="code"><span class="ln cm"># paste, save, close. Never committed (.gitignore: .env.*)</span><span class="ln"><span class="k1">MS_CLIENT_ID=</span><span data-type="paste+0.2" data-dur="1.2">your-Application-client-ID</span></span><span class="ln"><span class="k1">MS_CLIENT_SECRET=</span><span data-type="paste+1.4" data-dur="1.2">your-secret-Value</span></span></div></div>
+            <span class="tag ok b" data-at="git" style="width:max-content">never goes into git</span>
+          </div>
+          <div class="opt b" data-at="Option#2">
+            <span class="k">Option 2 · set them yourself</span>
+            <div class="term"><div class="tb">Terminal · lv-release</div>
+              <div class="code"><span class="pr">$ </span><span data-type="Option#2+0.6" data-dur="2.6">supabase secrets set --project-ref cmsylaupctrbsvzrgzwy MS_CLIENT_ID=… MS_CLIENT_SECRET=…</span></div></div>
+          </div>
+          <div class="card todo b" data-at="rest">
+            <h3>Claude does the rest</h3>
+            <ul>
+              <li data-at="redirect"><code>MS_REDIRECT_URI</code> (the callback address)</li>
+              <li data-at="state"><code>MS_OAUTH_STATE_SECRET</code> (random, 32+ characters)</li>
+              <li data-at="portal"><code>PORTAL_URL</code> = https://leadvelocity.co.za</li>
+              <li data-at="deploys">Deploy the <code>ms-oauth</code> sign-in function</li>
+              <li data-at="expires">Record the secret's expiry date</li>
+              <li data-at="expires+0.8">Same ID and secret in n8n, for token refresh</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 -->
+    <section class="scene" data-id="s08" data-title="What a broker sees">
+      <div class="lede">
+        <div class="eyebrow">8 · What Mark sees</div>
+        <h2>Tap, pick account, Accept. Connected.</h2>
+        <p class="b" data-at="Some">If his company blocks new apps, his IT admin approves once.</p>
+      </div>
+      <div class="screen">
+        <div class="phonewrap">
+          <div class="steps8">
+            <div class="st" data-at="taps"><i>1</i><span>Taps <b>Connect my Outlook calendar</b></span></div>
+            <div class="st" data-at="picks"><i>2</i><span>Picks his work account</span></div>
+            <div class="st" data-at="Permissions"><i>3</i><span>Permissions requested › <b>Accept</b></span></div>
+            <div class="st" data-at="lands"><i>✓</i><span>Connected, with his next free slot</span></div>
+            <div class="sep b" data-at="Some">If IT blocks it</div>
+            <div class="st" data-at="Need"><i>!</i><span>"Need admin approval"</span></div>
+            <div class="st" data-at="gives"><i>4</i><span>Portal gives a note and the approval link</span></div>
+            <div class="st" data-at="accepts"><i>5</i><span>Admin accepts for the whole company</span></div>
+            <div class="st" data-at="connect"><i>✓</i><span>Mark taps Connect again</span></div>
+            <div class="st" data-at="shared"><i>·</i><span>Or for now: the shared calendar</span></div>
+          </div>
+          <div class="phone"><span class="ptop"></span>
+            <div class="scr">
+              <div class="view lvp" data-at="0" data-until="picks">
+                <h5>Appointments</h5>
+                <div class="pc"><span class="pill">Not connected</span><b>Connect my Outlook calendar</b><span class="sm">So SortMyCover clients can book a Teams call in your real free time.</span>
+                  <span class="sm">What we will ask Microsoft for</span>
+                  <ul><li>See when you are free or busy (not what your meetings are about)</li><li>Add and remove the meetings SortMyCover books for you</li><li>Create a Teams link for each of those meetings</li></ul>
+                  <span class="pbtn click" data-click="taps">Connect my Outlook calendar</span>
+                  <span class="sm">One tap: sign in with your work Microsoft account and choose Accept.</span></div>
+              </div>
+              <div class="view msv" data-at="picks" data-until="Permissions">
+                <span class="mslogo"><i></i><i></i><i></i><i></i></span><h6>Pick an account</h6>
+                <div class="acc click" data-click="picks+0.5"><span class="av">MW</span><span>Mark Weston<br><small style="color:var(--ms-sub)">markw@oraclebrokers.com</small></span></div>
+                <div class="acc" style="color:var(--ms-sub)">+ Use another account</div>
+              </div>
+              <div class="view msv" data-at="Permissions" data-until="lands">
+                <span class="mslogo"><i></i><i></i><i></i><i></i></span>
+                <span class="fine">markw@oraclebrokers.com</span>
+                <h6>Permissions requested</h6>
+                <div class="appl"><img src="logo.png" alt=""><span><b>Lead Velocity</b><br><span class="unv">unverified</span></span></div>
+                <span>This app would like to:</span>
+                <ul><li>Sign you in and read your profile</li><li>Maintain access to data you have given it access to</li><li>Have full access to your calendars</li><li>Read and create your online meetings</li></ul>
+                <span class="fine">Wording on the live screen can differ slightly.</span>
+                <div class="btns"><span class="b2">Cancel</span><span class="b2 pri click" data-click="taps#2">Accept</span></div>
+              </div>
+              <div class="view lvp" data-at="lands" data-until="Need">
+                <h5>Appointments</h5>
+                <div class="pc"><span class="pill ok">Connected</span><span>Connected as <b>markw@oraclebrokers.com</b></span><span class="sm">Next free slot we can offer: Tue 14 Oct, 09:30</span>
+                  <span class="sm">Permissions granted</span><ul><li>✓ See when you are free or busy</li><li>✓ Add and remove the meetings SortMyCover books for you</li><li>✓ Create a Teams link for each of those meetings</li></ul>
+                  <span class="pbtn sec">Disconnect</span></div>
+              </div>
+              <div class="view msv" data-at="Need" data-until="gives">
+                <span class="mslogo"><i></i><i></i><i></i><i></i></span>
+                <span class="fine">markw@oraclebrokers.com</span>
+                <h6>Need admin approval</h6>
+                <div class="appl"><img src="logo.png" alt=""><b>Lead Velocity</b></div>
+                <span>Lead Velocity needs permission to access resources in your organization that only an admin can grant. Please ask an admin to grant permission to this app before you can use it.</span>
+              </div>
+              <div class="view lvp" data-at="gives" data-until="opens">
+                <h5>Appointments</h5>
+                <div class="pc"><span class="pill warn">Waiting for your IT admin</span><b>Microsoft says your organisation needs admin approval.</b>
+                  <span class="sm">Your IT admin has switched off new apps for staff. They approve SortMyCover once (about 2 minutes), then you tap Connect again. Email them this note:</span>
+                  <span class="sm" style="font-family:var(--mono);font-size:.72em;word-break:break-all">https://login.microsoftonline.com/organizations/v2.0/adminconsent?client_id=…&amp;scope=https://graph.microsoft.com/.default&amp;redirect_uri=https://leadvelocity.co.za/broker/calendar</span>
+                  <span class="pbtn click" data-click="one-click">Email my IT admin</span><span class="pbtn sec">Copy the approval link</span></div>
+              </div>
+              <div class="view msv" data-at="opens" data-until="connect">
+                <span class="mslogo"><i></i><i></i><i></i><i></i></span>
+                <span class="fine">it-admin@oraclebrokers.com</span>
+                <h6>Permissions requested</h6>
+                <span style="font-weight:600">Accept for your organization</span>
+                <div class="appl"><img src="logo.png" alt=""><span><b>Lead Velocity</b><br><span class="unv">unverified</span></span></div>
+                <span class="fine">Covers everyone at Oracle Brokers. Same five permissions.</span>
+                <div class="btns"><span class="b2">Cancel</span><span class="b2 pri click" data-click="accepts">Accept</span></div>
+              </div>
+              <div class="view lvp" data-at="connect">
+                <h5>Appointments</h5>
+                <div class="pc"><span class="pill ok">Connected</span><span>Connected as <b>markw@oraclebrokers.com</b></span><span class="sm">Next free slot we can offer: Tue 14 Oct, 09:30</span></div>
+                <div class="pc b" data-at="shared"><span class="sm">If IT is slow:</span><span class="pbtn sec">Use the shared calendar instead</span><span class="sm">We can then only see the meetings we book.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9 -->
+    <section class="scene" data-id="s09" data-title="Test it, then Mark">
+      <div class="lede">
+        <div class="eyebrow">9 · Test plan</div>
+        <h2>Test on yourself first. Then Mark.</h2>
+      </div>
+      <div class="screen">
+        <div class="test">
+          <div class="card todo">
+            <h3>Your test</h3>
+            <ul>
+              <li data-at="Set">Test broker: your own work account, on a SortMyCover order</li>
+              <li data-at="Without">No order means the card says "Not available yet"</li>
+              <li data-at="Connect">Connect it</li>
+              <li data-at="switches">Gate test: Claude switches the booking flow on</li>
+              <li data-at="only">Only free times offered</li>
+              <li data-at="Outlook">Meeting is in Outlook</li>
+              <li data-at="Teams">It has a Teams link</li>
+              <li data-at="howzit">Email came from howzit@leadvelocity.co.za</li>
+              <li data-at="move">Move it: Outlook follows</li>
+              <li data-at="cancel">Cancel it: removed from Outlook</li>
+            </ul>
+          </div>
+          <div class="crm">
+            <div class="side"><div>Dashboard</div><div>Leads</div><div class="hit" data-at="Management">Broker Management</div><div>Calendar</div><div>Settings</div></div>
+            <div class="cmain">
+              <div class="view" data-at="0" data-until="Preview+0.6">
+                <b style="color:var(--navy)">Broker Management</b>
+                <div class="row hit" data-at="choose" data-until="Preview+0.6"><span><b style="color:var(--navy)">Mark Weston</b><br><span style="font-size:.85em">Oracle Brokers</span></span><span class="pv click b" data-at="choose+0.3" data-click="Preview">Preview portal</span></div>
+                <div class="row" style="opacity:.6"><span>Test broker (you)</span></div>
+                <span style="font-size:.8em" class="b" data-at="Preview">Opens the broker's portal with his data, read-only, in a new tab</span>
+              </div>
+              <div class="view" data-at="Preview+0.6">
+                <b style="color:var(--navy)">Appointments</b>
+                <span style="font-size:.85em">Your calendar connection and the calls clients have booked with you.</span>
+                <div class="row"><span><span class="tag ok">Connected</span><br>Connected as markw@oraclebrokers.com</span></div>
+                <span style="font-size:.8em">Next free slot we can offer: …</span>
+                <span class="tag warn" style="width:max-content">Preview: Connect and Disconnect are off</span>
+              </div>
+            </div>
+          </div>
+          <div class="mk b" data-at="Mark's">Then it's <span>Mark's turn</span>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section class="scene" data-id="s10" data-title="Later">
+      <div class="lede">
+        <div class="eyebrow">10 · Later</div>
+        <h2>Two things after Mark is live</h2>
+      </div>
+      <div class="screen">
+        <div class="later">
+          <div class="card b" data-at="First">
+            <span class="tag pk" style="width:max-content">Soon</span>
+            <h3>Publisher verification</h3>
+            <span class="s">Microsoft AI Cloud Partner Program account. Then Branding &amp; properties › Add Partner ID to verify publisher › Verify and save.</span>
+            <div class="badge-row"><img src="logo.png" alt=""><span><b>Lead Velocity</b><br><span class="v sh" data-at="0" data-until="blue">unverified</span><span class="v ok sh" data-at="blue">✓ verified publisher</span></span></div>
+            <span class="s">The publisher domain must match the Partner Program email domain, and can't be *.onmicrosoft.com.</span>
+          </div>
+          <div class="card b" data-at="Google">
+            <span class="tag warn" style="width:max-content">Not built yet</span>
+            <h3>Google Calendar</h3>
+            <span class="s">For brokers who don't use Outlook. Nothing in the code connects to Google Calendar today.</span>
+          </div>
+          <div class="endcard b" data-at="job"><span>Register the app</span>→<span>Hand Claude two values</span>→<span>Mark connected</span></div>
+        </div>
+      </div>
+    </section>
+
+    <svg class="ptr" id="ptr" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2l7.5 19 2.6-7.4L21 11z" fill="#fff" stroke="#0f172a" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <div class="ov" id="ov"><button id="bigplay" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg><span><span id="ovlabel">Play the film</span><span class="sub" id="ovsub">10 short scenes · tap any screen to jump there</span></span></button></div>
+  </div>
+
+  <div class="cap" id="cap" aria-live="polite"><span></span></div>
+
+  <div class="ctl">
+    <button class="ib pri" id="play" type="button" aria-label="Play"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="playicon" d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg></button>
+    <button class="ib" id="prev" type="button" aria-label="Previous scene"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z" fill="currentColor"/></svg></button>
+    <button class="ib" id="next" type="button" aria-label="Next scene"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z" fill="currentColor"/></svg></button>
+    <div class="prog" id="prog" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0"><div class="segs" id="segs"></div><div class="knob" id="knob"></div></div>
+    <span class="time" id="time">0:00 / 0:00</span>
+    <button class="ib" id="cc" type="button" aria-pressed="true">CC</button>
+    <button class="ib" id="speed" type="button" aria-label="Playback speed">1×</button>
+  </div>
+
+  <ol class="chap" id="chap"></ol>
+
+  <p class="fine">Mock-ups of Microsoft screens follow Microsoft Learn (checked 13 Oct 2026). Field labels the docs don't spell out (the secret's expiry options, the consent screen's permission lines, the account picker title) are shown as they usually appear and may differ slightly. IDs and secrets on screen are examples. Voice: Microsoft neural en-US-AndrewNeural.</p>
+</div>
+
+<audio id="vo" preload="auto"></audio>
+<script src="timings.js"></script>
+<script>
+(() => {
+  const T = window.TIMINGS || null;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const $ = (s, r = document) => r.querySelector(s);
+  const stage = $('#stage'), ptr = $('#ptr'), vo = $('#vo'), cap = $('#cap span'), capBox = $('#cap');
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const LEAD = T ? T.lead : 1, FALLBACK = 22;
+
+  const meta = [...document.querySelectorAll('.scene')].map((el, i) => {
+    const t = T && T.scenes[i];
+    return { el, i, id: el.dataset.id, title: el.dataset.title, clip: t ? t.clip : FALLBACK, dur: t ? t.audio : 0, words: t ? t.words : [], cues: t ? t.cues : [] };
+  });
+  let acc = 0; meta.forEach(m => { m.start = acc; acc += m.clip; }); const TOTAL = acc;
+
+  function timeOf(m, spec, k, n) {
+    spec = String(spec).trim();
+    const r = /^(.*?)(?:#(\d+))?([+-]\d*\.?\d+)?$/.exec(spec);
+    const word = r[1], nth = r[2] ? +r[2] : 1, off = r[3] ? parseFloat(r[3]) : 0;
+    if (/^\d*\.?\d+$/.test(word)) return parseFloat(word) + off;
+    const target = norm(word);
+    for (const test of [(w) => w === target, (w) => w.startsWith(target)]) {
+      let c = nth;
+      for (const w of m.words) if (test(norm(w.w)) && --c === 0) return w.t + off;
+    }
+    if (m.words.length) console.warn('beat word not found', m.id, spec);
+    return (m.clip * (k + 1)) / (n + 1) + off;
+  }
+  meta.forEach(m => {
+    const at = [...m.el.querySelectorAll('[data-at]')], ty = [...m.el.querySelectorAll('[data-type]')], ck = [...m.el.querySelectorAll('[data-click]')];
+    m.beats = at.map((el, k) => ({ el, t: timeOf(m, el.dataset.at, k, at.length), u: el.dataset.until != null ? timeOf(m, el.dataset.until, k, at.length) : null, on: null }));
+    m.types = ty.map((el, k) => { const full = el.textContent; return { el, full, t: timeOf(m, el.dataset.type, k, ty.length), d: el.dataset.dur ? +el.dataset.dur : Math.max(.6, full.length * .04), n: -1 }; });
+    m.clicks = ck.map((el, k) => ({ el, t: timeOf(m, el.dataset.click, k, ck.length) })).sort((a, b) => a.t - b.t);
+    ck.forEach(el => el.addEventListener('click', () => { const c = m.clicks.find(x => x.el === el); seek(m.i, Math.max(0, c.t - .8)); setPlaying(true); }));
+  });
+
+  let pending = false, broken = false, si = 0, st = meta[0].clip, playing = false, last = performance.now(), started = false, rate = 1, ended = false, capsOn = true;
+  try { capsOn = localStorage.getItem('msfilm-cc') !== 'off'; } catch (e) {}
+
+  // ---------- render
+  let lastTarget = null;
+  function render() {
+    const m = meta[si];
+    meta.forEach(x => x.el.classList.toggle('cur', x === m));
+    for (const b of m.beats) { const on = st >= b.t && (b.u == null || st < b.u); if (on !== b.on) { b.el.classList.toggle('on', on); b.on = on; } }
+    for (const b of m.types) {
+      const p = reduce.matches ? (st >= b.t ? 1 : 0) : Math.max(0, Math.min(1, (st - b.t) / b.d));
+      const n = Math.round(p * b.full.length);
+      if (n !== b.n) { b.el.textContent = b.full.slice(0, n); b.el.classList.toggle('typing', n > 0 && n < b.full.length); b.n = n; }
+    }
+    let cur = null; for (const c of m.clicks) if (st >= c.t - .75) cur = c;
+    for (const c of m.clicks) c.el.classList.toggle('pressed', st >= c.t && st < c.t + .3);
+    const showPtr = cur && st < cur.t + 2.2 && !(st >= m.clip - .05 && !playing);
+    if (showPtr) {
+      const sr = stage.getBoundingClientRect(), r = cur.el.getBoundingClientRect();
+      if (r.width) {
+        const x = r.left - sr.left + Math.min(r.width * .5, 60), y = r.top - sr.top + r.height * .62;
+        ptr.style.transform = `translate(${x}px, ${y}px)`;
+        if (lastTarget === null) { ptr.style.transition = 'none'; void ptr.offsetWidth; ptr.style.transition = ''; }
+      }
+    }
+    ptr.classList.toggle('on', !!showPtr);
+    lastTarget = showPtr ? cur : null;
+    const tapping = cur && st >= cur.t && st < cur.t + .45;
+    if (tapping && !ptr.classList.contains('tap')) ptr.classList.add('tap');
+    if (!tapping) ptr.classList.remove('tap');
+    const cue = m.cues.find(c => st >= c.t && st < c.e);
+    const txt = cue ? cue.text : '';
+    if (cap.textContent !== txt) cap.textContent = txt;
+  }
+
+  // ---------- clock + audio (one <audio>, src swapped per scene, so one tap unlocks sound on phones)
+  function srcFor(m) { return `audio/${m.id}.mp3`; }
+  function wantAudio() {
+    const m = meta[si];
+    if (!T || !playing) return;
+    if (vo.dataset.id !== m.id) { vo.src = srcFor(m); vo.dataset.id = m.id; broken = false; vo.load(); started = false; }
+    if (!started && st >= LEAD && st < LEAD + m.dur - .1) {
+      pending = true; started = true;
+      const go = () => { if (!started || vo.dataset.id !== m.id) return; try { vo.currentTime = Math.max(0, st - LEAD); } catch (e) {} pending = false; vo.playbackRate = rate; vo.play().catch(() => {}); };
+      if (vo.readyState >= 1) go(); else vo.addEventListener('loadedmetadata', go, { once: true });
+    }
+  }
+  function tick(now) {
+    const dt = Math.min(1, (now - last) / 1000); last = now;
+    if (playing) {
+      const m = meta[si];
+      if (started && !pending && !vo.paused && !vo.ended && vo.dataset.id === m.id && vo.currentTime > 0) st = LEAD + vo.currentTime;
+      else if (broken || !(started && vo.readyState < 3 && !vo.ended && st >= LEAD && st < LEAD + m.dur - .2)) st += dt * rate;
+      wantAudio();
+      if (st >= m.clip) {
+        if (si < meta.length - 1) jump(si + 1, 0);
+        else { st = m.clip; setPlaying(false); ended = true; overlay(); }
+      }
+    }
+    render(); ui();
+  }
+  function frame(now) { tick(now); requestAnimationFrame(frame); }
+  // hidden or throttled frames (background tab, off-screen frame): keep the clock and scene changes moving
+  setInterval(() => { const now = performance.now(); if (now - last > 300) tick(now); }, 250);
+  function jump(i, t) { vo.pause(); si = i; st = t; started = false; pending = false; if (vo.dataset.id !== meta[i].id) { vo.removeAttribute('src'); vo.dataset.id = ''; } wantAudio(); }
+  function seek(i, t) { ended = false; jump(i, t); }
+  function setPlaying(p) {
+    playing = p;
+    if (p) {
+      ended = false;
+      if (st >= meta[si].clip - .05) st = 0;
+      // unlock audio inside the user gesture; wantAudio() then seeks and plays
+      if (T) { const m = meta[si]; if (vo.dataset.id !== m.id) { vo.src = srcFor(m); vo.dataset.id = m.id; broken = false; } started = false; pending = false; vo.play().then(() => { if (!started) vo.pause(); }).catch(() => {}); }
+    } else { vo.pause(); started = false; }
+    overlay();
+  }
+  vo.addEventListener('error', () => { if (vo.getAttribute('src')) broken = true; });
+
+  // ---------- UI
+  const playBtn = $('#play'), playIcon = $('#playicon'), knob = $('#knob'), prog = $('#prog'), timeEl = $('#time'), ov = $('#ov');
+  const segs = $('#segs'), chap = $('#chap');
+  const fmt = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  meta.forEach(m => {
+    const i = document.createElement('i'); i.style.flex = m.clip; i.appendChild(document.createElement('b')); segs.appendChild(i); m.seg = i.firstChild;
+    const li = document.createElement('li'), b = document.createElement('button'); b.type = 'button';
+    b.innerHTML = `<span class="n">${m.i + 1}</span><span class="tt"></span><span class="d">${fmt(m.start)}</span>`; b.querySelector('.tt').textContent = m.title;
+    b.addEventListener('click', () => { seek(m.i, 0); setPlaying(true); stage.scrollIntoView({ block: 'nearest', behavior: reduce.matches ? 'auto' : 'smooth' }); });
+    li.appendChild(b); chap.appendChild(li); m.chapBtn = b;
+  });
+  prog.setAttribute('aria-valuemax', Math.round(TOTAL));
+  function ui() {
+    const g = meta[si].start + st;
+    meta.forEach(m => { const f = m.i < si ? 1 : m.i > si ? 0 : Math.min(1, st / m.clip); m.seg.style.transform = `scaleX(${f})`; m.chapBtn.setAttribute('aria-current', m.i === si ? 'true' : 'false'); });
+    knob.style.left = `${(g / TOTAL) * 100}%`;
+    const tl = `${fmt(g)} / ${fmt(TOTAL)}`; if (timeEl.textContent !== tl) timeEl.textContent = tl;
+    prog.setAttribute('aria-valuenow', Math.round(g)); prog.setAttribute('aria-valuetext', `${meta[si].title}, ${fmt(g)}`);
+    playIcon.setAttribute('d', playing ? 'M6 4h4v16H6zM14 4h4v16h-4z' : 'M7 4.5v15l12-7.5z');
+    playBtn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+  }
+  function overlay() {
+    ov.hidden = playing;
+    $('#ovlabel').textContent = ended ? 'Watch again' : (si === 0 && (st === 0 || st >= meta[0].clip - .05)) ? 'Play the film' : 'Play from here';
+    $('#ovsub').textContent = `${meta.length} short scenes · ${fmt(TOTAL)} · tap any screen to jump there`;
+  }
+  function seekGlobal(g) { g = Math.max(0, Math.min(TOTAL - .01, g)); const m = meta.findLast ? meta.findLast(x => x.start <= g) : meta.filter(x => x.start <= g).pop(); seek(m.i, g - m.start); }
+  playBtn.addEventListener('click', () => { if (ended) { seek(0, 0); } setPlaying(!playing); });
+  $('#bigplay').addEventListener('click', () => { if (ended || (si === 0 && st >= meta[0].clip - .05)) seek(0, 0); setPlaying(true); });
+  $('#prev').addEventListener('click', () => { const back = st > 2.5 ? si : Math.max(0, si - 1); seek(back, 0); if (!playing) setPlaying(true); });
+  $('#next').addEventListener('click', () => { if (si < meta.length - 1) { seek(si + 1, 0); if (!playing) setPlaying(true); } });
+  const cc = $('#cc');
+  function applyCC() { capBox.classList.toggle('off', !capsOn); cc.setAttribute('aria-pressed', String(capsOn)); }
+  cc.addEventListener('click', () => { capsOn = !capsOn; applyCC(); try { localStorage.setItem('msfilm-cc', capsOn ? 'on' : 'off'); } catch (e) {} });
+  applyCC();
+  const RATES = [1, 1.25, 1.5, .85];
+  $('#speed').addEventListener('click', e => { rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length]; vo.playbackRate = rate; e.currentTarget.textContent = `${rate}×`; });
+  let drag = false;
+  const fromEvt = e => { const r = prog.getBoundingClientRect(); return ((e.clientX - r.left) / r.width) * TOTAL; };
+  prog.addEventListener('pointerdown', e => { drag = true; prog.setPointerCapture(e.pointerId); seekGlobal(fromEvt(e)); });
+  prog.addEventListener('pointermove', e => { if (drag) seekGlobal(fromEvt(e)); });
+  prog.addEventListener('pointerup', () => { drag = false; if (playing) setPlaying(true); });
+  prog.addEventListener('keydown', e => { const g = meta[si].start + st; if (e.key === 'ArrowRight') { seekGlobal(g + 5); e.preventDefault(); } if (e.key === 'ArrowLeft') { seekGlobal(g - 5); e.preventDefault(); } if (playing) setPlaying(true); });
+  document.addEventListener('keydown', e => {
+    if (e.target.closest('button, [role=slider], a')) return;
+    if (e.key === ' ' || e.key === 'k') { e.preventDefault(); if (ended) seek(0, 0); setPlaying(!playing); }
+  });
+  addEventListener('resize', () => { lastTarget = null; });
+
+  // deep link: #s04 opens that scene fully shown, #s04-12 at 12 s; both paused
+  function fromHash() {
+    const hm = /^#(s\d\d)(?:-(\d+(?:\.\d+)?))?$/.exec(location.hash); const dl = hm && meta.find(m => m.id === hm[1]);
+    if (dl) { setPlaying(false); seek(dl.i, hm[2] != null ? Math.min(dl.clip, +hm[2]) : dl.clip); overlay(); }
+  }
+  addEventListener('hashchange', fromHash);
+  fromHash();
+  overlay();
+  requestAnimationFrame(frame);
+})();
+</script>
