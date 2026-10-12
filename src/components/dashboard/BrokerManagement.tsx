@@ -24,6 +24,8 @@ import {
 // ── Types ───────────────────────────────────────────────────────────────────
 interface Broker {
   id: string;
+  /** Set once the broker has a portal login (auth user). */
+  user_id: string | null;
   firm_name: string | null;
   contact_person: string | null;
   email: string | null;
@@ -104,7 +106,7 @@ const BrokerManagement = () => {
 
   const loadBrokers = useCallback(async () => {
     const [{ data: bRows, error: bErr }, { data: fRows }] = await Promise.all([
-      supabase.from("brokers").select("id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at").order("created_at", { ascending: false }),
+      supabase.from("brokers").select("id, user_id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at").order("created_at", { ascending: false }),
       (supabase as any).from("broker_followups").select("*").eq("status", "open"),
     ]);
     if (bErr) {
@@ -395,15 +397,15 @@ const BrokerDrawer = ({
             followups: fups.filter(f => f.status === "open").map(f => ({ title: f.title, due_at: f.due_at, overdue: isOverdue(f.due_at) })),
           },
         },
-        headers: {
-          "x-openrouter-key": (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "",
-        },
       });
-      if (error) throw new Error(error.message);
-      if ((data as any)?.success === false) throw new Error((data as any).error || "Coach unavailable");
+      if (error) throw error;
+      if ((data as any)?.success === false) throw new Error((data as any).error || "");
       setCoach(data as any);
     } catch (e: any) {
-      setCoachError(e.message || "Couldn't reach Einstein");
+      // crm-coach answers {success:false, error:"<plain sentence>"} when its model is down; anything else gets a calm default.
+      console.error("crm-coach:", e);
+      const msg = String(e?.message || "");
+      setCoachError(/^Einstein /.test(msg) ? msg : "Einstein is unavailable right now. Try again in a minute.");
     } finally {
       setCoachLoading(false);
     }
@@ -515,9 +517,14 @@ const BrokerDrawer = ({
             {broker.status === "Inactive" ? (
               <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30 text-xs">Archived</Badge>
             ) : broker.status === "Prospect" ? (
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Prospect — no portal yet</Badge>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Prospect</Badge>
             ) : (
               <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">Client</Badge>
+            )}
+            {broker.user_id ? (
+              <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">Portal login active</Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground">No portal login</Badge>
             )}
             {broker.tier && <Badge variant="outline" className="text-xs">{broker.tier}</Badge>}
             <button
@@ -554,7 +561,7 @@ const BrokerDrawer = ({
               {coachLoading ? (
                 <p className="text-sm text-muted-foreground">Reading the relationship…</p>
               ) : coachError ? (
-                <p className="text-sm text-muted-foreground">Einstein unavailable — {coachError}</p>
+                <p className="text-sm text-muted-foreground">{coachError}</p>
               ) : coach ? (
                 <div className="space-y-3">
                   {coach.headline && <p className="text-sm font-medium">{coach.headline}</p>}
