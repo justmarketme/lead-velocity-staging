@@ -165,7 +165,7 @@ serve(async (req) => {
       .replace(/{customer_name}/g, recipient_name || 'there')
       .replace(/{research_context}/g, researchContext);
 
-    const firstMessage = `Hi ${recipient_name || 'there'}, Ayanda here — calling on behalf of ${brokerName}'s office at ${firmName}. I'm actually not calling for a sales pitch. I had one quick clarifying question for you — do you have a quick 20 seconds?`;
+    const firstMessage = `Hi ${recipient_name || 'there'}, it's Ayanda from Lead Velocity — have you got two minutes? I just wanted to see if a quick 15-minute chat with our team would be useful for you.`;
 
     // Create communications record for history
     const { data: communicationRecord, error: commError } = await supabase
@@ -173,7 +173,7 @@ serve(async (req) => {
       .insert({
         channel: 'call',
         direction: 'outbound',
-        sender_id: user.id,
+        sender_id: userId,
         sender_type: 'admin',
         recipient_type,
         recipient_contact: recipient_phone,
