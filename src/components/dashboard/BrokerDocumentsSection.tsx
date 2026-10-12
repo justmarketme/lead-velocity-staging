@@ -35,6 +35,7 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel, onPaid }
   const [orderId, setOrderId] = useState("none");
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,24 +50,27 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel, onPaid }
   const signed = kind === "signed_agreement";
   const pop = kind === "proof_of_payment";
   async function upload() {
-    if (!file) return toast({ title: "Choose a file first", variant: "destructive" });
-    if (!name.trim()) return toast({ title: "Give the document a name", variant: "destructive" });
-    if (signed && (!signedBy.trim() || !signedAt || !plan)) return toast({ title: "Plan, signed by and signed date are needed for a signed agreement", variant: "destructive" });
+    // Messages show inline: a toast renders behind this drawer and was invisible.
+    setFormError(null);
+    if (!file) return setFormError("Choose the file first.");
+    if (!name.trim()) return setFormError("Give the document a name.");
+    if (signed && (!signedBy.trim() || !signedAt || !plan)) return setFormError("A signed agreement needs the plan, who signed it and the signed date.");
     const amountZar = Math.round(Number(amount.replace(/[^\d.]/g, "")));
-    if (pop && (!signedAt || !(amountZar > 0) || !reference.trim())) return toast({ title: "Amount, date paid and reference are needed for a proof of payment", variant: "destructive" });
+    if (pop && !signedAt) return setFormError("Add the date it was paid.");
+    if (pop && !(amountZar > 0)) return setFormError("Add the amount paid (in rand).");
     setBusy(true);
     const r = await uploadBrokerDocument({
       brokerId, file, name: name.trim(), kind, plan: signed ? plan : null,
       signedBy: pop ? null : signedBy.trim() || null,
       signedAt: !pop && signedAt ? new Date(`${signedAt}T12:00:00`).toISOString() : null,
-      contentData: pop ? { amount_zar: amountZar, paid_on: signedAt, reference: reference.trim(), order_id: orderId !== "none" ? orderId : null } : null,
+      contentData: pop ? { amount_zar: amountZar, paid_on: signedAt, reference: reference.trim() || null, order_id: orderId !== "none" ? orderId : null } : null,
     });
-    if (!r.ok) { setBusy(false); return toast({ title: "Upload failed", description: r.error, variant: "destructive" }); }
+    if (!r.ok) { setBusy(false); return setFormError(`Upload failed: ${r.error || "unknown error"}`); }
     // An order exists: mark it paid through the existing flow (admin_mark_order_paid). Otherwise the proof itself is the payment record.
     if (pop && orderId !== "none") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const m = await (supabase as any).rpc("admin_mark_order_paid", { p_order_id: orderId });
-      if (m.error) toast({ title: "Proof saved, but the order wasn't marked paid", description: m.error.message, variant: "destructive" });
+      if (m.error) setFormError(`Proof saved, but the order wasn't marked paid: ${m.error.message}`);
     }
     setBusy(false);
     toast({ title: pop ? "Payment recorded" : "Document added", description: pop ? `${brokerLabel}'s portal now shows the payment as received.` : `${brokerLabel} now sees it in his portal.` });
@@ -120,7 +124,7 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel, onPaid }
                   <Input id="bd-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="16500" />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="bd-ref" className="text-xs">Payment reference</Label>
+                  <Label htmlFor="bd-ref" className="text-xs">Payment reference (optional)</Label>
                   <Input id="bd-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="EFT / Paystack reference" />
                 </div>
               </div>
@@ -147,6 +151,7 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel, onPaid }
               <Input id="bd-by" value={signedBy} onChange={(e) => setSignedBy(e.target.value)} placeholder="Client name (Client); Kgomotso Pule, Director (Lead Velocity)" />
             </div>
           )}
+          {formError && <p role="alert" className="text-xs text-red-400">{formError}</p>}
           <Button size="sm" onClick={upload} disabled={busy}>{busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}{busy ? "Uploading…" : "Upload document"}</Button>
         </div>
       )}
