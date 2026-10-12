@@ -1,0 +1,5 @@
+video/frames/
+video/clips/
+video/*.mp4
+qa/*.png
+node_modules/

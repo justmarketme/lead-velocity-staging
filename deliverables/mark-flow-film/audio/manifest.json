@@ -1,0 +1,254 @@
+{
+ "c1s1b1": {
+  "hash": "baba400fd2121148",
+  "dur": 7.872
+ },
+ "c1s2b1": {
+  "hash": "91ad1f464715f11a",
+  "dur": 8.52
+ },
+ "c1s2b2": {
+  "hash": "4e765027fa47203b",
+  "dur": 7.032
+ },
+ "c1s1b2": {
+  "hash": "6960d606630a0e1f",
+  "dur": 6.648
+ },
+ "c1s3b1": {
+  "hash": "73e19e5a2f3240d8",
+  "dur": 6.624
+ },
+ "c1s3b2": {
+  "hash": "14497e015702fa7f",
+  "dur": 7.896
+ },
+ "c1s2b4": {
+  "hash": "bef088cb2f752350",
+  "dur": 7.104
+ },
+ "c1s2b3": {
+  "hash": "c2ff77cf25a6da1a",
+  "dur": 8.808
+ },
+ "c1s3b4": {
+  "hash": "e56861d623d09a07",
+  "dur": 7.368
+ },
+ "c1s3b3": {
+  "hash": "3f9c5f79f0a81f37",
+  "dur": 6.552
+ },
+ "c1s3b5": {
+  "hash": "5dc73ed1d1bf8137",
+  "dur": 6.504
+ },
+ "c1s3b6": {
+  "hash": "b574b6b9079221b5",
+  "dur": 7.632
+ },
+ "c1s4b1": {
+  "hash": "b84a48a12bd2cc98",
+  "dur": 6.792
+ },
+ "c1s3b7": {
+  "hash": "331f5227e1af9b64",
+  "dur": 8.04
+ },
+ "c1s4b2": {
+  "hash": "48d2055459b426a6",
+  "dur": 9.168
+ },
+ "c1s4b3": {
+  "hash": "388e57b0b91f76ca",
+  "dur": 10.68
+ },
+ "c1s4b4": {
+  "hash": "c33dff42e4abbaa3",
+  "dur": 6.528
+ },
+ "c1s5b1": {
+  "hash": "279addfc9e353b7f",
+  "dur": 9.048
+ },
+ "c1s5b2": {
+  "hash": "213e458872fec330",
+  "dur": 8.52
+ },
+ "c1s6b1": {
+  "hash": "8a3f7034e893d564",
+  "dur": 6.936
+ },
+ "c1s6b2": {
+  "hash": "d2d5b12b57edb1ef",
+  "dur": 5.616
+ },
+ "c1s6b3": {
+  "hash": "441d23829c8057a6",
+  "dur": 8.904
+ },
+ "c2s1b1": {
+  "hash": "636fc67c575a6143",
+  "dur": 7.056
+ },
+ "c1s6b4": {
+  "hash": "0be5f6dbacbccaea",
+  "dur": 6.24
+ },
+ "c2s1b3": {
+  "hash": "ced0f98be2780575",
+  "dur": 8.688
+ },
+ "c2s1b2": {
+  "hash": "0341ca45b5a36fa2",
+  "dur": 7.608
+ },
+ "c2s2b1": {
+  "hash": "64e07cb628bceb5e",
+  "dur": 9.936
+ },
+ "c2s2b2": {
+  "hash": "f4368adcdeb9e9aa",
+  "dur": 7.272
+ },
+ "c2s2b3": {
+  "hash": "d40a6c727b3cac5d",
+  "dur": 7.896
+ },
+ "c2s3b1": {
+  "hash": "f121b8a6798aab67",
+  "dur": 8.712
+ },
+ "c2s3b3": {
+  "hash": "3fff0ecb111c2f15",
+  "dur": 2.616
+ },
+ "c2s3b2": {
+  "hash": "1d7558e658a9998a",
+  "dur": 9.192
+ },
+ "c2s3b6": {
+  "hash": "ca1e5dc70e416189",
+  "dur": 2.904
+ },
+ "c2s3b5": {
+  "hash": "e4b4ef3e66cfd1a8",
+  "dur": 7.704
+ },
+ "c3s1b1": {
+  "hash": "7ea85a79902967f2",
+  "dur": 7.416
+ },
+ "c2s3b4": {
+  "hash": "f290a8051f60e906",
+  "dur": 7.44
+ },
+ "c3s2b4": {
+  "hash": "c2a7e933358c0d22",
+  "dur": 8.592
+ },
+ "c3s2b2": {
+  "hash": "04941fed23394b66",
+  "dur": 9.528
+ },
+ "c3s2b1": {
+  "hash": "c5a15cc5ba138fd3",
+  "dur": 12.288
+ },
+ "c3s2b3": {
+  "hash": "c9055a6e2fa7bd50",
+  "dur": 8.496
+ },
+ "c3s4b1": {
+  "hash": "8e7106554208034e",
+  "dur": 29.256
+ },
+ "c3s3b1": {
+  "hash": "a47100fa96b3fa93",
+  "dur": 8.88
+ },
+ "c3s2b5": {
+  "hash": "132530bbad712d8b",
+  "dur": 11.952
+ },
+ "c3s4b3": {
+  "hash": "83ee649cbc03dc9b",
+  "dur": 8.16
+ },
+ "c3s4b2": {
+  "hash": "185f8f34fcaf6395",
+  "dur": 12.696
+ },
+ "c3s4b4": {
+  "hash": "8a6bd61c6b7b94bf",
+  "dur": 12.96
+ },
+ "c4s1b1": {
+  "hash": "8989f8ead565f0ac",
+  "dur": 6.048
+ },
+ "c3s4b5": {
+  "hash": "ec594d4c0fdd3faf",
+  "dur": 7.92
+ },
+ "c4s1b2": {
+  "hash": "e2ca3d8ede322c49",
+  "dur": 10.872
+ },
+ "c4s2b1": {
+  "hash": "e20fd289f9a5f618",
+  "dur": 12.408
+ },
+ "c4s2b2": {
+  "hash": "d33a13dfc8e4bb52",
+  "dur": 9.192
+ },
+ "c3s3b2": {
+  "hash": "f0c18ae7ca47daef",
+  "dur": 7.488
+ },
+ "c4s3b1": {
+  "hash": "56c1598ea600b67e",
+  "dur": 9.12
+ },
+ "c4s3b2": {
+  "hash": "03e40fb23a42cd57",
+  "dur": 6.6
+ },
+ "c4s4b1": {
+  "hash": "d1ee79f601cfaad2",
+  "dur": 6.84
+ },
+ "c4s3b3": {
+  "hash": "8956eccfcdef0a16",
+  "dur": 9.192
+ },
+ "c4s4b3": {
+  "hash": "2f364901bbc38e49",
+  "dur": 5.304
+ },
+ "c4s4b4": {
+  "hash": "7a89715bd09bf8bc",
+  "dur": 8.376
+ },
+ "c4s4b2": {
+  "hash": "7fff3dafe10593c2",
+  "dur": 9.24
+ },
+ "c4s5b1": {
+  "hash": "eb5296167ffe45dc",
+  "dur": 13.776
+ },
+ "c4s5b2": {
+  "hash": "845aa7aad873cb16",
+  "dur": 8.928
+ },
+ "c4s6b1": {
+  "hash": "25d476dd0b42b7fc",
+  "dur": 7.704
+ },
+ "c4s3b4": {
+  "hash": "f63b1e75559ab848",
+  "dur": 7.2
+ }
+}

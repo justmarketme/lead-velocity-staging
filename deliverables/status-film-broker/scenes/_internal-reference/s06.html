@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>06 What's left for us</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .list { position: absolute; left: 140px; right: 140px; top: 340px; display: flex; flex-direction: column; gap: 26px; }
+  .it { height: 160px; display: flex; align-items: center; gap: 34px; padding: 0 44px; }
+  .it .no { font-size: 64px; font-weight: 700; line-height: 1; background: var(--grad); -webkit-background-clip: text; color: transparent; width: 90px; letter-spacing: -.03em; }
+  .it .tx { font-size: 38px; font-weight: 700; color: var(--navy); }
+  .it .sb { font-size: 22px; color: var(--muted); margin-top: 6px; }
+  .it .pill { margin-left: auto; }
+  .ring { width: 54px; height: 54px; flex: none; }
+</style></head>
+<body data-scene="s06"><div class="stage">
+  <div class="top"><div class="eyebrow">Still on our side</div><h1 class="h"><i></i>What's left for us</h1></div>
+  <div class="list">
+    <div class="card it"><div class="no">1</div><div><div class="tx">Weekly report clean-up</div><div class="sb">Remove ratings from the weekly broker report</div></div><span class="pill pink"><i></i>In progress</span></div>
+    <div class="card it"><div class="no">2</div><div><div class="tx">Merge and deploy the new portal and CRM</div><div class="sb">Into the live system</div></div><span class="pill amber"><i></i>Once you're happy</span></div>
+    <div class="card it"><div class="no">3</div><div><div class="tx">Launch sortmycover.co.za</div><div class="sb">After its final checks</div></div><span class="pill amber"><i></i>After final checks</span></div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const its = $$('.it'), tI = [cue('removing'), cue('merging'), cue('then')], tP = [cue('report'), cue('happy'), cue('checks')];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    its.forEach((c, i) => {
+      rv(c, t, tI[i] - .5, { x: -40, y: 0, dur: .9 });
+      rv(c.querySelector('.pill'), t, tP[i] - .2, { x: 20, y: 0, scale: .9, dur: .6, ease: E.back });
+    });
+  };
+</script></body></html>

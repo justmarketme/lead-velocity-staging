@@ -1,0 +1,23 @@
+;FFMETADATA1
+title=Mark Weston — How your leads work
+artist=Lead Velocity
+[CHAPTER]
+TIMEBASE=1/1000
+START=0
+END=175248
+title=Part 1 · Your client's journey
+[CHAPTER]
+TIMEBASE=1/1000
+START=175248
+END=262328
+title=Part 2 · Your side
+[CHAPTER]
+TIMEBASE=1/1000
+START=262328
+END=408080
+title=Part 3 · Your requests, and what v0.2 says
+[CHAPTER]
+TIMEBASE=1/1000
+START=408080
+END=538960
+title=Part 4 · Getting set up

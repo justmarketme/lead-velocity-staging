@@ -1,0 +1,1 @@
+Three: age, income and budget stay the client's own answers, and affordability is part of your needs analysis.

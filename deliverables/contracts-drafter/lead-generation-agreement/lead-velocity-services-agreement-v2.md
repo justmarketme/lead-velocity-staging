@@ -6,9 +6,9 @@ Version: LGSA-v0.3 (10 October 2026) · Replaces LGSA-v0.2 (7 October 2026) and 
 
 > **Change note (v0.3, 10 October 2026).** The Pilot Plan is offered again (R8,500, 10 Qualified Leads, R850 each); replacements are capped at 3 per Calendar Week for every Plan and an Uncontactable Lead can now earn one, inside the same 3; refunds of undelivered leads, Top-Up Leads included, are at the Effective Lead Price of the Client's Plan; cancellation notice stays 7 days.
 
-> **How changes are marked.** Only Jonathan West's final decisions of 7 and 10 October 2026 are applied. Every change from v0.1 is marked **[CHANGED v0.2]** or **[NEW v0.2]** (decisions of 7 October, D1 to D8) or **[CHANGED v0.3]** or **[NEW v0.3]** (decisions of 10 October, D10 to D12), with the decision number in brackets. Text without a marker is word for word v0.1. A full change log is at the end.
+> **How changes are marked.** Only Jono's final decisions of 7 and 10 October 2026 are applied. Every change from v0.1 is marked **[CHANGED v0.2]** or **[NEW v0.2]** (decisions of 7 October, D1 to D8) or **[CHANGED v0.3]** or **[NEW v0.3]** (decisions of 10 October, D10 to D12), with the decision number in brackets. Text without a marker is word for word v0.1. A full change log is at the end.
 >
-> D1 lead tiers (A / B / filtered) · D2 replacements stay goodwill, up to 3 no-shows a week · D3 dispute evidence within 2 working days · D4 day-44 delivery limit, rollover on top, refund on request within 7 working days · D5 contact verification · D6 qualification capture · D7 Microsoft Teams booking and welcome card · D8 B-tier leads offered with Accept / Decline (coordinator message, 7 Oct 2026) · C1 consequential: consent scope "insurance and financial planning" (consent v3). D9 (Pilot withdrawn, 7 Oct) was reversed on 10 Oct by D10 · D10 Pilot Plan restored · D11 replacements capped at 3 per Calendar Week for every Plan; an Uncontactable Lead can earn one, inside the same 3 · D12 refunds of undelivered leads at the Effective Lead Price of the Client's Plan (Jonathan West, 10 Oct 2026).
+> D1 lead tiers (A / B / filtered) · D2 replacements stay goodwill, up to 3 no-shows a week · D3 dispute evidence within 2 working days · D4 day-44 delivery limit, rollover on top, refund on request within 7 working days · D5 contact verification · D6 qualification capture · D7 Microsoft Teams booking and welcome card · D8 B-tier leads offered with Accept / Decline (coordinator message, 7 Oct 2026) · C1 consequential: consent scope "insurance and financial planning" (consent v3). D9 (Pilot withdrawn, 7 Oct) was reversed on 10 Oct by D10 · D10 Pilot Plan restored · D11 replacements capped at 3 per Calendar Week for every Plan; an Uncontactable Lead can earn one, inside the same 3 · D12 refunds of undelivered leads at the Effective Lead Price of the Client's Plan (Jonathan Jettoo, 10 Oct 2026).
 
 ## Parties
 
@@ -767,7 +767,7 @@ S4.7 **Client's retention.** The Client keeps Lead Data in line with its own obl
 
 S4.8 **Opt-outs.** Each Party notifies the other of an opt-out, objection or deletion request within 2 Business Days (clause 13.4). Lead Velocity keeps a suppression list so that it never contacts an opted-out Consumer again.
 
-S4.9 **Breach contact.** Security breach notices under clause 13.7 go to: for Lead Velocity, Jonathan West (Information Officer), howzit@leadvelocity.co.za; for the Client, [CLIENT INFORMATION OFFICER NAME], [CLIENT EMAIL].
+S4.9 **Breach contact.** Security breach notices under clause 13.7 go to: for Lead Velocity, Jonathan Jettoo (Information Officer), howzit@leadvelocity.co.za; for the Client, [CLIENT INFORMATION OFFICER NAME], [CLIENT EMAIL].
 
 S4.10 **Cross-border.** Lead Velocity's service providers that may process Lead Data outside South Africa are listed in its privacy notice at sortmycover.co.za/privacy (clause 13.8).
 

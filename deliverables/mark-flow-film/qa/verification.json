@@ -1,0 +1,384 @@
+{
+  "date": "2026-10-07",
+  "screensInspected": 126,
+  "narrationClips": 63,
+  "checks": [
+    {
+      "label": "Poster visible before play",
+      "passed": true
+    },
+    {
+      "label": "Audio does not autoplay",
+      "passed": true
+    },
+    {
+      "label": "Unconfirmed practice requires a name",
+      "passed": true
+    },
+    {
+      "label": "Narration starts on Play",
+      "passed": true
+    },
+    {
+      "label": "Consent refusal sends nothing",
+      "passed": true
+    },
+    {
+      "label": "Reasons required",
+      "passed": true
+    },
+    {
+      "label": "Multiple reasons accepted",
+      "passed": true
+    },
+    {
+      "label": "Fake name rejected",
+      "passed": true
+    },
+    {
+      "label": "Real sample name accepted",
+      "passed": true
+    },
+    {
+      "label": "Landline rejected",
+      "passed": true
+    },
+    {
+      "label": "Mobile accepted",
+      "passed": true
+    },
+    {
+      "label": "Budget branch R1,500 or more",
+      "passed": true
+    },
+    {
+      "label": "Budget branch R1,250 to R1,499",
+      "passed": true
+    },
+    {
+      "label": "Budget branch R750 to R1,249",
+      "passed": true
+    },
+    {
+      "label": "Budget branch Under R750",
+      "passed": true
+    },
+    {
+      "label": "Email link confirms",
+      "passed": true
+    },
+    {
+      "label": "Email code confirms",
+      "passed": true
+    },
+    {
+      "label": "Working-hour deadline Tue 20 Oct 10:00",
+      "passed": true
+    },
+    {
+      "label": "Working-hour deadline Tue 20 Oct 16:00",
+      "passed": true
+    },
+    {
+      "label": "Working-hour deadline Fri 23 Oct 16:30",
+      "passed": true
+    },
+    {
+      "label": "B-tier acceptance counts after booking",
+      "passed": true
+    },
+    {
+      "label": "B-tier decline does not count",
+      "passed": true
+    },
+    {
+      "label": "Rollover on top",
+      "passed": true
+    },
+    {
+      "label": "Refund arithmetic",
+      "passed": true
+    },
+    {
+      "label": "Microsoft blocked branch",
+      "passed": true
+    },
+    {
+      "label": "Microsoft permission acceptance",
+      "passed": true
+    },
+    {
+      "label": "No real signature",
+      "passed": true
+    },
+    {
+      "label": "Pause/resume preserves time",
+      "passed": true
+    },
+    {
+      "label": "Caption toggle",
+      "passed": true
+    },
+    {
+      "label": "Dark theme",
+      "passed": true
+    },
+    {
+      "label": "Reduced motion",
+      "passed": true
+    },
+    {
+      "label": "c1s1b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s1b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s2b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s2b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s2b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s2b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b5 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b6 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s3b7 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s4b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s4b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s4b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s4b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s5b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s5b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s6b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s6b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s6b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c1s6b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s1b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s1b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s1b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s2b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s2b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s2b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s3b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s3b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s3b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s3b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s3b5 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c2s3b6 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s1b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s2b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s2b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s2b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s2b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s2b5 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s3b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s3b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s4b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s4b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s4b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s4b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c3s4b5 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s1b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s1b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s2b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s2b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s3b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s3b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s3b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s3b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s4b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s4b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s4b3 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s4b4 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s5b1 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s5b2 audio decodes and matches manifest",
+      "passed": true
+    },
+    {
+      "label": "c4s6b1 audio decodes and matches manifest",
+      "passed": true
+    }
+  ],
+  "failures": []
+}
