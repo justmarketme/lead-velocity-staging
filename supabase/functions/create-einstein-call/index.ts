@@ -14,8 +14,12 @@ serve(async (req) => {
 
     try {
         const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
+        // Einstein's own dedicated ElevenLabs agent (German-accented "Gerrit" voice on eleven_v4_turbo).
+        // Not a secret — just an identifier — so it's safe to pin here directly rather than require
+        // a dashboard-entered env var. ELEVENLABS_EINSTEIN_AGENT_ID still overrides it if ever set.
+        const DEFAULT_EINSTEIN_AGENT_ID = "agent_2501m4s6nhfveywrvw9961va7sp3";
         const ELEVENLABS_EINSTEIN_AGENT_ID =
-            Deno.env.get('ELEVENLABS_EINSTEIN_AGENT_ID') || Deno.env.get('ELEVENLABS_AGENT_ID');
+            Deno.env.get('ELEVENLABS_EINSTEIN_AGENT_ID') || DEFAULT_EINSTEIN_AGENT_ID || Deno.env.get('ELEVENLABS_AGENT_ID');
 
         if (!ELEVENLABS_API_KEY) {
             return new Response(
