@@ -2,13 +2,16 @@
  * Dashboard "Getting started": the first thing a new broker sees. Explainer video, a checklist driven by his real
  * records (ticked when done), what to expect, and how to reach us. Collapsible; collapsed by default once everything is
  * done (the choice is remembered per broker in this browser). Plain, FAIS-safe copy: no promises about results.
+ * The broker finishes items in place: FSP number + practice and WhatsApp number save through broker_update_profile().
  */
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { Check, ChevronDown, Mail, PlayCircle } from "lucide-react";
+import { Check, ChevronDown, Eye, Mail, PlayCircle } from "lucide-react";
 import { m, stagger, item, EASE } from "./motion";
+import { FspForm, ProfilePatch, WhatsAppForm } from "./ProfileForms";
 import type { BrokerPlanState } from "@/lib/brokerPlan";
-import { loadBrokerDocuments } from "@/lib/adminDocs";
+import { loadBrokerDocuments, openAdminDocument } from "@/lib/adminDocs";
+import { fmtZa } from "@/lib/brokerProfile";
 import { TERMS, zar } from "@/lib/pricing";
 import { SUPPORT_EMAIL } from "@/lib/smc";
 import {
@@ -17,15 +20,26 @@ import {
 
 type Tab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
-interface Step { key: string; label: string; done: boolean; detail: string; action?: { label: string; tab?: Tab; href?: string } }
+interface Step {
+  key: string; label: string; done: boolean; detail: string;
+  /** A button on the right: go to a tab, open a link, run something, or open the inline panel. */
+  action?: { label: string; tab?: Tab; href?: string; run?: () => void; expand?: boolean };
+  /** Inline panel (form or explainer), opened by the action with expand: true. */
+  panel?: ReactNode;
+}
 
 const store = {
   get(k: string) { try { return window.localStorage.getItem(k); } catch { return null; } },
   set(k: string, v: string) { try { window.localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
+const actionCls = "shrink-0 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-white/15 px-3 text-sm font-semibold text-white hover:bg-white/10";
 
-export default function GettingStarted({ broker, planState, onGo }: { broker: any; planState: BrokerPlanState | null; onGo: (t: Tab) => void }) {
+export default function GettingStarted({ broker, planState, onGo, onBrokerPatch }: {
+  broker: any; planState: BrokerPlanState | null; onGo: (t: Tab) => void; onBrokerPatch: (p: ProfilePatch) => void;
+}) {
   const [hasInvoice, setHasInvoice] = useState(false);
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
   useEffect(() => {
     if (!broker?.id) return;
     let alive = true;
@@ -34,11 +48,14 @@ export default function GettingStarted({ broker, planState, onGo }: { broker: an
   }, [broker?.id]);
 
   const plan = planState?.plan || null;
-  const mail = (subject: string) => `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+  const saved = (key: string) => (p: ProfilePatch) => { onBrokerPatch(p); setOpenPanel((k) => (k === key ? null : k)); };
+
   const steps: Step[] = useMemo(() => {
     const calConnected = broker?.calendar_status === "ok" || broker?.calendar_mode === "shared_fallback";
     const introDone = !!broker?.headshot_url && String(broker?.bio_short || "").trim().length >= 40;
-    const paid = (planState?.paidOrdersCount || 0) > 0;
+    const paid = !!planState?.paid;
+    const proof = planState?.proof || null;
+    const waDone = !!broker?.whatsapp_number && !!broker?.whatsapp_confirmed_at;
     return [
       {
         key: "agreement", label: "Review your signed agreement", done: !!planState?.hasSignedAgreement,
@@ -46,35 +63,52 @@ export default function GettingStarted({ broker, planState, onGo }: { broker: an
         action: planState?.hasSignedAgreement ? { label: "Open", tab: "documents" } : undefined,
       },
       {
-        key: "fsp", label: "Confirm your FSP number", done: !!broker?.fsp_number,
-        detail: broker?.fsp_number ? `FSP ${broker.fsp_number} is on your profile.`
-          : planState?.agreementFsp ? `Your agreement lists FSP ${planState.agreementFsp}. We'll add it to your profile; tell us if it's wrong.`
-          : "Send us your FSP number so we can show it to clients.",
-        action: broker?.fsp_number ? undefined : { label: "Email us", href: mail("My FSP number") },
+        key: "pay", label: "Pay your first invoice", done: paid,
+        detail: paid
+          ? `Paid on ${fmtDay(planState!.paidOn!)}${proof?.amount_zar ? ` · ${zar(proof.amount_zar)}` : ""}${proof?.reference ? ` · ref ${proof.reference}` : ""}.`
+          : hasInvoice ? "Your invoice is in Documents."
+          : plan ? `Your ${plan.name} invoice (${zar(plan.price_zar)} excl. VAT) will be emailed to you.` : "Your invoice will be emailed to you.",
+        action: proof ? { label: "View proof", run: () => { void openAdminDocument(proof.file_path); } }
+          : !paid && hasInvoice ? { label: "Open", tab: "documents" } : undefined,
       },
       {
-        key: "pay", label: "Pay your first invoice", done: paid,
-        detail: paid ? "Paid. Thank you." : hasInvoice ? "Your invoice is in Documents."
-          : plan ? `Your ${plan.name} invoice (${zar(plan.price_zar)} excl. VAT) will be emailed to you.` : "Your invoice will be emailed to you.",
-        action: paid ? undefined : hasInvoice ? { label: "Open", tab: "documents" } : { label: "Ask about it", href: mail("My first invoice") },
+        key: "fsp", label: "Confirm your FSP number", done: !!broker?.fsp_number,
+        detail: broker?.fsp_number ? `FSP ${broker.fsp_number} · ${broker.firm_name || ""}`.replace(/ · $/, "")
+          : planState?.agreementFsp ? `Your agreement lists FSP ${planState.agreementFsp}. Check it and save it to your profile.`
+          : "Clients see it with your practice name.",
+        action: { label: broker?.fsp_number ? "Edit" : "Enter it", expand: true },
+        panel: <FspForm broker={broker} suggestedFsp={planState?.agreementFsp} onSaved={saved("fsp")} onCancel={() => setOpenPanel(null)} />,
       },
       {
         key: "intro", label: "Add your photo and a short bio", done: introDone,
         detail: introDone ? "Your intro card is ready." : "Clients see these when they book a call with you.",
-        action: introDone ? undefined : { label: "Add them", tab: "intro" },
+        action: { label: introDone ? "Edit" : "Add them", tab: "intro" },
       },
       {
-        key: "whatsapp", label: "Add your business WhatsApp number", done: !!broker?.whatsapp_number,
-        detail: broker?.whatsapp_number ? `We'll reach you on ${broker.whatsapp_number}.` : "New leads and bookings are sent to this number.",
-        action: broker?.whatsapp_number ? undefined : { label: "Send it to us", href: mail("My business WhatsApp number") },
+        key: "whatsapp", label: "Confirm your business WhatsApp number", done: waDone,
+        detail: waDone ? `New leads and bookings reach you on ${fmtZa(broker.whatsapp_number)}.`
+          : broker?.whatsapp_number ? `Is ${fmtZa(broker.whatsapp_number)} your business WhatsApp?` : "New leads and bookings are sent to this number.",
+        action: { label: waDone ? "Change" : broker?.whatsapp_number ? "Confirm" : "Add it", expand: true },
+        panel: <WhatsAppForm broker={broker} onSaved={saved("whatsapp")} />,
       },
       {
         key: "calendar", label: "Connect your Outlook calendar", done: calConnected,
         detail: calConnected ? "Clients can book into your free time." : broker?.brand_id ? "So clients can book a Teams call in your real free time." : "Opens once your campaign is set up after payment.",
-        action: calConnected ? undefined : { label: "Open", tab: "calendar" },
+        action: calConnected ? undefined : { label: "What you'll be asked", expand: true },
+        panel: (
+          <div className="space-y-2 text-sm text-slate-300">
+            <ol className="list-decimal pl-5 space-y-1.5">
+              <li>You sign in with your work Microsoft account.</li>
+              <li>Microsoft shows a permission screen listing calendar access: seeing when you're free and adding the booked calls (with their Teams links) to your calendar. Choose Accept.</li>
+              <li>If your company's IT has to approve new apps, we'll send them a one-click approval link. It takes them about two minutes.</li>
+            </ol>
+            <p className="text-slate-400">We never read your email or what your own meetings are about.</p>
+            {broker?.brand_id && <button type="button" className={actionCls} onClick={() => onGo("calendar")}>Go to Appointments</button>}
+          </div>
+        ),
       },
     ];
-  }, [broker, planState, hasInvoice, plan]);
+  }, [broker, planState, hasInvoice, plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const done = steps.filter((s) => s.done).length;
   const allDone = done === steps.length;
@@ -85,6 +119,13 @@ export default function GettingStarted({ broker, planState, onGo }: { broker: an
     setOpen(saved === null ? !allDone : saved !== "1");
   }, [key, allDone]);
   const toggle = () => { setOpen((o) => { store.set(key, o ? "1" : "0"); return !o; }); };
+
+  const runAction = (s: Step) => {
+    const a = s.action!;
+    if (a.expand) setOpenPanel((k) => (k === s.key ? null : s.key));
+    else if (a.run) a.run();
+    else if (a.tab) onGo(a.tab);
+  };
 
   return (
     <m.section layout className="rounded-[28px] border border-white/10 bg-gradient-to-b from-white/[0.04] to-transparent overflow-hidden" aria-labelledby="gs-title">
@@ -153,28 +194,34 @@ export default function GettingStarted({ broker, planState, onGo }: { broker: an
               <m.ol className="space-y-2.5" variants={stagger} initial="hidden" animate="show">
                 {steps.map((s) => (
                   <m.li key={s.key} variants={item} layout
-                    className={`flex items-start gap-3 rounded-2xl border p-4 ${s.done ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-white/10 bg-white/[0.02]"}`}>
-                    <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${s.done ? "border-emerald-400 bg-emerald-400 text-slate-950" : "border-white/25"}`}
-                      aria-hidden="true">
-                      {s.done && <m.span initial={{ scale: 0 }} animate={{ scale: 1 }}><Check className="h-4 w-4" strokeWidth={3} /></m.span>}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium ${s.done ? "text-slate-300" : "text-white"}`}>
-                        {s.label}<span className="sr-only">{s.done ? " (done)" : " (to do)"}</span>
-                      </p>
-                      <p className="text-sm text-slate-400 mt-0.5">{s.detail}</p>
+                    className={`rounded-2xl border p-4 ${s.done ? "border-emerald-500/20 bg-emerald-500/[0.04]" : "border-white/10 bg-white/[0.02]"}`}>
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${s.done ? "border-emerald-400 bg-emerald-400 text-slate-950" : "border-white/25"}`}
+                        aria-hidden="true">
+                        {s.done && <m.span initial={{ scale: 0 }} animate={{ scale: 1 }}><Check className="h-4 w-4" strokeWidth={3} /></m.span>}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium ${s.done ? "text-slate-300" : "text-white"}`}>
+                          {s.label}<span className="sr-only">{s.done ? " (done)" : " (to do)"}</span>
+                        </p>
+                        <p className="text-sm text-slate-400 mt-0.5">{s.detail}</p>
+                      </div>
+                      {s.action && (s.action.href ? (
+                        <m.a whileTap={{ scale: 0.96 }} href={s.action.href} className={actionCls}>{s.action.label}</m.a>
+                      ) : (
+                        <m.button whileTap={{ scale: 0.96 }} type="button" onClick={() => runAction(s)} className={actionCls}
+                          aria-expanded={s.action.expand ? openPanel === s.key : undefined}>
+                          {s.action.run && <Eye className="h-4 w-4" aria-hidden="true" />}{s.action.label}
+                        </m.button>
+                      ))}
                     </div>
-                    {s.action && (s.action.href ? (
-                      <m.a whileTap={{ scale: 0.96 }} href={s.action.href}
-                        className="shrink-0 inline-flex min-h-[44px] items-center rounded-xl border border-white/15 px-3 text-sm font-semibold text-white hover:bg-white/10">
-                        {s.action.label}
-                      </m.a>
-                    ) : (
-                      <m.button whileTap={{ scale: 0.96 }} type="button" onClick={() => onGo(s.action!.tab!)}
-                        className="shrink-0 inline-flex min-h-[44px] items-center rounded-xl border border-white/15 px-3 text-sm font-semibold text-white hover:bg-white/10">
-                        {s.action.label}
-                      </m.button>
-                    ))}
+                    <AnimatePresence initial={false}>
+                      {s.panel && openPanel === s.key && (
+                        <m.div key="panel" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="mt-4 pl-9">
+                          {s.panel}
+                        </m.div>
+                      )}
+                    </AnimatePresence>
                   </m.li>
                 ))}
               </m.ol>

@@ -9,6 +9,7 @@ import { Calendar as CalendarIcon, Clock, Package, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import SalesCoachInsight from "./SalesCoachInsight";
 import GettingStarted from "./GettingStarted";
+import type { ProfilePatch } from "./ProfileForms";
 import { SignedAgreementCard } from "./PremiumDocuments";
 import { CountUp, EASE, FadeIn, Skeleton, Stagger, StaggerItem, m } from "./motion";
 import { BrokerPlanState, loadLeadsPerWeek } from "@/lib/brokerPlan";
@@ -21,12 +22,13 @@ interface PremiumDashboardProps {
     stats: { totalLeads: number; appointmentsScheduled: number };
     planState: BrokerPlanState | null;
     onGo: (tab: Tab) => void;
+    onBrokerPatch: (p: ProfilePatch) => void;
 }
 
 const fmtDate = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" });
 const card = "rounded-[28px] border border-white/10 bg-white/[0.02]";
 
-const PremiumDashboard = ({ brokerData, stats, planState, onGo }: PremiumDashboardProps) => {
+const PremiumDashboard = ({ brokerData, stats, planState, onGo, onBrokerPatch }: PremiumDashboardProps) => {
     const [weeks, setWeeks] = useState<{ week: string; leads: number }[] | null>(null);
     useEffect(() => {
         if (!brokerData?.id) return;
@@ -47,7 +49,7 @@ const PremiumDashboard = ({ brokerData, stats, planState, onGo }: PremiumDashboa
                 {brokerData?.firm_name && <p className="text-slate-400 mt-1">{brokerData.firm_name}</p>}
             </StaggerItem>
 
-            <StaggerItem><GettingStarted broker={brokerData} planState={planState} onGo={onGo} /></StaggerItem>
+            <StaggerItem><GettingStarted broker={brokerData} planState={planState} onGo={onGo} onBrokerPatch={onBrokerPatch} /></StaggerItem>
 
             {/* Plan and cycle */}
             <StaggerItem>
@@ -82,6 +84,11 @@ const PremiumDashboard = ({ brokerData, stats, planState, onGo }: PremiumDashboa
                                 </div>
                                 <p className="text-xs text-slate-400 mt-3">Leads delivered · day {cycle.day} of {TERMS.cycle_days} · ends {fmtDate(cycle.end)}</p>
                             </>
+                        ) : planState?.paid ? (
+                            <div>
+                                <p className="font-semibold text-white">Payment received</p>
+                                <p className="text-sm text-slate-400 mt-1">Paid on {fmtDate(new Date(planState.paidOn!))}. Your next cycle starts with your next payment.</p>
+                            </div>
                         ) : (
                             <div className="flex gap-3">
                                 <Clock className="h-5 w-5 text-amber-300 shrink-0 mt-0.5" aria-hidden="true" />
@@ -105,7 +112,7 @@ const PremiumDashboard = ({ brokerData, stats, planState, onGo }: PremiumDashboa
                     {[
                         { title: "Leads delivered", icon: Users, color: "text-violet-300", value: stats.totalLeads, label: "All time", tab: "leads" as Tab },
                         { title: "Appointments", icon: CalendarIcon, color: "text-sky-300", value: stats.appointmentsScheduled, label: "Booked with you", tab: "calendar" as Tab },
-                        { title: "Paid orders", icon: Package, color: "text-emerald-300", value: planState?.paidOrdersCount ?? 0, label: planState?.paidOrder ? `Last paid ${fmtDate(new Date(planState.paidOrder.paid_at))}` : "None yet", tab: "documents" as Tab },
+                        { title: "Paid orders", icon: Package, color: "text-emerald-300", value: planState?.paidOrdersCount ?? 0, label: planState?.paidOn ? `Last paid ${fmtDate(new Date(planState.paidOn))}` : "None yet", tab: "documents" as Tab },
                     ].map((s) => (
                         <m.button key={s.title} type="button" onClick={() => onGo(s.tab)} whileTap={{ scale: 0.98 }} whileHover={{ y: -2 }}
                             className={`${card} p-5 flex items-center gap-4 text-left min-h-[44px] hover:border-white/20 transition-colors`}>

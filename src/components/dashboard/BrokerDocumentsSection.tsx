@@ -11,10 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Download, Eye, FileSignature, FileText, Loader2, Upload } from "lucide-react";
 import { format } from "date-fns";
-import { ALL_PLANS } from "@/lib/pricing";
+import { ALL_PLANS, zar } from "@/lib/pricing";
+import { supabase } from "@/integrations/supabase/client";
 import { BrokerDocument, DOC_KINDS, docKindLabel, downloadAdminDocument, loadBrokerDocuments, openAdminDocument, uploadBrokerDocument } from "@/lib/adminDocs";
 
-export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brokerId: string; brokerLabel: string }) {
+interface OpenOrder { id: string; title: string | null; amount_zar: number | null; status: string }
+
+export default function BrokerDocumentsSection({ brokerId, brokerLabel, onPaid }: { brokerId: string; brokerLabel: string; onPaid?: () => void }) {
   const { toast } = useToast();
   const [docs, setDocs] = useState<BrokerDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,30 +29,50 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
   const [signedBy, setSignedBy] = useState("");
   const [signedAt, setSignedAt] = useState("");
   const [plan, setPlan] = useState("");
+  // proof of payment
+  const [amount, setAmount] = useState("");
+  const [reference, setReference] = useState("");
+  const [orderId, setOrderId] = useState("none");
+  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     const r = await loadBrokerDocuments(brokerId);
     setDocs(r.docs); setLoadError(r.error || null); setLoading(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const o = await (supabase as any).from("lead_orders").select("id, title, amount_zar, status").eq("broker_id", brokerId).neq("status", "paid").order("created_at", { ascending: false });
+    setOpenOrders((o.data || []) as OpenOrder[]);
   }, [brokerId]);
   useEffect(() => { void load(); setOpen(false); }, [load]);
 
   const signed = kind === "signed_agreement";
+  const pop = kind === "proof_of_payment";
   async function upload() {
     if (!file) return toast({ title: "Choose a file first", variant: "destructive" });
     if (!name.trim()) return toast({ title: "Give the document a name", variant: "destructive" });
     if (signed && (!signedBy.trim() || !signedAt || !plan)) return toast({ title: "Plan, signed by and signed date are needed for a signed agreement", variant: "destructive" });
+    const amountZar = Math.round(Number(amount.replace(/[^\d.]/g, "")));
+    if (pop && (!signedAt || !(amountZar > 0) || !reference.trim())) return toast({ title: "Amount, date paid and reference are needed for a proof of payment", variant: "destructive" });
     setBusy(true);
     const r = await uploadBrokerDocument({
       brokerId, file, name: name.trim(), kind, plan: signed ? plan : null,
-      signedBy: signedBy.trim() || null, signedAt: signedAt ? new Date(`${signedAt}T12:00:00`).toISOString() : null,
+      signedBy: pop ? null : signedBy.trim() || null,
+      signedAt: !pop && signedAt ? new Date(`${signedAt}T12:00:00`).toISOString() : null,
+      contentData: pop ? { amount_zar: amountZar, paid_on: signedAt, reference: reference.trim(), order_id: orderId !== "none" ? orderId : null } : null,
     });
+    if (!r.ok) { setBusy(false); return toast({ title: "Upload failed", description: r.error, variant: "destructive" }); }
+    // An order exists: mark it paid through the existing flow (admin_mark_order_paid). Otherwise the proof itself is the payment record.
+    if (pop && orderId !== "none") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const m = await (supabase as any).rpc("admin_mark_order_paid", { p_order_id: orderId });
+      if (m.error) toast({ title: "Proof saved, but the order wasn't marked paid", description: m.error.message, variant: "destructive" });
+    }
     setBusy(false);
-    if (!r.ok) return toast({ title: "Upload failed", description: r.error, variant: "destructive" });
-    toast({ title: "Document added", description: `${brokerLabel} now sees it in his portal.` });
-    setFile(null); setName(""); setSignedBy(""); setSignedAt(""); setPlan(""); setOpen(false);
+    toast({ title: pop ? "Payment recorded" : "Document added", description: pop ? `${brokerLabel}'s portal now shows the payment as received.` : `${brokerLabel} now sees it in his portal.` });
+    setFile(null); setName(""); setSignedBy(""); setSignedAt(""); setPlan(""); setAmount(""); setReference(""); setOrderId("none"); setOpen(false);
     void load();
+    if (pop) onPaid?.();
   }
 
   const fail = (r: { ok: boolean; error?: string }) => { if (!r.ok) toast({ title: "Could not open the document", description: r.error, variant: "destructive" }); };
@@ -76,7 +99,7 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="bd-date" className="text-xs">Signed on{signed ? "" : " (optional)"}</Label>
+              <Label htmlFor="bd-date" className="text-xs">{pop ? "Date paid" : `Signed on${signed ? "" : " (optional)"}`}</Label>
               <Input id="bd-date" type="date" value={signedAt} onChange={(e) => setSignedAt(e.target.value)} />
             </div>
           </div>
@@ -89,14 +112,41 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
               </Select>
             </div>
           )}
+          {pop && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="bd-amt" className="text-xs">Amount (R)</Label>
+                  <Input id="bd-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="16500" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="bd-ref" className="text-xs">Payment reference</Label>
+                  <Input id="bd-ref" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="EFT / Paystack reference" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Order this pays</Label>
+                <Select value={orderId} onValueChange={setOrderId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[130]">
+                    <SelectItem value="none">No order: record the payment on this document</SelectItem>
+                    {openOrders.map((o) => <SelectItem key={o.id} value={o.id}>{o.title || "Lead order"}{o.amount_zar ? ` · ${zar(o.amount_zar)}` : ""} ({o.status})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Choosing an order marks it paid (same as Orders & Activity). The broker's checklist shows "Paid on" with this proof either way.</p>
+              </div>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="bd-name" className="text-xs">Name the broker sees</Label>
             <Input id="bd-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Lead Generation Services Agreement — signed" />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor="bd-by" className="text-xs">Signed by{signed ? "" : " (optional)"}</Label>
-            <Input id="bd-by" value={signedBy} onChange={(e) => setSignedBy(e.target.value)} placeholder="Client name (Client); Kgomotso Pule, Director (Lead Velocity)" />
-          </div>
+          {!pop && (
+            <div className="space-y-1">
+              <Label htmlFor="bd-by" className="text-xs">Signed by{signed ? "" : " (optional)"}</Label>
+              <Input id="bd-by" value={signedBy} onChange={(e) => setSignedBy(e.target.value)} placeholder="Client name (Client); Kgomotso Pule, Director (Lead Velocity)" />
+            </div>
+          )}
           <Button size="sm" onClick={upload} disabled={busy}>{busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}{busy ? "Uploading…" : "Upload document"}</Button>
         </div>
       )}
@@ -116,8 +166,11 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
                 <div className="min-w-0">
                   <p className="text-sm font-medium break-words">{d.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {d.signed_at ? `Signed ${format(new Date(d.signed_at), "d MMM yyyy")}` : `Added ${format(new Date(d.created_at), "d MMM yyyy")}`}
-                    {d.signed_by ? ` · ${d.signed_by}` : ""}
+                    {d.kind === "proof_of_payment"
+                      ? [d.content_data?.paid_on ? `Paid ${format(new Date(String(d.content_data.paid_on)), "d MMM yyyy")}` : null,
+                         typeof d.content_data?.amount_zar === "number" ? zar(d.content_data.amount_zar as number) : null,
+                         d.content_data?.reference ? `ref ${d.content_data.reference}` : null].filter(Boolean).join(" · ")
+                      : <>{d.signed_at ? `Signed ${format(new Date(d.signed_at), "d MMM yyyy")}` : `Added ${format(new Date(d.created_at), "d MMM yyyy")}`}{d.signed_by ? ` · ${d.signed_by}` : ""}</>}
                   </p>
                   <Badge variant="outline" className="mt-1 text-[10px]">{docKindLabel(d.kind)}</Badge>
                 </div>

@@ -260,6 +260,8 @@ const PremiumBrokerPortalPage = () => {
     }
 
     const tab = activeTab as PortalTab;
+    // Saved profile fields (broker_update_profile) update the page without a reload.
+    const patchBroker = (p: Record<string, unknown>) => setBrokerData((prev: any) => ({ ...prev, ...p }));
     return (
         <>
             <SEO title="Broker Portal" description="Lead Velocity broker portal." noIndex />
@@ -272,7 +274,7 @@ const PremiumBrokerPortalPage = () => {
                 previewName={preview ? (brokerData?.contact_person || brokerData?.firm_name || "this broker") : null}
                 onExitPreview={() => navigate("/dashboard")}
             >
-                {tab === "dashboard" && <PremiumDashboard brokerData={brokerData} stats={stats} planState={planState} onGo={(t) => setActiveTab(t)} />}
+                {tab === "dashboard" && <PremiumDashboard brokerData={brokerData} stats={stats} planState={planState} onGo={(t) => setActiveTab(t)} onBrokerPatch={patchBroker} />}
                 {tab === "leads" && <PremiumLeads brokerId={brokerData?.id} />}
                 {tab === "calendar" && (
                     <div className="space-y-6">
@@ -293,7 +295,7 @@ const PremiumBrokerPortalPage = () => {
                 )}
                 {tab === "intro" && <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} tone="elite" />}</OwnBroker>}
                 {tab === "documents" && <PremiumDocuments brokerId={brokerData?.id} />}
-                {tab === "settings" && <BrokerDetails broker={brokerData} planState={planState} />}
+                {tab === "settings" && <BrokerDetails broker={brokerData} planState={planState} onBrokerPatch={patchBroker} />}
             </BrokerPortalShell>
         </>
     );

@@ -28,6 +28,7 @@ export async function openAdminDocument(path: string | null | undefined): Promis
 export interface BrokerDocument {
   id: string; name: string; description: string | null; file_path: string; file_type: string | null; file_size: number | null;
   category: string | null; kind: string | null; broker_id: string | null; signed_at: string | null; signed_by: string | null; created_at: string;
+  content_data?: Record<string, unknown> | null;
 }
 
 export const DOC_KINDS = [
@@ -35,6 +36,7 @@ export const DOC_KINDS = [
   { value: "agreement", label: "Agreement (unsigned)" },
   { value: "authorisation_letter", label: "Authorisation letter" },
   { value: "invoice", label: "Invoice" },
+  { value: "proof_of_payment", label: "Proof of payment" },
   { value: "other", label: "Other" },
 ] as const;
 export const docKindLabel = (k: string | null) => DOC_KINDS.find((x) => x.value === k)?.label || "Document";
@@ -44,7 +46,7 @@ export const AGREEMENT_KINDS = ["signed_agreement", "agreement"];
 // The generated Database types predate the broker_id/kind/signed_* columns.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const docsDb = supabase as any;
-const DOC_COLUMNS = "id, name, description, file_path, file_type, file_size, category, kind, broker_id, signed_at, signed_by, created_at";
+const DOC_COLUMNS = "id, name, description, file_path, file_type, file_size, category, kind, broker_id, signed_at, signed_by, created_at, content_data";
 
 /** Signed contracts first, then newest. */
 export async function loadBrokerDocuments(brokerId: string): Promise<{ docs: BrokerDocument[]; error?: string }> {
@@ -62,13 +64,15 @@ export async function downloadAdminDocument(path: string, fileName: string): Pro
   return { ok: true };
 }
 
-const kindCategory = (kind: string) => (kind === "signed_agreement" || kind === "agreement" ? "contracts" : kind === "invoice" ? "invoices" : "general");
+const kindCategory = (kind: string) => (kind === "signed_agreement" || kind === "agreement" ? "contracts" : kind === "invoice" || kind === "proof_of_payment" ? "invoices" : "general");
 
 /** Admin upload of a document for one broker: file into brokers/<id>/, then its admin_documents row. */
 export async function uploadBrokerDocument(input: {
   brokerId: string; file: File; name: string; kind: string; signedBy: string | null; signedAt: string | null; description?: string | null;
   /** For a signed agreement: the plan it commits to (read by src/lib/brokerPlan.ts). */
   plan?: string | null;
+  /** Extra structured data, e.g. proof of payment {amount_zar, paid_on, reference, order_id}. */
+  contentData?: Record<string, unknown> | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return { ok: false, error: "Please sign in again." };
@@ -80,7 +84,7 @@ export async function uploadBrokerDocument(input: {
     name: input.name, description: input.description || null, file_path: path, file_type: input.file.type || null, file_size: input.file.size,
     category: kindCategory(input.kind), kind: input.kind, broker_id: input.brokerId,
     signed_by: input.signedBy || null, signed_at: input.signedAt || null, uploaded_by: u.user.id,
-    content_data: input.plan ? { plan: input.plan } : null,
+    content_data: input.plan || input.contentData ? { ...(input.contentData || {}), ...(input.plan ? { plan: input.plan } : {}) } : null,
   });
   if (error) {
     await supabase.storage.from(ADMIN_DOCS_BUCKET).remove([path]); // no orphan file without its row

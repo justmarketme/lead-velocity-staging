@@ -12,6 +12,7 @@ import {
 import logo from "@/assets/lead-velocity-logo.webp";
 import { BrokerMotion, m } from "./motion";
 import type { BrokerPlanState } from "@/lib/brokerPlan";
+import { FspForm, ProfilePatch, WhatsAppForm } from "./ProfileForms";
 
 export type PortalTab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
@@ -49,7 +50,7 @@ function Shell({ broker, planState, tab, onTab, onLogout, previewName, onExitPre
   const { scrollY } = useScroll();
   const headerBg = useTransform(scrollY, [0, 48], [0, 1]);
   const titleScale = useTransform(scrollY, [0, 48], [1, 0.94]);
-  const planLabel = planState?.plan ? `${planState.plan.name} plan${planState.cycle ? "" : " · awaiting payment"}` : "";
+  const planLabel = planState?.plan ? `${planState.plan.name} plan${planState.paid ? "" : " · awaiting payment"}` : "";
   const exitLabel = previewName ? "Exit preview" : "Log out";
   const exit = previewName ? onExitPreview : onLogout;
 
@@ -184,7 +185,7 @@ function Shell({ broker, planState, tab, onTab, onLogout, previewName, onExitPre
 }
 
 /** "Your details" tab. */
-export function BrokerDetails({ broker, planState }: { broker: any; planState: BrokerPlanState | null }) {
+export function BrokerDetails({ broker, planState, onBrokerPatch }: { broker: any; planState: BrokerPlanState | null; onBrokerPatch: (p: ProfilePatch) => void }) {
   const rows = (pairs: [string, string | null | undefined][]) => pairs.map(([label, value]) => (
     <div key={label} className="py-3 border-b border-white/[0.06] last:border-0">
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p>
@@ -195,23 +196,25 @@ export function BrokerDetails({ broker, planState }: { broker: any; planState: B
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl sm:text-3xl font-bold text-white">Your details</h2>
-        <p className="text-slate-400 mt-1">What we have on record for you. To change anything, email howzit@leadvelocity.co.za.</p>
+        <p className="text-slate-400 mt-1">What we have on record for you. You can update your FSP number, practice name and WhatsApp number here; for anything else, email howzit@leadvelocity.co.za.</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <section className="rounded-[28px] border border-white/10 bg-white/[0.02] p-5 sm:p-7">
           <h3 className="text-base font-semibold text-white mb-1">You and your practice</h3>
           {rows([
             ["Name", broker?.contact_person],
-            ["Practice", broker?.firm_name],
-            ["FSP number", broker?.fsp_number || (planState?.agreementFsp ? `${planState.agreementFsp} (from your agreement)` : null)],
-            ["Plan", planState?.plan ? `${planState.plan.name}: ${planState.plan.committed_leads} Qualified Leads per 30-day cycle${planState.cycle ? "" : " (awaiting payment)"}` : null],
+            ["Plan", planState?.plan ? `${planState.plan.name}: ${planState.plan.committed_leads} Qualified Leads per 30-day cycle${planState.paid ? "" : " (awaiting payment)"}` : null],
           ])}
+          <div className="pt-4"><FspForm key={`${broker?.fsp_number}-${broker?.firm_name}`} broker={broker} suggestedFsp={planState?.agreementFsp} onSaved={onBrokerPatch} /></div>
         </section>
         <section className="rounded-[28px] border border-white/10 bg-white/[0.02] p-5 sm:p-7">
           <h3 className="text-base font-semibold text-white mb-1">Where we reach you</h3>
           <p className="text-sm text-slate-400">New leads and bookings are sent here.</p>
+          <div className="pt-3">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">Business WhatsApp{broker?.whatsapp_confirmed_at ? " · confirmed" : ""}</p>
+            <WhatsAppForm key={broker?.whatsapp_number || "none"} broker={broker} onSaved={onBrokerPatch} />
+          </div>
           {rows([
-            ["WhatsApp", broker?.whatsapp_number || null],
             ["Phone", broker?.phone_number],
             ["Email", broker?.email],
           ])}

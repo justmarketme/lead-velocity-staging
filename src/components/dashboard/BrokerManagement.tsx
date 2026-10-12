@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch, WILLS, loadWillsSwitches, setWillsSwitch } from "@/lib/lowBudget";
 import { useToast } from "@/hooks/use-toast";
 import BrokerDocumentsSection from "./BrokerDocumentsSection";
+import BrokerProfileSection from "./BrokerProfileSection";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
@@ -647,6 +648,9 @@ const BrokerDrawer = ({
                 </div>
               )}
             </div>
+
+            {/* What the broker entered in his portal (FSP, WhatsApp, intro card) */}
+            <BrokerProfileSection brokerId={broker.id} />
 
             {/* Attached leads / orders */}
             <div>

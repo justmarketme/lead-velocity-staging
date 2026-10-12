@@ -18,6 +18,8 @@ import { INTRO_MEDIA_URL, MEDIA_BUCKET, SUPPORT_EMAIL, SUPPORT_WA, errText, fmtD
 import type { SmcBroker, SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
+import { profileErrorText } from "@/lib/brokerProfile";
+import HeadshotPicker from "./HeadshotPicker";
 
 export const LANGS: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "af", label: "Afrikaans" }, { code: "isiZulu", label: "isiZulu" },
@@ -29,7 +31,6 @@ export const langLabel = (c: string) => LANGS.find((l) => l.code === c)?.label |
 export const normFsp = (v: string) => v.replace(/\s+/g, "").replace(/^fsp/i, "");
 /** ASSUMPTION (portal spec 02, same as Profile.tsx): FSP numbers are 3 to 6 digits. */
 export const fspValid = (v: string) => /^\d{3,6}$/.test(normFsp(v));
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]; // broker-media allowed_mime_types (smc_06)
 const MAX_PHOTO = 8 * 1024 * 1024;
 
 /** headshot_url is stored as "broker-media/<broker id>/headshot-….jpg" (Profile.tsx convention); the object key is after the bucket. */
@@ -144,23 +145,21 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
     if (!langs.length) return setErr("Pick at least one language.");
     const patch: SmcBrokerSelfUpdate = { bio_short: b, languages: langs };
     const p = practice.trim();
-    if (!frozen && p !== (broker.firm_name || "")) {
-      if (p.length < 2 || p.length > 120) return setErr("Practice name: 2 to 120 characters, as on your FSP licence.");
-      patch.firm_name = p;
-    }
+    const firmChanged = !frozen && p !== (broker.firm_name || "");
+    if (firmChanged && (p.length < 2 || p.length > 120)) return setErr("Practice name: 2 to 120 characters, as on your FSP licence.");
     const f = normFsp(fsp);
-    const fspChanged = smc && !frozen && f !== (broker.fsp_number || "");
-    if (fspChanged) {
-      if (!fspOk) return setErr("FSP number: digits only, 3 to 6 of them.");
-      patch.fsp_number = f;
-    }
+    const fspChanged = !frozen && f !== "" && f !== (broker.fsp_number || "");
+    if (fspChanged && !fspOk) return setErr("FSP number: digits only, 3 to 6 of them.");
     setBusy(true);
+    if (firmChanged || fspChanged) {
+      const r = await smcDb.rpc("broker_update_profile", { p_firm_name: firmChanged ? p : null, p_fsp_number: fspChanged ? f : null, p_whatsapp_number: null });
+      if (r.error) { setBusy(false); return setErr(profileErrorText(r.error)); }
+    }
     if (file) {
-      if (!IMAGE_TYPES.includes(file.type)) { setBusy(false); return setErr("Use a JPG, PNG or WebP photo."); }
+      // HeadshotPicker already turned it into a JPEG ≤ 1600 px (src/lib/imagePrep.ts), so the type always fits broker-media.
       if (file.size > MAX_PHOTO) { setBusy(false); return setErr("That photo is over 8 MB. Try a smaller one."); }
-      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-      const path = `${broker.id}/headshot-${Date.now()}.${ext}`;
-      const up = await smcDb.storage.from(MEDIA_BUCKET).upload(path, file, { upsert: false, contentType: file.type });
+      const path = `${broker.id}/headshot-${Date.now()}.jpg`;
+      const up = await smcDb.storage.from(MEDIA_BUCKET).upload(path, file, { upsert: false, contentType: "image/jpeg" });
       if (up.error) { setBusy(false); return setErr(`Photo upload failed: ${errText(up.error)}`); }
       patch.headshot_url = `${MEDIA_BUCKET}/${path}`;
     }
@@ -215,9 +214,10 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
             <Label htmlFor="ic-photo">Headshot</Label>
             <div className="flex items-center gap-4">
               {photo ? <img src={photo} alt="Your headshot" className="h-16 w-16 rounded-full object-cover" /> : <div className={`h-16 w-16 rounded-full grid place-items-center ${c.box}`}><Camera className={`h-6 w-6 ${c.muted}`} aria-hidden="true" /></div>}
-              <Input id="ic-photo" type="file" disabled={preview} accept={IMAGE_TYPES.join(",")} className={`max-w-xs ${c.input}`} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <HeadshotPicker disabled={preview} onPicked={(f) => { setFile(f); setSaved(false); }} onError={setErr}
+                primaryClass={c.primary} secondaryClass="border border-current/20 hover:bg-white/10" />
             </div>
-            <p className={`text-xs ${c.muted}`}>Plain background, looking at the camera, JPG/PNG/WebP up to 8 MB. Stored privately; only you and Lead Velocity can open it.</p>
+            <p className={`text-xs ${c.muted}`}>{file ? "New photo ready. Tap Save my intro card to keep it." : "Plain background, looking at the camera. Any photo works; we resize it. Stored privately; only you and Lead Velocity can open it."}</p>
           </div>
 
           <div className="space-y-2">
@@ -232,14 +232,13 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <Input id="ic-practice" value={practice} disabled={frozen} maxLength={120} autoComplete="organization" onChange={(e) => setPractice(e.target.value)} className={c.input} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ic-fsp" className="flex items-center gap-1.5">FSP number{(frozen || !smc) && <Lock className="h-3.5 w-3.5" aria-label="locked" />}</Label>
-              <Input id="ic-fsp" inputMode="numeric" value={fsp} maxLength={10} autoComplete="off" disabled={frozen || !smc} onChange={(e) => setFsp(e.target.value)} className={c.input} aria-invalid={smc && !frozen && fsp !== "" && !fspOk} />
+              <Label htmlFor="ic-fsp" className="flex items-center gap-1.5">FSP number{frozen && <Lock className="h-3.5 w-3.5" aria-label="locked" />}</Label>
+              <Input id="ic-fsp" inputMode="numeric" value={fsp} maxLength={10} autoComplete="off" disabled={frozen} onChange={(e) => setFsp(e.target.value)} className={c.input} aria-invalid={!frozen && fsp !== "" && !fspOk} />
             </div>
           </div>
           <p className={`text-xs -mt-3 ${c.muted}`}>
             {frozen ? "Locked while you receive clients (it is in the disclosure). To change it, email " + SUPPORT_EMAIL + "."
-              : !smc ? "You enter your FSP number once your SortMyCover order is set up. Your practice name you can change now."
-              : "As on your FSP licence. We check the number on the public FSCA register."}
+              : "As on your FSP licence. We check it on the FSCA register."}
           </p>
 
           <fieldset className="space-y-2">
