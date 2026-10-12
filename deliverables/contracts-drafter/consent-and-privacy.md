@@ -237,7 +237,7 @@ You may:
 We answer within **30 days**. We may ask you to prove who you are first. If you ask us to delete your details, we also tell the adviser. The adviser must delete them unless a law says they must keep a record.
 
 ### Information Officer and contact
-Information Officer: Jonathan West · Deputy Information Officer: Kgomotso Pule · Email: hello@sortmycover.co.za · Phone: +27 10 976 5618 · Postal address: Pegasus Building 1, 210 Amarand Avenue, Menlyn Maine, Pretoria, 0184
+Information Officer: Jonathan Jettoo · Deputy Information Officer: Kgomotso Pule · Email: hello@sortmycover.co.za · Phone: +27 10 976 5618 · Postal address: Pegasus Building 1, 210 Amarand Avenue, Menlyn Maine, Pretoria, 0184
 
 ### Complaints
 - Email hello@sortmycover.co.za, or send **COMPLAINT** on our WhatsApp. We reply within **48 hours**.

@@ -107,7 +107,7 @@ Use 1.1 as the custom consent question and 1.2 as a separate optional question, 
 
 **Complaints.** Email howzit@leadvelocity.co.za. Complaints about advice go to the adviser's own complaints process and then the FAIS Ombud. You may also complain to the Information Regulator: [INFORMATION REGULATOR CONTACT — CONFIRM].
 
-**Information Officer.** Jonathan West, howzit@leadvelocity.co.za.
+**Information Officer.** Jonathan Jettoo, howzit@leadvelocity.co.za.
 
 ---
 

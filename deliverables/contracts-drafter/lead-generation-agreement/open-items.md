@@ -44,8 +44,8 @@ Covers the agreement (LGSA-v0.3, 10 October 2026) and `consent-and-privacy.md` (
 | P26 | S3.10 | [90] days | Retention of no-show and uncontactable-lead proof |
 | P27 | S4.4, S1.5 | ~~[LEAD VELOCITY CRM PORTAL / WHATSAPP / ENCRYPTED EMAIL — CONFIRM]~~ | **RESOLVED 5 Oct (Jonathan):** WhatsApp to the Client's business WhatsApp number and email to its notice address, or the client portal once available. Onboarding item (e) added for the WhatsApp number. Note: plain email of lead data is weaker than the memo's "secure channel" advice (POPIA s19); consider moving to the portal as soon as it exists |
 | P28 | S4.6 | [12] months, [5] years | Retention (prior defaults, practitioner Q11) |
-| P29 | S4.9 | [CLIENT INFORMATION OFFICER NAME] | Lead Velocity's Information Officer resolved 5 Oct: Jonathan West. Client's Information Officer still to be supplied by the Client |
-| P30 | CP Part 2 | [DATE], [LV REG NO], [HOSTING PROVIDER], [DATABASE PROVIDER], [AI PROVIDER FOR THE WHATSAPP ASSISTANT], [12], [5], [30], [INFORMATION REGULATOR CONTACT — CONFIRM] | Privacy notice (Information Officer now filled: Jonathan West) |
+| P29 | S4.9 | [CLIENT INFORMATION OFFICER NAME] | Lead Velocity's Information Officer resolved 5 Oct: Jonathan Jettoo. Client's Information Officer still to be supplied by the Client |
+| P30 | CP Part 2 | [DATE], [LV REG NO], [HOSTING PROVIDER], [DATABASE PROVIDER], [AI PROVIDER FOR THE WHATSAPP ASSISTANT], [12], [5], [30], [INFORMATION REGULATOR CONTACT — CONFIRM] | Privacy notice (Information Officer now filled: Jonathan Jettoo) |
 
 ## 2. [LAWYER REVIEW] items
 

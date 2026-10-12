@@ -35,7 +35,7 @@ The one place to change when the WhatsApp number is ready: the `href` on `#book-
 
 ## 0. Pre-flight (before the first production deploy)
 - [x] `2025/637858/07` (CIPC) filled in.
-- [x] Information Officer: Jonathan West (privacy.html, terms.html).
+- [x] Information Officer: Jonathan Jettoo (privacy.html, terms.html).
 - [x] privacy.html processor table: Vercel row added (US, global network). Hostinger row now says booking and messaging systems. **compliance-qa to re-check** the cross-border wording (POPIA s72) for Vercel.
 - [ ] `{{hostinger_region}}` (privacy.html): fill when the VPS region is chosen (W26).
 - [ ] `{{ADDRESS_*}}` and `{{META_DOMAIN_VERIFICATION}}` (Meta Business Settings > Brand Safety > Domains).
