@@ -25,6 +25,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import PremiumDashboard from "@/components/broker/PremiumDashboard";
 import PremiumCalendar from "@/components/broker/PremiumCalendar";
 import PremiumDocuments, { SignedAgreementCard } from "@/components/broker/PremiumDocuments";
+import PremiumLeads from "@/components/broker/PremiumLeads";
+import { BrokerPlanState, loadBrokerPlan } from "@/lib/brokerPlan";
 import OwnBroker from "@/components/broker/smc/OwnBroker";
 import OutlookConnectCard from "@/components/broker/smc/OutlookConnectCard";
 import UpcomingSmcAppointments from "@/components/broker/smc/UpcomingSmcAppointments";
@@ -60,6 +62,14 @@ const PremiumBrokerPortalPage = () => {
     const { toast } = useToast();
     // Admin "Preview as broker" (/admin/preview/broker/:id): load that broker by id through the admin's session, read-only.
     const preview = useBrokerPreview();
+    // Plan and cycle from real records (signed agreement / broker record + paid orders); never a default.
+    const [planState, setPlanState] = useState<BrokerPlanState | null>(null);
+    useEffect(() => {
+        if (!brokerData?.id || String(brokerData.id).startsWith("dev-")) return;
+        let alive = true;
+        void loadBrokerPlan({ id: brokerData.id, tier: brokerData.tier }).then((p) => { if (alive) setPlanState(p); });
+        return () => { alive = false; };
+    }, [brokerData?.id, brokerData?.tier]);
 
     const fetchStats = async (brokerId: string) => {
         try {
@@ -214,7 +224,7 @@ const PremiumBrokerPortalPage = () => {
             if (user?.user_metadata?.must_reset_password) {
                 toast({
                     title: "First Login Detected",
-                    description: "For security, please set a new password before accessing your elite portal."
+                    description: "For security, please set a new password before using your portal."
                 });
                 navigate("/reset-password");
                 return;
@@ -238,10 +248,10 @@ const PremiumBrokerPortalPage = () => {
 
             if (error) throw error;
 
-            toast({ title: "Engagement Updated", description: "Status synced with central command." });
+            toast({ title: "Outcome saved", description: "Lead Velocity can see it now." });
 
             if (status === 'other' || status === 'no-show') {
-                toast({ title: "Admin Notified", description: "Meeting change has been flagged for audit." });
+                toast({ title: "Lead Velocity notified", description: "We'll follow up on this appointment." });
             }
 
             if (brokerData) await fetchAppointments(brokerData.id);
@@ -272,11 +282,11 @@ const PremiumBrokerPortalPage = () => {
 
     const menuItems = [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { id: "leads", label: "Premium Leads", icon: Database },
-        { id: "calendar", label: "Appointment Center", icon: CalendarIcon },
+        { id: "leads", label: "Leads", icon: Database },
+        { id: "calendar", label: "Appointments", icon: CalendarIcon },
         { id: "intro", label: "Your Intro Card", icon: UserCircle },
-        { id: "documents", label: "Vault & Ledger", icon: FolderOpen },
-        { id: "settings", label: "Elite Setup", icon: Settings },
+        { id: "documents", label: "Documents", icon: FolderOpen },
+        { id: "settings", label: "Your details", icon: Settings },
     ];
 
     return (
@@ -301,10 +311,8 @@ const PremiumBrokerPortalPage = () => {
             <aside className={`fixed left-0 top-0 h-screen overflow-y-auto bg-[#020617] border-r border-white/5 transition-all duration-500 z-50 ${sidebarOpen ? 'w-80 translate-x-0' : 'w-24 -translate-x-full lg:translate-x-0'}`}>
                 <div className="flex flex-col h-full p-8">
                     <div className="flex items-center gap-4 mb-16 px-2">
-                        <div className="bg-gradient-to-br from-pink-500 to-rose-700 p-2.5 rounded-2xl shadow-2xl shadow-pink-500/20 shrink-0">
-                            <Sparkles className="w-6 h-6 text-white" />
-                        </div>
-                        {sidebarOpen && <h1 className="text-2xl font-black text-white tracking-tighter uppercase italic">Velo <span className="text-pink-600">Pro</span></h1>}
+                        <img src={logo} alt="" className="h-10 w-10 object-contain shrink-0" />
+                        {sidebarOpen && <h1 className="text-xl font-black text-white tracking-tight">Lead Velocity</h1>}
                     </div>
 
                     <nav className="flex-1 space-y-3">
@@ -324,23 +332,12 @@ const PremiumBrokerPortalPage = () => {
                     </nav>
 
                     <div className="pt-8 border-t border-white/5 space-y-3">
-                        <div className="px-5 py-4 mb-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex items-center gap-3">
-                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                            {sidebarOpen && <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest leading-none">System Operational</span>}
-                        </div>
-                        <button
-                            onClick={() => setActiveTab('settings')}
-                            className={`w-full flex items-center gap-5 px-5 py-4 transition-all group ${activeTab === 'settings' ? 'text-white' : 'text-slate-500 hover:text-white'}`}
-                        >
-                            <Settings className={`w-5 h-5 group-hover:rotate-90 transition-transform duration-700 ${activeTab === 'settings' ? 'text-pink-500' : ''}`} />
-                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-tight">Elite Setup</span>}
-                        </button>
                         <button
                             onClick={handleLogout}
                             className="w-full flex items-center gap-5 px-5 py-4 text-rose-500/70 hover:text-rose-400 transition-all group bg-rose-500/5 rounded-2xl border border-rose-500/10"
                         >
                             <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-widest">{preview ? "Exit preview" : "Terminate"}</span>}
+                            {sidebarOpen && <span className="text-sm font-black uppercase tracking-widest">{preview ? "Exit preview" : "Log out"}</span>}
                         </button>
                     </div>
                 </div>
@@ -354,33 +351,15 @@ const PremiumBrokerPortalPage = () => {
                         <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="text-slate-500 hover:text-white hover:bg-white/5 rounded-2xl">
                             <Menu size={22} />
                         </Button>
-                        <div className="max-w-md w-full relative hidden lg:block">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                            <Input placeholder="Search records & intel..." className="bg-white/[0.02] border-white/5 pl-12 h-12 text-sm rounded-2xl focus:ring-pink-500/20 focus:border-pink-500/50 transition-all" />
-                        </div>
                     </div>
 
-                    <div className="flex items-center gap-8">
-                        <div className="hidden sm:flex flex-col items-end gap-0.5">
-                            <span className="text-xs font-black text-white uppercase tracking-widest leading-none mb-1">{brokerData?.firm_name}</span>
-                            <div className="flex items-center gap-1.5">
-                                <Crown className="w-3 h-3 text-pink-500" />
-                                <span className="text-[10px] text-pink-500 font-black uppercase tracking-tighter">{brokerData?.tier} Elite</span>
-                            </div>
+                    <div className="flex items-center gap-4">
+                        <div className="hidden sm:flex flex-col items-end gap-0.5 text-right">
+                            <span className="text-sm font-bold text-white leading-none">{brokerData?.firm_name}</span>
+                            <span className="text-xs text-slate-400">{planState?.plan ? `${planState.plan.name} plan${planState.cycle ? "" : " · awaiting payment"}` : ""}</span>
                         </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="relative">
-                                <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white hover:bg-white/5 rounded-2xl h-12 w-12 border border-white/5">
-                                    <Bell size={20} />
-                                </Button>
-                                <div className="absolute top-3 right-3 w-2 h-2 bg-pink-600 rounded-full border-2 border-[#020617]" />
-                            </div>
-
-                            <Avatar className="h-12 w-12 border-2 border-white/5 ring-4 ring-pink-500/10 rounded-2xl overflow-hidden cursor-pointer hover:scale-105 transition-transform">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${brokerData?.contact_person}`} />
-                                <AvatarFallback className="bg-slate-800 text-white font-black">BP</AvatarFallback>
-                            </Avatar>
+                        <div className="h-11 w-11 rounded-2xl bg-slate-800 border border-white/10 flex items-center justify-center text-sm font-black text-white" aria-hidden="true">
+                            {String(brokerData?.contact_person || brokerData?.firm_name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]?.toUpperCase()).join("")}
                         </div>
                     </div>
                 </header>
@@ -390,7 +369,7 @@ const PremiumBrokerPortalPage = () => {
                     {activeTab === 'dashboard' && (
                         <>
                             <SignedAgreementCard brokerId={brokerData?.id} hideWhenEmpty />
-                            <PremiumDashboard brokerData={brokerData} stats={stats} leadsData={[]} />
+                            <PremiumDashboard brokerData={brokerData} stats={stats} planState={planState} />
                         </>
                     )}
                     {activeTab === 'calendar' && (
@@ -410,76 +389,54 @@ const PremiumBrokerPortalPage = () => {
                         <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} tone="elite" />}</OwnBroker>
                     )}
                     {activeTab === 'documents' && <PremiumDocuments brokerId={brokerData?.id} />}
-                    {activeTab === 'settings' && <div className="animate-in fade-in slide-in-from-bottom duration-500">
-                        <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-8">
-                            {/* Alerts Card */}
-                            <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
-                                <CardHeader className="p-0 mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
-                                            <MessageSquare className="w-6 h-6 text-emerald-500" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">ALERTS</CardTitle>
-                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">New leads and bookings reach you here</CardDescription>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-0 space-y-6">
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">WHATSAPP</label>
-                                        <div className="text-xl font-black text-white tracking-tight">{(brokerData as any)?.phone_number || "Not set"}</div>
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">EMAIL</label>
-                                        <div className="text-xl font-black text-white tracking-tight break-all">{(brokerData as any)?.email || "Not set"}</div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            <Card className="bg-slate-900/40 backdrop-blur-3xl border-white/5 p-8 rounded-3xl">
-                                <CardHeader className="p-0 mb-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-pink-500/10 rounded-2xl border border-pink-500/20">
-                                            <ShieldCheck className="w-6 h-6 text-pink-500" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-2xl font-black text-white italic uppercase tracking-tighter">ELITE ID</CardTitle>
-                                            <CardDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Secure Profile Information</CardDescription>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-0 space-y-8">
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">FULL IDENTITY</label>
-                                            <div className="text-xl font-black text-white tracking-tight uppercase">{brokerData?.contact_person}</div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-2 italic">SECURITY CLEARANCE</label>
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-2 h-2 bg-pink-500 rounded-full shadow-[0_0_10px_rgba(236,72,153,0.5)]" />
-                                                <span className="text-sm font-black text-pink-500 uppercase tracking-widest italic">{brokerData?.tier} BROKER ELITE</span>
+                    {activeTab === 'settings' && (
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            <div>
+                                <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Your details</h2>
+                                <p className="text-slate-400 mt-1">What Lead Velocity has on record for you. To change anything here, message us or email howzit@leadvelocity.co.za.</p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Card className="bg-[#020617] border-white/5 p-6 sm:p-8 rounded-3xl">
+                                    <CardHeader className="p-0 mb-5">
+                                        <CardTitle className="text-xl font-black text-white flex items-center gap-3"><ShieldCheck className="w-5 h-5 text-pink-500" />You and your practice</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0 space-y-4">
+                                        {[
+                                            ["Name", brokerData?.contact_person],
+                                            ["Practice", brokerData?.firm_name],
+                                            ["FSP number", brokerData?.fsp_number],
+                                            ["Plan", planState?.plan ? `${planState.plan.name}: ${planState.plan.committed_leads} Qualified Leads per 30-day cycle${planState.cycle ? "" : " (awaiting payment)"}` : null],
+                                        ].map(([label, value]) => (
+                                            <div key={label as string}>
+                                                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{label}</p>
+                                                <p className="text-base text-white break-words">{value || <span className="text-slate-500">Not on record yet</span>}</p>
                                             </div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                                <Card className="bg-[#020617] border-white/5 p-6 sm:p-8 rounded-3xl">
+                                    <CardHeader className="p-0 mb-5">
+                                        <CardTitle className="text-xl font-black text-white flex items-center gap-3"><MessageSquare className="w-5 h-5 text-emerald-500" />Where we reach you</CardTitle>
+                                        <CardDescription className="text-slate-400">New leads and bookings are sent here.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="p-0 space-y-4">
+                                        {[
+                                            ["WhatsApp", brokerData?.whatsapp_number || brokerData?.phone_number],
+                                            ["Email", brokerData?.email],
+                                        ].map(([label, value]) => (
+                                            <div key={label as string}>
+                                                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{label}</p>
+                                                <p className="text-base text-white break-all">{value || <span className="text-slate-500">Not on record yet</span>}</p>
+                                            </div>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                            </div>
                         </div>
-                    </div>}
+                    )}
 
                     {activeTab === 'leads' && (
-                        <div className="bg-slate-900/30 border border-white/5 rounded-[40px] p-8 sm:p-24 text-center backdrop-blur-3xl relative overflow-hidden group">
-                            <div className="absolute inset-0 bg-gradient-to-br from-pink-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-                            <Database className="w-20 h-20 text-slate-800 mx-auto mb-8 font-thin group-hover:text-pink-500/50 group-hover:scale-110 transition-all duration-700" />
-                            <h2 className="text-4xl font-black text-white mb-4 tracking-tighter italic">INTEL LIBRARY</h2>
-                            <p className="text-slate-500 mb-10 max-w-xl mx-auto font-medium text-lg leading-relaxed">
-                                Your specialized lead database is currently being encrypted and optimized for your <span className="text-white font-bold">{brokerData?.tier}</span> tier level.
-                            </p>
-                            <Button className="bg-white text-black hover:bg-slate-200 font-black px-12 h-16 rounded-2xl text-sm uppercase tracking-widest shadow-2xl shadow-white/10">
-                                Access Central Database
-                            </Button>
-                        </div>
+                        <PremiumLeads brokerId={brokerData?.id} />
                     )}
                 </div>
             </main>

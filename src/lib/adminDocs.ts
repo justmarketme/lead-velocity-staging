@@ -67,6 +67,8 @@ const kindCategory = (kind: string) => (kind === "signed_agreement" || kind === 
 /** Admin upload of a document for one broker: file into brokers/<id>/, then its admin_documents row. */
 export async function uploadBrokerDocument(input: {
   brokerId: string; file: File; name: string; kind: string; signedBy: string | null; signedAt: string | null; description?: string | null;
+  /** For a signed agreement: the plan it commits to (read by src/lib/brokerPlan.ts). */
+  plan?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return { ok: false, error: "Please sign in again." };
@@ -78,6 +80,7 @@ export async function uploadBrokerDocument(input: {
     name: input.name, description: input.description || null, file_path: path, file_type: input.file.type || null, file_size: input.file.size,
     category: kindCategory(input.kind), kind: input.kind, broker_id: input.brokerId,
     signed_by: input.signedBy || null, signed_at: input.signedAt || null, uploaded_by: u.user.id,
+    content_data: input.plan ? { plan: input.plan } : null,
   });
   if (error) {
     await supabase.storage.from(ADMIN_DOCS_BUCKET).remove([path]); // no orphan file without its row

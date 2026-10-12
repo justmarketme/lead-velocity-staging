@@ -98,7 +98,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
         if (!error) {
             setNewNote("");
             fetchNotes(selectedAppointment.client_id);
-            toast({ title: "Note Transmitted", description: "Admin has been notified of your update." });
+            toast({ title: "Message sent", description: "Lead Velocity has your note." });
         }
     };
 
@@ -126,15 +126,15 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                         }}
                     />
                     <div className="p-8 border-t border-white/[0.03] space-y-6 bg-white/[0.01]">
-                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] italic">Daily Performance</h4>
+                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em] italic">Selected day</h4>
                         <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Total Load</span>
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Appointments</span>
                                 <span className="text-lg font-black text-white italic">{dayAppointments.length}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Completed</span>
-                                <span className="text-lg font-black text-emerald-400 italic">8</span>
+                                <span className="text-lg font-black text-emerald-400 italic">{dayAppointments.filter((a) => String(a.appointment_status || "").toLowerCase() === "completed").length}</span>
                             </div>
                         </div>
                     </div>
@@ -146,11 +146,8 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-6">
                     <div>
                         <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-1">{date ? format(date, 'MMMM do, yyyy') : 'Select timing'}</h2>
-                        <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Client engagement management portal</p>
+                        <p className="text-slate-500 text-sm font-bold uppercase tracking-widest">Your appointments on this day</p>
                     </div>
-                    <Button className="bg-white text-black hover:bg-slate-200 font-black rounded-2xl px-8 h-14 uppercase tracking-widest text-[10px] shadow-2xl shadow-white/10 group">
-                        <CalendarIcon className="w-4 h-4 mr-3 group-hover:rotate-12 transition-transform" /> Sync External Systems
-                    </Button>
                 </div>
 
                 {dayAppointments.length > 0 ? (
@@ -161,8 +158,8 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                                     <div className="flex flex-col md:flex-row">
                                         <div className="md:w-40 bg-white/[0.01] p-8 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-white/5 group-hover:bg-pink-500/5 transition-colors">
                                             <Clock className="w-6 h-6 text-slate-700 mb-3 group-hover:text-pink-500 transition-colors" />
-                                            <span className="text-3xl font-black text-white italic tracking-tighter">{appt.appointment_time || "09:00"}</span>
-                                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mt-1 italic">UTC+2</span>
+                                            <span className="text-3xl font-black text-white italic tracking-tighter">{appt.appointment_date ? format(new Date(appt.appointment_date), 'HH:mm') : "—"}</span>
+                                            <span className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mt-1 italic">SA time</span>
                                         </div>
                                         <div className="flex-1 p-8 relative">
                                             <div className="absolute top-0 right-0 p-8">
@@ -178,7 +175,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-6 text-[10px] text-slate-500 font-black uppercase tracking-widest">
                                                     <span className="flex items-center gap-2 hover:text-white transition-colors cursor-pointer"><Phone className="w-3.5 h-3.5 text-pink-500" /> {appt.phone}</span>
-                                                    <span className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-blue-500" /> Secure Digital Boardroom</span>
+                                                    {appt.method && <span className="flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-blue-500" /> {String(appt.method)}</span>}
                                                 </div>
                                             </div>
 
@@ -190,10 +187,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
 
                                             <div className="flex gap-3">
                                                 <Button size="sm" variant="outline" className="bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10 h-10 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all" onClick={() => handleOpenEdit(appt)}>
-                                                    <MessageSquare className="w-4 h-4 mr-2" /> Collaborate
-                                                </Button>
-                                                <Button size="sm" variant="outline" className="bg-white/5 border-white/5 text-slate-400 hover:text-white hover:bg-white/10 h-10 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                                                    <ExternalLink className="w-4 h-4 mr-2" /> Elite CRM Profile
+                                                    <MessageSquare className="w-4 h-4 mr-2" /> Outcome and notes
                                                 </Button>
                                             </div>
                                         </div>
@@ -207,8 +201,8 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                         <div className="bg-slate-900/50 p-6 rounded-[32px] mb-8 ring-8 ring-white/[0.02]">
                             <CalendarIcon className="w-16 h-16 text-slate-800" />
                         </div>
-                        <h3 className="text-2xl font-black text-slate-500 italic uppercase tracking-tighter">Agenda Void Detected</h3>
-                        <p className="text-slate-600 max-w-[320px] mt-4 text-sm font-bold uppercase tracking-widest leading-relaxed">No engagements detected for this cycle. Review your queue or initiate loading.</p>
+                        <h3 className="text-2xl font-black text-slate-500 italic uppercase tracking-tighter">No appointments on this day</h3>
+                        <p className="text-slate-600 max-w-[320px] mt-4 text-sm font-bold uppercase tracking-widest leading-relaxed">Pick another day on the calendar. Appointments clients book with you appear here.</p>
                     </div>
                 )}
             </div>
@@ -217,25 +211,25 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
             <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                 <DialogContent className="bg-[#020617] border-white/5 text-white max-w-2xl rounded-[40px] p-0 overflow-hidden shadow-[0_0_100px_rgba(236,72,153,0.1)]">
                     <div className="p-10 pb-6 bg-gradient-to-br from-pink-500/10 to-transparent border-b border-white/5">
-                        <DialogTitle className="text-4xl font-black italic tracking-tighter uppercase mb-2">ENGAGEMENT HUB</DialogTitle>
-                        <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Active collaboration for <span className="text-white font-black">{selectedAppointment?.first_name}</span></DialogDescription>
+                        <DialogTitle className="text-4xl font-black italic tracking-tighter uppercase mb-2">Appointment</DialogTitle>
+                        <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Outcome and notes for <span className="text-white font-black">{selectedAppointment?.first_name}</span></DialogDescription>
                     </div>
 
                     <Tabs defaultValue="status" className="p-10 pt-6">
                         <TabsList className="bg-white/[0.03] border border-white/5 p-1.5 rounded-2xl mb-8">
-                            <TabsTrigger value="status" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-rose-600 data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest h-11 px-8 rounded-xl transition-all">Outcome Status</TabsTrigger>
-                            <TabsTrigger value="notes" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-rose-600 data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest h-11 px-8 rounded-xl transition-all">Elite Notes Thread</TabsTrigger>
+                            <TabsTrigger value="status" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-rose-600 data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest h-11 px-8 rounded-xl transition-all">Outcome</TabsTrigger>
+                            <TabsTrigger value="notes" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-pink-600 data-[state=active]:to-rose-600 data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest h-11 px-8 rounded-xl transition-all">Notes to Lead Velocity</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="status" className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                             <div className="space-y-4">
-                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] italic mb-4 block">Select Operational Outcome</Label>
+                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] italic mb-4 block">What happened?</Label>
                                 <RadioGroup value={tempStatus} onValueChange={setTempStatus} className="grid grid-cols-2 gap-4">
                                     {[
-                                        { id: 'completed', label: 'Closed / Done', icon: CheckCircle2, color: 'text-emerald-400', bg: 'hover:border-emerald-500/30' },
-                                        { id: 'no-show', label: 'Ghost / No-Show', icon: XCircle, color: 'text-rose-500', bg: 'hover:border-rose-500/30' },
+                                        { id: 'completed', label: 'Meeting held', icon: CheckCircle2, color: 'text-emerald-400', bg: 'hover:border-emerald-500/30' },
+                                        { id: 'no-show', label: 'No-show', icon: XCircle, color: 'text-rose-500', bg: 'hover:border-rose-500/30' },
                                         { id: 'late', label: 'Late Arrival', icon: Clock, color: 'text-amber-500', bg: 'hover:border-amber-500/30' },
-                                        { id: 'other', label: 'Reschedule Req', icon: AlertCircle, color: 'text-blue-500', bg: 'hover:border-blue-500/30' },
+                                        { id: 'other', label: 'Needs a new time', icon: AlertCircle, color: 'text-blue-500', bg: 'hover:border-blue-500/30' },
                                     ].map((s) => (
                                         <div key={s.id}>
                                             <RadioGroupItem value={s.id} id={s.id} className="peer sr-only" />
@@ -252,7 +246,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                             </div>
 
                             <div className="space-y-4">
-                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] italic block">Intelligence Entry</Label>
+                                <Label className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em] italic block">Note (optional)</Label>
                                 <Textarea
                                     placeholder="Brief reason or context for the outcome..."
                                     className="bg-white/[0.02] border-white/5 min-h-[120px] text-sm rounded-[24px] focus:ring-pink-500/20 focus:border-pink-500/50 transition-all font-medium p-6"
@@ -262,7 +256,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                             </div>
 
                             <div className="flex justify-end gap-4 pt-4">
-                                <Button variant="ghost" onClick={() => setEditDialogOpen(false)} className="text-slate-500 hover:text-white font-black uppercase text-[10px] tracking-widest">Abort</Button>
+                                <Button variant="ghost" onClick={() => setEditDialogOpen(false)} className="text-slate-500 hover:text-white font-black uppercase text-[10px] tracking-widest">Cancel</Button>
                                 <Button
                                     className="bg-gradient-to-r from-pink-600 to-rose-600 text-white font-black uppercase text-[10px] tracking-widest h-14 px-10 rounded-2xl shadow-2xl shadow-pink-600/20"
                                     onClick={() => {
@@ -270,7 +264,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                                         setEditDialogOpen(false);
                                     }}
                                 >
-                                    Sync Intelligence
+                                    Save outcome
                                 </Button>
                             </div>
                         </TabsContent>
@@ -284,7 +278,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                                         </div>
                                         <div className={`flex-1 max-w-[80%] ${note.author_role === 'admin' ? 'text-right' : ''}`}>
                                             <div className={`flex items-center gap-3 mb-2 ${note.author_role === 'admin' ? 'flex-row-reverse' : ''}`}>
-                                                <span className="text-[10px] font-black text-white uppercase tracking-widest">{note.author_role === 'admin' ? 'CENTRAL COMMAND' : 'YOU'}</span>
+                                                <span className="text-[10px] font-black text-white uppercase tracking-widest">{note.author_role === 'admin' ? 'LEAD VELOCITY' : 'YOU'}</span>
                                                 <span className="text-[9px] text-slate-600 uppercase font-black">{format(new Date(note.created_at), 'h:mm a')}</span>
                                             </div>
                                             <p className={`text-sm font-medium leading-relaxed p-5 rounded-[24px] border ${note.author_role === 'admin'
@@ -298,14 +292,14 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
                                 )) : (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-30 select-none">
                                         <MessageSquare className="w-12 h-12 mb-4" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest">Establish comms thread</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest">No messages yet</p>
                                     </div>
                                 )}
                             </div>
 
                             <div className="relative group p-1 bg-white/[0.02] border border-white/5 rounded-[24px] focus-within:border-pink-500/50 transition-all shadow-2xl shadow-black/40">
                                 <Textarea
-                                    placeholder="Enter encrypted message for Central Admin..."
+                                    placeholder="Write a message to Lead Velocity..."
                                     className="bg-transparent border-none pr-16 min-h-[100px] rounded-[24px] focus-visible:ring-0 text-white font-medium p-5"
                                     value={newNote}
                                     onChange={(e) => setNewNote(e.target.value)}

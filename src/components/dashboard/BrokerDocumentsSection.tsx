@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Download, Eye, FileSignature, FileText, Loader2, Upload } from "lucide-react";
 import { format } from "date-fns";
+import { ALL_PLANS } from "@/lib/pricing";
 import { BrokerDocument, DOC_KINDS, docKindLabel, downloadAdminDocument, loadBrokerDocuments, openAdminDocument, uploadBrokerDocument } from "@/lib/adminDocs";
 
 export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brokerId: string; brokerLabel: string }) {
@@ -24,6 +25,7 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
   const [name, setName] = useState("");
   const [signedBy, setSignedBy] = useState("");
   const [signedAt, setSignedAt] = useState("");
+  const [plan, setPlan] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -37,16 +39,16 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
   async function upload() {
     if (!file) return toast({ title: "Choose a file first", variant: "destructive" });
     if (!name.trim()) return toast({ title: "Give the document a name", variant: "destructive" });
-    if (signed && (!signedBy.trim() || !signedAt)) return toast({ title: "Signed by and signed date are needed for a signed agreement", variant: "destructive" });
+    if (signed && (!signedBy.trim() || !signedAt || !plan)) return toast({ title: "Plan, signed by and signed date are needed for a signed agreement", variant: "destructive" });
     setBusy(true);
     const r = await uploadBrokerDocument({
-      brokerId, file, name: name.trim(), kind,
+      brokerId, file, name: name.trim(), kind, plan: signed ? plan : null,
       signedBy: signedBy.trim() || null, signedAt: signedAt ? new Date(`${signedAt}T12:00:00`).toISOString() : null,
     });
     setBusy(false);
     if (!r.ok) return toast({ title: "Upload failed", description: r.error, variant: "destructive" });
     toast({ title: "Document added", description: `${brokerLabel} now sees it in his portal.` });
-    setFile(null); setName(""); setSignedBy(""); setSignedAt(""); setOpen(false);
+    setFile(null); setName(""); setSignedBy(""); setSignedAt(""); setPlan(""); setOpen(false);
     void load();
   }
 
@@ -78,6 +80,15 @@ export default function BrokerDocumentsSection({ brokerId, brokerLabel }: { brok
               <Input id="bd-date" type="date" value={signedAt} onChange={(e) => setSignedAt(e.target.value)} />
             </div>
           </div>
+          {signed && (
+            <div className="space-y-1">
+              <Label className="text-xs">Plan in this agreement (drives the plan the broker sees)</Label>
+              <Select value={plan} onValueChange={setPlan}>
+                <SelectTrigger><SelectValue placeholder="Choose the plan" /></SelectTrigger>
+                <SelectContent className="z-[130]">{ALL_PLANS.map((p) => <SelectItem key={p.tier_code} value={p.name}>{p.name}: {p.committed_leads} leads / cycle</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="bd-name" className="text-xs">Name the broker sees</Label>
             <Input id="bd-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Lead Generation Services Agreement — signed" />
