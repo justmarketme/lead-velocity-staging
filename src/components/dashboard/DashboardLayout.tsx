@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { smcDb } from "@/lib/smc";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target, ShoppingBag, Briefcase, Inbox } from "lucide-react";
+import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target, ShoppingBag, Briefcase, Inbox, CalendarClock } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -63,6 +64,28 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     fetchBrokers();
   }, []);
 
+  // Appointment requests awaiting allocation (SortMyCover rows only) -> badge on the "Appointments" nav item.
+  const [awaitingAllocation, setAwaitingAllocation] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const loadCount = async () => {
+      const { count, error } = await smcDb
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "requested")
+        .not("brand_id", "is", null);
+      if (alive && !error) setAwaitingAllocation(count ?? 0);
+    };
+    loadCount();
+    const timer = window.setInterval(loadCount, 60_000);
+    window.addEventListener("appointments:changed", loadCount);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      window.removeEventListener("appointments:changed", loadCount);
+    };
+  }, []);
+
   const fetchBrokers = async () => {
     const { data } = await supabase.from("broker_onboarding_responses").select("*").order("created_at", { ascending: false });
     setBrokers(data || []);
@@ -91,6 +114,7 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     { id: "broker-analysis", label: "Onboarding", icon: Target },
     { id: "broker-management", label: "Broker Management", icon: Briefcase },
     { id: "enquiries", label: "Enquiries", icon: Inbox },
+    { id: "appointments", label: "Appointments", icon: CalendarClock },
     { id: "calendar", label: "Calendar", icon: Calendar },
     { id: "upload", label: "Upload Leads", icon: Upload },
     { id: "documents", label: "Documents", icon: FolderOpen },
@@ -219,6 +243,9 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
                   >
                     <Icon size={18} />
                     <span>{item.label}</span>
+                    {item.id === "appointments" && awaitingAllocation > 0 && (
+                      <span className="ml-auto rounded-full bg-amber-500 text-black text-[10px] font-bold px-2">{awaitingAllocation}</span>
+                    )}
                   </button>
                 );
               })}

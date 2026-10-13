@@ -18,6 +18,7 @@ export interface SmcAppt {
   method: string | null;
   status: string | null;
   join_url: string | null;
+  allocated_at?: string | null;
   client?: { first_name: string | null; last_name: string | null } | null;
 }
 
@@ -34,7 +35,7 @@ export function useUpcomingSmcAppointments(brokerId: string | null | undefined, 
     (async () => {
       const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       const { data, error } = await smcDb.from("appointments")
-        .select("id, appointment_date, ends_at, method, status, join_url, client:leads(first_name, last_name)")
+        .select("id, appointment_date, ends_at, method, status, join_url, allocated_at, client:leads(first_name, last_name)")
         .eq("broker_id", brokerId).not("brand_id", "is", null).in("status", UPCOMING)
         .gte("appointment_date", since).order("appointment_date", { ascending: true }).limit(limit);
       if (!alive) return;
@@ -57,7 +58,7 @@ export default function UpcomingSmcAppointments({ brokerId, tone = "theme", hide
     <Card className={`min-w-0 ${c.card}`}>
       <CardHeader className={tone === "elite" ? "p-6 pb-3" : undefined}>
         <CardTitle className={`text-lg flex items-center gap-2 ${c.title}`}><CalendarClock className="h-5 w-5" />Upcoming SortMyCover calls</CardTitle>
-        <CardDescription className={c.muted}>Booked by clients on WhatsApp into your calendar. Join from here or from the Outlook invite.</CardDescription>
+        <CardDescription className={c.muted}>Booked by clients or allocated by Lead Velocity. Join from here or from the calendar invite.</CardDescription>
       </CardHeader>
       <CardContent className={tone === "elite" ? "p-6 pt-0" : undefined}>
         {loading ? <p className={`text-sm ${c.muted}`}>Loading…</p> : rows.length === 0 ? (
@@ -83,7 +84,7 @@ export default function UpcomingSmcAppointments({ brokerId, tone = "theme", hide
                     </Button>
                   ) : (
                     <span className={`text-xs inline-flex items-center gap-1 ${c.muted}`}>
-                      {isTeams ? <><Video className="h-3.5 w-3.5" />Teams link on its way</> : <><Phone className="h-3.5 w-3.5" />No link needed</>}
+                      {isTeams ? <><Video className="h-3.5 w-3.5" />{a.allocated_at ? "Teams link: see your invite" : "Teams link on its way"}</> : <><Phone className="h-3.5 w-3.5" />No link needed</>}
                     </span>
                   )}
                 </li>

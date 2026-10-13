@@ -113,6 +113,7 @@ const AdminCalendar = () => {
           .from("appointments")
           .select("id, broker_id, appointment_date, method, status, lead:leads!client_id(first_name), broker:brokers!broker_id(firm_name, contact_person)")
           .not("brand_id", "is", null)
+          .not("appointment_date", "is", null) // requests awaiting allocation have no date yet
           .order("appointment_date", { ascending: true }),
       ]);
 
@@ -133,7 +134,11 @@ const AdminCalendar = () => {
         phone_number: null, broker_id: a.broker_id, broker_name: a.broker?.firm_name || a.broker?.contact_person || null,
         status: a.status, method: a.method, from: null,
       }));
-      setAppointments([...referrals, ...bookings].sort((x, y) => x.appointment_date.localeCompare(y.appointment_date)));
+      setAppointments(
+        [...referrals, ...bookings]
+          .filter((x) => !!x.appointment_date)
+          .sort((x, y) => x.appointment_date.localeCompare(y.appointment_date)),
+      );
     } catch (error: any) {
       console.error("Error fetching appointments:", error);
       toast({
