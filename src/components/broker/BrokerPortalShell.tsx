@@ -13,6 +13,8 @@ import logo from "@/assets/lead-velocity-logo.webp";
 import { BrokerMotion, m } from "./motion";
 import type { BrokerPlanState } from "@/lib/brokerPlan";
 import { FspForm, ProfilePatch, WhatsAppForm } from "./ProfileForms";
+import { BioReviewCard, FspVerifiedBadge } from "./smc/LvReview";
+import { focusWhenReady } from "@/lib/brokerReview";
 
 export type PortalTab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
@@ -185,7 +187,7 @@ function Shell({ broker, planState, tab, onTab, onLogout, previewName, onExitPre
 }
 
 /** "Your details" tab. */
-export function BrokerDetails({ broker, planState, onBrokerPatch }: { broker: any; planState: BrokerPlanState | null; onBrokerPatch: (p: ProfilePatch) => void }) {
+export function BrokerDetails({ broker, planState, onBrokerPatch, onGo }: { broker: any; planState: BrokerPlanState | null; onBrokerPatch: (p: ProfilePatch) => void; onGo?: (t: PortalTab) => void }) {
   const rows = (pairs: [string, string | null | undefined][]) => pairs.map(([label, value]) => (
     <div key={label} className="py-3 border-b border-white/[0.06] last:border-0">
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p>
@@ -198,6 +200,7 @@ export function BrokerDetails({ broker, planState, onBrokerPatch }: { broker: an
         <h2 className="text-2xl sm:text-3xl font-bold text-white">Your details</h2>
         <p className="text-slate-400 mt-1">What we have on record for you. You can update your FSP number, practice name and WhatsApp number here; for anything else, email howzit@leadvelocity.co.za.</p>
       </div>
+      <BioReviewCard broker={broker} onDecided={(d) => onBrokerPatch(d)} onRewrite={() => { onGo?.("intro"); focusWhenReady("ic-bio"); }} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         <section className="rounded-[28px] border border-white/10 bg-white/[0.02] p-5 sm:p-7">
           <h3 className="text-base font-semibold text-white mb-1">You and your practice</h3>
@@ -205,6 +208,7 @@ export function BrokerDetails({ broker, planState, onBrokerPatch }: { broker: an
             ["Name", broker?.contact_person],
             ["Plan", planState?.plan ? `${planState.plan.name}: ${planState.plan.committed_leads} Qualified Leads per 30-day cycle${planState.paid ? "" : " (awaiting payment)"}` : null],
           ])}
+          <FspVerifiedBadge check={broker?.fsp_check} verifiedAt={broker?.fsp_verified_at} className="mt-4" />
           <div className="pt-4"><FspForm key={`${broker?.fsp_number}-${broker?.firm_name}`} broker={broker} suggestedFsp={planState?.agreementFsp} onSaved={onBrokerPatch} /></div>
         </section>
         <section className="rounded-[28px] border border-white/10 bg-white/[0.02] p-5 sm:p-7">

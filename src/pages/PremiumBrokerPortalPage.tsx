@@ -295,7 +295,7 @@ const PremiumBrokerPortalPage = () => {
                 )}
                 {tab === "intro" && <OwnBroker>{(b, reload) => <IntroCardEditor broker={b} reload={reload} tone="elite" />}</OwnBroker>}
                 {tab === "documents" && <PremiumDocuments brokerId={brokerData?.id} />}
-                {tab === "settings" && <BrokerDetails broker={brokerData} planState={planState} onBrokerPatch={patchBroker} />}
+                {tab === "settings" && <BrokerDetails broker={brokerData} planState={planState} onBrokerPatch={patchBroker} onGo={(t) => setActiveTab(t)} />}
             </BrokerPortalShell>
         </>
     );

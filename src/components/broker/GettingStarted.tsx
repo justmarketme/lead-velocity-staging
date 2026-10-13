@@ -17,6 +17,8 @@ import { SUPPORT_EMAIL } from "@/lib/smc";
 import CalendarHowToVideo from "./smc/CalendarHowToVideo";
 import BrokerVideo from "./BrokerVideo";
 import WatchHow, { type Clip } from "./WatchHow";
+import { BioReviewCard, FspVerifiedBadge } from "./smc/LvReview";
+import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
 import {
   BROKER_ONBOARDING_CAPTIONS_URL, BROKER_ONBOARDING_POSTER_URL, BROKER_ONBOARDING_VIDEO_TITLE, BROKER_ONBOARDING_VIDEO_URL,
   BROKER_ONBOARDING_VIDEO_DURATION, BROKER_GUIDE_VIDEO_URL, BROKER_GUIDE_POSTER_URL, BROKER_GUIDE_VIDEO_TITLE, BROKER_GUIDE_VIDEO_DURATION,
@@ -35,6 +37,8 @@ interface Step {
   panel?: ReactNode;
   /** Short how-to clip, opened from "Watch how" under the detail line. */
   clip?: Clip;
+  /** Always-visible block under the detail line (Lead Velocity's review: FSP verified badge, bio suggestion). */
+  extra?: ReactNode;
 }
 
 const FSP_CLIP: Clip = { src: BROKER_FSP_CLIP_URL, poster: BROKER_FSP_CLIP_POSTER_URL, title: BROKER_FSP_CLIP_TITLE, duration: BROKER_FSP_CLIP_DURATION };
@@ -65,7 +69,9 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
 
   const steps: Step[] = useMemo(() => {
     const calConnected = broker?.calendar_status === "ok" || broker?.calendar_mode === "shared_fallback";
-    const introDone = !!broker?.headshot_url && String(broker?.bio_short || "").trim().length >= 40;
+    // A bio Lead Velocity did not approve keeps the intro card waiting (onboarding_progress.bio_review).
+    const bioHeld = bioBlocked(readBioReview(broker?.onboarding_progress), broker?.bio_short);
+    const introDone = !!broker?.headshot_url && String(broker?.bio_short || "").trim().length >= 40 && !bioHeld;
     const paid = !!planState?.paid;
     const proof = planState?.proof || null;
     const waDone = !!broker?.whatsapp_number && !!broker?.whatsapp_confirmed_at;
@@ -94,12 +100,15 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
         action: { label: broker?.fsp_number ? "Edit" : "Enter it", expand: true },
         panel: <FspForm broker={broker} suggestedFsp={planState?.agreementFsp} onSaved={saved("fsp")} onCancel={() => setOpenPanel(null)} />,
         clip: FSP_CLIP,
+        extra: <FspVerifiedBadge check={broker?.fsp_check} verifiedAt={broker?.fsp_verified_at} className="mt-2" />,
       },
       {
         key: "intro", label: "Add your photo and a short bio", done: introDone,
-        detail: introDone ? "Your intro card is ready." : "Clients see these when they book a call with you.",
+        detail: introDone ? "Your intro card is ready." : bioHeld ? "Your bio needs a small change before we prepare your intro card." : "Clients see these when they book a call with you.",
         action: { label: introDone ? "Edit" : "Add them", tab: "intro" },
         clip: INTRO_CLIP,
+        extra: <BioReviewCard broker={broker} className="mt-3" onDecided={(d) => onBrokerPatch(d)}
+          onRewrite={() => { onGo("intro"); focusWhenReady("ic-bio"); }} />,
       },
       {
         key: "whatsapp", label: "Confirm your business WhatsApp number", done: waDone,
@@ -228,6 +237,7 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
                         </p>
                         <p className="text-sm text-slate-400 mt-0.5">{s.detail}</p>
                         {s.clip && <WatchHow {...s.clip} className="-mt-1 -mb-3" />}
+                        {s.extra}
                       </div>
                       {s.action && (s.action.href ? (
                         <m.a whileTap={{ scale: 0.96 }} href={s.action.href} className={actionCls}>{s.action.label}</m.a>

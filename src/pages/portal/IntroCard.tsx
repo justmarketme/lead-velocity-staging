@@ -4,13 +4,18 @@
  * brokers.intro_card_url (the broker cannot write those columns directly: smc_brokers_guard) and emails the copy from howzit@.
  */
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CLIPS_BASE, errText, fmtDayTime, methodLabel, portalEvent, smcDb, stepDone } from "@/lib/smc";
 import type { SmcBrokerMedia } from "@/integrations/supabase/smc-types";
+import { BioReviewCard, FspVerifiedBadge } from "@/components/broker/smc/LvReview";
+import { bioBlocked, cardApprovable, focusWhenReady, readBioReview } from "@/lib/brokerReview";
+import { supabase } from "@/integrations/supabase/client";
+import { profileErrorText } from "@/lib/brokerProfile";
 
 function Body() {
   const { broker, reload } = usePortal();
+  const navigate = useNavigate();
   const [cards, setCards] = useState<SmcBrokerMedia[]>([]);
   const [tick, setTick] = useState(false);
   const [initials, setInitials] = useState(false);
@@ -38,15 +43,21 @@ function Body() {
   if (!adviser) missing.push("your adviser name");
   if (!practice) missing.push("your practice name");
   if (!broker.bio_short) missing.push("your two lines");
+  else if (bioBlocked(readBioReview(broker.onboarding_progress), broker.bio_short)) missing.push("a small change to your two lines (see above)");
   if (!broker.languages?.length) missing.push("at least one language");
   if (!broker.headshot_url && !initials) missing.push("a photo, or tick 'Use my initials for now'");
+  if (!cardApprovable(readBioReview(broker.onboarding_progress))) missing.push("your bio approved (see 'Your bio needs a small change')");
+  if (!latest || latest.state === "processing") missing.push("the card Lead Velocity is preparing for you");
   const ready = missing.length === 0;
   const alreadyDone = stepDone(broker.onboarding_progress, "card") && approved && latest && approved.id === latest.id;
 
   async function approve() {
     setErr(null);
-    const { error } = await portalEvent("card.approved", "card", { media_id: latest?.id || null, version: latest?.version || null, use_initials: !broker.headshot_url, wording: "broker_intro_booked" });
-    if (error) return setErr(errText(error));
+    if (!latest) return;
+    // One call: broker_media approved/current, brokers.intro_card_url, onboarding_progress.card, audit row (migration 20261013160000).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("broker_approve_intro_card", { p_media_id: latest.id });
+    if (error) return setErr(profileErrorText(error));
     setMsg("Approved. Leads will see this card. You can change it any time: just edit your details and approve the new one.");
     void reload();
   }
@@ -57,7 +68,11 @@ function Body() {
         <h2>Your intro card</h2>
         <p className="muted">This is the picture leads get on WhatsApp the moment they book. Check it is right, then approve.</p>
         {latest?.url && latest.state !== "processing" ? (
-          <img src={latest.url} alt={`Intro card for ${adviser}`} style={{ width: "100%", borderRadius: "var(--sm-radius-lg)" }} />
+          <div style={{ position: "relative" }}>
+            <img src={latest.url} alt={`Intro card for ${adviser}`}
+              style={{ width: "100%", borderRadius: "var(--sm-radius-lg)", transition: "filter .5s, opacity .5s", ...(alreadyDone ? {} : { filter: "grayscale(1)", opacity: 0.5 }) }} />
+            {!alreadyDone && <span className="pill" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: 14, padding: "8px 14px" }}>Waiting for your approval</span>}
+          </div>
         ) : (
           <div className="intro-card" aria-label="Intro card preview">
             <div className="av">{initialsText}</div>
@@ -70,6 +85,8 @@ function Body() {
           </div>
         )}
         {latest?.state === "processing" && <p className="small">Updating your card…</p>}
+        <FspVerifiedBadge check={broker.fsp_check} verifiedAt={broker.fsp_verified_at} skin="portal" />
+        <BioReviewCard broker={broker} skin="portal" onDecided={() => { void reload(); }} onRewrite={() => { navigate("/broker/profile#bio"); focusWhenReady("bio"); }} />
         {!latest && <p className="small">Preview. The final card is made from these details within seconds of a change.</p>}
 
         <h3 style={{ marginTop: 14 }}>What the lead reads with it</h3>

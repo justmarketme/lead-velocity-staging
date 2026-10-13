@@ -20,6 +20,9 @@ import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
 import { profileErrorText } from "@/lib/brokerProfile";
 import HeadshotPicker from "./HeadshotPicker";
+import PreparedIntroCard from "./PreparedIntroCard";
+import { BioReviewCard, FspVerifiedBadge } from "./LvReview";
+import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
 
 export const LANGS: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "af", label: "Afrikaans" }, { code: "isiZulu", label: "isiZulu" },
@@ -122,15 +125,20 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
     return () => { alive = false; };
   }, [broker.id]);
 
+  // Lead Velocity's decision (accept) rewrites bio_short on the server: show it in the box when it changes.
+  useEffect(() => { setBio(broker.bio_short || ""); }, [broker.bio_short]);
+  // A bio Lead Velocity did not approve (onboarding_progress.bio_review) keeps the card waiting until it changes.
+  const bioHeld = bioBlocked(readBioReview(broker.onboarding_progress), bio);
+
   const photo = localPhoto || storedPhoto;
   const fspOk = fspValid(fsp);
   const checklist = useMemo(() => [
     { key: "photo", label: "A headshot", done: !!(file || broker.headshot_url) },
-    { key: "bio", label: "Two lines about you", done: bio.trim().length >= 40 },
+    { key: "bio", label: bioHeld ? "Two lines about you (needs a small change)" : "Two lines about you", done: bio.trim().length >= 40 && !bioHeld },
     { key: "practice", label: "Practice name", done: practice.trim().length >= 2 },
     { key: "fsp", label: "FSP number (required before you go live)", done: !!broker.fsp_number && fspValid(broker.fsp_number) },
     { key: "langs", label: "At least one language", done: langs.length > 0 },
-  ], [file, broker.headshot_url, broker.fsp_number, bio, practice, langs]);
+  ], [file, broker.headshot_url, broker.fsp_number, bio, practice, langs, bioHeld]);
   const allDone = checklist.every((x) => x.done);
 
   const toggleLang = (code: string) => setLangs((x) => (x.includes(code) ? x.filter((y) => y !== code) : [...x, code]));
@@ -201,6 +209,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
           <div className={`p-3 text-sm rounded-lg ${frozen ? c.ok : allDone ? c.info : c.warn}`} role="status">
             {frozen ? "You're live. Clients receive this card when they book."
               : !broker.fsp_number ? "Not live yet. Your FSP number is required before Lead Velocity can switch your card on."
+              : bioHeld ? "Your bio needs a small change before we prepare your intro card. See below."
               : allDone ? (smc ? "Card complete. Lead Velocity switches you on after the final checks." : "Card complete. It goes live with your SortMyCover order.")
               : "Almost there. Finish the items below."}
           </div>
@@ -209,6 +218,8 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <li key={x.key} className="flex items-center gap-2">{x.done ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" aria-label="done" /> : <Circle className={`h-4 w-4 shrink-0 ${c.muted}`} aria-label="to do" />}{x.label}</li>
             ))}
           </ul>
+          <FspVerifiedBadge check={broker.fsp_check} verifiedAt={broker.fsp_verified_at} />
+          <BioReviewCard broker={broker} onDecided={() => { void reload(); }} onRewrite={() => focusWhenReady("ic-bio")} />
 
           <div className="space-y-2">
             <Label htmlFor="ic-photo">Headshot</Label>
@@ -265,6 +276,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
       </Card>
 
       <div className="space-y-6 min-w-0">
+        {smc && <PreparedIntroCard broker={broker} reload={reload} />}
         <div>
           <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${c.muted}`}>Preview: what the client sees</p>
           <IntroCardPreview photo={photo} adviser={broker.contact_person || ""} practice={practice.trim()} fsp={normFsp(fsp)} bio={bio.trim()} languages={langs}

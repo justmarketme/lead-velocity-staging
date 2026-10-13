@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CLIPS_BASE, MEDIA_BUCKET, errText, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
 import type { SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
+import { BioReviewCard, FspVerifiedBadge } from "@/components/broker/smc/LvReview";
+import { focusWhenReady } from "@/lib/brokerReview";
 
 const LANGS = ["English", "Afrikaans", "isiZulu", "isiXhosa", "Sesotho", "Setswana", "Sepedi", "Xitsonga", "Tshivenda", "siSwati", "isiNdebele", "Other"];
 const normFsp = (v: string) => v.replace(/\s+/g, "").replace(/^fsp/i, "");
@@ -32,6 +34,8 @@ function Body() {
   const polls = useRef(0);
   const check = broker.fsp_check;
   const verified = !!broker.fsp_verified_at || check?.status === "verified";
+  // Accepting Lead Velocity's suggested bio rewrites bio_short on the server: show it in the box.
+  useEffect(() => { setB((x) => ({ ...x, bio: broker.bio_short || "" })); }, [broker.bio_short]);
 
   // Poll the row while W20 runs the FSCA check (target under 10 s; the broker can carry on).
   useEffect(() => {
@@ -105,7 +109,8 @@ function Body() {
           <input id="fsp" type="text" inputMode="numeric" value={a.fsp} maxLength={10} autoComplete="off" disabled={verified} onChange={(e) => setA({ ...a, fsp: e.target.value })} />
           <p className="hint">{verified ? "Checked. To change it, message us and Jonathan will update it." : "Digits only. We check it when you tap Save."}</p>
           {checking && <p className="pill info" role="status">Checking the FSCA register. This takes a few seconds.</p>}
-          {verified && (
+          {check?.status === "verified" && <FspVerifiedBadge check={check} verifiedAt={broker.fsp_verified_at} skin="portal" />}
+          {verified && check?.status !== "verified" && (
             <div className="next-slot" role="status"><span>✓</span><div><b>Found on the FSCA register{check?.register_name ? `: ${check.register_name}` : ""}</b>Authorised financial services provider{check?.checked_at ? " · checked" : ""}</div></div>
           )}
           {!checking && check?.status === "blocked" && !mismatch && (
@@ -137,6 +142,7 @@ function Body() {
       <section className="card">
         <h2>Your photo and two lines</h2>
         <p className="muted">Leads see these before they meet you.</p>
+        <BioReviewCard broker={broker} skin="portal" onDecided={() => { void reload(); }} onRewrite={() => focusWhenReady("bio")} />
         <label htmlFor="ph">Headshot</label>
         <input id="ph" type="file" accept="image/*" capture="user" onChange={(e) => setFile(e.target.files?.[0] || null)} />
         <p className="hint">{broker.headshot_url ? "We have your photo. Pick a new one to replace it." : "Plain background, you looking at the camera. We crop it square. No photo yet? Your card uses your initials for now."}</p>

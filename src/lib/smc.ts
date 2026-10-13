@@ -233,6 +233,7 @@ export async function portalEvent(type: PortalEventType, step: string | null = n
 
 /** Banned words for the light client-side no-advice pre-check (the server gate in W20 is authoritative). */
 const BANNED = [/\bbest\b/i, /\bcheapest\b/i, /#\s?1\b/, /\bguarantee(d|s)?\b/i, /\bpremiums?\b/i, /\bR\s?\d/, /\breturns?\b/i,
+  /\bsav(e|es|ing)\s+(you\s+|them\s+|clients\s+)?money\b/i, // benefit promise (agreement 3.8), e.g. "saving money"
   /\bdiscovery\b/i, /\bsanlam\b/i, /\bold mutual\b/i, /\bliberty\b/i, /\bmomentum\b/i, /\bhollard\b/i, /\bbrightrock\b/i];
 export function noAdviceTrip(text: string): string | null {
   for (const r of BANNED) { const m = text.match(r); if (m) return m[0]; }

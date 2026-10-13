@@ -10,7 +10,11 @@ import { useBrokerPreview } from "@/lib/brokerPreview";
 import { fmtZa, fspValid, normFsp, profileErrorText, toZaE164 } from "@/lib/brokerProfile";
 import { m } from "./motion";
 
-export interface ProfilePatch { firm_name?: string | null; fsp_number?: string | null; whatsapp_number?: string | null; whatsapp_confirmed_at?: string | null }
+export interface ProfilePatch {
+  firm_name?: string | null; fsp_number?: string | null; whatsapp_number?: string | null; whatsapp_confirmed_at?: string | null;
+  /** from broker_decide_bio_suggestion() (LvReview BioReviewCard) */
+  bio_short?: string | null; onboarding_progress?: Record<string, unknown>;
+}
 
 const input = "w-full min-h-[44px] rounded-xl border border-white/15 bg-white/[0.04] px-3 text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pink-400/60 disabled:opacity-60";
 const primary = "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-950 hover:bg-slate-200 disabled:opacity-60";

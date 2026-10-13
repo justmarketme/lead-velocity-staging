@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import BrokerDocumentsSection from "./BrokerDocumentsSection";
 import BrokerProfileSection from "./BrokerProfileSection";
 import BrokerGoLivePanel from "./BrokerGoLivePanel";
+import BrokerComplianceChecks from "./BrokerComplianceChecks";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
@@ -720,6 +721,9 @@ const BrokerDrawer = ({
 
             {/* What the broker entered in his portal (FSP, WhatsApp, intro card) */}
             <BrokerProfileSection brokerId={broker.id} />
+
+            {/* Lead Velocity's compliance checks (FSCA register, products, content review) with evidence */}
+            <BrokerComplianceChecks brokerId={broker.id} />
 
             {/* Campaigns, calendar and go-live checklist (rules evaluated in the database) */}
             <BrokerGoLivePanel
