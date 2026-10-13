@@ -109,6 +109,7 @@ const App = () => {
             <Route path="/broker-setup/:token" element={<BrokerSetup />} />
             <Route path="/broker/forgot-password" element={<BrokerForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/broker/set-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationHistory />} />
             <Route path="/onboarding" element={<BrokerOnboarding />} />
             <Route path="/broker-elite" element={<PremiumBrokerPortalPage />} />

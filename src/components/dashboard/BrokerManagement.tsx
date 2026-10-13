@@ -353,10 +353,14 @@ const BrokerDrawer = ({
   const [lowBudget, setLowBudget] = useState<boolean | null>(null);
   // Wills switch: same pattern (null = column not on this DB yet)
   const [wills, setWills] = useState<boolean | null>(null);
+  // "Create your password" email: null = not sent this session, otherwise the address it went to
+  const [setupSending, setSetupSending] = useState(false);
+  const [setupSentTo, setSetupSentTo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!broker) return;
     setEditing(false);
+    setSetupSentTo(null);
     setForm({
       firm_name: broker.firm_name || "",
       contact_person: broker.contact_person || "",
@@ -487,6 +491,22 @@ const BrokerDrawer = ({
     toast({ title: "Activity logged" });
   };
 
+  // Admin-only edge function: mints the link server-side and emails it; the browser never sees it.
+  const sendPasswordSetup = async () => {
+    setSetupSending(true);
+    const { data, error } = await supabase.functions.invoke("send-password-setup", { body: { broker_id: broker.id } });
+    setSetupSending(false);
+    if (error || !data?.sent) {
+      let message = error?.message || "Unknown error";
+      try { message = (await (error as any)?.context?.json())?.error || message; } catch { /* keep message */ }
+      toast({ title: "Couldn't send the email", description: message, variant: "destructive" });
+      return;
+    }
+    setSetupSentTo(data.email);
+    if (data.activity) setActivities((prev) => [data.activity as Activity, ...prev]);
+    toast({ title: `Sent to ${data.email}` });
+  };
+
   const addFollowup = async () => {
     if (!fuTitle.trim() || !fuWhen) { toast({ title: "Add a title and a date", variant: "destructive" }); return; }
     setSavingFu(true);
@@ -531,7 +551,23 @@ const BrokerDrawer = ({
               <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">Client</Badge>
             )}
             {broker.user_id ? (
-              <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">Portal login active</Badge>
+              <>
+                <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">Portal login active</Badge>
+                {setupSentTo ? (
+                  <span className="text-[11px] text-green-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Sent to {setupSentTo}
+                  </span>
+                ) : (
+                  <button
+                    onClick={sendPasswordSetup}
+                    disabled={setupSending}
+                    title="Emails the broker a one-time link to create his own password (from howzit@leadvelocity.co.za)"
+                    className="text-[11px] text-sky-300 hover:text-sky-200 underline decoration-dotted disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <Mail className="h-3 w-3" /> {setupSending ? "Sending..." : "Send 'create your password' email"}
+                  </button>
+                )}
+              </>
             ) : (
               <Badge variant="outline" className="text-xs text-muted-foreground">No portal login</Badge>
             )}

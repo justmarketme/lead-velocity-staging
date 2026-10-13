@@ -1,290 +1,288 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { z } from "zod";
-import { Shield, HelpCircle, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
+import { Check, Eye, EyeOff } from "lucide-react";
+import { BrokerMotion, EASE, Stagger, StaggerItem } from "@/components/broker/motion";
 
 const passwordSchema = z.object({
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
 });
 
+/** 0–4: length, then variety. Shown as a bar; the only hard rule is the 8-character minimum. */
+function strength(pw: string) {
+  if (pw.length < 8) return pw.length ? 1 : 0;
+  let score = 2;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  return Math.min(score, 4);
+}
+const STRENGTH = [
+  { label: "", color: "bg-white/10" },
+  { label: "Too short", color: "bg-[#e0457b]" },
+  { label: "Okay", color: "bg-[#f07a5c]" },
+  { label: "Good", color: "bg-[#f3a64b]" },
+  { label: "Strong", color: "bg-emerald-400" },
+];
+
+/**
+ * One page for every "set a password from an email link" case:
+ *  - /broker/set-password?token_hash=…&type=recovery — the admin "create your password" email
+ *    (send-password-setup). The token is only redeemed on submit, so link-scanners that pre-fetch
+ *    the URL can't use it up.
+ *  - /reset-password — Supabase's own recovery email (forgot password): the default template lands
+ *    here with the session in the URL hash (implicit flow), or ?code=… if the client uses PKCE.
+ * The email link itself proves the mailbox, so there is no security-question step here.
+ */
 const ResetPassword = () => {
+  const location = useLocation();
+  const isSetup = location.pathname.startsWith("/broker/set-password");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const [tokenHash, setTokenHash] = useState<string | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [isVerified, setIsVerified] = useState(false);
-  const [questions, setQuestions] = useState<{ q1: string; q2: string } | null>(null);
-  const [answer1, setAnswer1] = useState("");
-  const [answer2, setAnswer2] = useState("");
-  const [correctAnswers, setCorrectAnswers] = useState<{ a1: string; a2: string } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if we have a valid recovery session
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "PASSWORD_RECOVERY") {
-          setIsValidSession(true);
-        }
-        setCheckingSession(false);
-      }
-    );
+    const query = new URLSearchParams(location.search);
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
 
-    // Also check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsValidSession(true);
-        fetchSecurityQuestions(session.user.id);
-      }
+    // Supabase puts link errors (expired / already used) in the hash or query.
+    if (hash.get("error") || query.get("error")) {
       setCheckingSession(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchSecurityQuestions = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("security_question_1, security_answer_1, security_question_2, security_answer_2")
-        .eq("user_id", userId)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setQuestions({
-          q1: data.security_question_1,
-          q2: data.security_question_2,
-        });
-        setCorrectAnswers({
-          a1: data.security_answer_1,
-          a2: data.security_answer_2,
-        });
-        // If no questions are set (legacy user), just allow reset
-        if (!data.security_question_1 && !data.security_question_2) {
-          setIsVerified(true);
-        }
-      } else {
-        // No profile found, allow reset (shouldn't happen for admins)
-        setIsVerified(true);
-      }
-    } catch (error) {
-      console.error("Error fetching security questions:", error);
-      // Fallback: allow reset if error fetching (don't lock out users)
-      setIsVerified(true);
-    }
-  };
-
-  const handleVerifyQuestions = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!questions || !correctAnswers) {
-      setIsVerified(true);
       return;
     }
 
-    const isA1Correct = answer1.trim().toLowerCase() === correctAnswers.a1.toLowerCase();
-    const isA2Correct = answer2.trim().toLowerCase() === correctAnswers.a2.toLowerCase();
-
-    if (isA1Correct && isA2Correct) {
-      setIsVerified(true);
-      toast({
-        title: "Identity Verified",
-        description: "Please enter your new password below.",
-      });
-    } else {
-      toast({
-        title: "Incorrect Answers",
-        description: "The answers provided do not match our records. Please try again.",
-        variant: "destructive",
-      });
+    const th = query.get("token_hash");
+    if (th && (query.get("type") || "recovery") === "recovery") {
+      setTokenHash(th);
+      setIsValidSession(true);
+      setCheckingSession(false);
+      return;
     }
-  };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || session) setIsValidSession(true);
+      setCheckingSession(false);
+    });
+
+    (async () => {
+      const code = query.get("code");
+      if (code) await supabase.auth.exchangeCodeForSession(code).catch(() => undefined);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) setIsValidSession(true);
+      setCheckingSession(false);
+    })();
+
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsed = passwordSchema.safeParse({ password, confirmPassword });
+    if (!parsed.success) {
+      toast({ title: "Check your password", description: parsed.error.errors[0].message, variant: "destructive" });
+      return;
+    }
     setLoading(true);
-
     try {
-      const validatedData = passwordSchema.parse({ password, confirmPassword });
-
-      const { error } = await supabase.auth.updateUser({
-        password: validatedData.password,
-      });
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        // Clear the forced-reset flag so the broker isn't bounced back here on next login.
-        const { error: flagError } = await supabase.auth.updateUser({
-          data: { must_reset_password: false },
-        });
-        if (flagError) {
-          console.error("Failed to clear must_reset_password flag:", flagError);
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+        setTokenHash(null); // used up either way; on success there is now a session for a retry
+        if (error) {
+          setIsValidSession(false);
+          return;
         }
-
-        toast({
-          title: "Password Updated",
-          description: "Your password has been reset successfully. Please log in with your new password.",
-        });
-
-        // Sign out and redirect to login
-        await supabase.auth.signOut();
-        navigate("/login");
       }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
+
+      const { data, error } = await supabase.auth.updateUser({
+        password: parsed.data.password,
+        data: { must_reset_password: false },
+      });
+      if (error || !data.user) {
+        toast({ title: "Couldn't save your password", description: error?.message, variant: "destructive" });
+        return;
       }
+
+      // Brokers go to their portal (/broker forwards a signed-in broker to the right one); admins to the dashboard.
+      const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
+      setDone(true);
+      setTimeout(() => navigate(role ? "/dashboard" : "/broker", { replace: true }), reduceMotion ? 600 : 1600);
     } finally {
       setLoading(false);
     }
   };
 
-  if (checkingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Verifying reset link...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const score = strength(password);
+  const eyebrow = isSetup ? "Lead Velocity / Broker onboarding" : "Lead Velocity / Account";
+  const field =
+    "w-full h-12 rounded-xl bg-white/[0.04] border border-white/10 px-4 text-white placeholder:text-white/30 outline-none transition focus:border-[#e0457b]/70 focus:ring-2 focus:ring-[#e0457b]/25";
+  const pill =
+    "w-full h-12 rounded-full bg-gradient-to-r from-[#e0457b] to-[#f3a64b] text-white font-semibold shadow-[0_10px_30px_-10px_rgba(224,69,123,0.7)] transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60";
 
-  if (!isValidSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
-          <CardHeader className="space-y-4 text-center">
-            <img src={logo} alt="Lead Velocity" className="h-20 w-auto mx-auto" />
-            <CardTitle className="text-2xl text-destructive">Invalid or Expired Link</CardTitle>
-            <CardDescription>
-              This password reset link is invalid or has expired. Please request a new one.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" onClick={() => navigate("/login")}>
-              Back to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+  let body: React.ReactNode;
+  if (checkingSession) {
+    body = (
+      <m.p key="checking" className="text-center text-white/60 py-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        Checking your link...
+      </m.p>
+    );
+  } else if (done) {
+    body = (
+      <m.div key="done" className="text-center py-6" initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: EASE }}>
+        <m.div
+          className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#e0457b] to-[#f3a64b]"
+          initial={{ scale: 0.4, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18 }}
+        >
+          <Check className="h-8 w-8 text-white" strokeWidth={3} />
+        </m.div>
+        <h1 className="text-3xl font-bold text-white">You&apos;re in</h1>
+        <p className="mt-2 text-white/60">Password saved. Taking you to your portal...</p>
+      </m.div>
+    );
+  } else if (!isValidSession) {
+    body = (
+      <m.div key="expired" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+        <h1 className="text-3xl font-bold text-white">This link has expired</h1>
+        <p className="mt-3 text-white/60 leading-relaxed">
+          {isSetup
+            ? "Password links work once and expire after a short while. Reply to the email you received, or email howzit@leadvelocity.co.za, and we'll send you a fresh one."
+            : "Password links work once and expire after a short while. Request a new one below."}
+        </p>
+        <div className="mt-8 space-y-3">
+          {!isSetup && (
+            <button className={pill} onClick={() => navigate("/broker/forgot-password")}>Send me a new link</button>
+          )}
+          <button
+            className={isSetup ? pill : "w-full h-12 rounded-full border border-white/15 text-white/80 hover:bg-white/5 transition"}
+            onClick={() => navigate("/broker")}
+          >
+            Go to sign in
+          </button>
+        </div>
+      </m.div>
+    );
+  } else {
+    body = (
+      <m.div key="form" exit={{ opacity: 0, scale: 0.97 }}>
+        <Stagger>
+          <StaggerItem>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">Create your password</h1>
+            <p className="mt-3 text-white/60 leading-relaxed">
+              {isSetup
+                ? "Welcome to Lead Velocity. Choose a password for your broker portal and you'll go straight in."
+                : "Choose a new password for your Lead Velocity account."}
+            </p>
+          </StaggerItem>
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <StaggerItem>
+              <label htmlFor="password" className="block font-mono text-[11px] uppercase tracking-[0.2em] text-white/50 mb-2">Password</label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className={`${field} pr-12`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-lg text-white/50 hover:text-white"
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="mt-3 flex items-center gap-3" aria-live="polite">
+                <div className="flex flex-1 gap-1.5">
+                  {[1, 2, 3, 4].map((n) => (
+                    <div key={n} className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                      <m.div
+                        className={`h-full w-full origin-left rounded-full ${STRENGTH[score].color}`}
+                        initial={false}
+                        animate={{ scaleX: score >= n ? 1 : 0 }}
+                        transition={{ duration: 0.3, ease: EASE, delay: score >= n ? (n - 1) * 0.04 : 0 }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <span className="w-16 text-right font-mono text-[11px] uppercase tracking-wider text-white/50">{STRENGTH[score].label}</span>
+              </div>
+            </StaggerItem>
+            <StaggerItem>
+              <label htmlFor="confirmPassword" className="block font-mono text-[11px] uppercase tracking-[0.2em] text-white/50 mb-2">Confirm password</label>
+              <input
+                id="confirmPassword"
+                type={showPw ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Type it again"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className={field}
+              />
+              {confirmPassword && confirmPassword !== password && (
+                <p className="mt-2 text-xs text-[#f3a64b]">Passwords don&apos;t match yet</p>
+              )}
+            </StaggerItem>
+            <StaggerItem>
+              <button type="submit" className={pill} disabled={loading}>
+                {loading ? "Saving..." : "Save password and continue"}
+              </button>
+            </StaggerItem>
+          </form>
+        </Stagger>
+      </m.div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-      <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
-        <CardHeader className="space-y-4 text-center">
-          <img src={logo} alt="Lead Velocity" className="h-20 w-auto mx-auto" />
-          <CardTitle className="text-2xl gradient-text">Reset Your Password</CardTitle>
-          <CardDescription>
-            {isVerified ? "Enter your new password below" : "Please answer your security questions to continue"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!isVerified ? (
-            <form onSubmit={handleVerifyQuestions} className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-primary font-medium border-b border-border pb-2">
-                  <Shield className="h-4 w-4" />
-                  <span className="text-sm">Identity Verification</span>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground flex items-center gap-2">
-                    <HelpCircle className="h-3 w-3" />
-                    {questions?.q1 || "Security Question 1"}
-                  </Label>
-                  <Input
-                    placeholder="Your answer"
-                    value={answer1}
-                    onChange={(e) => setAnswer1(e.target.value)}
-                    required
-                    className="bg-muted/30"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground flex items-center gap-2">
-                    <HelpCircle className="h-3 w-3" />
-                    {questions?.q2 || "Security Question 2"}
-                  </Label>
-                  <Input
-                    placeholder="Your answer"
-                    value={answer2}
-                    onChange={(e) => setAnswer2(e.target.value)}
-                    required
-                    className="bg-muted/30"
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full">
-                Verify Identity
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="flex items-center gap-2 text-green-500 font-medium border-b border-border pb-2 mb-4">
-                <CheckCircle2 className="h-4 w-4" />
-                <span className="text-sm">Identity Verified</span>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">New Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Updating..." : "Update Password"}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <BrokerMotion>
+      <div className="relative min-h-[100dvh] overflow-hidden bg-[#120c1f] text-white flex items-center justify-center px-4 py-10">
+        <div aria-hidden className="pointer-events-none absolute -top-40 -left-32 h-[28rem] w-[28rem] rounded-full bg-[#e0457b]/20 blur-[120px]" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-40 -right-32 h-[28rem] w-[28rem] rounded-full bg-[#7c3aed]/20 blur-[120px]" />
+        <m.div
+          className="relative w-full max-w-md"
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: EASE }}
+        >
+          <div className="mb-6 flex items-center gap-3">
+            <img src={logo} alt="Lead Velocity" className="h-10 w-10 object-contain" />
+            <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-white/50">{eyebrow}</span>
+          </div>
+          <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8 backdrop-blur-xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)]">
+            <div aria-hidden className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#e0457b]/70 to-transparent" />
+            <AnimatePresence mode="wait">{body}</AnimatePresence>
+          </div>
+          <p className="mt-6 text-center text-xs text-white/40">
+            Need help? <a href="mailto:howzit@leadvelocity.co.za" className="text-[#f3a64b] hover:underline">howzit@leadvelocity.co.za</a>
+          </p>
+        </m.div>
+      </div>
+    </BrokerMotion>
   );
 };
 
