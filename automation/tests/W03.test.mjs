@@ -354,3 +354,25 @@ test('I-47a: for a W07-owned lead the lead row wins over a stale rebuilt thread 
   assert.equal(r.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget');
   assert.equal(r.thread.stage, 'q_budget');
 });
+
+// Quiz v2 (2026-10-13): every band code the page / WhatsApp lists send is accepted; the v2 4-option list never mixes with
+// the lead-ad qualify_budget rows; the band of a provisionally routed web lead triggers W05 op finalize.
+test('quiz v2 bands: 750_1499 qualifies (was missing), v2 ids map to DB codes, lead-ad rows unchanged; W03.json wiring', () => {
+  for (const v of ['750_1250', '750_1499', '1250_1499', '1500_plus']) assert.ok(W3.QUAL_BUDGET.has(v), v);
+  assert.deepEqual(['lt750', 'under_750', '750_1499', '1500_plus'].map((v) => W3.BUDGET_TO_DB[v]), ['lt750', 'lt750', '750_1499', '1500_plus']);
+  assert.deepEqual(W3.BUDGET_ROWS_V2.map(([id]) => id), ['budget_lt750', 'budget_750_1499', 'budget_1500_plus', 'unsure']);
+  assert.deepEqual(W3.BUDGET_ROWS.map(([id]) => id), ['budget_under_500', 'budget_500_750', 'budget_750_1250', 'budget_1250_1499', 'budget_1500_plus'], 'qualify_budget template rows untouched');
+  assert.deepEqual(W3.question('q_budget').rows.map((r) => r.id), W3.BUDGET_ROWS.map(([id]) => id), 'no v2 flag -> the old list');
+  // a CTWA lead answering R750-R1,499 (typed or tapped) is in band, not closed
+  const t = { stage: 'q_budget', lead_id: 'lead_v2b', answers: { age_band: '35_44' } };
+  const r = W3.step(t, { type: 'interactive', interactive: { list_reply: { id: 'budget_750_1499' } } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000188', brand: { brand_id: 'b1', consent_mode: 'generic' } });
+  assert.equal(r.thread.stage, 'q_bond'); assert.equal(r.actions.find((a) => a.kind === 'update_lead').set.budget_band, '750_1499');
+  // wiring: Load context reads the lead's origin (threadFromLead needs it), finalize_booking -> W05 by id
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  assert.match(nd('Load context').parameters.query, /l2\.origin/);
+  const sw = nd('Action?').parameters.rules.values.map((v) => v.outputKey);
+  const i = sw.indexOf('finalize_booking');
+  assert.ok(i > sw.indexOf('update_lead'), 'band UPDATE runs before finalize (execution order v1)');
+  assert.equal(WF.connections['Action?'].main[i][0].node, 'W05 Book (finalize after the band)');
+  assert.equal(nd('W05 Book (finalize after the band)').parameters.workflowId.value, 'smc-w05');
+});

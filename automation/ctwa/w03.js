@@ -68,16 +68,24 @@ function consentFor(mode, broker) {
 // ---------------------------------------------------------------- tap-only questions (4.6 step 3)
 const AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];
 const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_1499', 'R1,250 to R1,499'], ['budget_1500_plus', 'R1,500 or more']];
+// Quiz v2 (2026-10-13): the 4-option band list for a web lead whose page no longer asks the budget (spec
+// quiz-v2-and-whatsapp-step.md section 3). Never mixed with BUDGET_ROWS (the lead-ad qualify_budget template) in one thread.
+const BUDGET_ROWS_V2 = [['budget_lt750', 'Under R750'], ['budget_750_1499', 'R750 to R1,499'], ['budget_1500_plus', 'R1,500 or more'], ['unsure', 'Not sure']];
+const BUDGET_V2_REVIEW_BODY = "Roughly what's your current monthly premium range? A rough idea is fine.";
+const BUDGET_V2_BODY = 'Roughly what monthly amount are you thinking about? A rough idea is fine.';
+const REVIEW_REASONS = new Set(['paying_too_much', 'cover_still_right', 'old_policy', 'not_sure_what_i_have']);
 const BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];
 const METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };
 const QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not
-const QUAL_BUDGET = new Set(['750_1250', '1250_plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250_plus = legacy pre-split)
+const QUAL_BUDGET = new Set(['750_1250', '750_1499', '1250_plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250_plus = legacy pre-split)
 // Tier C (Jonathan, 2026-10-11): under R750 is NOT out of band. The answer is recorded (lt750) and the questions go on; W01
 // routes it only to a broker with the standing yes (brokers.accepts_low_budget) or holds it (held_low_budget).
-const LOW_BUDGET = new Set(['under_500', '500_750', 'lt750']);
+const LOW_BUDGET = new Set(['under_500', '500_750', 'lt750', 'under_750']);
 // fixture/quiz codes -> leads_smc_checks codes (schema uses lt35 / 51plus / lt750 / 1250plus)
 const AGE_TO_DB = { under_35: 'lt35', '35_44': '35_44', '45_50': '45_50', '51_plus': '51plus' };
-const BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', '750_1250': '750_1250', '1250_plus': '1250plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
+const BUDGET_TO_DB = { under_500: 'lt750', '500_750': 'lt750', under_750: 'lt750', '750_1250': '750_1250', '750_1499': '750_1499', '1250_plus': '1250plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
+// a "not sure" tap, in any of the spellings the two lists use, is the clarify path (one re-ask), never a band
+const UNSURE_IDS = new Set(['unsure', 'not_sure', 'budget_unsure', 'budget_not_sure']);
 const METHOD_TO_DB = { teams: 'teams', zoom: 'zoom', meet: 'meet', google_meet: 'meet', whatsapp_call: 'whatsapp_call', phone: 'phone' };
 const STALL_HOURS = [1, 20, 68]; // 4.6 step 7, inside the 72-h CTWA window
 BUDGET_TO_DB.lt750 = 'lt750'; // typed "<750" (I-47a)
@@ -89,7 +97,7 @@ const NEXT_STATE = { q_age: 'q_budget', q_budget: 'q_bond', q_budget_clarify: 'q
 const NLU_AGE = { '<35': 'age_under_35', '35-44': 'age_35_44', '45-50': 'age_45_50', '51+': 'age_51_plus' };
 const NLU_BUDGET = { '<750': 'budget_lt750', '750-1250': 'budget_750_1250', '1250+': 'budget_1250_plus', '1250-1499': 'budget_1250_1499', '1500+': 'budget_1500_plus' };
 const DB_TO_AGE = { lt35: 'under_35', '35_44': '35_44', '45_50': '45_50', '51plus': '51_plus' };
-const DB_TO_BUDGET = { lt750: 'lt750', '750_1250': '750_1250', '1250plus': '1250_plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
+const DB_TO_BUDGET = { lt750: 'lt750', '750_1250': '750_1250', '750_1499': '750_1499', '1250plus': '1250_plus', '1250_1499': '1250_1499', '1500_plus': '1500_plus' };
 const MAX_HOPS = 3; // I-48b: at most 3 W03/W05/W07 hand-backs per inbound message
 /** I-48b hop limit: hops already taken by this message -> { hops (after this hand-back), over }. */
 function hopNext(hops) { const h = (Number(hops) || 0) + 1; return { hops: h, over: h > MAX_HOPS }; }
@@ -116,14 +124,18 @@ function threadFromLead(lead) {
   if (lead.budget_band && DB_TO_BUDGET[lead.budget_band]) answers.budget_band = DB_TO_BUDGET[lead.budget_band];
   if (typeof lead.bond === 'boolean') answers.bond = lead.bond;
   if (typeof lead.dependants === 'boolean') answers.dependants = lead.dependants;
-  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null, origin: lead.origin || null };
+  const cs = lead.conv_state || {};
+  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null, origin: lead.origin || null,
+    // quiz v2 web lead: the band list is the 4-option one, worded for a review when that is what they asked for
+    ...(lead.origin === 'page' && cs.budget_pending ? { budget_v2: true, review: cs.help_with === 'review' || REVIEW_REASONS.has(cs.reason) } : {}) };
 }
 
 const list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });
 const buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });
 
-function question(stage, broker) {
+function question(stage, broker, t) {
   if (stage === 'q_age') return list('Which age group are you in?', 'Choose age', AGE_ROWS);
+  if (stage === 'q_budget' && t && t.budget_v2) return list(t.review ? BUDGET_V2_REVIEW_BODY : BUDGET_V2_BODY, 'Choose range', BUDGET_ROWS_V2);
   if (stage === 'q_budget') return list('Roughly what could you put towards cover each month?', 'Choose amount', BUDGET_ROWS);
   if (stage === 'q_bond') return list('Do you have a bond or people who depend on your income?', 'Choose one', BOND_ROWS);
   if (stage === 'q_method') {
@@ -238,12 +250,13 @@ function qualify(t, msg, ctx, actions) {
   if (!prefix) return { thread: t, actions: [{ kind: 'forward_w07', lead_id: t.lead_id, reason: 'after_qualifying', hops: ctx.hops || 0 }] };
   let id = tapId(msg);
   if ((!id || !id.startsWith(prefix)) && ctx.typed) id = typedTap(t.stage, ctx.typed.slots) || id;
+  if (prefix === 'budget_' && UNSURE_IDS.has(id)) id = 'unsure';
   if (id === 'unsure') {
     // logic.mjs budget_clarify: one clarifying re-ask, a second "not sure" closes (state-machine.md q_budget_clarify)
     if (t.stage === 'q_budget_clarify') { t.answers.budget_band = 'unsure'; return outOfBand(t, ctx, 'budget_band', actions); }
     t.stage = 'q_budget_clarify';
     actions.push({ kind: 'update_lead', id: t.lead_id, set: { conv_state_state: 'q_budget_clarify' } });
-    send({ ...question('q_budget', ctx.broker), body: `No problem, a rough idea is fine. ${question('q_budget', ctx.broker).body}` });
+    send({ ...question('q_budget', ctx.broker, t), body: `No problem, a rough idea is fine. ${question('q_budget', ctx.broker, t).body}` });
     stall('q_budget');
     return { thread: t, actions };
   }
@@ -251,7 +264,7 @@ function qualify(t, msg, ctx, actions) {
     // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again.
     // A message W07 already handed over (ctx.typed) is not forwarded back: W07 logged it (I-48b, no extra hop).
     if (msg.type === 'text' && !ctx.typed) actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false, hops: ctx.hops || 0 });
-    const q = question(STAGE_OF[t.stage] === 'q_budget_clarify' ? 'q_budget' : t.stage, ctx.broker);
+    const q = question(STAGE_OF[t.stage] === 'q_budget_clarify' ? 'q_budget' : t.stage, ctx.broker, t);
     send({ ...q, body: `Please tap one of the options. ${q.body}` });
     return { thread: t, actions };
   }
@@ -267,6 +280,7 @@ function qualify(t, msg, ctx, actions) {
     t.answers.budget_band = val;
     if (!QUAL_BUDGET.has(val) && !LOW_BUDGET.has(val)) return outOfBand(t, ctx, 'budget_band', actions);
     if (t.from_lead && t.origin === 'lead_ad') return finishLeadAd(t, ctx, actions, val);
+    if (t.from_lead && t.origin === 'page') return finishPageBudget(t, ctx, actions, val);
     t.stage = 'q_bond';
     set = { budget_band: BUDGET_TO_DB[val] };
   } else if (from === 'q_bond') {
@@ -318,6 +332,20 @@ function finishLeadAd(t, ctx, actions, val) {
   return { thread: t, actions };
 }
 
+/**
+ * Quiz v2 (2026-10-13): a web lead W01 routed provisionally (conv_state.budget_pending) answers the band. Record it; the
+ * lead keeps its stage and broker (lt750 on a broker without the standing yes: the database trigger smc_leads_route_check
+ * un-routes it to held_low_budget). Then W05 op finalize: a held booking whose email is verified is handed over now.
+ */
+function finishPageBudget(t, ctx, actions, val) {
+  t.stage = 'done';
+  actions.push({ kind: 'cancel_stall' });
+  actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], conv_state_state: NEXT_STATE.q_method } });
+  actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks, that helps the adviser prepare.' } });
+  actions.push({ kind: 'finalize_booking', op: 'finalize', lead_id: t.lead_id });
+  return { thread: t, actions };
+}
+
 function outOfBand(t, ctx, reason, actions) {
   const del = new Date(Date.parse(ctx.at) + 24 * 3600 * 1000).toISOString();
   actions.push({ kind: 'cancel_stall' });
@@ -342,4 +370,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { BUDGET_ROWS, BUDGET_ROWS_V2, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

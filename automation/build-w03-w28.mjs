@@ -99,7 +99,7 @@ SELECT br.id AS brand_id,
            LIMIT 1) k) AS broker,
        ol.id AS existing_open_lead_id,
        (SELECT row_to_json(x) FROM (
-          SELECT l2.id, l2.conv_state, l2.age_band, l2.budget_band, l2.bond, l2.dependants, l2.broker_id, l2.language
+          SELECT l2.id, l2.origin, l2.conv_state, l2.age_band, l2.budget_band, l2.bond, l2.dependants, l2.broker_id, l2.language
             FROM public.leads l2 WHERE l2.id = ol.id) x) AS lead,
        EXISTS (SELECT 1 FROM public.suppression s
                 WHERE s.mobile_hash = public.smc_hash_contact($2) AND (s.brand_id IS NULL OR s.brand_id = br.id)
@@ -148,7 +148,7 @@ RETURNING stage;`,
     '={{ [ $json.brand_id, $json.mobile, JSON.stringify($json.thread || { stage: "none" }), $json.at, $json.stall_due_at ] }}'));
   n.push(code('Fan out actions', [1780, 280],
     "return $input.all().flatMap((it) => it.json.actions.filter((a) => !['schedule_stall', 'cancel_stall', 'ignore'].includes(a.kind)).map((a) => ({ json: { ...a, _brand_id: it.json.brand_id, _mobile: it.json.mobile, _wamid: it.json.wamid, _at: it.json.at, _pnid: it.json.phone_number_id, _broker: it.json.broker, _lead_id: it.json.lead_id, _hops: it.json.hops } })));"));
-  n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert', 'log_no_brand']));
+  n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert', 'log_no_brand', 'finalize_booking']));
   // I-48b/I-48k: every lead-facing W03 message takes the per-inbound reply claim (same key as W07: w07:reply:{wamid}),
   // then DRY_RUN_SENDS decides live send vs stored only; the outbound communications row is written either way (W07 parity).
   n.push(code('Build Cloud API body', [2240, 0], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message), brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }));"));
@@ -242,6 +242,10 @@ ON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events
 RETURNING id;`,
     '={{ [ $json.msg.wamid, $json.brand_id || "", String($json.hops) ] }}'));
   n.push(sub('W22 Alerts: W03', [2240, 980], 'W22 Alerts'));
+  // quiz v2: a web lead's band arrived (finishPageBudget). executionOrder v1 runs the Action? outputs in order, so the
+  // band UPDATE (output 2) has committed before W05 op finalize (output 9) re-reads the lead: a held booking whose email is
+  // verified is handed over now; otherwise finalizeRequest returns nothing and the hold keeps waiting.
+  n.push(sub('W05 Book (finalize after the band)', [2240, 1260], 'W05 Book'));
 
   // tracked redirect (I-09)
   n.push(node('CTWA redirect (GET /wa/:ref)', 'webhook', 2, [0, 600], { httpMethod: 'GET', path: 'wa/:ref', responseMode: 'responseNode', options: {} }, { webhookId: 'w03-ctwa-redirect' }));
@@ -268,7 +272,7 @@ RETURNING id;`,
   link(c, 'W03 step', 'Fan out actions');
   link(c, 'Fan out actions', 'Action?');
   ['Build Cloud API body', 'Insert lead (consent at the tap)', 'Update lead (answers / out-of-band)', 'Suppress (hash only)', 'CAPI business-messaging Lead',
-    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03', 'Log no brand (I-47b)'].forEach((t, i) => link(c, 'Action?', t, i));
+    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03', 'Log no brand (I-47b)', 'W05 Book (finalize after the band)'].forEach((t, i) => link(c, 'Action?', t, i));
   link(c, 'Mark origin w03 (loop guard)', 'Hop limit ok? (I-48b)');
   link(c, 'Hop limit ok? (I-48b)', 'W07 Conversation agent (forward)', 0);
   link(c, 'Hop limit ok? (I-48b)', 'Log hop limit (W03)', 1);

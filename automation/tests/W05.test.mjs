@@ -380,7 +380,7 @@ test(`W05 [${MODE}] lead row carries broker_id after booking (W05 "store broker_
 // Build checks: the real module and the real automation/W05.json
 // ============================================================================================
 const WF5 = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
-const ctx5 = (over = {}) => ({ lane: 'http', mode: 'lead', lead: { id: 'lead_test_L02', broker_id: broker().broker_id, first_name: 'Sipho', phone: '+27600000002', origin: 'page', consent_ads_at: '2026-10-12T09:00:00+02:00' }, broker: broker(), now: ms('2026-10-12T11:40:00+02:00'), ...over });
+const ctx5 = (over = {}) => ({ lane: 'http', mode: 'lead', lead: { id: 'lead_test_L02', broker_id: broker().broker_id, first_name: 'Sipho', phone: '+27600000002', origin: 'page', consent_ads_at: '2026-10-12T09:00:00+02:00', budget_band: '1500_plus' }, broker: broker(), now: ms('2026-10-12T11:40:00+02:00'), ...over });
 
 test('W05 lib: verified lead + call method needs no email; unverified lead needs one for every method; invite methods always; unsupported -> 422', () => {
   const r = W5.parseHttp({}, {}, {});
@@ -474,9 +474,44 @@ test('W05 lib: verify window = min(now + 24 h, start - 2 h); under 15 minutes ->
   assert.equal(a.action, 'taken'); assert.equal(a.body.error_code, 'too_soon_to_verify');
   const hold = { id: 'h1', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', booked_via: 'page', idempotency_key: 'page:x:1', verify_by: iso(now + H) };
   assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: false }, now), null, 'not verified');
-  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true }, now + 2 * H), null, 'past verify_by');
-  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true }, now).finalize_booking_id, 'h1');
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true, budget_band: '750_1499' }, now + 2 * H), null, 'past verify_by');
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true, budget_band: '750_1499' }, now).finalize_booking_id, 'h1');
   assert.deepEqual(W5.parseSub({ op: 'finalize', lead_id: 'x' }), { op: 'finalize', lead_id: 'x', booking_id: null });
+});
+
+// Quiz v2 (2026-10-13): the page no longer asks the budget, so the hand-over also waits for the self-declared band
+test('W05 band gate (quiz v2): handed over only when the email is verified AND budget_band is known; held otherwise; finalize waits for both', () => {
+  const now = ms('2026-10-12T11:40:00+02:00');
+  const req = (k, email = null) => ({ slot_start: '2026-10-14T10:30:00+02:00', method: 'phone', email, booked_via: 'page', idempotency_key: k });
+  const base = { ...ctx5().lead, email: 'sipho@gmail.com', email_verified: true };
+  assert.equal(W5.bandKnown({ budget_band: '750_1499' }), true); assert.equal(W5.bandKnown({ budget_band: null }), false); assert.equal(W5.bandKnown({}), false);
+  // verified email + band -> straight through (unchanged)
+  const ok = W5.decide(ctx5({ lead: base, req: req('bg1') }));
+  assert.deepEqual([ok.plan.hold, ok.plan.hold_for], [false, null]);
+  // verified email, NO band -> held for the band (no verify email / message), lifted later by W03 -> op finalize
+  const nb = { ...base, budget_band: null };
+  const d = W5.decide(ctx5({ lead: nb, req: req('bg2') }));
+  assert.deepEqual([d.action, d.plan.hold, d.plan.hold_for], ['check', true, 'budget']);
+  const row = { id: 'hb1', verify_by: iso(now + 20 * H) };
+  const h = W5.holdPending(ctx5({ lead: nb }), { ...d.plan, end: d.plan.end }, row);
+  assert.deepEqual([h.response.body.held, h.response.body.verify, h.lead_wa, h.issue, h.ask_email], [true, 'budget', null, null, null]);
+  assert.equal(h.timeline.payload.held_for, 'budget');
+  // unverified email, no band (the v2 page booking) -> held for the email first: the verify email goes as today
+  const v2 = { ...ctx5().lead, budget_band: null };
+  const e = W5.decide(ctx5({ lead: v2, req: req('bg3', 'sipho@gmail.com') }));
+  assert.deepEqual([e.plan.hold, e.plan.hold_for], [true, 'email']);
+  const he = W5.holdPending(ctx5({ lead: v2 }), e.plan, row);
+  assert.equal(he.response.body.verify, 'email'); assert.equal(he.issue.op, 'issue'); assert.ok(he.lead_wa && JSON.stringify(he.lead_wa).includes('booking_held_verify_email'), 'booking_held_verify_email WhatsApp');
+  // finalize (email verified -> smc-email-verify; band arrived -> W03): only when BOTH are in
+  const hold = { id: 'h2', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'phone', booked_via: 'page', idempotency_key: 'page:x:2', verify_by: iso(now + 20 * H) };
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true, budget_band: null }, now), null, 'email verified, band missing: keep holding');
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: false, budget_band: '750_1499' }, now), null, 'band in, email not verified: keep holding');
+  assert.equal(W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true, budget_band: '750_1499' }, now).finalize_booking_id, 'h2', 'both in: handed over');
+  // a broker booking his own lead in the portal is not gated on the band
+  const bk = W5.decide(ctx5({ mode: 'broker', broker_by_user: { id: broker().broker_id }, lead: nb, req: req('bg4') }));
+  assert.equal(bk.plan.hold, false);
+  // the finalize load reads the band
+  assert.match(WF5.nodes.find((n) => n.name === 'Load held slot + lead (finalize)').parameters.query, /l\.email_verified, l\.budget_band/);
 });
 
 test('W05.json verify gate wiring: insert writes the hold or promotes it; held branch skips the calendar + broker; finalize op; 5-min release sweep', () => {

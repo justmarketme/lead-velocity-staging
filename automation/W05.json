@@ -403,7 +403,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT (SELECT to_jsonb(h) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by, a.booked_via, a.idempotency_key, a.previous_booking_id, a.schedule_event_id\n                                  FROM public.appointments a\n                                 WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND ($2 = '' OR a.id::text = $2)\n                                 ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;",
+        "query": "SELECT (SELECT to_jsonb(h) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by, a.booked_via, a.idempotency_key, a.previous_booking_id, a.schedule_event_id\n                                  FROM public.appointments a\n                                 WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND ($2 = '' OR a.id::text = $2)\n                                 ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;",
         "options": {
           "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"
         }

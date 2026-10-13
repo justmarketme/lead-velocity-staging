@@ -175,7 +175,7 @@ SELECT (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' A
                                   FROM public.appointments a
                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND ($2 = '' OR a.id::text = $2)
                                  ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,
-       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;`, "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"));
+       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;`, "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"));
   n.push(code('Finalize request (w05.finalizeRequest)', 'w05.mjs', `const x = $input.first().json;\nconst req = L.finalizeRequest(x.hold, x.lead, Date.now());\nreturn req ? [{ json: { lane: 'sub', ok: true, req, hdr: {} } }] : [];`));
   n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)
 VALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()) RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected'] }}"));

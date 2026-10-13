@@ -280,6 +280,8 @@ function parseFlow(msg, leadId, env, nowMs, rej) {
  */
 export function finalizeRequest(hold, lead = {}, nowMs = Date.now()) {
   if (!hold || hold.status !== HELD || !lead || lead.email_verified !== true) return null;
+  // quiz v2 band gate: the hold also waits for the self-declared budget band (W03 calls finalize again when it arrives)
+  if (!bandKnown(lead)) return null;
   if (hold.verify_by && ms(hold.verify_by) <= nowMs) return null; // released by the sweep, never revived
   return { op: 'book', lead_id: String(lead.id), slot_start: iso(ms(hold.appointment_date)), method: hold.method, email: lead.email || null, email_confirmed: true,
     booked_via: hold.booked_via || 'chat', idempotency_key: hold.idempotency_key, previous_booking_id: hold.previous_booking_id || null,
@@ -297,6 +299,12 @@ export function chooseMethod(lead = {}, broker = {}) {
 }
 
 const leadView = (l = {}) => ({ ...l, phone: l.phone || l.mobile || null });
+/**
+ * Quiz v2 (2026-10-13): the landing page no longer asks the budget, so a page lead can book before its band is known.
+ * Contract 5.1(c) / S2.2: a Qualified Lead carries a self-declared band, and 5.7(a) gives it to the broker at the offer.
+ * So the booking is handed over only when the email is verified AND budget_band is set; otherwise the slot is HELD.
+ */
+export const bandKnown = (lead = {}) => lead.budget_band != null && lead.budget_band !== '';
 
 /**
  * decide(ctx) after the database load.
@@ -364,12 +372,15 @@ export function decide(ctx = {}) {
   }
   const end = start + b.slot_minutes * MIN;
   // the booking reaches the broker only when the email it carries is the lead's VERIFIED email; anything else is a hold
-  const verified = verifiedBefore && (!email || sameEmail(email, lead.email));
+  const emailOk = verifiedBefore && (!email || sameEmail(email, lead.email));
+  // a broker booking his own lead (portal, broker JWT) is not gated on the band: he already has the lead
+  const band = bandKnown(lead) || (http && mode === 'broker');
+  const verified = emailOk && band;
   return {
     action: 'check',
     is_free: { op: 'is_free', broker_id: b.broker_id, start: iso(start), end: iso(end), ...(fin ? { exclude_booking_id: String(req.finalize_booking_id) } : {}), ...(ctx.test_clock ? { now: iso(ctx.now), is_synthetic: true } : {}) },
     plan: { lead_id: lead.id, broker_id: b.broker_id, start: iso(start), end: iso(end), method, email, email_status: emailStatus, ask_email: askEmail, booked_via: req.booked_via, idempotency_key: req.idempotency_key, previous_booking_id: req.previous_booking_id || null, context: req.context || {}, adviser_first: adviserFirst, route: calendarRoute(b),
-      hold: !verified, finalize_booking_id: fin ? String(req.finalize_booking_id) : null },
+      hold: !verified, hold_for: verified ? null : !emailOk ? 'email' : 'budget', finalize_booking_id: fin ? String(req.finalize_booking_id) : null },
   };
 }
 
@@ -653,6 +664,15 @@ export function holdPending(ctx, p, row) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
   const verifyBy = row.verify_by || iso(holdDeadline(ms(ctx.now), ms(p.start)));
+  if (p.hold_for === 'budget') {
+    // email already verified, only the band is missing: no verify email / message (the band is asked on WhatsApp or the
+    // email-confirm page; W03 runs op finalize when it arrives). The release sweep still frees the slot at verify_by.
+    return {
+      response: { status: 201, body: { booked: false, held: true, verify: 'budget', booking_id: row.id, start: iso(ms(p.start)), end: iso(ms(p.end)), method: p.method, verify_by: iso(ms(verifyBy)) } },
+      lead_update: {}, lead_wa: null, issue: null, ask_email: null,
+      timeline: { activity_type: 'booking_held', payload: { booking_id: row.id, start: p.start, method: p.method, verify_by: verifyBy, booked_via: p.booked_via, held_for: 'budget' } },
+    };
+  }
   const vars = [firstName(lead.first_name) || 'there', dateLabel(p.start), timeLabel(p.start), firstName(b.adviser_name || b.contact_person) || 'your adviser', `${dateLabel(verifyBy)} at ${timeLabel(verifyBy)}`].map((v) => clean(v));
   return {
     response: { status: 201, body: { booked: false, held: true, verify: 'email', booking_id: row.id, start: iso(ms(p.start)), end: iso(ms(p.end)), method: p.method, verify_by: iso(ms(verifyBy)) } },

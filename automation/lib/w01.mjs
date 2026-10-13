@@ -100,6 +100,11 @@ export const LOW_BUDGET_HOLD_DAYS = 7;
 // -> routing_reason held_no_wills_broker). Same nurture, booking, verification and counting rules otherwise.
 export const WILLS_ANGLES = new Set(['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']);
 export const PRODUCTS = new Set(['life_cover', 'wills']);
+// Quiz v2 (lv-site a206f12, 2026-10-13): the landing page no longer asks the budget. It sends budget_pending: true and
+// help_with (the visitor's main reason, one of these). The band is asked later (WhatsApp / email-confirm page) and W05
+// hands the booking to the adviser only once it is known (contract 5.1(c), S2.2: a self-declared band is Required).
+export const HELP_WITH = new Set(['review', 'life', 'disability_income', 'severe_illness', 'wills']);
+export const helpWithOf = (v) => (typeof v === 'string' && HELP_WITH.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
 /** The page's own product choice (/book/ first question or ?for=, campaign theme), whitelisted; anything else -> null. */
 export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
 /** leads.product_interest: a wills angle is always 'wills'; otherwise the page's choice (product_interest, lv-site fc89d5a),
@@ -146,7 +151,10 @@ export function normaliseSubmission(body = {}, opts = {}) {
     mobile_raw: typeof body.mobile === 'string' ? body.mobile : null,
     language: body.language ?? body.lang ?? null,
     angle: body.angle ?? null,
-    product_interest: productChoice(body.product_interest),
+    // quiz v2: the no-JS form may send only help_with; wills -> wills, any cover reason -> life_cover (same two products)
+    product_interest: productChoice(body.product_interest) ?? (helpWithOf(body.help_with) ? (helpWithOf(body.help_with) === 'wills' ? 'wills' : 'life_cover') : null),
+    help_with: helpWithOf(body.help_with),
+    budget_pending: body.budget_pending === true || body.budget_pending === 'true',
     quiz: {
       age_band: AGE_TO_DB[q.age_band] ?? null, budget_band: BUDGET_TO_DB[q.budget_band] ?? null,
       bond: yes(q.has_bond ?? q.bond), dependants: dependantsOf(q.has_dependants ?? q.dependants), work_cover: yes(q.has_work_cover ?? q.work_cover),
@@ -419,8 +427,15 @@ export function decide(sub, ctx) {
   // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
   // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
   const budgetPending = sub.channel === 'lead_ad' && row.budget_band == null && !ageOut;
-  const budOut = !budgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
-  const tier = tierOf(row.budget_band);
+  // Quiz v2 (2026-10-13): a page lead that says budget_pending is not out of band either. It is routed now (provisionally
+  // as tier B: a broker who takes R750-R1,499 also takes R1,500+) so the page can book at once, and W05 holds the booking
+  // until the band is known (and the email verified). The band answer can still move it: lt750 -> the database trigger
+  // (smc_leads_route_check) holds it as tier C unless the broker has the standing yes.
+  const pageBudgetPending = sub.channel === 'page' && sub.budget_pending === true && row.budget_band == null && !ageOut;
+  const budOut = !budgetPending && !pageBudgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
+  const tier = pageBudgetPending ? 'B' : tierOf(row.budget_band);
+  // help_with has no column on public.leads: it is kept in conv_state (jsonb), no DDL (spec 2a)
+  if (sub.channel === 'page' && sub.help_with) row.conv_state = { help_with: sub.help_with };
   if (ageOut || budOut) {
     Object.assign(row, { stage: 'disqualified', disqualified_reason: ageOut ? 'age_band' : 'budget_band', retention_delete_after: isoSast(now + OUT_OF_BAND_RETENTION_H * H) });
     return { kind: 'insert', outcome: 'not_qualified', row, activities, first_touch: null, capi: null, mint_token: false,
@@ -459,7 +474,13 @@ export function decide(sub, ctx) {
   const b = r.broker;
   Object.assign(row, { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason });
   activities.push({ activity_type: 'routed', actor_type: 'system', occurred_at: at, idempotency_key: `w01:routed:${ctx.lead_id}`,
-    payload: { broker_id: row.broker_id, reason: row.routing_reason } });
+    payload: { broker_id: row.broker_id, reason: row.routing_reason, ...(pageBudgetPending ? { provisional_tier: 'B' } : {}) } });
+  if (pageBudgetPending) {
+    // q_reason: the WhatsApp reason step (spec section 3) comes next; W05 keeps any booking held until budget_band is set
+    row.conv_state = { state: 'q_reason', budget_pending: true, help_with: sub.help_with ?? null };
+    activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at,
+      idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: 'page', help_with: sub.help_with ?? null } });
+  }
   return {
     kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page',
     // routed_at is written in the same statement as the lead row; W06 is called only after that statement returns.
