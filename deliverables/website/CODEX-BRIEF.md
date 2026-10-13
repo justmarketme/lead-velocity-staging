@@ -55,3 +55,23 @@ Use the corrected layout of Jono's "Start Your Cover Check" concept as a referen
 
 ## 9. Hand-back
 Tell Claude Code: branch name, what changed, `npm run build` + `npm test` results, and screenshots of home + one campaign page on mobile. Claude Code then reviews compliance, deploys, and points the ads at the pages.
+
+## 10. STATUS AT HANDOVER (13 Oct 2026, written by Claude Code)
+**Live checklist (source of truth):** https://claude.ai/artifact/JccX7b52ooU4brtX68Gdiy. Read it first.
+
+**Done and live**
+- Meta: ad account `1651253736358759` (ZAR, SAST), Pixel `1088568384160686`, domain verified, Page `61595175929084` linked to Instagram @sortmycover. Card added; account spending limit R3,000 (about R3,450 with 15% VAT).
+- Campaign **draft** `SMC | Leads | Cycle 1 | Quiz` (campaign 120248625965480618, ad set 120248625965470618, placeholder ad 120248625965490618). All toggles OFF. R150/day, ages 35-50 hard, 78 affluent suburbs across all provinces, FB + IG feeds/Stories/Reels. Destination is currently `https://sortmycover.co.za/book/`; change it to the per-angle landing pages from section 7 if you prefer.
+- WhatsApp sender +27 60 015 6480 ONLINE, 9 templates approved. Voice receptionist Lindi answers the same number.
+- Broker portal: bio approval, intro card (waiting for Mark), ad likeness consent, per-ad approval, change requests.
+
+**NOT done: do not publish until these are ticked in the checklist**
+1. Privacy and terms pages still carry "DRAFT for practitioner review". A lawyer must review them, then the draft line comes off.
+2. Information Officer is changing to Kgomotso Pule (commit 8b66748 on `site-research`); the build is ready but not yet uploaded to Hostinger.
+3. n8n WhatsApp sends are still in test mode (`DRY_RUN_SENDS=true`). Leads from ads would get no WhatsApp until it is switched off.
+4. Mark must approve his bio, his intro card and (per ad) the use of his name and face. Any ad that shows Mark stays out of the campaign until he approves it in the portal.
+5. Meta needs: account info confirmed in Account Overview, and Advertiser/Payer filled in for ad transparency.
+
+**What Codex should deliver:** section 7 ads and section 8 site. Hand back as in section 9. When you hand back, also tick or comment on these checklist items: "Hand over to Codex", "Decide on the site redesign".
+
+**Reminder for Jono (check in the morning):** the site redesign decision is still open ("Decide on the site redesign: Codex review?"). If you read this and it has not been decided, remind Jono at the start of the session.
