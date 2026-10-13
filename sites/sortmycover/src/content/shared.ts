@@ -2,7 +2,7 @@ import type { FaqItem } from "./types";
 import { COST_LINE, FEE_LINE, NO_COMMISSION, NOT_FSP_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, provider, site } from "@/lib/site";
 
 export const HOW_STEPS = [
-  { title: "Answer two quick questions", body: "Your age band and a monthly budget band. Then your first name and mobile number." },
+  { title: "Answer two quick questions", body: "What you would like help with, and your age band. Then your first name and mobile number." },
   { title: "Pick a time", body: "You get your adviser’s name, practice and FSP number on WhatsApp, and choose a time that suits you." },
   { title: "Talk to the adviser for 30 minutes", body: "By video, WhatsApp or phone. The adviser tells you how they are paid. You decide afterwards. " + COST_LINE },
 ];

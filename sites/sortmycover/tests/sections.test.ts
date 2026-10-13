@@ -133,12 +133,13 @@ describe("quiz: what the call is about", () => {
     expect(progressOf(4, 4)).toBe(1);
     expect(progressOf(9, 4)).toBe(1);
   });
-  it("the quiz sends product_interest and keeps the rest of the /lead body unchanged", () => {
+  it("the quiz sends product_interest and help_with, no budget_band, and keeps the rest of the /lead body unchanged", () => {
     const quiz = fs.readFileSync(path.resolve(__dirname, "../src/components/Quiz.tsx"), "utf8");
     const api = fs.readFileSync(path.resolve(__dirname, "../src/lib/api.ts"), "utf8");
     expect(quiz).toMatch(/product_interest: product \?\? "life_cover"/);
     expect(api).toMatch(/product_interest: "life_cover" \| "wills"/);
-    for (const f of ["first_name", "mobile", "consent_text", "consent_version", "consent_mode", "consent_ads", "age_band", "budget_band", "angle", "lang", "started_at", "request_id", "page_url", "company_website", "turnstile_token", "context"]) expect(api, f).toContain(f + ":");
+    expect(api).not.toContain("budget_band");
+    for (const f of ["first_name", "mobile", "consent_text", "consent_version", "consent_mode", "consent_ads", "age_band", "budget_pending", "help_with", "angle", "lang", "started_at", "request_id", "page_url", "company_website", "turnstile_token", "context"]) expect(api, f).toContain(f + ":");
     for (const p of ['"/lead"', '"/slots?days=5"', '"/book"', '"/lead/skip"']) expect(api, p).toContain(p);
   });
 });

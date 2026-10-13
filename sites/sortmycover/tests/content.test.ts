@@ -149,7 +149,6 @@ describe("campaign angles", () => {
     const ok = (id: string) => { const e = ev.find((x) => x.id === id); expect(e, id).toBeTruthy(); expect(["usable", "verified"], id).toContain(e!.status); };
     for (const a of ANGLES.filter((x) => x.theme === "B")) {
       expect(isAttached(a), a.slug).toBe(true);
-      expect(a.budget_topic, a.slug).toBe("cover and planning");
       expect(a.sources?.length, a.slug + " sources").toBeGreaterThan(0);
       a.sources!.forEach(ok);
       expect(JSON.stringify(a), a.slug).not.toMatch(/\{(provider|legal_name|status)\}/);
@@ -182,9 +181,13 @@ describe("campaign hosts (spec C.3)", () => {
   });
 });
 
-describe("angle-aware quiz copy", () => {
-  it("budget topics are short plain phrases with no banned wording", () => {
-    for (const a of ANGLES.filter((x) => x.budget_topic)) { expect(a.budget_topic!.split(/\s+/).length).toBeLessThanOrEqual(6); for (const [re, label] of BANNED) expect(a.budget_topic!, `${a.slug}: ${label}`).not.toMatch(re); }
+describe("quiz copy", () => {
+  it("no angle carries budget wording (no budget question on the page since 2026-10-13)", () => {
+    expect(JSON.stringify(anglesRaw)).not.toMatch(/budget_topic/);
+  });
+  it("the first-question labels pass the wording scan", async () => {
+    const { HELP_OPTIONS } = await import("../src/lib/quiz");
+    for (const o of HELP_OPTIONS) for (const [re, label] of BANNED) expect(o.label, `${o.value}: ${label}`).not.toMatch(re);
   });
 });
 

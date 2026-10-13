@@ -20,8 +20,6 @@ export interface Angle {
   sub: string;
   title: string;
   description: string;
-  /** Angle-aware quiz copy: what the budget question says the monthly amount is for ("life cover" when absent). */
-  budget_topic?: string;
   /** One scope sentence shown under the sub line (wills angles: what the call is and is not). */
   note?: string;
   proof?: Proof;

@@ -192,15 +192,22 @@ describe.skipIf(!have)("pre-rendered output", () => {
   it("no page states the fee as flat, monthly or the same (spec C.1 item 5), and none says 30-day cycle", () => {
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/flat|30-day cycle|the same whether|flat monthly/i);
   });
-  it("the home page has no sticky bar markup; /book/ asks what the call is about first, then the two taps, details and consent", () => {
+  it("the home page has no sticky bar markup; /book/ asks what you want help with, then the age band, details and consent (no budget)", () => {
     const home = pages.find((p) => p.rel === "index.html")!.html;
     expect(home).not.toMatch(/sticky-bar/);
     const bookHtml = pages.find((p) => p.rel === "book/index.html")!.html;
     const book = visible(bookHtml);
-    expect(book).toContain("What would you like the call to be about?");
-    expect(book).toContain("Step 1 of 5");
-    expect(bookHtml).toMatch(/name="product_interest"[^>]*value="life_cover"/);
-    expect(bookHtml).toMatch(/name="product_interest"[^>]*value="wills"/);
+    expect(book).toContain("What would you like help with?");
+    expect(book).toContain("Step 1 of 4");
+    expect(book).toContain("Review my existing cover");
+    for (const v of ["review", "life", "disability_income", "severe_illness", "wills"]) expect(bookHtml).toMatch(new RegExp(`name="help_with"[^>]*value="${v}"`));
+    // quiz v2 (2026-10-13): no page carries a budget question or field, the no-JS form included
+    for (const p of pages) expect(p.html, p.rel).not.toMatch(/name="budget_band"|monthly budget could you/);
+    for (const a of ANGLES) {
+      const land = pages.find((p) => p.rel === `_c/${a.slug}/index.html`)!.html;
+      if (a.theme === "B") { expect(visible(land), a.slug).not.toContain("What would you like help with?"); expect(visible(land), a.slug).toContain("Step 1 of 3"); }
+      else { expect(visible(land), a.slug).toContain("What would you like help with?"); expect(land, a.slug).not.toMatch(/name="help_with"[^>]*value="wills"/); }
+    }
     // the no-JS fallback keeps the whole quiz, age question and 18+ line included
     expect(bookHtml).toMatch(/<noscript>[\s\S]*How old are you\?[\s\S]*<\/noscript>/);
     expect(book).toContain("You must be 18 or older");

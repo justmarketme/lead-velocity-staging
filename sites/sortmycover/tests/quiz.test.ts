@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { ageInBand, budgetInBand, NEEDS_EMAIL, consentText, dayLabel, groupSlots, normaliseSlots, prettyMobile, qualifies, suggestEmail, toE164, AGE_OPTIONS, BUDGET_OPTIONS } from "../src/lib/quiz";
+import fs from "node:fs";
+import path from "node:path";
+import { ageInBand, NEEDS_EMAIL, consentText, dayLabel, groupSlots, helpOptionsFor, normaliseSlots, prettyMobile, productOfHelp, suggestEmail, toE164, AGE_OPTIONS, HELP_OPTIONS } from "../src/lib/quiz";
+import * as quizLib from "../src/lib/quiz";
 import consent from "../config/consent.json";
 
 describe("quiz bands", () => {
@@ -10,25 +13,44 @@ describe("quiz bands", () => {
     expect(ageInBand("51plus")).toBe(false);
     expect(ageInBand(undefined)).toBe(false);
   });
-  it("accepts every budget band (under R750 is tier C, 2026-10-11)", () => {
-    expect(budgetInBand("lt750")).toBe(true);
-    expect(budgetInBand("750_1499")).toBe(true);
-    expect(budgetInBand("1500_plus")).toBe(true);
-  });
-  it("qualifies needs both", () => {
-    expect(qualifies({ age_band: "35_44", budget_band: "750_1499" })).toBe(true);
-    expect(qualifies({ age_band: "35_44", budget_band: "lt750" })).toBe(true);
-    expect(budgetInBand("r200")).toBe(false);
-    expect(qualifies({ age_band: "lt35", budget_band: "1500_plus" })).toBe(false);
-    expect(qualifies({})).toBe(false);
-  });
   it("every booking method asks for the email (verify gate, 2026-10-11)", () => {
     for (const m of ["teams", "zoom", "google_meet", "whatsapp_call", "phone"]) expect(NEEDS_EMAIL[m]).toBe(true);
   });
-  it("options are the three budget bands and four age bands, first age band is 18+", () => {
-    expect(BUDGET_OPTIONS.map((o) => o.label)).toEqual(["Under R750", "R750 to R1,499", "R1,500 or more"]);
+  it("four age bands, first age band is 18+", () => {
     expect(AGE_OPTIONS[0].label).toBe("18 to 34");
     expect(AGE_OPTIONS).toHaveLength(4);
+  });
+});
+
+describe("quiz v2: no budget on the page (Jono, 2026-10-13)", () => {
+  const quiz = fs.readFileSync(path.resolve(__dirname, "../src/components/Quiz.tsx"), "utf8");
+  const api = fs.readFileSync(path.resolve(__dirname, "../src/lib/api.ts"), "utf8");
+  it("the quiz has no budget question, no budget field and no rand amount", () => {
+    expect(quiz).not.toMatch(/budget_band|BUDGET_OPTIONS|monthly budget|R750|R1,500/);
+    expect(quiz).not.toMatch(/name="budget_band"/);
+    expect(api).not.toMatch(/budget_band/);
+    expect("BUDGET_OPTIONS" in quizLib).toBe(false);
+    expect("qualifies" in quizLib).toBe(false);
+  });
+  it("the /lead body flags the budget as pending (asked on WhatsApp) and sends help_with", () => {
+    expect(quiz).toMatch(/budget_pending: true, help_with: help \?\? "life"/);
+    expect(api).toMatch(/budget_pending: true;/);
+    expect(quiz).toMatch(/name="budget_pending" value="true"/); // no-JS form too
+  });
+  it("email is asked only in the booking step, never in the quiz", () => {
+    expect(quiz).not.toMatch(/type="email"|name="email"/);
+  });
+  it("first question: five options, review first; a cover page shows four; a wills page asks nothing", () => {
+    expect(HELP_OPTIONS.map((o) => o.value)).toEqual(["review", "life", "disability_income", "severe_illness", "wills"]);
+    expect(HELP_OPTIONS[0].label).toBe("Review my existing cover");
+    expect(helpOptionsFor(null)).toHaveLength(5);
+    expect(helpOptionsFor("life_cover").map((o) => o.value)).not.toContain("wills");
+    expect(helpOptionsFor("life_cover")).toHaveLength(4);
+    expect(helpOptionsFor("wills")).toHaveLength(0);
+  });
+  it("product_interest stays life_cover or wills (what W01 accepts), derived from help_with", () => {
+    expect(productOfHelp("wills")).toBe("wills");
+    for (const h of ["review", "life", "disability_income", "severe_illness"] as const) expect(productOfHelp(h)).toBe("life_cover");
   });
 });
 

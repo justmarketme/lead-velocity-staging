@@ -1,7 +1,6 @@
 /** Pure quiz logic (no DOM). Covered by tests/quiz.test.ts. */
 
 export type AgeBand = "lt35" | "35_44" | "45_50" | "51plus";
-export type BudgetBand = "lt750" | "750_1499" | "1500_plus";
 
 export const AGE_OPTIONS: { value: AgeBand; label: string }[] = [
   { value: "lt35", label: "18 to 34" },
@@ -10,24 +9,12 @@ export const AGE_OPTIONS: { value: AgeBand; label: string }[] = [
   { value: "51plus", label: "51 or older" },
 ];
 
-export const BUDGET_OPTIONS: { value: BudgetBand; label: string }[] = [
-  { value: "lt750", label: "Under R750" },
-  { value: "750_1499", label: "R750 to R1,499" },
-  { value: "1500_plus", label: "R1,500 or more" },
-];
-
-/** Age band the service accepts: 35 to 50. Same rule as the original landing quiz (age 35-44 and 45-50). */
+/** Age band the service accepts: 35 to 50. Same rule as the original landing quiz (age 35-44 and 45-50). Out of band people exit
+ *  at once; nothing is sent or stored. The page asks NO budget question (Jono, 2026-10-13): the R1,500 figure was internal research
+ *  for the ideal client, never a question for visitors. The self-declared budget band is asked later, on WhatsApp
+ *  (deliverables/website/quiz-v2-and-whatsapp-step.md). */
 export function ageInBand(a?: string): boolean {
   return a === "35_44" || a === "45_50";
-}
-/** Budget band the service accepts: every band. Under R750 is tier C (Jonathan, 2026-10-11): stored and kept open, routed
- *  only to an adviser who takes those budgets; it never exits the quiz. */
-export function budgetInBand(b?: string): boolean {
-  return b === "lt750" || b === "750_1499" || b === "1500_plus";
-}
-/** True when both answers are in band (in practice: the age band). Out of band people exit at once; nothing is sent or stored. */
-export function qualifies(answers: { age_band?: string; budget_band?: string }): boolean {
-  return ageInBand(answers.age_band) && budgetInBand(answers.budget_band);
 }
 
 /** South African mobile to E.164, or null. Accepts 082 123 4567, +27 82 123 4567, 0027 82..., 27821234567. */
@@ -115,5 +102,24 @@ export function productFromParam(v: string | null | undefined): ProductInterest 
 }
 /** Campaign theme -> product: theme B is wills and estate, theme A (and the generic page) is cover. */
 export const productForTheme = (theme?: "A" | "B"): ProductInterest => (theme === "B" ? "wills" : "life_cover");
+/** First question, "What would you like help with?". Sent as `help_with`; `product_interest` (routing: cover adviser or will
+ *  provider) is derived from it, so W01 keeps receiving only "life_cover" or "wills". The reason in the visitor's own words, and
+ *  the budget band, are asked on WhatsApp. "review" means an authorised adviser goes through the visitor's existing cover;
+ *  SortMyCover itself never reviews cover (wording rule S1). */
+export type HelpWith = "review" | "life" | "disability_income" | "severe_illness" | "wills";
+export const HELP_OPTIONS: { value: HelpWith; label: string }[] = [
+  { value: "review", label: "Review my existing cover" },
+  { value: "life", label: "Life cover" },
+  { value: "disability_income", label: "Disability or income protection" },
+  { value: "severe_illness", label: "Severe illness cover" },
+  { value: "wills", label: "My will and estate planning" },
+];
+export const productOfHelp = (h: HelpWith): ProductInterest => (h === "wills" ? "wills" : "life_cover");
+/** Options shown for a known product: a cover page or ?for=cover shows the four cover options, no product shows all five.
+ *  A wills page (product "wills") asks nothing: the answer is "wills". */
+export function helpOptionsFor(product: ProductInterest | null): { value: HelpWith; label: string }[] {
+  if (product === "wills") return [];
+  return product === "life_cover" ? HELP_OPTIONS.filter((o) => o.value !== "wills") : HELP_OPTIONS;
+}
 /** Progress fraction for step n of total. */
 export const progressOf = (n: number, total: number) => Math.min(1, Math.max(0, n / total));

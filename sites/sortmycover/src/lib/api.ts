@@ -1,6 +1,7 @@
 /* n8n API client. Contracts: landing/README.md "API contract expected from n8n" + automation/CONTRACTS.md.
  * The site has no backend of its own: every call goes to the n8n webhooks under site.n8n_base + site.api_prefix. */
 import { API_BASE } from "./site";
+import type { HelpWith } from "./quiz";
 
 export interface ApiResult { status: number; ok: boolean; json: Record<string, any> }
 
@@ -17,7 +18,13 @@ export function api(path: string, opt: RequestInit = {}): Promise<ApiResult> {
 export interface LeadBody {
   first_name: string; mobile: string; consent: true; consent_text: string; consent_version: string; consent_mode: string;
   consent_ads: boolean; consent_ads_text: string; consent_ads_version: string;
-  age_band: string; budget_band: string;
+  age_band: string;
+  /** No budget is asked on the page (Jono, 2026-10-13): the self-declared band is the first qualifying step on WhatsApp. W01 must
+   *  read this flag and hold the budget as pending (as for Meta instant-form leads) instead of disqualifying a lead without one:
+   *  see deliverables/website/quiz-v2-and-whatsapp-step.md, "W01 change". */
+  budget_pending: true;
+  /** First quiz answer: "review" | "life" | "disability_income" | "severe_illness" | "wills". Additive (W01 ignores unknown fields). */
+  help_with: HelpWith;
   /** "life_cover" (cover adviser call) or "wills" (will and estate call with the will provider). Additive field: n8n W01 ignores
    *  unknown fields, so older workflows keep working; routing on it is a W01 change (see automation/CONTRACTS.md). */
   product_interest: "life_cover" | "wills";
