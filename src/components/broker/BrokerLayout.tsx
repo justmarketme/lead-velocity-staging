@@ -49,7 +49,7 @@ const BrokerLayout = ({ children, menuItems: menuOverride }: BrokerLayoutProps) 
         variant: "destructive",
       });
     } else {
-      navigate("/login");
+      navigate("/broker");
     }
   };
 

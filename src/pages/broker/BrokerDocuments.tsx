@@ -20,7 +20,7 @@ const BrokerDocuments = () => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
       const { data: b } = await supabase

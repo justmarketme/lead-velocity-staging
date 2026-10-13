@@ -242,7 +242,7 @@ const PremiumBrokerPortalPage = () => {
     const handleLogout = async () => {
         if (preview) { navigate("/dashboard"); return; }
         await supabase.auth.signOut();
-        navigate("/login");
+        navigate("/broker");
     };
 
     if (loading) {

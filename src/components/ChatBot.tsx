@@ -16,7 +16,9 @@ const EXCLUDED_ROUTES = [
     "/login",
     "/invite",
     "/broker-setup",
-    "/reset-password"
+    "/reset-password",
+    "/broker/set-password",
+    "/broker/forgot-password"
 ];
 
 const ONBOARDING_PATH = "/onboarding";

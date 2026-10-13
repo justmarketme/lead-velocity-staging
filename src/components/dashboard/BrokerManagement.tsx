@@ -356,6 +356,9 @@ const BrokerDrawer = ({
   // "Create your password" email: null = not sent this session, otherwise the address it went to
   const [setupSending, setSetupSending] = useState(false);
   const [setupSentTo, setSetupSentTo] = useState<string | null>(null);
+  // Shown inline: a toast renders behind this drawer.
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [setupPreviewTo, setSetupPreviewTo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!broker) return;
@@ -491,17 +494,20 @@ const BrokerDrawer = ({
     toast({ title: "Activity logged" });
   };
 
-  // Admin-only edge function: mints the link server-side and emails it; the browser never sees it.
-  const sendPasswordSetup = async () => {
+  // Admin-only edge function: Supabase mails the branded welcome + one-time link; the browser never sees it.
+  // preview = the same email (this broker's details) sent to the signed-in admin instead.
+  const sendPasswordSetup = async (preview = false) => {
     setSetupSending(true);
-    const { data, error } = await supabase.functions.invoke("send-password-setup", { body: { broker_id: broker.id } });
+    setSetupError(null);
+    const { data, error } = await supabase.functions.invoke("send-password-setup", { body: { broker_id: broker.id, ...(preview ? { self: true } : {}) } });
     setSetupSending(false);
     if (error || !data?.sent) {
       let message = error?.message || "Unknown error";
       try { message = (await (error as any)?.context?.json())?.error || message; } catch { /* keep message */ }
-      toast({ title: "Couldn't send the email", description: message, variant: "destructive" });
+      setSetupError(message);
       return;
     }
+    if (preview) { setSetupPreviewTo(data.email); return; }
     setSetupSentTo(data.email);
     if (data.activity) setActivities((prev) => [data.activity as Activity, ...prev]);
     toast({ title: `Sent to ${data.email}` });
@@ -558,15 +564,26 @@ const BrokerDrawer = ({
                     <CheckCircle2 className="h-3 w-3" /> Sent to {setupSentTo}
                   </span>
                 ) : (
-                  <button
-                    onClick={sendPasswordSetup}
-                    disabled={setupSending}
-                    title="Emails the broker a one-time link to create his own password (from howzit@leadvelocity.co.za)"
-                    className="text-[11px] text-sky-300 hover:text-sky-200 underline decoration-dotted disabled:opacity-50 flex items-center gap-1"
-                  >
-                    <Mail className="h-3 w-3" /> {setupSending ? "Sending..." : "Send 'create your password' email"}
-                  </button>
+                  <>
+                    <button
+                      onClick={() => sendPasswordSetup()}
+                      disabled={setupSending}
+                      title="Emails the broker the branded welcome (payment, plan, first steps) with a one-time link to create their password, from howzit@leadvelocity.co.za"
+                      className="text-[11px] text-sky-300 hover:text-sky-200 underline decoration-dotted disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <Mail className="h-3 w-3" /> {setupSending ? "Sending..." : "Send welcome email (create password)"}
+                    </button>
+                    <button
+                      onClick={() => sendPasswordSetup(true)}
+                      disabled={setupSending}
+                      title="Sends this broker's welcome email to your own login so you can see it first. The broker gets nothing."
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline decoration-dotted disabled:opacity-50"
+                    >
+                      {setupPreviewTo ? `Preview sent to ${setupPreviewTo}` : "Preview to me"}
+                    </button>
+                  </>
                 )}
+                {setupError && <span role="alert" className="text-[11px] text-red-400">Couldn&apos;t send: {setupError}</span>}
               </>
             ) : (
               <Badge variant="outline" className="text-xs text-muted-foreground">No portal login</Badge>

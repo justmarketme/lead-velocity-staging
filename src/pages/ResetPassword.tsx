@@ -76,16 +76,24 @@ const ResetPassword = () => {
       return;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || session) setIsValidSession(true);
-      setCheckingSession(false);
+    // Only a recovery link counts. An ordinary signed-in session must not: opening this page without
+    // a token would otherwise change the password of whoever happens to be signed in on this browser.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setIsValidSession(true);
     });
 
     (async () => {
       const code = query.get("code");
-      if (code) await supabase.auth.exchangeCodeForSession(code).catch(() => undefined);
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) setIsValidSession(true);
+      }
+      // Implicit-flow links (#access_token=…&type=recovery) fire PASSWORD_RECOVERY during client init.
+      // A signed-in user flagged must_reset_password (temporary password) is sent here by the portal.
       const { data: { session } } = await supabase.auth.getSession();
-      if (session) setIsValidSession(true);
+      // Trust the hash only if it actually signed in: a failed URL login leaves any existing session in place.
+      if (hash.get("type") === "recovery" && session && session.access_token === hash.get("access_token")) setIsValidSession(true);
+      if (session?.user?.user_metadata?.must_reset_password === true) setIsValidSession(true);
       setCheckingSession(false);
     })();
 
@@ -104,11 +112,19 @@ const ResetPassword = () => {
     try {
       if (tokenHash) {
         const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
-        setTokenHash(null); // used up either way; on success there is now a session for a retry
         if (error) {
-          setIsValidSession(false);
+          // A rejected token (403 otp_expired, or any other 4xx) means the link is dead. A dropped
+          // connection, a rate limit (429) or a server error leaves the token valid, so let them retry.
+          const status = error.status ?? 0;
+          if (error.code === "otp_expired" || (status >= 400 && status < 500 && status !== 429)) {
+            setTokenHash(null);
+            setIsValidSession(false);
+          } else {
+            toast({ title: "Couldn't check your link", description: "Please try again in a moment.", variant: "destructive" });
+          }
           return;
         }
+        setTokenHash(null); // redeemed: there is now a session, so a retry only needs updateUser
       }
 
       const { data, error } = await supabase.auth.updateUser({
@@ -120,10 +136,14 @@ const ResetPassword = () => {
         return;
       }
 
-      // Brokers go to their portal (/broker forwards a signed-in broker to the right one); admins to the dashboard.
-      const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle();
+      // Admins go to the dashboard; brokers straight to their portal (same routing as /broker's sign-in).
+      const [{ data: role }, { data: broker }] = await Promise.all([
+        supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle(),
+        supabase.from("brokers").select("portal_type").eq("user_id", data.user.id).maybeSingle(),
+      ]);
+      const premium = broker?.portal_type === "marketing" || broker?.portal_type === "premium";
       setDone(true);
-      setTimeout(() => navigate(role ? "/dashboard" : "/broker", { replace: true }), reduceMotion ? 600 : 1600);
+      setTimeout(() => navigate(role ? "/dashboard" : premium ? "/broker-elite" : "/broker", { replace: true }), reduceMotion ? 600 : 1600);
     } finally {
       setLoading(false);
     }
@@ -163,17 +183,17 @@ const ResetPassword = () => {
       <m.div key="expired" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
         <h1 className="text-3xl font-bold text-white">This link has expired</h1>
         <p className="mt-3 text-white/60 leading-relaxed">
-          {isSetup
-            ? "Password links work once and expire after a short while. Reply to the email you received, or email howzit@leadvelocity.co.za, and we'll send you a fresh one."
-            : "Password links work once and expire after a short while. Request a new one below."}
+          Password links work once and expire after a short while. Get a fresh one below, or reply to the email you received and we&apos;ll send one.
         </p>
         <div className="mt-8 space-y-3">
-          {!isSetup && (
-            <button className={pill} onClick={() => navigate("/broker/forgot-password")}>Send me a new link</button>
-          )}
+          <button className={pill} onClick={() => navigate("/broker/forgot-password")}>Send me a new link</button>
           <button
-            className={isSetup ? pill : "w-full h-12 rounded-full border border-white/15 text-white/80 hover:bg-white/5 transition"}
-            onClick={() => navigate("/broker")}
+            className="w-full h-12 rounded-full border border-white/15 text-white/80 hover:bg-white/5 transition"
+            onClick={async () => {
+              // A failed link leaves any other account's session in place; drop it so /broker shows sign-in, not their portal.
+              await supabase.auth.signOut({ scope: "local" });
+              navigate("/broker");
+            }}
           >
             Go to sign in
           </button>
@@ -185,7 +205,7 @@ const ResetPassword = () => {
       <m.div key="form" exit={{ opacity: 0, scale: 0.97 }}>
         <Stagger>
           <StaggerItem>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">Create your password</h1>
+            <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{isSetup ? "Create your password" : "Choose a new password"}</h1>
             <p className="mt-3 text-white/60 leading-relaxed">
               {isSetup
                 ? "Welcome to Lead Velocity. Choose a password for your broker portal and you'll go straight in."
@@ -260,7 +280,7 @@ const ResetPassword = () => {
 
   return (
     <BrokerMotion>
-      <div className="relative min-h-[100dvh] overflow-hidden bg-[#120c1f] text-white flex items-center justify-center px-4 py-10">
+      <div className="relative min-h-[100dvh] overflow-hidden bg-[#1a1035] text-white flex items-center justify-center px-4 py-10">
         <div aria-hidden className="pointer-events-none absolute -top-40 -left-32 h-[28rem] w-[28rem] rounded-full bg-[#e0457b]/20 blur-[120px]" />
         <div aria-hidden className="pointer-events-none absolute -bottom-40 -right-32 h-[28rem] w-[28rem] rounded-full bg-[#7c3aed]/20 blur-[120px]" />
         <m.div
