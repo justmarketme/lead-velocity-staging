@@ -8,6 +8,7 @@
 //   so the CRM shows a calm message instead of "Edge Function returned a non-2xx status code".
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { pricingSummaryText } from "../_shared/pricing.generated.ts";
 
 const ALLOWED_ORIGINS = [
   "https://www.leadvelocity.co.za",
@@ -44,7 +45,10 @@ Return STRICT JSON only, no markdown fences:
   ],
   "script": "a short ready-to-send message (3-5 sentences) the team can copy"
 }
-Exactly 3 suggestions, ordered by impact. Tight — no filler.`;
+Exactly 3 suggestions, ordered by impact. Tight — no filler.
+
+Plans and prices: these are the only ones that exist. Quote them exactly as written, never invent or change a price, lead count or plan:
+${pricingSummaryText()}`;
 
 const BROKER_SYSTEM = BASE + `\n\nYou are coaching the team on ONE broker relationship.`;
 const PIPELINE_SYSTEM = BASE + `\n\nYou are coaching the team on their WHOLE lead-sourcing pipeline — the client-facing leads they deliver to brokers. Focus on where leads are stalling, which stage is the bottleneck, and what to do today to convert more. The "script" should be a short outreach/follow-up message template the team can reuse on stalled leads.`;

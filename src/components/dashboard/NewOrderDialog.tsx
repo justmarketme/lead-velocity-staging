@@ -100,7 +100,7 @@ export default function NewOrderDialog({ open, onOpenChange, brands, onCreated, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg z-[130]">
+      <DialogContent className="max-w-lg z-[130] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New lead order</DialogTitle>
           <DialogDescription>Creates a pending order. The broker signs the contract in his portal; you mark it paid once the EFT lands (or attach his proof of payment).</DialogDescription>
