@@ -1,85 +1,41 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { AYANDA_PERSONALITY } from "../_shared/ayanda_persona.ts";
+// Twilio voice webhook for Lead Velocity's line (+27 60 018 5071).
+// ElevenLabs' register-call API returns the TwiML that bridges the call to
+// Ayanda's agent; her prompt, voice and tools live on the agent itself
+// (pushed by sync-voice-agents), so nothing is overridden per call.
+const say = (text: string) =>
+  new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>${text}</Say></Response>`, {
+    headers: { "Content-Type": "text/xml" },
+  });
 
-const buildPersona = (callerNumber: string) => AYANDA_PERSONALITY
-    .replace(/{customer_name}/g, "there")
-    .replace(/{broker_name}/g, "our team")
-    .replace(/{firm_name}/g, "Lead Velocity")
-    .replace(/{firm_address}/g, "N/A")
-    .replace(/{research_context}/g, "No prior research — this is an inbound call.")
-    + `\n\nThe caller's number is ${callerNumber}. Default any SMS/WhatsApp confirmation to this number unless they give another.`;
+Deno.serve(async (req) => {
+  const apiKey = Deno.env.get("ELEVENLABS_API_KEY");
+  const agentId = Deno.env.get("ELEVENLABS_AGENT_ID");
+  if (!apiKey || !agentId) {
+    console.error("handle-inbound-call: ELEVENLABS_API_KEY / ELEVENLABS_AGENT_ID not set");
+    return say("Sorry, we can't take your call right now. Please WhatsApp us on oh seven three, seven six five, one six six four.");
+  }
 
-serve(async (req) => {
+  const form = await req.formData();
+  const from = String(form.get("From") ?? "");
+  const to = String(form.get("To") ?? "");
+  const callSid = String(form.get("CallSid") ?? "");
+
   try {
-    const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
-    const ELEVENLABS_AGENT_ID = Deno.env.get('ELEVENLABS_AGENT_ID');
-
-    if (!ELEVENLABS_API_KEY || !ELEVENLABS_AGENT_ID) {
-      console.error('ELEVENLABS_API_KEY or ELEVENLABS_AGENT_ID not configured');
-      return new Response(`<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>We're sorry, we're unable to take your call right now. Please try again later.</Say>
-</Response>`, {
-        status: 500,
-        headers: { 'Content-Type': 'text/xml' },
-      });
-    }
-
-    const formData = await req.formData();
-    const callSid = formData.get('CallSid') as string;
-    const callerNumber = (formData.get('From') as string) || 'unknown';
-
-    console.log('Inbound call received:', { callSid, callerNumber });
-
-    // Get ElevenLabs signed URL with dynamic persona override
-    const signedUrlResponse = await fetch('https://api.elevenlabs.io/v1/convai/conversation/get_signed_url', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'xi-api-key': ELEVENLABS_API_KEY,
-      },
+    const res = await fetch("https://api.elevenlabs.io/v1/convai/twilio/register-call", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
       body: JSON.stringify({
-        agent_id: ELEVENLABS_AGENT_ID,
-        conversation_config_override: {
-          agent: {
-            prompt: { prompt: buildPersona(callerNumber) },
-            first_message: "Hi, thanks for calling Lead Velocity. I'm Ayanda — how can I help you today?",
-          },
-        },
+        agent_id: agentId, from_number: from, to_number: to, direction: "inbound",
+        // Ayanda's prompt and tools default WhatsApp/booking numbers to this.
+        conversation_initiation_client_data: { dynamic_variables: { caller_number: from } },
       }),
     });
-
-    if (!signedUrlResponse.ok) {
-      const errorText = await signedUrlResponse.text();
-      throw new Error(`ElevenLabs error: ${signedUrlResponse.status}. ${errorText}`);
-    }
-
-    const { signed_url } = await signedUrlResponse.json();
-
-    console.log('ElevenLabs signed URL obtained for call:', callSid);
-
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Pause length="1"/>
-  <Connect>
-    <Stream url="${signed_url}" />
-  </Connect>
-</Response>`;
-
-    return new Response(twiml, {
-      headers: { 'Content-Type': 'text/xml' },
-    });
-
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error in handle-inbound-call:', errorMessage);
-
-    return new Response(`<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>We're sorry, we're unable to take your call right now. Please try again later.</Say>
-</Response>`, {
-      status: 500,
-      headers: { 'Content-Type': 'text/xml' },
-    });
+    const twiml = await res.text();
+    if (!res.ok || !twiml.includes("<Response")) throw new Error(`register-call ${res.status}: ${twiml.slice(0, 300)}`);
+    console.log("inbound call bridged to Ayanda", { callSid, from });
+    return new Response(twiml, { headers: { "Content-Type": "text/xml" } });
+  } catch (e) {
+    console.error("handle-inbound-call:", e);
+    return say("Sorry, we can't take your call right now. Please WhatsApp us on oh seven three, seven six five, one six six four.");
   }
 });
