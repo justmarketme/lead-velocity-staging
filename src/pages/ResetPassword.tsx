@@ -8,6 +8,8 @@ import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { Check, Eye, EyeOff } from "lucide-react";
 import { BrokerMotion, EASE, Stagger, StaggerItem } from "@/components/broker/motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const passwordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
@@ -27,10 +29,10 @@ function strength(pw: string) {
   return Math.min(score, 4);
 }
 const STRENGTH = [
-  { label: "", color: "bg-white/10" },
-  { label: "Too short", color: "bg-[#e0457b]" },
-  { label: "Okay", color: "bg-[#f07a5c]" },
-  { label: "Good", color: "bg-[#f3a64b]" },
+  { label: "", color: "bg-slate-800" },
+  { label: "Too short", color: "bg-rose-500" },
+  { label: "Okay", color: "bg-amber-400" },
+  { label: "Good", color: "bg-primary" },
   { label: "Strong", color: "bg-emerald-400" },
 ];
 
@@ -151,15 +153,17 @@ const ResetPassword = () => {
 
   const score = strength(password);
   const eyebrow = isSetup ? "Lead Velocity / Broker onboarding" : "Lead Velocity / Account";
-  const field =
-    "w-full h-12 rounded-xl bg-white/[0.04] border border-white/10 px-4 text-white placeholder:text-white/30 outline-none transition focus:border-[#e0457b]/70 focus:ring-2 focus:ring-[#e0457b]/25";
+  // Visual system = the public /onboarding page (src/pages/BrokerOnboarding.tsx): its input, primary and outline button classes.
+  const field = "bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md";
   const pill =
-    "w-full h-12 rounded-full bg-gradient-to-r from-[#e0457b] to-[#f3a64b] text-white font-semibold shadow-[0_10px_30px_-10px_rgba(224,69,123,0.7)] transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60";
+    "w-full bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20";
+  const outline = "w-full border-primary/30 text-white hover:bg-primary/10 hover:text-white px-6 py-6 text-base rounded-xl";
+  const label = "block text-sm font-medium text-slate-200 mb-2";
 
   let body: React.ReactNode;
   if (checkingSession) {
     body = (
-      <m.p key="checking" className="text-center text-white/60 py-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <m.p key="checking" className="text-center text-slate-400 py-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
         Checking your link...
       </m.p>
     );
@@ -167,28 +171,30 @@ const ResetPassword = () => {
     body = (
       <m.div key="done" className="text-center py-6" initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: EASE }}>
         <m.div
-          className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[#e0457b] to-[#f3a64b]"
+          className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.4)]"
           initial={{ scale: 0.4, rotate: -20 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: "spring", stiffness: 260, damping: 18 }}
         >
           <Check className="h-8 w-8 text-white" strokeWidth={3} />
         </m.div>
-        <h1 className="text-3xl font-bold text-white">You&apos;re in</h1>
-        <p className="mt-2 text-white/60">Password saved. Taking you to your portal...</p>
+        <h1 className="text-3xl font-bold tracking-tight text-white font-inter">You&apos;re <span className="gradient-text-epiphany">in</span></h1>
+        <p className="mt-2 text-slate-400">Password saved. Taking you to your portal...</p>
       </m.div>
     );
   } else if (!isValidSession) {
     body = (
       <m.div key="expired" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-        <h1 className="text-3xl font-bold text-white">This link has expired</h1>
-        <p className="mt-3 text-white/60 leading-relaxed">
+        <h1 className="text-3xl font-bold tracking-tight text-white font-inter">This link has <span className="gradient-text-epiphany">expired</span></h1>
+        <p className="mt-3 text-slate-400 leading-relaxed">
           Password links work once and expire after a short while. Get a fresh one below, or reply to the email you received and we&apos;ll send one.
         </p>
         <div className="mt-8 space-y-3">
-          <button className={pill} onClick={() => navigate("/broker/forgot-password")}>Send me a new link</button>
-          <button
-            className="w-full h-12 rounded-full border border-white/15 text-white/80 hover:bg-white/5 transition"
+          <Button size="lg" className={pill} onClick={() => navigate("/broker/forgot-password")}>Send me a new link</Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className={outline}
             onClick={async () => {
               // A failed link leaves any other account's session in place; drop it so /broker shows sign-in, not their portal.
               await supabase.auth.signOut({ scope: "local" });
@@ -196,7 +202,7 @@ const ResetPassword = () => {
             }}
           >
             Go to sign in
-          </button>
+          </Button>
         </div>
       </m.div>
     );
@@ -205,8 +211,10 @@ const ResetPassword = () => {
       <m.div key="form" exit={{ opacity: 0, scale: 0.97 }}>
         <Stagger>
           <StaggerItem>
-            <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">{isSetup ? "Create your password" : "Choose a new password"}</h1>
-            <p className="mt-3 text-white/60 leading-relaxed">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white font-inter">
+              {isSetup ? "Create your" : "Choose a new"} <span className="gradient-text-epiphany">password</span>
+            </h1>
+            <p className="mt-3 text-slate-400 leading-relaxed">
               {isSetup
                 ? "Welcome to Lead Velocity. Choose a password for your broker portal and you'll go straight in."
                 : "Choose a new password for your Lead Velocity account."}
@@ -214,9 +222,9 @@ const ResetPassword = () => {
           </StaggerItem>
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             <StaggerItem>
-              <label htmlFor="password" className="block font-mono text-[11px] uppercase tracking-[0.2em] text-white/50 mb-2">Password</label>
+              <label htmlFor="password" className={label}>Password</label>
               <div className="relative">
-                <input
+                <Input
                   id="password"
                   type={showPw ? "text" : "password"}
                   autoComplete="new-password"
@@ -224,13 +232,13 @@ const ResetPassword = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className={`${field} pr-12`}
+                  className={`${field} pr-10`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw((v) => !v)}
                   aria-label={showPw ? "Hide password" : "Show password"}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-lg text-white/50 hover:text-white"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-white transition-colors"
                 >
                   {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -238,7 +246,7 @@ const ResetPassword = () => {
               <div className="mt-3 flex items-center gap-3" aria-live="polite">
                 <div className="flex flex-1 gap-1.5">
                   {[1, 2, 3, 4].map((n) => (
-                    <div key={n} className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                    <div key={n} className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
                       <m.div
                         className={`h-full w-full origin-left rounded-full ${STRENGTH[score].color}`}
                         initial={false}
@@ -248,12 +256,12 @@ const ResetPassword = () => {
                     </div>
                   ))}
                 </div>
-                <span className="w-16 text-right font-mono text-[11px] uppercase tracking-wider text-white/50">{STRENGTH[score].label}</span>
+                <span className="w-16 text-right text-xs text-muted-foreground">{STRENGTH[score].label}</span>
               </div>
             </StaggerItem>
             <StaggerItem>
-              <label htmlFor="confirmPassword" className="block font-mono text-[11px] uppercase tracking-[0.2em] text-white/50 mb-2">Confirm password</label>
-              <input
+              <label htmlFor="confirmPassword" className={label}>Confirm password</label>
+              <Input
                 id="confirmPassword"
                 type={showPw ? "text" : "password"}
                 autoComplete="new-password"
@@ -264,13 +272,13 @@ const ResetPassword = () => {
                 className={field}
               />
               {confirmPassword && confirmPassword !== password && (
-                <p className="mt-2 text-xs text-[#f3a64b]">Passwords don&apos;t match yet</p>
+                <p className="mt-2 text-xs text-destructive">Passwords don&apos;t match yet</p>
               )}
             </StaggerItem>
             <StaggerItem>
-              <button type="submit" className={pill} disabled={loading}>
+              <Button type="submit" size="lg" className={pill} disabled={loading}>
                 {loading ? "Saving..." : "Save password and continue"}
-              </button>
+              </Button>
             </StaggerItem>
           </form>
         </Stagger>
@@ -280,9 +288,11 @@ const ResetPassword = () => {
 
   return (
     <BrokerMotion>
-      <div className="relative min-h-[100dvh] overflow-hidden bg-[#1a1035] text-white flex items-center justify-center px-4 py-10">
-        <div aria-hidden className="pointer-events-none absolute -top-40 -left-32 h-[28rem] w-[28rem] rounded-full bg-[#e0457b]/20 blur-[120px]" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-40 -right-32 h-[28rem] w-[28rem] rounded-full bg-[#7c3aed]/20 blur-[120px]" />
+      <div className="relative min-h-[100dvh] overflow-hidden bg-[#030712] text-white flex items-center justify-center px-4 py-10">
+        <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none bg-slate-900/30">
+          <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-3xl hero-orb hero-orb-1"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-64 md:w-96 h-64 md:h-96 bg-secondary/10 rounded-full blur-3xl hero-orb hero-orb-2"></div>
+        </div>
         <m.div
           className="relative w-full max-w-md"
           initial={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -291,14 +301,16 @@ const ResetPassword = () => {
         >
           <div className="mb-6 flex items-center gap-3">
             <img src={logo} alt="Lead Velocity" className="h-10 w-10 object-contain" />
-            <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-white/50">{eyebrow}</span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-purple-400/80">{eyebrow}</span>
           </div>
-          <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:p-8 backdrop-blur-xl shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)]">
-            <div aria-hidden className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#e0457b]/70 to-transparent" />
-            <AnimatePresence mode="wait">{body}</AnimatePresence>
+          <div className="relative overflow-hidden p-6 sm:p-8 bg-slate-900/40 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-primary/20 shadow-[0_20px_80px_-20px_hsl(var(--primary)/0.3)]">
+            <div aria-hidden className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+            <div className="relative z-10">
+              <AnimatePresence mode="wait">{body}</AnimatePresence>
+            </div>
           </div>
-          <p className="mt-6 text-center text-xs text-white/40">
-            Need help? <a href="mailto:howzit@leadvelocity.co.za" className="text-[#f3a64b] hover:underline">howzit@leadvelocity.co.za</a>
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Need help? <a href="mailto:howzit@leadvelocity.co.za" className="text-pink-400 font-medium hover:underline">howzit@leadvelocity.co.za</a>
           </p>
         </m.div>
       </div>
