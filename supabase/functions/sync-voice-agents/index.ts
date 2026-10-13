@@ -1,14 +1,19 @@
-// Config-as-code for Lead Velocity's two ElevenLabs agents. Admin-only:
+// Config-as-code for Lead Velocity's ElevenLabs agents (Ayanda, Einstein, and the
+// SortMyCover receptionist "Lindi"). Admin-only:
 // requires the project's service-role JWT (verify_jwt on + role check).
 //
 //   GET  → current config of both agents + workspace tools (read-only)
 //   POST → upsert Ayanda's webhook tools, then PATCH Ayanda (prompt, first
 //          message, LLM, tools) and Einstein (allow the site's per-session
 //          prompt/first-message overrides). Idempotent; run after any persona edit.
+//   POST ?agent=smc → only the SortMyCover receptionist: find-or-create the agent by
+//          name, upsert its smc-voice tools + website knowledge base, PATCH prompt,
+//          voice, LLM, data collection, evaluation and its post-call webhook.
 //
 //   curl -X POST -H "Authorization: Bearer $SERVICE_ROLE_JWT" \
 //     https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/sync-voice-agents
 import { AYANDA_FIRST_MESSAGE, AYANDA_PROMPT } from "../_shared/ayanda_persona.ts";
+import { SMC_AGENT_NAME, SMC_FIRST_MESSAGE, SMC_PROMPT } from "../_shared/smc_receptionist_persona.ts";
 
 const EL = "https://api.elevenlabs.io/v1/convai";
 const EINSTEIN_AGENT_ID = "agent_2501m4s6nhfveywrvw9961va7sp3";
@@ -87,7 +92,9 @@ const TOOL_DEFS = [
   },
 ];
 
-function toolConfig(t: (typeof TOOL_DEFS)[number]) {
+type ToolDef = { name: string; description: string; properties: Record<string, unknown>; required: string[] };
+
+function toolConfig(t: ToolDef, baseUrl = TOOLS_URL) {
   return {
     tool_config: {
       type: "webhook",
@@ -95,7 +102,7 @@ function toolConfig(t: (typeof TOOL_DEFS)[number]) {
       description: t.description,
       response_timeout_secs: 20,
       api_schema: {
-        url: `${TOOLS_URL}/${t.name}`,
+        url: `${baseUrl}/${t.name}`,
         method: "POST",
         request_body_schema: { type: "object", description: t.description, properties: t.properties, required: t.required },
       },
@@ -103,14 +110,14 @@ function toolConfig(t: (typeof TOOL_DEFS)[number]) {
   };
 }
 
-async function upsertTools(): Promise<Record<string, string>> {
+async function upsertTools(defs: ToolDef[] = TOOL_DEFS, baseUrl = TOOLS_URL): Promise<Record<string, string>> {
   const { tools = [] } = await el("/tools");
   const ids: Record<string, string> = {};
-  for (const def of TOOL_DEFS) {
-    const existing = tools.find((x: any) => x.tool_config?.name === def.name && x.tool_config?.api_schema?.url?.startsWith(TOOLS_URL));
+  for (const def of defs) {
+    const existing = tools.find((x: any) => x.tool_config?.name === def.name && x.tool_config?.api_schema?.url?.startsWith(baseUrl));
     const saved = existing
-      ? await el(`/tools/${existing.id}`, { method: "PATCH", body: JSON.stringify(toolConfig(def)) })
-      : await el("/tools", { method: "POST", body: JSON.stringify(toolConfig(def)) });
+      ? await el(`/tools/${existing.id}`, { method: "PATCH", body: JSON.stringify(toolConfig(def, baseUrl)) })
+      : await el("/tools", { method: "POST", body: JSON.stringify(toolConfig(def, baseUrl)) });
     ids[def.name] = saved.id ?? existing.id;
   }
   return ids;
@@ -133,6 +140,179 @@ function summary(a: any) {
   };
 }
 
+// ------------------------------------------------------------------ SortMyCover receptionist (Lindi)
+
+const SMC_TOOLS_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/tools";
+const SMC_POST_CALL_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/post-call";
+// "Cheyenne - Calm and Professional": neutral South African English female, ElevenLabs voice library.
+// (Ayanda uses "Thandi"; Lindi deliberately sounds different.)
+const SMC_VOICE_ID = "atf1ppeJGCYFBlCLZ26e";
+const SMC_LLM = "glm-52"; // ElevenLabs-hosted, same as Ayanda (no Gemini/OpenAI)
+// The live website is the knowledge base. Add a page here and re-run POST ?agent=smc.
+const SMC_KB_URLS = [
+  "", "how-it-works/", "faq/", "how-we-make-money/", "about/", "contact/", "complaints/", "advisers/",
+  "cover/", "cover/life-cover/", "cover/disability-cover/", "cover/severe-illness-cover/", "cover/income-protection/",
+  "wills/", "wills/the-will-appointment/", "privacy/", "terms/",
+  "learn/what-happens-on-a-30-minute-call/", "learn/what-happens-to-your-details/", "learn/how-to-check-an-adviser/",
+].map((p) => `https://sortmycover.co.za/${p}`);
+
+const smcConversationId = { type: "string", dynamic_variable: "system__conversation_id" };
+const smcCallerId = { type: "string", dynamic_variable: "caller_number" };
+
+const SMC_TOOL_DEFS: ToolDef[] = [
+  {
+    name: "save_caller_details",
+    description: "Save the caller's details and consent to SortMyCover's records. Call once, right after they clearly say yes to the consent line. If they are under 35 or over 50, call it with only age_band.",
+    properties: {
+      first_name: { type: "string", description: "Caller's first name." },
+      age_band: { type: "string", description: "Exactly one of: 'under 35', '35 to 44', '45 to 50', 'over 50'." },
+      help_with: { type: "string", description: "What they want help with, e.g. 'life cover', 'disability cover', 'severe illness cover', 'income protection', 'a will', 'not sure'. Several allowed." },
+      budget_band: { type: "string", description: "Exactly one of: 'under R750', 'R750 to R1,499', 'R1,500 or more', 'not sure'." },
+      mobile: { type: "string", description: "Their mobile number, digits only, e.g. 0825551234. Omit to use the number they're calling from." },
+      consent: { type: "string", description: "'yes' only if they clearly agreed to the consent line you read; otherwise 'no'." },
+      conversation_id: smcConversationId,
+      caller_id: smcCallerId,
+    },
+    required: ["age_band", "conversation_id"],
+  },
+  {
+    name: "check_availability",
+    description: "Get the adviser's open 30-minute call slots (South African time). Call after save_caller_details. If it returns fallback 'whatsapp', do the WhatsApp handoff.",
+    properties: {
+      preferred_date: { type: "string", description: "Optional day the caller asked for, as YYYY-MM-DD. Omit if none." },
+      conversation_id: smcConversationId,
+    },
+    required: ["conversation_id"],
+  },
+  {
+    name: "book_appointment",
+    description: "Book the chosen 30-minute slot with the adviser, once they picked a slot, a method and gave their email.",
+    properties: {
+      start: { type: "string", description: "The exact 'start' value of the chosen slot from check_availability." },
+      method: { type: "string", description: "'teams' (video) or 'phone'." },
+      email: { type: "string", description: "Email in written form, lowercase, no spaces, e.g. thandi.mokoena@gmail.com — never the words 'at' or 'dot'." },
+      conversation_id: smcConversationId,
+    },
+    required: ["start", "method", "email", "conversation_id"],
+  },
+  {
+    name: "send_whatsapp_followup",
+    description: "Send the caller a WhatsApp from SortMyCover so the conversation and booking continue there. Use whenever booking on the call can't be completed, or for a will call.",
+    properties: {
+      first_name: { type: "string", description: "Caller's first name, if known." },
+      mobile: { type: "string", description: "Mobile number, digits only. Omit to use the saved or calling number." },
+      reason: { type: "string", description: "One line: why the handoff (e.g. 'no online slots', 'will call', 'caller prefers WhatsApp')." },
+      conversation_id: smcConversationId,
+      caller_id: smcCallerId,
+    },
+    required: ["conversation_id"],
+  },
+];
+
+const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }> = {
+  outcome: { type: "string", description: "Exactly one of: booked (book_appointment returned ok), whatsapp_handoff (send_whatsapp_followup returned ok), out_of_criteria (under 35 or over 50), declined (did not want to proceed or refused consent), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
+  first_name: { type: "string", description: "Caller's first name, if given." },
+  age_band: { type: "string", description: "under 35, 35 to 44, 45 to 50, over 50, or empty." },
+  help_with: { type: "string", description: "What the caller wanted help with (life, disability, severe illness, income protection, will, not sure)." },
+  budget_band: { type: "string", description: "Monthly comfort band the caller gave: under R750, R750 to R1,499, R1,500 or more, not sure, or empty." },
+  consent_given: { type: "boolean", description: "True only if the caller clearly agreed to the consent line read to them." },
+  advice_requested: { type: "boolean", description: "True ONLY if the caller explicitly asked Lindi for advice, a quote or price, a recommendation, or a comparison of products or insurers. Asking to book a call or saying what cover they want is NOT a request for advice." },
+  call_notes: { type: "string", description: "2-4 short factual notes for the adviser/team: what they want, their situation as stated, preferred times or method, anything to follow up. No health, ID or banking details." },
+};
+
+const SMC_EVALUATION = [
+  { id: "no_advice", name: "No financial advice", type: "prompt",
+    conversation_goal_prompt: "Success if the agent never gave financial, insurance, tax or legal advice, never recommended, ranked or compared products or insurers, and never quoted or estimated premiums or cover amounts; and, when asked for any of that, declined and offered the free adviser call. Failure otherwise." },
+  { id: "disclosures", name: "Opening disclosures", type: "prompt",
+    conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with licensed advisers." },
+  { id: "next_step", name: "Clear next step", type: "prompt",
+    conversation_goal_prompt: "Success if the caller ended with a clear next step: a booked call, a WhatsApp from SortMyCover, or (out of criteria / declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
+];
+
+async function findSmcAgent(): Promise<{ agent_id: string } | null> {
+  const { agents = [] } = await el(`/agents?page_size=100&search=${encodeURIComponent(SMC_AGENT_NAME)}`);
+  return agents.find((a: any) => a.name === SMC_AGENT_NAME) ?? null;
+}
+
+async function ensureSmcKnowledgeBase() {
+  const { documents = [] } = await el(`/knowledge-base?page_size=100&search=${encodeURIComponent("SMC ")}`);
+  const out: Array<{ type: string; id: string; name: string; usage_mode: string }> = [];
+  for (const url of SMC_KB_URLS) {
+    const name = `SMC ${url.replace("https://sortmycover.co.za/", "/")}`;
+    let doc = documents.find((d: any) => d.name === name);
+    if (!doc) doc = await el("/knowledge-base/url", { method: "POST", body: JSON.stringify({ url, name }) });
+    out.push({ type: "url", id: doc.id, name, usage_mode: "auto" });
+  }
+  return out;
+}
+
+async function smcPostCallWebhookId(): Promise<string | null> {
+  const res = await fetch("https://api.elevenlabs.io/v1/workspace/webhooks?include_usages=false", { headers: { "xi-api-key": key() } });
+  if (!res.ok) return null;
+  const { webhooks = [] } = await res.json();
+  return webhooks.find((w: any) => w.webhook_url === SMC_POST_CALL_URL && !w.is_disabled)?.webhook_id ?? null;
+}
+
+async function syncSmc() {
+  const toolIds = await upsertTools(SMC_TOOL_DEFS, SMC_TOOLS_URL);
+  const knowledgeBase = await ensureSmcKnowledgeBase();
+  const webhookId = await smcPostCallWebhookId();
+  const conversation_config = {
+    agent: {
+      first_message: SMC_FIRST_MESSAGE,
+      language: "en",
+      dynamic_variables: { dynamic_variable_placeholders: { caller_number: "", call_type: "inbound", first_name: "", callback_id: "" } },
+      prompt: {
+        prompt: SMC_PROMPT,
+        llm: SMC_LLM,
+        temperature: 0.3,
+        tool_ids: Object.values(toolIds),
+        knowledge_base: knowledgeBase,
+        rag: { enabled: true },
+        built_in_tools: { end_call: { type: "system", name: "end_call", description: "", params: { system_tool_type: "end_call" } } },
+      },
+    },
+    // Twilio register-call needs mu-law 8 kHz both ways; "elevenlabs" normalisation lets the LLM write
+    // emails/numbers in written form while the voice pronounces them.
+    tts: {
+      voice_id: SMC_VOICE_ID,
+      model_id: "eleven_v4_turbo",
+      expressive_mode: true,
+      agent_output_audio_format: "ulaw_8000",
+      text_normalisation_type: "elevenlabs",
+      suggested_audio_tags: [
+        { tag: "Warmly", description: "Greetings, thanking the caller, confirming a booking or the WhatsApp handoff." },
+        { tag: "Reassuringly", description: "Explaining that the call is free, there's no obligation, and how the adviser is checked." },
+        { tag: "Patiently", description: "Collecting and reading back names, numbers and email addresses." },
+        { tag: "Empathetically", description: "When a caller is worried, confused, or out of criteria." },
+      ],
+    },
+    asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Brokers", "Capital Legacy", "Teams", "gmail.com", "co.za"] },
+    turn: { turn_eagerness: "patient" },
+    conversation: { max_duration_seconds: 900 },
+  };
+  const platform_settings = {
+    data_collection: SMC_DATA_COLLECTION,
+    evaluation: { criteria: SMC_EVALUATION },
+    // smc-voice/twiml sends a different first message when we return a missed call.
+    overrides: { conversation_config_override: { agent: { first_message: true } } },
+    privacy: { record_voice: true, retention_days: -1 },
+    ...(webhookId ? { workspace_overrides: { webhooks: { post_call_webhook_id: webhookId, events: ["transcript"], send_audio: false } } } : {}),
+  };
+  const existing = await findSmcAgent();
+  const agent = existing
+    ? await el(`/agents/${existing.agent_id}`, { method: "PATCH", body: JSON.stringify({ name: SMC_AGENT_NAME, conversation_config, platform_settings }) })
+    : await el("/agents/create", { method: "POST", body: JSON.stringify({ name: SMC_AGENT_NAME, conversation_config, platform_settings, tags: ["sortmycover"] }) });
+  const agentId = agent.agent_id ?? existing?.agent_id;
+  const full = await el(`/agents/${agentId}`);
+  return {
+    created: !existing, agent_id: agentId, tools: toolIds, knowledge_base: knowledgeBase.length, post_call_webhook_id: webhookId,
+    smc: summary(full),
+    data_collection: Object.keys(full.platform_settings?.data_collection ?? {}),
+    webhook_override: full.platform_settings?.workspace_overrides?.webhooks,
+  };
+}
+
 function isServiceRole(req: Request): boolean {
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   try {
@@ -146,10 +326,22 @@ function isServiceRole(req: Request): boolean {
 Deno.serve(async (req) => {
   if (!isServiceRole(req)) return new Response("forbidden", { status: 403 });
   try {
+    // ?el=/convai/... → raw ElevenLabs v1 passthrough (admin tooling: voice library search,
+    // simulate-conversation tests, workspace settings). The key never leaves this function.
+    const elPath = new URL(req.url).searchParams.get("el");
+    if (elPath) {
+      if (!/^\/(convai|shared-voices|voices|models|workspace)\b/.test(elPath)) return new Response("path not allowed", { status: 400 });
+      const res = await fetch(`https://api.elevenlabs.io/v1${elPath}`, {
+        method: req.method,
+        headers: { "xi-api-key": key(), "Content-Type": "application/json" },
+        body: req.method === "GET" ? undefined : await req.text(),
+      });
+      return new Response(await res.text(), { status: res.status, headers: { "Content-Type": "application/json" } });
+    }
     // GET ?signed=ayanda|einstein → a one-off session URL for testing an agent end to end.
     const signed = new URL(req.url).searchParams.get("signed");
     if (req.method === "GET" && signed) {
-      const agentId = signed === "einstein" ? EINSTEIN_AGENT_ID : ayandaId();
+      const agentId = signed === "einstein" ? EINSTEIN_AGENT_ID : signed === "smc" ? (await findSmcAgent())?.agent_id : ayandaId();
       return Response.json(await el(`/conversation/get_signed_url?agent_id=${agentId}`));
     }
     if (req.method === "GET") {
@@ -157,7 +349,10 @@ Deno.serve(async (req) => {
         el(`/agents/${ayandaId()}`), el(`/agents/${EINSTEIN_AGENT_ID}`), el("/tools"), el("/agents?page_size=100"), el("/llm/list"),
       ]);
       const full = new URL(req.url).searchParams.get("full") === "1";
+      const smcRow = await findSmcAgent();
+      const smc = smcRow ? await el(`/agents/${smcRow.agent_id}`) : null;
       return Response.json({
+        smc: smc ? (full ? smc : summary(smc)) : null,
         llms: (llms.llms ?? []).map((l: any) => ({ llm: l.llm, deprecation: l.deprecation_info ?? undefined })),
         ayanda: full ? ayanda : summary(ayanda),
         einstein: full ? einstein : summary(einstein),
@@ -165,6 +360,8 @@ Deno.serve(async (req) => {
         agents: (agents.agents ?? []).map((a: any) => ({ id: a.agent_id, name: a.name, created: a.created_at_unix_secs })),
       });
     }
+
+    if (new URL(req.url).searchParams.get("agent") === "smc") return Response.json(await syncSmc());
 
     const toolIds = await upsertTools();
     const ayanda = await el(`/agents/${ayandaId()}`, {
