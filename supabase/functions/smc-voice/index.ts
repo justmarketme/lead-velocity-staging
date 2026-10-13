@@ -20,7 +20,7 @@ import { SMC_WHATSAPP_CONSENT_ASK, smcCallbackFirstMessage, smcConsentRecord } f
 import {
   ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, IN_CRITERIA,
   leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
-  transcriptText, twilioSignatureOk, userTurns,
+  transcriptText, twilioSignature, twilioSignatureOk, userTurns,
 } from "../_shared/smc_voice_lib.ts";
 
 const BASE = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice";
@@ -585,6 +585,28 @@ Deno.serve(async (req) => {
           return json({ schedule: r, tick: report });
         }
         return json(await tick(db, test || url.searchParams.get("dry") === "1"));
+      }
+      case "selftest": {
+        // Service-role + x-smc-test only. Confirms the number still points here and that a Twilio-signed
+        // inbound request gets valid TwiML (and how long Twilio would ring first). Places no call; the
+        // ElevenLabs registration it creates is never connected.
+        if (!testMode(req)) return new Response("forbidden", { status: 403 });
+        const acct = env("SMC_TWILIO_ACCOUNT_SID");
+        const nums = await (await fetch(`https://api.twilio.com/2010-04-01/Accounts/${acct}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(SMC_NUMBER)}`,
+          { headers: { Authorization: twilioAuth() } })).json();
+        const num = nums.incoming_phone_numbers?.[0] ?? {};
+        const params = { AccountSid: acct, CallSid: `CAselftest${Date.now()}`, From: "+27825550000", To: SMC_NUMBER, Direction: "inbound", CallStatus: "ringing" };
+        const signature = await twilioSignature(env("SMC_TWILIO_AUTH_TOKEN"), `${BASE}/twiml`, params);
+        const t0 = Date.now();
+        const res = await fetch(`${BASE}/twiml`, { method: "POST", headers: { "X-Twilio-Signature": signature, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(params) });
+        const body = await res.text();
+        const unsigned = await fetch(`${BASE}/twiml`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(params) });
+        await unsigned.text();
+        return json({
+          number: { phone: num.phone_number, voice_url: num.voice_url, voice_method: num.voice_method, status_callback: num.status_callback },
+          signed_twiml: { status: res.status, ms: Date.now() - t0, connect_stream: /<Connect>\s*<Stream/.test(body), head: body.slice(0, 160) },
+          unsigned_status: unsigned.status,
+        });
       }
       case "tools": {
         const tool = route[1];

@@ -159,11 +159,15 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 /** Twilio X-Twilio-Signature: base64(HMAC-SHA1(token, url + sorted key+value pairs)). */
+/** X-Twilio-Signature for a form POST: base64 HMAC-SHA1(token, url + sorted key/value pairs). */
+export async function twilioSignature(token: string, url: string, params: Record<string, string>): Promise<string> {
+  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
+  return btoa(String.fromCharCode(...(await hmac("SHA-1", token, data))));
+}
+
 export async function twilioSignatureOk(token: string, url: string, params: Record<string, string>, signature: string): Promise<boolean> {
   if (!token || !signature) return false;
-  const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
-  const mac = await hmac("SHA-1", token, data);
-  return safeEqual(btoa(String.fromCharCode(...mac)), signature);
+  return safeEqual(await twilioSignature(token, url, params), signature);
 }
 
 /** ElevenLabs-Signature: "t=<unix>,v0=<hex HMAC-SHA256(secret, `${t}.${body}`)>", 30-minute tolerance. */

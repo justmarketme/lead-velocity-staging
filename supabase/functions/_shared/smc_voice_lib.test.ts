@@ -2,7 +2,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
   ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, leadInterest,
-  mintLeadToken, nextCallWindow, sastIso, twilioSignatureOk,
+  mintLeadToken, nextCallWindow, sastIso, twilioSignature, twilioSignatureOk,
 } from "./smc_voice_lib.ts";
 
 const sast = (s: string) => Date.parse(`${s}+02:00`);
@@ -82,4 +82,11 @@ Deno.test("signatures", async () => {
   assert(await elevenSignatureOk("whsec", `t=${t},v0=${hex}`, '{"a":1}', now));
   assert(!(await elevenSignatureOk("whsec", `t=${t},v0=${hex}`, '{"a":2}', now)));
   assert(!(await elevenSignatureOk("whsec", `t=${t - 3600},v0=${hex}`, '{"a":1}', now)));
+});
+
+Deno.test("twilioSignature round-trips through twilioSignatureOk", async () => {
+  const params = { CallSid: "CA1", From: "+27825550000", To: "+27600156480" };
+  const sig = await twilioSignature("token", "https://x.test/twiml", params);
+  assertEquals(await twilioSignatureOk("token", "https://x.test/twiml", params, sig), true);
+  assertEquals(await twilioSignatureOk("other", "https://x.test/twiml", params, sig), false);
 });

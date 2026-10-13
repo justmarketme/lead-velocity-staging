@@ -66,6 +66,7 @@ Built 13 Oct 2026. Merged into `release/smc-nurture` (with Ayanda's tools and Ei
 ## Testing without dialling anyone
 
 - **Tools:** call `/smc-voice/tools/<name>` with the service-role JWT and the header `x-smc-test: 1`. That skips the conversation lookup, marks leads `is_synthetic`, leaves them unrouted, and sends nothing.
+- **Line check:** `POST /smc-voice/selftest` with the service-role JWT and `x-smc-test: 1` returns the number's live Voice URL, the result and timing of a Twilio-signed inbound `/twiml` request (expect ~5.5–6.5 s ring, `<Connect><Stream>`), and that an unsigned request gets 403. No call is placed.
 - **Scheduler:** `POST /smc-voice/tick` with the same headers does a dry run. Add `?simulate_missed=08xxxxxxxx` to schedule a synthetic callback, report on it, and cancel it.
 - **Simulated calls:** run `POST sync-voice-agents?el=/convai/agents/<id>/simulate-conversation` with tool mocks. `?el=` is an admin passthrough to the ElevenLabs API that needs the service-role JWT.
 
