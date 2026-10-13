@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { smcDb } from "@/lib/smc";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target, ShoppingBag, Briefcase, Inbox, CalendarClock } from "lucide-react";
+import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, UserPlus, FolderOpen, UserCheck, Calendar, FileText, Bot, Workflow, Sparkles, Target, ShoppingBag, Briefcase, Inbox, CalendarClock, MessageSquare } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -114,6 +114,7 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     { id: "broker-analysis", label: "Onboarding", icon: Target },
     { id: "broker-management", label: "Broker Management", icon: Briefcase },
     { id: "enquiries", label: "Enquiries", icon: Inbox },
+    { id: "broker-messages", label: "Broker messages", icon: MessageSquare },
     { id: "appointments", label: "Appointments", icon: CalendarClock },
     { id: "calendar", label: "Calendar", icon: Calendar },
     { id: "upload", label: "Upload Leads", icon: Upload },

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, UserPlus, Calendar, UserCircle, ShoppingBag, PlayCircle } from "lucide-react";
+import { LayoutDashboard, Database, BarChart3, Menu, X, LogOut, FolderOpen, UserPlus, Calendar, UserCircle, ShoppingBag, PlayCircle, MessageSquare } from "lucide-react";
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
@@ -38,6 +38,7 @@ const BrokerLayout = ({ children, menuItems: menuOverride }: BrokerLayoutProps) 
     { id: "documents", label: "Documents", icon: FolderOpen, path: "/broker/documents" },
     { id: "calendar", label: "Calendar", icon: Calendar, path: "/broker/calendar" },
     { id: "profile", label: "Settings", icon: UserCircle, path: "/broker/profile" },
+    { id: "messages", label: "Message us", icon: MessageSquare, path: "/broker/messages" },
   ];
 
   const handleLogout = async () => {

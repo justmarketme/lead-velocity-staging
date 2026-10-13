@@ -14,6 +14,7 @@ import { MEDIA_BUCKET } from "@/lib/smc";
 import { cardApprovable, fmtDaySast, readBioReview } from "@/lib/brokerReview";
 import ApprovalBand from "./ApprovalBand";
 import RequestChange from "./RequestChange";
+import ApprovalSwitch from "./ApprovalSwitch";
 
 interface CardRow { id: string; version: number; url: string | null; state: string | null; is_current: boolean; approved_at: string | null }
 
@@ -32,7 +33,6 @@ export default function PreparedIntroCard({ broker, reload }: {
   const preview = !!useBrokerPreview();
   const [card, setCard] = useState<CardRow | null | undefined>(undefined);
   const [src, setSrc] = useState<string | null>(null);
-  const [tick, setTick] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -90,29 +90,18 @@ export default function PreparedIntroCard({ broker, reload }: {
             )}
             {src && <ApprovalBand show={!approved} />}
           </div>
-          {approved ? (
-            <>
+          {approved && (
             <p role="status" className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               Approved{card.approved_at ? ` on ${fmtDaySast(card.approved_at)}` : ""}. Clients get this card on WhatsApp when they book a call with you.
             </p>
-            <RequestChange broker={broker} item="intro_card" onRequested={() => { void reload(); }} />
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-slate-400">Lead Velocity prepared this card. Check your name, practice, FSP number and bio, then approve it.</p>
-              {!bioOk && <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">Approve your bio first (see "Your bio needs a small change"). Then you can approve your card.</p>}
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" className="mt-1" checked={tick} disabled={!bioOk} onChange={(e) => setTick(e.target.checked)} />
-                I have read my card and the disclosure wording. I approve both.
-              </label>
-              {err && <p role="alert" className="text-sm text-rose-300">{err}</p>}
-              <button type="button" onClick={approve} disabled={!tick || !bioOk || busy || preview}
-                className="inline-flex min-h-[44px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">
-                {busy && <Loader2 className="h-4 w-4 animate-spin" />}Approve my intro card
-              </button>
-            </>
           )}
+          {!approved && <p className="text-sm text-slate-400">Lead Velocity prepared this card. Check your name, practice, FSP number and bio, then switch it on.</p>}
+          <ApprovalSwitch label="Approve my intro card" approved={approved} approvedAt={card.approved_at} blocked={!bioOk || preview}
+            blockedNote={preview ? "Preview only: nothing is saved." : 'Approve your bio first (see "Your bio needs a small change"). Then you can approve your card.'}
+            busy={busy} error={err} onConfirm={approve}>
+            <RequestChange broker={broker} item="intro_card" onRequested={() => { void reload(); }} />
+          </ApprovalSwitch>
         </>
       )}
     </section>

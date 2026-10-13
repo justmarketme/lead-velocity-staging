@@ -9,6 +9,7 @@ import { Calendar as CalendarIcon, Clock, Package, Users } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import SalesCoachInsight from "./SalesCoachInsight";
 import AdApprovals from "./smc/AdApprovals";
+import { MessageUsCard } from "./smc/MessageUs";
 import GettingStarted from "./GettingStarted";
 import type { ProfilePatch } from "./ProfileForms";
 import { SignedAgreementCard } from "./PremiumDocuments";
@@ -54,6 +55,8 @@ const PremiumDashboard = ({ brokerData, stats, planState, onGo, onBrokerPatch }:
 
             {/* Ads featuring him that wait for his approval (renders nothing when there are none) */}
             <StaggerItem><AdApprovals broker={brokerData} onChanged={onBrokerPatch} /></StaggerItem>
+
+            <StaggerItem><MessageUsCard brokerId={brokerData?.id} /></StaggerItem>
 
             {/* Plan and cycle */}
             <StaggerItem>

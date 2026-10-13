@@ -15,12 +15,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { profileErrorText } from "@/lib/brokerProfile";
 import ApprovalBand from "@/components/broker/smc/ApprovalBand";
 import RequestChange from "@/components/broker/smc/RequestChange";
+import ApprovalSwitch from "@/components/broker/smc/ApprovalSwitch";
 
 function Body() {
   const { broker, reload } = usePortal();
   const navigate = useNavigate();
   const [cards, setCards] = useState<SmcBrokerMedia[]>([]);
-  const [tick, setTick] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [initials, setInitials] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -58,9 +59,11 @@ function Body() {
   async function approve() {
     setErr(null);
     if (!latest) return;
+    setBusy(true);
     // One call: broker_media approved/current, brokers.intro_card_url, onboarding_progress.card, audit row (migration 20261013160000).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc("broker_approve_intro_card", { p_media_id: latest.id });
+    setBusy(false);
     if (error) return setErr(profileErrorText(error));
     setMsg("Approved. Leads will see this card.");
     setNonce((n) => n + 1); // re-read the card so the band lifts and it shows in colour
@@ -103,22 +106,17 @@ function Body() {
         {!broker.headshot_url && (
           <label className="chip" style={{ display: "flex", marginTop: 10 }}><input type="checkbox" checked={initials} onChange={(e) => setInitials(e.target.checked)} /> Use my initials for now. <span className="small">Add a photo any time; leads trust a real face.</span></label>
         )}
-        {alreadyDone ? (
-          <div className="next-slot" role="status" style={{ marginTop: 12 }}><span>✓</span><div><b>Approved{approved?.approved_at ? ` ${fmtDayTime(approved.approved_at)}` : ""}.</b>Leads see this card.</div></div>
-        ) : (
-          <>
-            {!ready && <p className="alert" style={{ marginTop: 12 }}>Before you approve, we need {missing.join(", ")}. <Link to="/broker/profile">Fix it on your Profile</Link>.</p>}
-            <label className="chip" style={{ marginTop: 12, display: "flex" }}><input type="checkbox" checked={tick} onChange={(e) => setTick(e.target.checked)} /> I have read my card and the disclosure wording. I approve both.</label>
-            <p className="hint">Your approval is saved with the date and time and copied to howzit@leadvelocity.co.za.</p>
-            <div style={{ height: 10 }} />
-            <button className="btn" disabled={!tick || !ready || !!msg} onClick={approve}>Approve my intro card</button>
-          </>
-        )}
+        {alreadyDone && <div className="next-slot" role="status" style={{ marginTop: 12 }}><span>✓</span><div><b>Approved{approved?.approved_at ? ` ${fmtDayTime(approved.approved_at)}` : ""}.</b>Leads see this card.</div></div>}
+        {!alreadyDone && !ready && <p className="alert" style={{ marginTop: 12 }}>Before you approve, we need {missing.join(", ")}. <Link to="/broker/profile">Fix it on your Profile</Link>.</p>}
+        {!alreadyDone && <p className="hint">Your approval is saved with the date and time and copied to howzit@leadvelocity.co.za.</p>}
+        <div style={{ marginTop: 10 }}>
+          <ApprovalSwitch skin="portal" label="Approve my intro card" approved={!!alreadyDone} approvedAt={approved?.approved_at} blocked={!ready}
+            blockedNote="Finish the steps above, then you can switch this on." busy={busy} error={err} onConfirm={approve}>
+            <RequestChange broker={broker} item="intro_card" skin="portal" onRequested={() => { void reload(); }} />
+          </ApprovalSwitch>
+        </div>
         {msg && <div className="next-slot" role="status" style={{ marginTop: 10 }}><span>✓</span><div>{msg}</div></div>}
-        {err && <p className="err" role="alert">{err}</p>}
-        {alreadyDone
-          ? <div style={{ marginTop: 8 }}><RequestChange broker={broker} item="intro_card" skin="portal" onRequested={() => { void reload(); }} /></div>
-          : <Link className="btn ghost" style={{ marginTop: 8 }} to="/broker/profile">Something is wrong: fix it</Link>}
+        {!alreadyDone && <Link className="btn ghost" style={{ marginTop: 8 }} to="/broker/profile">Something is wrong: fix it</Link>}
       </section>
       <StepClip title="your intro card" length="0:30" file={`${CLIPS_BASE}/intro-card.mp4`} />
     </>

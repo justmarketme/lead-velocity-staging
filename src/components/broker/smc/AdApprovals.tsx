@@ -15,6 +15,7 @@ import { adErrText } from "./AdConsentCard";
 import type { ReviewSkin } from "./LvReview";
 import ApprovalBand from "./ApprovalBand";
 import RequestChange from "./RequestChange";
+import ApprovalSwitch from "./ApprovalSwitch";
 
 type Changed = (r: { onboarding_progress: Record<string, unknown> }) => void;
 
@@ -73,13 +74,15 @@ function AdItem({ row, approved, consentOk, skin, onDone, broker, onChanged }: {
       <li style={{ listStyle: "none", borderTop: "1px solid var(--sm-border)", paddingTop: 12, marginTop: 12 }}>
         <AdPreview row={row} skin={skin} pending={!approved} />
         {row.script_text && <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{row.script_text}</p>}
-        {approved
-          ? <div className="next-slot" role="status" style={{ borderColor: "#16a34a" }}><span style={{ color: "#16a34a" }}>✓</span><div><b style={{ color: "#15803d" }}>Approved · {fmtDayTimeSast(row.approved_at)}</b></div></div>
-          : !consentOk && <p className="hint">Give your consent above first, then you can approve this ad.</p>}
-        {err && <p className="err" role="alert">{err}</p>}
+        <div style={{ marginTop: 8 }}>
+          <ApprovalSwitch skin="portal" label="Approve this ad" approved={approved} approvedAt={row.approved_at} blocked={!consentOk || preview}
+            blockedNote={preview ? "Preview only: nothing is saved." : "Give your consent above first, then you can approve this ad."}
+            busy={busy === "approve"} error={err} onConfirm={() => decide(true)}>
+            {!declining && <RequestChange broker={broker} item="ad" skin="portal" prefix={`Ad v${row.version}: `} onRequested={onChanged} />}
+          </ApprovalSwitch>
+        </div>
         {!declining ? (
           <div className="row" style={{ marginTop: 8 }}>
-            {!approved && <button type="button" className="btn" disabled={!consentOk || !!busy || preview} onClick={() => decide(true)}>{busy === "approve" ? "Saving…" : "Approve this ad"}</button>}
             <button type="button" className="btn ghost" disabled={!!busy} onClick={() => setDeclining(true)}>{declineLabel}</button>
           </div>
         ) : (
@@ -92,9 +95,6 @@ function AdItem({ row, approved, consentOk, skin, onDone, broker, onChanged }: {
             </div>
           </div>
         )}
-        {approved && !declining && (
-          <div style={{ marginTop: 8 }}><RequestChange broker={broker} item="ad" skin="portal" prefix={`Ad v${row.version}: `} onRequested={onChanged} /></div>
-        )}
       </li>
     );
   }
@@ -103,25 +103,17 @@ function AdItem({ row, approved, consentOk, skin, onDone, broker, onChanged }: {
     <li className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:p-4 space-y-3">
       <AdPreview row={row} skin={skin} pending={!approved} />
       {row.script_text && <p className="text-sm text-slate-200 whitespace-pre-wrap">{row.script_text}</p>}
-      {approved ? (
-        <div role="status" className="flex items-center gap-2 text-sm font-semibold text-emerald-300">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" aria-hidden="true" />Approved · {fmtDayTimeSast(row.approved_at)}
-        </div>
-      ) : !consentOk && <p className="text-xs text-slate-400">Give your consent above first, then you can approve this ad.</p>}
-      {err && <p role="alert" className="text-sm text-rose-300">{err}</p>}
+      <ApprovalSwitch label="Approve this ad" approved={approved} approvedAt={row.approved_at} blocked={!consentOk || preview}
+        blockedNote={preview ? "Preview only: nothing is saved." : "Give your consent above first, then you can approve this ad."}
+        busy={busy === "approve"} error={err} onConfirm={() => decide(true)}>
+        {!declining && <RequestChange broker={broker} item="ad" prefix={`Ad v${row.version}: `} onRequested={onChanged} />}
+      </ApprovalSwitch>
       {!declining ? (
         <div className="flex flex-wrap gap-2">
-          {!approved && (
-            <button type="button" disabled={!consentOk || !!busy || preview} onClick={() => decide(true)}
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">
-              {busy === "approve" && <Loader2 className="h-4 w-4 animate-spin" />}Approve this ad
-            </button>
-          )}
           <button type="button" disabled={!!busy} onClick={() => setDeclining(true)}
             className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-60">
             {declineLabel}
           </button>
-          {approved && <RequestChange broker={broker} item="ad" prefix={`Ad v${row.version}: `} onRequested={onChanged} />}
         </div>
       ) : (
         <div role="alert" className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-3 space-y-2">

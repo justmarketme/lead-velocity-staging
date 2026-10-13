@@ -103,6 +103,7 @@ function Body() {
       </section>
 
       <AdApprovals broker={broker} skin="portal" onChanged={() => { void reload(); }} />
+      <section className="card"><h2>Message Lead Velocity</h2><p className="muted">Questions, notes or something not right? Write to us and we reply here.</p><Link className="btn" to="/broker/messages">Write to us</Link></section>
       <AdConsentCard broker={broker} skin="portal" onChanged={() => { void reload(); }} />
       <p className="small" style={{ marginTop: -4 }}>Optional. Not needed to go live.</p>
 

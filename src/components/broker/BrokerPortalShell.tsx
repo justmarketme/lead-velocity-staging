@@ -17,6 +17,7 @@ import { BioReviewCard, FspVerifiedBadge } from "./smc/LvReview";
 import { focusWhenReady } from "@/lib/brokerReview";
 import AdConsentCard from "./smc/AdConsentCard";
 import AdApprovals from "./smc/AdApprovals";
+import { MessageUsCard } from "./smc/MessageUs";
 
 export type PortalTab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
@@ -228,6 +229,7 @@ export function BrokerDetails({ broker, planState, onBrokerPatch, onGo }: { brok
       </div>
       <AdConsentCard broker={broker} onChanged={(r) => onBrokerPatch(r)} />
       <AdApprovals broker={broker} onChanged={(r) => onBrokerPatch(r)} />
+      <MessageUsCard brokerId={broker?.id} />
     </div>
   );
 }

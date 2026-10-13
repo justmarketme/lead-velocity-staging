@@ -21,6 +21,7 @@ import BrokerAnalysisDashboard from "@/components/dashboard/BrokerAnalysisDashbo
 import AdminOrdersActivity from "@/components/dashboard/AdminOrdersActivity";
 import BrokerManagement from "@/components/dashboard/BrokerManagement";
 import ContactEnquiries from "@/components/dashboard/ContactEnquiries";
+import AdminBrokerMessages from "@/components/dashboard/AdminBrokerMessages";
 import type { Session } from "@supabase/supabase-js";
 import SEO from "@/components/SEO";
 
@@ -133,6 +134,7 @@ const Dashboard = () => {
       {activeTab === "broker-analysis" && <BrokerAnalysisDashboard />}
       {activeTab === "broker-management" && <BrokerManagement />}
       {activeTab === "enquiries" && <ContactEnquiries />}
+      {activeTab === "broker-messages" && <AdminBrokerMessages />}
       {activeTab === "orders" && <AdminOrdersActivity />}
       {activeTab === "upload" && <LeadUploadForm />}
       {activeTab === "documents" && <AdminDocuments />}

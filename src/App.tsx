@@ -58,6 +58,8 @@ const PortalAgreement = lazy(() => import("./pages/portal/Agreement"));
 const PortalLeads = lazy(() => import("./pages/portal/Leads"));
 const PortalReports = lazy(() => import("./pages/portal/Reports"));
 const PortalHelp = lazy(() => import("./pages/portal/Help"));
+const PortalMessages = lazy(() => import("./pages/portal/Messages"));
+const BrokerMessages = lazy(() => import("./pages/BrokerMessages"));
 const SmcBrokerSwitch = lazy(() => import("./pages/portal/SmcBrokerSwitch"));
 /** /s/* short links from WhatsApp template buttons: keep ?day=… etc. and land on the portal route (auth + broker switch apply there). */
 function SmcShortLink({ to }: { to: string }) {
@@ -104,6 +106,7 @@ const App = () => {
             <Route path="/broker/calendar" element={<MsReturnGate>{shared(<PortalCalendar />, <BrokerCalendar />)}</MsReturnGate>} />
             <Route path="/broker/reports" element={shared(<PortalReports />, <BrokerReports />)} />
             <Route path="/broker/profile" element={shared(<PortalProfile />, <BrokerProfile />)} />
+            <Route path="/broker/messages" element={shared(<PortalMessages />, smc(<BrokerMessages />))} />
             <Route path="/broker/explainer" element={<Explainer />} />
             <Route path="/invite/:token" element={<InviteSignup />} />
             <Route path="/broker-setup/:token" element={<BrokerSetup />} />
