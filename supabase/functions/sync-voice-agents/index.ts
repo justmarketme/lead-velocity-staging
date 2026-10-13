@@ -4,8 +4,8 @@
 //
 //   GET  → current config of both agents + workspace tools (read-only)
 //   POST → upsert Ayanda's webhook tools, then PATCH Ayanda (prompt, first
-//          message, LLM, tools) and Einstein (allow the site's per-session
-//          prompt/first-message overrides). Idempotent; run after any persona edit.
+//          message, LLM, tools). Idempotent; run after any persona edit.
+//          Einstein is configured by the einstein-agent function, not here.
 //   POST ?agent=smc → only the SortMyCover receptionist: find-or-create the agent by
 //          name, upsert its smc-voice tools + website knowledge base, PATCH prompt,
 //          voice, LLM, data collection, evaluation and its post-call webhook.
@@ -406,25 +406,9 @@ Deno.serve(async (req) => {
     for (const id of RETIRED_AGENT_IDS) {
       await el(`/agents/${id}`, { method: "PATCH", body: JSON.stringify({ platform_settings: { archived: true } }) }).catch((e) => console.warn(e));
     }
-    const einstein = await el(`/agents/${EINSTEIN_AGENT_ID}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        conversation_config: {
-          tts: {
-            model_id: "eleven_v4_turbo",
-            expressive_mode: true,
-            suggested_audio_tags: [
-              { tag: "Excitedly", description: "Greetings, big ideas, and when a broker is about to get more appointments." },
-              { tag: "Chuckles", description: "After his own jokes and playful German-accent quips." },
-              { tag: "Enthusiastically", description: "Explaining the Lead Velocity system and next steps." },
-              { tag: "Confidently", description: "Giving strategy, scripts and performance advice." },
-            ],
-          },
-        },
-        // The site sends Einstein's per-page (public / broker / admin) prompt and first message.
-        platform_settings: { overrides: { conversation_config_override: { agent: { prompt: { prompt: true }, first_message: true } } } },
-      }),
-    });
+    // Einstein is owned by einstein-agent (/sync, /kb-refresh) — read-only here so this sync can't
+    // re-enable per-session prompt overrides or reset his voice settings.
+    const einstein = await el(`/agents/${EINSTEIN_AGENT_ID}`);
     return Response.json({ tools: toolIds, ayanda: summary(ayanda), einstein: summary(einstein) });
   } catch (e) {
     console.error("sync-voice-agents:", e);
