@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Camera, CheckCircle2, Circle, Loader2, Lock, Video } from "lucide-react";
-import { INTRO_MEDIA_URL, MEDIA_BUCKET, SUPPORT_EMAIL, SUPPORT_WA, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
+import { INTRO_MEDIA_URL, MEDIA_BUCKET, SUPPORT_EMAIL, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
 import type { SmcBroker, SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
@@ -283,14 +283,8 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
             {video?.state === "rejected" && video.ai_check?.reason && <p className={`rounded-lg px-3 py-2 text-xs ${c.bad}`}>{video.ai_check.reason}</p>}
             {video?.state === "ready" && <a className={`text-sm font-semibold ${c.link}`} href={approveUrl}>Watch and approve your video</a>}
             {video && <p className={`text-xs ${c.muted}`}>Latest take v{video.version}, {fmtDay(video.created_at)}.</p>}
-            <p className="font-medium">Record it on WhatsApp:</p>
-            <ol className={`list-decimal pl-5 space-y-1 ${c.muted}`}>
-              <li>Hold your phone upright, face a window, quiet room.</li>
-              <li>Record a 20 to 30 second selfie video: your name, practice, who you help. No products, prices or promises.</li>
-              <li>Send it on WhatsApp from your registered number{broker.whatsapp_number ? ` (${broker.whatsapp_number})` : ""} to the SortMyCover number{SUPPORT_WA ? ` +${SUPPORT_WA}` : ""}.</li>
-              <li>We reply "Got it", add captions and your details, then message you to approve it here.</li>
-            </ol>
-            <p className={`text-xs ${c.muted}`}>Under 16 MB (WhatsApp's limit). Clients only see it after you approve it.</p>
+            {/* Video intake (W07/W23) isn't switched on yet: don't ask brokers to send a video that nothing would process. */}
+            <p className={c.muted}>Video intros are coming soon. We'll let you know when you can record yours. You don't need one to go live.</p>
           </CardContent>
         </Card>
       </div>
