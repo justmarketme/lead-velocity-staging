@@ -61,3 +61,12 @@ h1.h i { display: inline-block; width: 7px; height: 54px; border-radius: 4px; ba
 .pill.amber { background: #fff7ed; color: #c2410c; }
 .pill.pink { background: var(--pink-wash); color: var(--pink); }
 .pill i { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+
+/* 13 Oct additions: owner badges, open (not done) state */
+.who { display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 999px; font-size: 17px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; flex: none; }
+.who.jono { background: var(--pink-wash); color: var(--pink); border: 1.5px solid var(--pink-soft); }
+.who.kg { background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; }
+.who.claude { background: var(--purple-wash); color: var(--purple-2); border: 1.5px solid var(--purple-soft); }
+.who.mark { background: #fff7ed; color: #c2410c; border: 1.5px solid #fed7aa; }
+.tick.open { border-color: #fdba74; border-style: dashed; background: #fff7ed; }
+.mono { font-family: Consolas, "Cascadia Mono", monospace; }
