@@ -15,8 +15,10 @@ import { fmtZa, toZaE164 } from "@/lib/brokerProfile";
 import { TERMS, zar } from "@/lib/pricing";
 import { SUPPORT_EMAIL } from "@/lib/smc";
 import CalendarHowToVideo from "./smc/CalendarHowToVideo";
+import BrokerVideo from "./BrokerVideo";
 import {
   BROKER_ONBOARDING_CAPTIONS_URL, BROKER_ONBOARDING_POSTER_URL, BROKER_ONBOARDING_VIDEO_TITLE, BROKER_ONBOARDING_VIDEO_URL,
+  BROKER_ONBOARDING_VIDEO_DURATION, BROKER_GUIDE_VIDEO_URL, BROKER_GUIDE_POSTER_URL, BROKER_GUIDE_VIDEO_TITLE, BROKER_GUIDE_VIDEO_DURATION,
 } from "@/lib/brokerMedia";
 
 type Tab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
@@ -153,22 +155,25 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
           <m.div id="gs-body" key="body" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="px-5 pb-6 sm:px-7 sm:pb-8 grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-6">
             <div className="space-y-6 min-w-0">
-              {/* Explainer */}
-              <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/40">
-                {BROKER_ONBOARDING_VIDEO_URL ? (
-                  <video className="w-full aspect-video bg-black" controls playsInline preload="metadata"
-                    poster={BROKER_ONBOARDING_POSTER_URL || undefined} aria-label={BROKER_ONBOARDING_VIDEO_TITLE}>
-                    <source src={BROKER_ONBOARDING_VIDEO_URL} type="video/mp4" />
-                    {BROKER_ONBOARDING_CAPTIONS_URL && <track kind="captions" src={BROKER_ONBOARDING_CAPTIONS_URL} srcLang="en" label="English" default />}
-                  </video>
-                ) : (
+              {/* Explainer + onboarding guide: branded thumbnails, play on tap */}
+              {BROKER_ONBOARDING_VIDEO_URL ? (
+                <BrokerVideo src={BROKER_ONBOARDING_VIDEO_URL} poster={BROKER_ONBOARDING_POSTER_URL} title={BROKER_ONBOARDING_VIDEO_TITLE}
+                  duration={BROKER_ONBOARDING_VIDEO_DURATION} captionsUrl={BROKER_ONBOARDING_CAPTIONS_URL || undefined} />
+              ) : (
+                <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/40">
                   <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center bg-[radial-gradient(ellipse_at_center,rgba(236,72,153,0.12),transparent_70%)]">
                     <PlayCircle className="h-12 w-12 text-pink-400/70" aria-hidden="true" />
                     <p className="font-semibold text-white">{BROKER_ONBOARDING_VIDEO_TITLE}</p>
                     <p className="text-sm text-slate-400 max-w-sm">A 3-minute video that walks you through the first weeks. It will appear here shortly.</p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+              {BROKER_GUIDE_VIDEO_URL && (
+                <div>
+                  <h3 className="text-base font-semibold text-white mb-3">{BROKER_GUIDE_VIDEO_TITLE}</h3>
+                  <BrokerVideo src={BROKER_GUIDE_VIDEO_URL} poster={BROKER_GUIDE_POSTER_URL} title={BROKER_GUIDE_VIDEO_TITLE} duration={BROKER_GUIDE_VIDEO_DURATION} />
+                </div>
+              )}
 
               {/* What to expect */}
               <div>
