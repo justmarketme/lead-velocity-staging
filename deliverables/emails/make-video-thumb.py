@@ -12,8 +12,8 @@ OUT = os.path.join(HERE, "..", "..", "public", "email", "broker-onboarding-video
 LOGO = os.path.join(HERE, "..", "..", "public", "email", "lead-velocity-logo.png")
 
 W, H, S = 1104, 621, 4
-BASE = (7, 12, 25)           # #070c19 = slate-900/30 over #030712 (onboarding section navy)
-SLATE = (15, 23, 42)         # slate-900
+BASE = (18, 12, 31)          # #120c1f, the email page purple
+SLATE = (35, 26, 61)         # #231a3d, the email panel purple
 PRIMARY = (184, 61, 245)     # #b83df5
 PINK = (236, 72, 153)        # pink-500
 EPIPHANY = [(0.0, (230, 0, 255)), (0.33, (255, 0, 204)), (0.70, (255, 127, 80)), (1.0, (255, 140, 0))]
@@ -70,7 +70,7 @@ def tracked(d, x, y, text, font, fill, spacing):
 # Background: navy base, slate-900/30 band, soft primary/pink glows (onboarding hero orbs)
 comp(glow(140, 60, 280, PRIMARY, 46))
 comp(glow(990, 600, 300, PINK, 40))
-comp(glow(560, 300, 340, (30, 41, 59), 120))   # slate-800 lift behind the headline
+comp(glow(560, 300, 340, (40, 28, 72), 150))   # #281c48 lift behind the headline
 
 # Logo
 logo = Image.open(LOGO).convert("RGBA")
