@@ -1,14 +1,17 @@
-// Ayanda's server tools (ElevenLabs webhook tools). One function, routed by the
-// last path segment: /ayanda-tools-bridge/{check_availability|book_appointment|send_whatsapp_link}.
+// Lead Velocity's voice-agent server tools (ElevenLabs webhook tools), shared by
+// Ayanda (phone) and Einstein (website). One function, routed by the last path
+// segment: /ayanda-tools-bridge/{check_availability|book_appointment|send_whatsapp_link}.
 //
 // Auth: verify_jwt is off (ElevenLabs can't mint Supabase JWTs), so every call
 // must carry the live ElevenLabs conversation_id ({{system__conversation_id}}),
-// which we look up with our own API key and require to belong to Ayanda's agent.
+// which we look up with our own API key and require to belong to Ayanda's or
+// Einstein's agent. The agent it belongs to labels the CRM record and the text.
 //
 // Tool failures return HTTP 200 with { ok:false, say } so the agent can recover
 // mid-call instead of hearing a generic error.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { normalizeEmail, normalizeUrl, normalizeZaPhone, localZaFormat } from "../_shared/spoken.ts";
+import { EINSTEIN_AGENT_ID } from "../_shared/einstein_persona.ts";
 
 const TZ = "Africa/Johannesburg";
 const CAL = "https://api.cal.com/v2";
@@ -20,16 +23,25 @@ const fail = (error: string, say: string) => json({ ok: false, error, say });
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 
-async function verifyConversation(conversationId: unknown): Promise<string | null> {
-  if (typeof conversationId !== "string" || !/^conv_[a-z0-9]+$/i.test(conversationId)) return "missing conversation_id";
+type Agent = { key: "ayanda" | "einstein"; name: string; source: string; channel: string };
+const AGENTS: Record<string, Agent> = {
+  ayanda: { key: "ayanda", name: "Ayanda", source: "ayanda_call", channel: "call" },
+  einstein: { key: "einstein", name: "Einstein", source: "einstein_web", channel: "website voice chat" },
+};
+
+async function verifyConversation(conversationId: unknown): Promise<{ agent?: Agent; denied?: string }> {
+  if (typeof conversationId !== "string" || !/^conv_[a-z0-9]+$/i.test(conversationId)) return { denied: "missing conversation_id" };
   const res = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`, {
     headers: { "xi-api-key": env("ELEVENLABS_API_KEY") },
   });
-  if (!res.ok) return `conversation lookup ${res.status}`;
+  if (!res.ok) return { denied: `conversation lookup ${res.status}` };
   const conv = await res.json();
-  if (conv.agent_id !== env("ELEVENLABS_AGENT_ID")) return "conversation belongs to another agent";
-  if (!["initiated", "in-progress"].includes(conv.status)) return `conversation is ${conv.status}`;
-  return null;
+  const agent = conv.agent_id === env("ELEVENLABS_AGENT_ID") ? AGENTS.ayanda
+    : conv.agent_id === (env("ELEVENLABS_EINSTEIN_AGENT_ID") || EINSTEIN_AGENT_ID) ? AGENTS.einstein
+    : undefined;
+  if (!agent) return { denied: "conversation belongs to another agent" };
+  if (!["initiated", "in-progress"].includes(conv.status)) return { denied: `conversation is ${conv.status}` };
+  return { agent };
 }
 
 function spokenSlot(iso: string): string {
@@ -88,11 +100,12 @@ async function checkAvailability(p: Record<string, unknown>) {
 
 async function upsertEnquiry(
   db: SupabaseClient,
+  agent: Agent,
   conversationId: string,
   row: { name: string; email?: string | null; phone?: string | null; company?: string | null; message: string },
 ) {
   const ref = `ElevenLabs ${conversationId}`;
-  const { data: existing } = await db.from("contact_submissions").select("id, message").eq("source", "ayanda_call")
+  const { data: existing } = await db.from("contact_submissions").select("id, message").eq("source", agent.source)
     .eq("admin_notes", ref).maybeSingle();
   if (existing) {
     await db.from("contact_submissions").update({
@@ -101,12 +114,12 @@ async function upsertEnquiry(
     return existing.id;
   }
   const { data, error } = await db.from("contact_submissions")
-    .insert({ ...row, source: "ayanda_call", status: "new", admin_notes: ref }).select("id").single();
+    .insert({ ...row, source: agent.source, status: "new", admin_notes: ref }).select("id").single();
   if (error) console.error("contact_submissions insert failed:", error.message);
   return data?.id;
 }
 
-async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient) {
+async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient, agent: Agent) {
   const conversationId = p.conversation_id as string;
   const name = typeof p.name === "string" ? p.name.trim() : "";
   if (!name) return fail("missing_name", "Ask for their name before booking.");
@@ -129,7 +142,7 @@ async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient) {
       attendee: { name, email, timeZone: TZ, phoneNumber: phone, language: "en" },
       location: { type: "attendeePhone", phone },
       bookingFieldsResponses: notes ? { notes } : undefined,
-      metadata: { source: "ayanda", conversation_id: conversationId },
+      metadata: { source: agent.key, conversation_id: conversationId },
     }),
   });
   const body = await res.json().catch(() => ({}));
@@ -144,10 +157,10 @@ async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient) {
   const booking = Array.isArray(body.data) ? body.data[0] : body.data;
   const spoken = spokenSlot(booking?.start ?? start.toISOString());
 
-  await upsertEnquiry(db, conversationId, {
+  await upsertEnquiry(db, agent, conversationId, {
     name, email, phone, company,
     message: [
-      `Ayanda booked a 15-min Lead Velocity Discovery Call for ${spoken} (Cal.com ${booking?.uid ?? "?"}).`,
+      `${agent.name} (${agent.channel}) booked a 15-min Lead Velocity Discovery Call for ${spoken} (Cal.com ${booking?.uid ?? "?"}).`,
       website ? `Website: ${website}.` : "",
       notes ? `Notes: ${notes}` : "",
     ].filter(Boolean).join(" "),
@@ -162,7 +175,7 @@ async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient) {
   });
 }
 
-async function sendWhatsappLink(p: Record<string, unknown>, db: SupabaseClient) {
+async function sendWhatsappLink(p: Record<string, unknown>, db: SupabaseClient, agent: Agent) {
   const conversationId = p.conversation_id as string;
   const phone = normalizeZaPhone(p.phone) ?? normalizeZaPhone(p.caller_id);
   if (!phone) return fail("missing_phone", "Ask which mobile number to send the WhatsApp link to.");
@@ -173,8 +186,8 @@ async function sendWhatsappLink(p: Record<string, unknown>, db: SupabaseClient) 
 
   const name = typeof p.name === "string" && p.name.trim() ? p.name.trim().split(/\s+/)[0] : "";
   const topic = typeof p.topic === "string" && p.topic.trim() ? p.topic.trim().slice(0, 80) : "how Lead Velocity works";
-  const prefill = encodeURIComponent(`Hi Lead Velocity, Ayanda said I should message you. I'd like to know more about ${topic}.`);
-  const text = `Hi${name ? ` ${name}` : ""}, it's Ayanda from Lead Velocity. Tap to chat to us on WhatsApp: https://wa.me/${LV_WHATSAPP.slice(1)}?text=${prefill}`;
+  const prefill = encodeURIComponent(`Hi Lead Velocity, ${agent.name} said I should message you. I'd like to know more about ${topic}.`);
+  const text = `Hi${name ? ` ${name}` : ""}, it's ${agent.name} from Lead Velocity. Tap to chat to us on WhatsApp: https://wa.me/${LV_WHATSAPP.slice(1)}?text=${prefill}`;
 
   const sid = env("TWILIO_ACCOUNT_SID");
   const tw = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -188,10 +201,10 @@ async function sendWhatsappLink(p: Record<string, unknown>, db: SupabaseClient) 
     channel: "sms", direction: "outbound", sender_type: "system", recipient_type: "client", author: "bot",
     recipient_contact: phone, content: text, status: tw.ok ? "sent" : "failed", external_id: twBody.sid ?? null,
     failed_reason: tw.ok ? null : String(twBody.message ?? tw.status).slice(0, 300),
-    metadata: { conversation_id: conversationId, tool: "send_whatsapp_link", agent: "ayanda" },
+    metadata: { conversation_id: conversationId, tool: "send_whatsapp_link", agent: agent.key },
   });
-  await upsertEnquiry(db, conversationId, {
-    name: name || "Ayanda caller", phone,
+  await upsertEnquiry(db, agent, conversationId, {
+    name: name || `${agent.name} caller`, phone,
     message: `Asked to continue on WhatsApp about ${topic}; tap-to-chat link ${tw.ok ? "sent" : "FAILED"} by SMS.`,
   });
 
@@ -212,8 +225,8 @@ Deno.serve(async (req) => {
     return json({ error: "invalid json" }, 400);
   }
 
-  const denied = await verifyConversation(p.conversation_id);
-  if (denied) {
+  const { agent, denied } = await verifyConversation(p.conversation_id);
+  if (denied || !agent) {
     console.warn(`ayanda-tools-bridge ${tool}: rejected (${denied})`);
     return json({ error: "unauthorized" }, 401);
   }
@@ -221,8 +234,8 @@ Deno.serve(async (req) => {
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   try {
     if (tool === "check_availability") return await checkAvailability(p);
-    if (tool === "book_appointment") return await bookAppointment(p, db);
-    if (tool === "send_whatsapp_link") return await sendWhatsappLink(p, db);
+    if (tool === "book_appointment") return await bookAppointment(p, db, agent);
+    if (tool === "send_whatsapp_link") return await sendWhatsappLink(p, db, agent);
     return json({ error: `unknown tool ${tool}` }, 404);
   } catch (e) {
     console.error(`ayanda-tools-bridge ${tool} error:`, e);

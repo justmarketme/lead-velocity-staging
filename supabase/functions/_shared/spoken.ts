@@ -38,10 +38,36 @@ export function normalizeUrl(raw: unknown): string | null {
   return DOMAIN_RE.test(s) ? s : null;
 }
 
-/** South-African-first E.164: "082 555 1234" / "27825551234" / "+27 82…" → "+27825551234". */
+const DIGIT_WORDS: Record<string, string> = {
+  zero: "0", oh: "0", o: "0", nought: "0", one: "1", two: "2", three: "3", four: "4", five: "5",
+  six: "6", seven: "7", eight: "8", nine: "9",
+};
+
+/** "oh eight two double five five, one two three four" → "0825551234". Leaves digits alone. */
+function spokenDigits(raw: string): string {
+  const words = raw.toLowerCase().replace(/[-,.]/g, " ").split(/\s+/).filter(Boolean);
+  let out = "";
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    const rep = w === "double" ? 2 : w === "triple" ? 3 : 0;
+    if (rep && i + 1 < words.length) {
+      const next = DIGIT_WORDS[words[i + 1]] ?? (/^\d$/.test(words[i + 1]) ? words[i + 1] : "");
+      if (next) {
+        out += next.repeat(rep);
+        i++;
+        continue;
+      }
+    }
+    if (w === "plus") out += "+";
+    else out += DIGIT_WORDS[w] ?? w;
+  }
+  return out;
+}
+
+/** South-African-first E.164: "082 555 1234" / "27825551234" / "+27 82…" / "oh eight two…" → "+27825551234". */
 export function normalizeZaPhone(raw: unknown): string | null {
   if (typeof raw !== "string" && typeof raw !== "number") return null;
-  let d = String(raw).replace(/[^\d+]/g, "");
+  let d = spokenDigits(String(raw)).replace(/[^\d+]/g, "");
   if (d.startsWith("00")) d = "+" + d.slice(2);
   if (d.startsWith("0") && d.length === 10) d = "+27" + d.slice(1);
   else if (d.startsWith("27") && d.length === 11) d = "+" + d;
