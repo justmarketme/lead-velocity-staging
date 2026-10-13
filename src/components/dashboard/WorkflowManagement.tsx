@@ -1849,9 +1849,6 @@ const PipelineCoach = ({ leadsByStage, totalLeads }: { leadsByStage: Record<stri
     try {
       const { data, error } = await supabase.functions.invoke("crm-coach", {
         body: { mode: "lead_pipeline", context: { mode: "lead_pipeline", total_leads: totalLeads, stage_counts: stageCounts } },
-        headers: {
-          "x-openrouter-key": (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "",
-        },
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.success === false) throw new Error((data as any).error || "Coach unavailable");

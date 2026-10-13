@@ -212,8 +212,7 @@ const MarketingHub = () => {
                         geos: targetGeos,
                         intent: searchIntent,
                         keys: {
-                            tavily: import.meta.env.VITE_TAVILY_API_KEY,
-                            openrouter: import.meta.env.VITE_OPENROUTER_API_KEY
+                            tavily: import.meta.env.VITE_TAVILY_API_KEY
                         }
                     }
                 },
