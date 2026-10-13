@@ -108,16 +108,16 @@ GRANT EXECUTE ON FUNCTION public.broker_decide_bio_suggestion(boolean) TO authen
 -- ------------------------------------------------------------------------------------------------------------------
 -- 2. Intro card approval. Lead Velocity prepares the card (a broker_media row: kind 'card', state 'ready', url set);
 --    the broker's only action is "Approve my intro card". One SECURITY DEFINER call does everything the approval means:
---    broker_media approved_at / approved_by / state / is_current, brokers.intro_card_url, onboarding_progress.card and an
+--    broker_media approved_at / approved_by / is_current (state is GENERATED, never written), brokers.intro_card_url, onboarding_progress.card and an
 --    audit row in broker_compliance_checks (admin-only insert by RLS; this function runs as the owner).
 --    onboarding_progress.card uses status 'done' (not 'approved') because W20's readiness query and the portal step list
 --    (src/lib/smc.ts DONEISH) treat 'done' as complete; approved_at / by / media_id carry the approval itself.
 --    Refused while a Lead Velocity bio review is open or declined: the card may only be approved once the bio is accepted.
 --
 -- Admin snippet (NOT executed): register Mark's prepared card once the PNG is stored (url = the https link W06 sends):
---   INSERT INTO public.broker_media (broker_id, brand_id, kind, language, version, url, state, is_current, compliance_checked_by)
+--   INSERT INTO public.broker_media (broker_id, brand_id, kind, language, version, url, is_current, compliance_checked_by)
 --   SELECT id, brand_id, 'card', 'en', coalesce((SELECT max(version) FROM public.broker_media WHERE broker_id = b.id AND kind = 'card'), 0) + 1,
---          '<https url of mark-weston-intro-card.png>', 'ready', false, 'Lead Velocity'
+--          '<https url of mark-weston-intro-card.png>', false, 'Lead Velocity'   -- state is generated ('ready' once url is set)
 --     FROM public.brokers b WHERE id = '306062a1-c271-4ae1-8b1e-bb9aed10a5f6';
 -- ------------------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.broker_approve_intro_card(p_media_id uuid)
@@ -158,13 +158,13 @@ BEGIN
     RAISE EXCEPTION 'Please approve your bio first.' USING ERRCODE = '22023';
   END IF;
 
+  -- state is a generated column (derived from approved_at / is_current / ai_check / url): never written directly.
+  -- (Live fix 13 Oct 2026: fix_broker_approve_intro_card_generated_state.) A previously approved card that stops being
+  -- current reads 'superseded' by itself.
+  UPDATE public.broker_media SET is_current = false
+   WHERE broker_id = m.broker_id AND kind = 'card' AND language = m.language AND id <> m.id AND is_current;
   UPDATE public.broker_media
-     SET is_current = false,
-         state = CASE WHEN state = 'approved' THEN 'superseded' ELSE state END
-   WHERE broker_id = m.broker_id AND kind = 'card' AND language = m.language AND id <> m.id
-     AND (is_current OR state = 'approved');
-  UPDATE public.broker_media
-     SET approved_at = now(), approved_by = v_uid, state = 'approved', is_current = true
+     SET approved_at = now(), approved_by = v_uid, is_current = true
    WHERE id = m.id
   RETURNING * INTO m;
 

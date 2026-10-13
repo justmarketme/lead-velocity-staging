@@ -23,6 +23,8 @@ import HeadshotPicker from "./HeadshotPicker";
 import PreparedIntroCard from "./PreparedIntroCard";
 import { BioReviewCard, FspVerifiedBadge } from "./LvReview";
 import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
+import { bioLocked, cardLocked } from "@/lib/changeRequests";
+import RequestChange from "./RequestChange";
 
 export const LANGS: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "af", label: "Afrikaans" }, { code: "isiZulu", label: "isiZulu" },
@@ -129,6 +131,9 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   useEffect(() => { setBio(broker.bio_short || ""); }, [broker.bio_short]);
   // A bio Lead Velocity did not approve (onboarding_progress.bio_review) keeps the card waiting until it changes.
   const bioHeld = bioBlocked(readBioReview(broker.onboarding_progress), bio);
+  // Approved bio / intro card are locked (server: broker_approved_items_guard); changes go through "Request a change".
+  const lockBio = bioLocked(broker.onboarding_progress);
+  const lockPhoto = cardLocked(broker.onboarding_progress);
 
   const photo = localPhoto || storedPhoto;
   const fspOk = fspValid(fsp);
@@ -225,16 +230,21 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
             <Label htmlFor="ic-photo">Headshot</Label>
             <div className="flex items-center gap-4">
               {photo ? <img src={photo} alt="Your headshot" className="h-16 w-16 rounded-full object-cover" /> : <div className={`h-16 w-16 rounded-full grid place-items-center ${c.box}`}><Camera className={`h-6 w-6 ${c.muted}`} aria-hidden="true" /></div>}
-              <HeadshotPicker disabled={preview} onPicked={(f) => { setFile(f); setSaved(false); }} onError={setErr}
+              <HeadshotPicker disabled={preview || lockPhoto} onPicked={(f) => { setFile(f); setSaved(false); }} onError={setErr}
                 primaryClass={c.primary} secondaryClass="border border-current/20 hover:bg-white/10" />
             </div>
-            <p className={`text-xs ${c.muted}`}>{file ? "New photo ready. Tap Save my intro card to keep it." : "Plain background, looking at the camera. Any photo works; we resize it. Stored privately; only you and Lead Velocity can open it."}</p>
+            <p className={`text-xs ${c.muted}`}>{lockPhoto ? "Your photo is on your approved intro card. To change it, use Request a change on the card." : file ? "New photo ready. Tap Save my intro card to keep it." : "Plain background, looking at the camera. Any photo works; we resize it. Stored privately; only you and Lead Velocity can open it."}</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ic-bio">Two lines about you</Label>
-            <Textarea id="ic-bio" maxLength={220} rows={3} value={bio} onChange={(e) => setBio(e.target.value)} className={c.input} placeholder="I help young families in Cape Town make sure their cover fits their life. Calm, plain-language calls." />
-            <p className={`text-xs ${c.muted}`}>Who you help and how you work. No product names, prices, "best" or promises. {bio.trim().length}/220</p>
+            <Label htmlFor="ic-bio" className="flex items-center gap-1.5">Two lines about you{lockBio && <Lock className="h-3.5 w-3.5" aria-label="locked" />}</Label>
+            <Textarea id="ic-bio" maxLength={220} rows={3} value={bio} readOnly={lockBio} aria-readonly={lockBio} onChange={(e) => setBio(e.target.value)} className={`${c.input} ${lockBio ? "opacity-75" : ""}`} placeholder="I help young families in Cape Town make sure their cover fits their life. Calm, plain-language calls." />
+            {lockBio ? (
+              <>
+                <p className={`text-xs ${c.muted}`}>Your bio is approved, so it's locked. Tell us what to change and we'll send it back for your approval.</p>
+                <RequestChange broker={broker} item="bio" onRequested={() => { void reload(); }} />
+              </>
+            ) : <p className={`text-xs ${c.muted}`}>Who you help and how you work. No product names, prices, "best" or promises. {bio.trim().length}/220</p>}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

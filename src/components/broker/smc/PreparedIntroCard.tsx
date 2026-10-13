@@ -12,11 +12,13 @@ import { useBrokerPreview } from "@/lib/brokerPreview";
 import { profileErrorText } from "@/lib/brokerProfile";
 import { MEDIA_BUCKET } from "@/lib/smc";
 import { cardApprovable, fmtDaySast, readBioReview } from "@/lib/brokerReview";
+import ApprovalBand from "./ApprovalBand";
+import RequestChange from "./RequestChange";
 
 interface CardRow { id: string; version: number; url: string | null; state: string | null; is_current: boolean; approved_at: string | null }
 
 /** https links are used as they are; anything else is a path in the private broker-media bucket and gets signed. */
-async function viewUrl(url: string | null): Promise<string | null> {
+export async function viewUrl(url: string | null): Promise<string | null> {
   if (!url) return null;
   if (/^https?:/i.test(url)) return url;
   const key = url.replace(/^\/+/, "").replace(new RegExp(`^${MEDIA_BUCKET}/`), "");
@@ -82,21 +84,20 @@ export default function PreparedIntroCard({ broker, reload }: {
           <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30">
             {src ? (
               <img src={src} alt={`Intro card for ${broker.contact_person || "you"}`}
-                className={`block w-full aspect-square object-cover transition-[filter,opacity] duration-500 ${approved ? "" : "grayscale opacity-50"}`} />
+                className={`block w-full aspect-square object-cover transition-[filter,opacity] duration-500 motion-reduce:transition-none ${approved ? "" : "grayscale opacity-50"}`} />
             ) : (
               <div className="aspect-square grid place-items-center text-sm text-slate-500">Card image unavailable</div>
             )}
-            {!approved && (
-              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20 bg-slate-950/80 px-4 py-2 text-sm font-semibold text-white shadow-lg">
-                Waiting for your approval
-              </span>
-            )}
+            {src && <ApprovalBand show={!approved} />}
           </div>
           {approved ? (
+            <>
             <p role="status" className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
               Approved{card.approved_at ? ` on ${fmtDaySast(card.approved_at)}` : ""}. Clients get this card on WhatsApp when they book a call with you.
             </p>
+            <RequestChange broker={broker} item="intro_card" onRequested={() => { void reload(); }} />
+            </>
           ) : (
             <>
               <p className="text-sm text-slate-400">Lead Velocity prepared this card. Check your name, practice, FSP number and bio, then approve it.</p>

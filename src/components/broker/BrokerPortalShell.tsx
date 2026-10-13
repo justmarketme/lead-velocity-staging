@@ -15,6 +15,8 @@ import type { BrokerPlanState } from "@/lib/brokerPlan";
 import { FspForm, ProfilePatch, WhatsAppForm } from "./ProfileForms";
 import { BioReviewCard, FspVerifiedBadge } from "./smc/LvReview";
 import { focusWhenReady } from "@/lib/brokerReview";
+import AdConsentCard from "./smc/AdConsentCard";
+import AdApprovals from "./smc/AdApprovals";
 
 export type PortalTab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
@@ -224,6 +226,8 @@ export function BrokerDetails({ broker, planState, onBrokerPatch, onGo }: { brok
           ])}
         </section>
       </div>
+      <AdConsentCard broker={broker} onChanged={(r) => onBrokerPatch(r)} />
+      <AdApprovals broker={broker} onChanged={(r) => onBrokerPatch(r)} />
     </div>
   );
 }

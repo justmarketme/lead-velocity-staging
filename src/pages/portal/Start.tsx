@@ -3,6 +3,8 @@ import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PortalShell, { usePortal } from "./PortalShell";
 import { BioReviewCard } from "@/components/broker/smc/LvReview";
+import AdConsentCard from "@/components/broker/smc/AdConsentCard";
+import AdApprovals from "@/components/broker/smc/AdApprovals";
 import { fspVerifiedBadge, focusWhenReady } from "@/lib/brokerReview";
 import { EXPLAINER_URL, EXPLAINER_VTT, STEPS, fmtDay, fmtDayTime, portalEvent, progressSummary, stepDone } from "@/lib/smc";
 
@@ -99,6 +101,10 @@ function Body() {
         <p style={{ margin: "4px 0 8px" }}>Three things must be done: <b>FSP checked</b>, <b>calendar connected</b>, <b>agreement signed</b>. We also need your intro card approved. Your video can come later.</p>
         <p className="muted" style={{ margin: 0 }}>After that we run a final check. Then Jonathan taps "Go live" and leads start.</p>
       </section>
+
+      <AdApprovals broker={broker} skin="portal" onChanged={() => { void reload(); }} />
+      <AdConsentCard broker={broker} skin="portal" onChanged={() => { void reload(); }} />
+      <p className="small" style={{ marginTop: -4 }}>Optional. Not needed to go live.</p>
 
       {p.current && status !== "active" && <Link className="btn" to={p.current.path}>Next: {p.current.title.toLowerCase()}</Link>}
       <p className="small" style={{ textAlign: "center" }}>Stuck? <Link to="/broker/help">Help</Link> · or WhatsApp us. No call needed.</p>

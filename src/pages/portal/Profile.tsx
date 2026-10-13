@@ -9,6 +9,10 @@ import { CLIPS_BASE, MEDIA_BUCKET, errText, noAdviceTrip, portalEvent, smcDb } f
 import type { SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
 import { BioReviewCard, FspVerifiedBadge } from "@/components/broker/smc/LvReview";
 import { focusWhenReady } from "@/lib/brokerReview";
+import AdConsentCard from "@/components/broker/smc/AdConsentCard";
+import AdApprovals from "@/components/broker/smc/AdApprovals";
+import RequestChange from "@/components/broker/smc/RequestChange";
+import { bioLocked, cardLocked } from "@/lib/changeRequests";
 
 const LANGS = ["English", "Afrikaans", "isiZulu", "isiXhosa", "Sesotho", "Setswana", "Sepedi", "Xitsonga", "Tshivenda", "siSwati", "isiNdebele", "Other"];
 const normFsp = (v: string) => v.replace(/\s+/g, "").replace(/^fsp/i, "");
@@ -34,6 +38,9 @@ function Body() {
   const polls = useRef(0);
   const check = broker.fsp_check;
   const verified = !!broker.fsp_verified_at || check?.status === "verified";
+  // Approved bio / intro card are locked (also enforced by the broker_approved_items_guard trigger): ask for a change instead.
+  const lockBio = bioLocked(broker.onboarding_progress);
+  const lockPhoto = cardLocked(broker.onboarding_progress);
   // Accepting Lead Velocity's suggested bio rewrites bio_short on the server: show it in the box.
   useEffect(() => { setB((x) => ({ ...x, bio: broker.bio_short || "" })); }, [broker.bio_short]);
 
@@ -144,11 +151,17 @@ function Body() {
         <p className="muted">Leads see these before they meet you.</p>
         <BioReviewCard broker={broker} skin="portal" onDecided={() => { void reload(); }} onRewrite={() => focusWhenReady("bio")} />
         <label htmlFor="ph">Headshot</label>
-        <input id="ph" type="file" accept="image/*" capture="user" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-        <p className="hint">{broker.headshot_url ? "We have your photo. Pick a new one to replace it." : "Plain background, you looking at the camera. We crop it square. No photo yet? Your card uses your initials for now."}</p>
+        <input id="ph" type="file" accept="image/*" capture="user" disabled={lockPhoto} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <p className="hint">{lockPhoto ? "Your photo is on your approved intro card. To change it, use Request a change on your intro card." : broker.headshot_url ? "We have your photo. Pick a new one to replace it." : "Plain background, you looking at the camera. We crop it square. No photo yet? Your card uses your initials for now."}</p>
         <label htmlFor="bio">Two lines about you, in your own words</label>
-        <textarea id="bio" maxLength={220} value={b.bio} onChange={(e) => setB({ ...b, bio: e.target.value })} />
-        <p className="hint">Who you help and how you work. No product names, no "best", no promises. {b.bio.trim().length}/220</p>
+        <textarea id="bio" maxLength={220} value={b.bio} readOnly={lockBio} aria-readonly={lockBio} style={lockBio ? { opacity: 0.75 } : undefined}
+          onChange={(e) => setB({ ...b, bio: e.target.value })} />
+        {lockBio ? (
+          <>
+            <p className="hint">Your bio is approved, so it's locked. Tell us what to change and we'll send it back for your approval.</p>
+            <RequestChange broker={broker} item="bio" skin="portal" onRequested={() => { void reload(); }} />
+          </>
+        ) : <p className="hint">Who you help and how you work. No product names, no "best", no promises. {b.bio.trim().length}/220</p>}
         <label>Languages you speak</label>
         <div className="chips">
           {LANGS.map((l) => (
@@ -164,6 +177,8 @@ function Body() {
         <div style={{ height: 12 }} />
         <button className="btn" type="button" onClick={saveB}>Save my photo and lines</button>
       </section>
+      <AdConsentCard broker={broker} skin="portal" onChanged={() => { void reload(); }} />
+      <AdApprovals broker={broker} skin="portal" onChanged={() => { void reload(); }} />
       <Link className="btn ghost" to="/broker/intro-card">Next: approve your intro card</Link>
       <StepClip title="your details and FSP check" length="0:35" file={`${CLIPS_BASE}/profile.mp4`} />
     </>

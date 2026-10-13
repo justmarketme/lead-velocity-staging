@@ -17,6 +17,7 @@ import BrokerDocumentsSection from "./BrokerDocumentsSection";
 import BrokerProfileSection from "./BrokerProfileSection";
 import BrokerGoLivePanel from "./BrokerGoLivePanel";
 import BrokerComplianceChecks from "./BrokerComplianceChecks";
+import BrokerAdminStatus from "./BrokerAdminStatus";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
@@ -607,6 +608,8 @@ const BrokerDrawer = ({
               </a>
             </Button>
           </div>
+          {/* Ad consent + open change requests from the broker (portal) */}
+          <BrokerAdminStatus brokerId={broker.id} />
         </SheetHeader>
         <Separator />
 

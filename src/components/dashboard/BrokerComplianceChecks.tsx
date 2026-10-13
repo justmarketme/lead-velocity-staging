@@ -16,13 +16,14 @@ interface CheckRow { id: string; check_type: string; result: string; summary: st
 
 const TYPE_LABEL: Record<string, string> = {
   fsp_register: "FSP on the FSCA register", representative: "Representative listing", product_categories: "Product categories",
-  content_review: "Content review",
+  content_review: "Content review", consent: "Consent", compliance_officer: "Compliance officer", other: "Other",
 };
 const typeLabel = (t: string) => TYPE_LABEL[t] || t.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 const RESULT_CLS: Record<string, string> = {
   pass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   warning: "bg-amber-500/10 text-amber-300 border-amber-500/20",
   fail: "bg-rose-500/10 text-rose-300 border-rose-500/20",
+  info: "bg-sky-500/10 text-sky-300 border-sky-500/20",
 };
 
 async function openEvidence(path: string): Promise<string | null> {

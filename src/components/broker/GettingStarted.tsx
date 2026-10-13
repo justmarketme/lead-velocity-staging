@@ -19,6 +19,8 @@ import BrokerVideo from "./BrokerVideo";
 import WatchHow, { type Clip } from "./WatchHow";
 import { BioReviewCard, FspVerifiedBadge } from "./smc/LvReview";
 import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
+import AdConsentCard from "./smc/AdConsentCard";
+import { adConsentGranted, AD_CONSENT_HEADING } from "@/lib/adConsent";
 import {
   BROKER_ONBOARDING_CAPTIONS_URL, BROKER_ONBOARDING_POSTER_URL, BROKER_ONBOARDING_VIDEO_TITLE, BROKER_ONBOARDING_VIDEO_URL,
   BROKER_ONBOARDING_VIDEO_DURATION, BROKER_GUIDE_VIDEO_URL, BROKER_GUIDE_POSTER_URL, BROKER_GUIDE_VIDEO_TITLE, BROKER_GUIDE_VIDEO_DURATION,
@@ -39,6 +41,8 @@ interface Step {
   clip?: Clip;
   /** Always-visible block under the detail line (Lead Velocity's review: FSP verified badge, bio suggestion). */
   extra?: ReactNode;
+  /** Not needed to go live: not counted in "x of y done" and never holds "All done" back. */
+  optional?: boolean;
 }
 
 const FSP_CLIP: Clip = { src: BROKER_FSP_CLIP_URL, poster: BROKER_FSP_CLIP_POSTER_URL, title: BROKER_FSP_CLIP_TITLE, duration: BROKER_FSP_CLIP_DURATION };
@@ -135,11 +139,17 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
           </div>
         ),
       },
+      {
+        key: "ads", label: AD_CONSENT_HEADING, optional: true, done: adConsentGranted(broker?.onboarding_progress),
+        detail: "Optional. Not needed to go live.",
+        extra: <AdConsentCard broker={broker} compact className="mt-3" onChanged={(r) => onBrokerPatch(r)} />,
+      },
     ];
   }, [broker, planState, hasInvoice, plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const done = steps.filter((s) => s.done).length;
-  const allDone = done === steps.length;
+  const required = steps.filter((s) => !s.optional);
+  const done = required.filter((s) => s.done).length;
+  const allDone = done === required.length;
   const key = `lv.gettingStarted.collapsed.${broker?.id}`;
   const [open, setOpen] = useState(true);
   useEffect(() => {
@@ -161,10 +171,10 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
         className="w-full flex items-center justify-between gap-4 p-5 sm:p-7 text-left min-h-[44px]">
         <div className="min-w-0">
           <h2 id="gs-title" className="text-xl sm:text-2xl font-bold text-white">Getting started</h2>
-          <p className="text-sm text-slate-400 mt-1">{allDone ? "All done. You're set up." : `${done} of ${steps.length} done`}</p>
+          <p className="text-sm text-slate-400 mt-1">{allDone ? "All done. You're set up." : `${done} of ${required.length} done`}</p>
           <div className="mt-3 h-1.5 w-48 max-w-full rounded-full bg-white/10 overflow-hidden">
             <m.div className="h-full w-full origin-left rounded-full bg-gradient-to-r from-pink-500 to-rose-400"
-              initial={{ scaleX: 0 }} animate={{ scaleX: done / steps.length }} transition={{ duration: 0.8, ease: EASE }} />
+              initial={{ scaleX: 0 }} animate={{ scaleX: done / required.length }} transition={{ duration: 0.8, ease: EASE }} />
           </div>
         </div>
         <m.span animate={{ rotate: open ? 180 : 0 }} className="shrink-0 rounded-full border border-white/10 p-2 text-slate-300">
@@ -233,7 +243,7 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className={`font-medium ${s.done ? "text-slate-300" : "text-white"}`}>
-                          {s.label}<span className="sr-only">{s.done ? " (done)" : " (to do)"}</span>
+                          {s.label}{s.optional && <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-[11px] font-medium text-slate-400 align-middle">Optional</span>}<span className="sr-only">{s.done ? " (done)" : s.optional ? " (optional)" : " (to do)"}</span>
                         </p>
                         <p className="text-sm text-slate-400 mt-0.5">{s.detail}</p>
                         {s.clip && <WatchHow {...s.clip} className="-mt-1 -mb-3" />}

@@ -1,7 +1,8 @@
 /**
  * 03 Intro card (portal/spec/03-intro-card.md). visual-producer renders the 1080x1080 PNG into broker_media(kind=card);
- * this page previews it and records approval through smc_portal_event('card.approved') — W20 writes approved_at / is_current /
- * brokers.intro_card_url (the broker cannot write those columns directly: smc_brokers_guard) and emails the copy from howzit@.
+ * this page previews it (greyed, with a diagonal "Waiting for your approval" band) and approves it through
+ * broker_approve_intro_card() (migration 20261013160000). Once approved the card is locked: changes go through
+ * "Request a change" (broker_request_change, migration 20261013200000).
  */
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -12,6 +13,8 @@ import { BioReviewCard, FspVerifiedBadge } from "@/components/broker/smc/LvRevie
 import { bioBlocked, cardApprovable, focusWhenReady, readBioReview } from "@/lib/brokerReview";
 import { supabase } from "@/integrations/supabase/client";
 import { profileErrorText } from "@/lib/brokerProfile";
+import ApprovalBand from "@/components/broker/smc/ApprovalBand";
+import RequestChange from "@/components/broker/smc/RequestChange";
 
 function Body() {
   const { broker, reload } = usePortal();
@@ -21,6 +24,7 @@ function Body() {
   const [initials, setInitials] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -28,7 +32,7 @@ function Body() {
       if (error) setErr(errText(error));
       setCards((data as SmcBrokerMedia[]) || []);
     })();
-  }, [broker.id]);
+  }, [broker.id, nonce]);
 
   const latest = cards[0];
   const approved = cards.find((c) => c.state === "approved");
@@ -58,7 +62,8 @@ function Body() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc("broker_approve_intro_card", { p_media_id: latest.id });
     if (error) return setErr(profileErrorText(error));
-    setMsg("Approved. Leads will see this card. You can change it any time: just edit your details and approve the new one.");
+    setMsg("Approved. Leads will see this card.");
+    setNonce((n) => n + 1); // re-read the card so the band lifts and it shows in colour
     void reload();
   }
 
@@ -68,10 +73,10 @@ function Body() {
         <h2>Your intro card</h2>
         <p className="muted">This is the picture leads get on WhatsApp the moment they book. Check it is right, then approve.</p>
         {latest?.url && latest.state !== "processing" ? (
-          <div style={{ position: "relative" }}>
-            <img src={latest.url} alt={`Intro card for ${adviser}`}
-              style={{ width: "100%", borderRadius: "var(--sm-radius-lg)", transition: "filter .5s, opacity .5s", ...(alreadyDone ? {} : { filter: "grayscale(1)", opacity: 0.5 }) }} />
-            {!alreadyDone && <span className="pill" style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontSize: 14, padding: "8px 14px" }}>Waiting for your approval</span>}
+          <div style={{ position: "relative", overflow: "hidden", borderRadius: "var(--sm-radius-lg)" }}>
+            <img src={latest.url} alt={`Intro card for ${adviser}`} className="motion-reduce:transition-none"
+              style={{ display: "block", width: "100%", transition: "filter .5s, opacity .5s", ...(alreadyDone ? {} : { filter: "grayscale(1)", opacity: 0.5 }) }} />
+            <ApprovalBand show={!alreadyDone} />
           </div>
         ) : (
           <div className="intro-card" aria-label="Intro card preview">
@@ -111,7 +116,9 @@ function Body() {
         )}
         {msg && <div className="next-slot" role="status" style={{ marginTop: 10 }}><span>✓</span><div>{msg}</div></div>}
         {err && <p className="err" role="alert">{err}</p>}
-        <Link className="btn ghost" style={{ marginTop: 8 }} to="/broker/profile">Something is wrong: fix it</Link>
+        {alreadyDone
+          ? <div style={{ marginTop: 8 }}><RequestChange broker={broker} item="intro_card" skin="portal" onRequested={() => { void reload(); }} /></div>
+          : <Link className="btn ghost" style={{ marginTop: 8 }} to="/broker/profile">Something is wrong: fix it</Link>}
       </section>
       <StepClip title="your intro card" length="0:30" file={`${CLIPS_BASE}/intro-card.mp4`} />
     </>
