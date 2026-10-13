@@ -3,16 +3,39 @@
 // pink>orange top bar, Inter, solid #b83df5 button, epiphany gradient text, Lead Velocity Team signature.
 // Outlook iOS/Android repaint CSS colours in dark mode but never images, so every coloured cell also carries an HTML
 // background="https://leadvelocity.co.za/email/bg/<hex>.png" tile (never inline CSS url(): Gmail web strips the style).
-// Allowed tile colours (files in public/email/bg): 120c1f 1b1330 231a3d 3a1b57 b83df5 212a44 2a1838 + topbar.png.
+// Allowed tile colours (files in public/email/bg): 120c1f 1b1330 231a3d 3a1b57 b83df5 212a44 2a1838 d946ef + topbar.png.
 //
 // Usage:  import { lvEmail, grad, para, steps, panel } from "../_shared/lv_email.ts";
 //         const html = lvEmail({ eyebrow: "POPIA", title: `Hi ${grad("KG")}`, intro: "...", body: [...], button: {...} });
+// Escaping: grad/para/heading/panel/steps/title/intro take HTML. Wrap every user-supplied value in esc() first.
+// kv(), badge(), button.url and lvText() escape for you. Also build a plain-text part with lvText() (deliverability).
 
 const BASE = "https://leadvelocity.co.za";
 const F = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-export const esc = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** HTML-escape any value (null/undefined become ""). */
+export const esc = (s: unknown) =>
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Escaped value for an href attribute. Only https, http, mailto and tel pass; anything else falls back to the site root. */
+export const href = (url: unknown): string => {
+  const u = String(url ?? "").trim();
+  return /^(https?:\/\/|mailto:|tel:)/i.test(u) && !/[\s"<>]/.test(u) ? esc(u) : BASE;
+};
+
+/** Escape plain text and make bare http(s) URLs clickable. Newlines become <br>. */
+export function linkify(text: unknown): string {
+  return esc(text).replace(/https?:\/\/[^\s<]+/g, (m) => {
+    const trail = (m.match(/(?:&quot;|&gt;|&lt;|[.,;:!?)])+$/) ?? [""])[0];
+    const url = trail ? m.slice(0, -trail.length) : m;
+    return `<a href="${href(url.replace(/&amp;/g, "&"))}" style="color:#b83df5;text-decoration:none;font-weight:500">${url}</a>${trail}`;
+  }).replace(/\r?\n/g, "<br>");
+}
+
+/** Plain text -> body paragraphs (blank line = new paragraph, single newline = line break). Escapes + linkifies. */
+export function textBlocks(text: unknown): string {
+  return String(text ?? "").replace(/\r\n/g, "\n").trim().split(/\n{2,}/).filter((p) => p.trim()).map((p) => para(linkify(p.trim()))).join("");
+}
 
 /** Gradient highlight word (solid #ff00cc where clients can't clip text). Pass already-safe text. */
 export const grad = (text: string) => `<span class="grad" style="color:#ff00cc">${text}</span>`;
@@ -46,15 +69,78 @@ export function panel(html: string, label?: string): string {
   return `<table role="presentation" class="lv-panel" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#231a3d" background="${BASE}/email/bg/231a3d.png" style="background-color:#231a3d;background-image:linear-gradient(#231a3d,#231a3d);border:1px solid #352a55;border-radius:16px;margin:4px 0 14px"><tr><td style="padding:18px 22px">${label ? `<p style="margin:0 0 8px;font-family:${F};font-size:12px;line-height:16px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:#22d3ee">${label}</p>` : ""}<div style="font-family:${F};font-size:14px;line-height:23px;color:#e9e4f5">${html}</div></td></tr></table>`;
 }
 
+/** A kv() value: plain text (escaped for you) or ready HTML. */
+export type KvValue = string | number | null | undefined | { html: string };
+
+/**
+ * Key/value rows in a highlight panel (same look as the receipt in the broker welcome email): muted label left, white value
+ * right, hairline between rows. Labels and plain-text values are escaped; empty values show an em dash.
+ */
+export function kv(rows: Array<[string, KvValue]>, label?: string): string {
+  const cells = rows.map(([k, v], i) => {
+    const bb = i === rows.length - 1 ? "" : "border-bottom:1px solid #352a55;";
+    const val = v !== null && typeof v === "object" ? v.html : (String(v ?? "").trim() ? esc(v) : "&mdash;");
+    return `<tr><td valign="top" style="padding:11px 12px 11px 0;${bb}font-family:${F};font-size:14px;line-height:20px;color:#b9b0d6">${esc(k)}</td><td align="right" valign="top" style="padding:11px 0;${bb}font-family:${F};font-size:14px;line-height:20px;font-weight:600;color:#ffffff;word-break:break-word">${val}</td></tr>`;
+  }).join("");
+  return `<table role="presentation" class="lv-panel" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#231a3d" background="${BASE}/email/bg/231a3d.png" style="background-color:#231a3d;background-image:linear-gradient(#231a3d,#231a3d);border:1px solid #352a55;border-radius:16px;margin:4px 0 14px"><tr><td style="padding:${label ? "20px" : "10px"} 24px 8px">${label ? `<p style="margin:0 0 4px;font-family:${F};font-size:12px;line-height:16px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:#22d3ee">${esc(label)}</p>` : ""}<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${cells}</table></td></tr></table>`;
+}
+
+export type BadgeTone = "ok" | "warning" | "critical" | "info";
+const BADGE: Record<BadgeTone, { fg: string; border: string; bg: string }> = {
+  // ok = the "Paid" badge in the welcome email (tile 212a44); the others sit on the pink-tinted panel tile 2a1838.
+  ok: { fg: "#34d399", border: "#1e424e", bg: "212a44" },
+  warning: { fg: "#fbbf24", border: "#5a4318", bg: "2a1838" },
+  critical: { fg: "#f87171", border: "#6b2530", bg: "2a1838" },
+  info: { fg: "#22d3ee", border: "#1e424e", bg: "212a44" },
+};
+
+/** Small pill status badge (a one-cell table, so the solid tile + bgcolor survive Outlook dark mode). Text is escaped. */
+export function badge(text: string, tone: BadgeTone = "info"): string {
+  const t = BADGE[tone];
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0 0 14px"><tr><td bgcolor="#${t.bg}" background="${BASE}/email/bg/${t.bg}.png" style="padding:5px 14px;border-radius:9999px;background-color:#${t.bg};background-image:linear-gradient(#${t.bg},#${t.bg});border:1px solid ${t.border};font-family:${F};font-size:12px;line-height:16px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:${t.fg}">${esc(text)}</td></tr></table>`;
+}
+
+export const SIGNATURE_DEFAULT = { name: "Lead Velocity Team", title: "Client Services" };
+const CONTACT_TEXT = ["T. +27 10 976 5618", "210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria, 0184", "E. howzit@leadvelocity.co.za | leadvelocity.co.za"];
+
+/** Strip tags and decode the few entities we emit, for the plain-text part of an email built from our own HTML. */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, u, t) => {
+      const label = t.replace(/<[^>]+>/g, "").trim();
+      return !label || label === u ? u : `${label} (${u})`;
+    })
+    .replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|h[1-6]|ul|ol|div|tr)>/gi, "\n\n").replace(/<li\b[^>]*>/gi, "- ").replace(/<\/li>/gi, "\n")
+    .replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&mdash;/g, "-").replace(/&ndash;/g, "-").replace(/&rsquo;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&amp;/g, "&")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/**
+ * Plain-text twin of an lvEmail (same words, no markup). `parts` are paragraphs/blocks of plain text; the standard
+ * signature and contact lines are appended.
+ */
+export function lvText(o: { title: string; parts: Array<string | null | undefined | false>; button?: { label: string; url: string };
+  finePrint?: string; signoff?: string | null; signature?: { name: string; title: string } }): string {
+  const sig = o.signature ?? SIGNATURE_DEFAULT;
+  const blocks = [o.title, ...o.parts.filter((p): p is string => !!p)];
+  if (o.button) blocks.push(`${o.button.label}: ${o.button.url}`);
+  const so = o.signoff === undefined ? "Jono" : o.signoff;
+  if (so !== null) blocks.push(`Kind regards,\n${so}`);
+  blocks.push([`${sig.name}`, `${sig.title} | Lead Velocity`, ...CONTACT_TEXT].join("\n"));
+  if (o.finePrint) blocks.push(o.finePrint);
+  return blocks.join("\n\n") + "\n";
+}
+
 export interface LvEmailOptions {
-  /** Hidden inbox preview text. */
+  /** Hidden inbox preview text (plain text, escaped for you). */
   preheader?: string;
   /** Small tracked eyebrow above the title, e.g. "POPIA · one step for you". */
   eyebrow: string;
   /** Big title HTML. Wrap highlight words with grad(). */
   title: string;
-  /** Intro paragraph (HTML). */
-  intro: string;
+  /** Intro paragraph (HTML). Optional: free-form messages put everything in body. */
+  intro?: string;
   /** Extra content blocks (HTML strings built with para/heading/steps/panel). */
   body?: string[];
   /** Optional primary button. */
@@ -63,19 +149,23 @@ export interface LvEmailOptions {
   signoff?: string | null;
   /** Small print under the card content. */
   finePrint?: string;
+  /** Signature block name and title. Default "Lead Velocity Team" / "Client Services". */
+  signature?: { name: string; title: string };
 }
 
 export function lvEmail(o: LvEmailOptions): string {
   const pre = o.preheader
-    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#120c1f;opacity:0">${o.preheader}</div>`
+    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#120c1f;opacity:0">${esc(o.preheader)}</div>`
     : "";
+  const btnUrl = o.button ? href(o.button.url) : "";
   const button = o.button
     ? `<tr><td class="px" align="left" style="padding:6px 40px 34px">
-<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${o.button.url}" style="height:54px;v-text-anchor:middle;width:260px" arcsize="22%" stroke="f" fillcolor="#b83df5"><w:anchorlock/><center style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:600">${o.button.label} &rarr;</center></v:roundrect><![endif]-->
-<!--[if !mso]><!--><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr><td class="lv-btn" bgcolor="#b83df5" background="${BASE}/email/bg/b83df5.png" style="border-radius:12px;background-color:#b83df5;background-image:linear-gradient(#b83df5,#b83df5);box-shadow:0 10px 15px -3px rgba(184,61,245,0.2)"><a href="${o.button.url}" style="display:inline-block;padding:16px 30px;font-family:${F};font-size:16px;line-height:22px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:12px">${o.button.label} &rarr;</a></td></tr></table><!--<![endif]-->
+<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${btnUrl}" style="height:54px;v-text-anchor:middle;width:260px" arcsize="22%" stroke="f" fillcolor="#b83df5"><w:anchorlock/><center style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:16px;font-weight:600">${o.button.label} &rarr;</center></v:roundrect><![endif]-->
+<!--[if !mso]><!--><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr><td class="lv-btn" bgcolor="#b83df5" background="${BASE}/email/bg/b83df5.png" style="border-radius:12px;background-color:#b83df5;background-image:linear-gradient(#b83df5,#b83df5);box-shadow:0 10px 15px -3px rgba(184,61,245,0.2)"><a href="${btnUrl}" style="display:inline-block;padding:16px 30px;font-family:${F};font-size:16px;line-height:22px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:12px">${o.button.label} &rarr;</a></td></tr></table><!--<![endif]-->
 </td></tr>`
     : "";
   const signoff = o.signoff === null ? "" : `<p style="margin:0 0 26px;font-family:${F};font-size:15px;line-height:24px;color:#b9b0d6">Kind regards,<br><strong style="color:#ffffff;font-weight:600">${o.signoff ?? "Jono"}</strong></p>`;
+  const sig = o.signature ?? SIGNATURE_DEFAULT;
   const fine = o.finePrint
     ? `<tr><td class="px" style="padding:0 40px 34px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #352a55"><tr><td style="padding:20px 0 0;font-family:${F};font-size:12px;line-height:19px;color:#8a80a6">${o.finePrint}</td></tr></table></td></tr>`
     : "";
@@ -137,7 +227,7 @@ ${pre}
         <tr><td class="px" style="padding:40px 40px 4px">
           <p style="margin:0 0 18px;font-family:${F};font-size:12px;line-height:16px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:#b83df5">${o.eyebrow}</p>
           <h1 class="h1" style="margin:0 0 16px;font-family:${F};font-size:36px;line-height:42px;font-weight:700;letter-spacing:-0.9px;color:#ffffff">${o.title}</h1>
-          <p style="margin:0 0 24px;font-family:${F};font-size:17px;line-height:28px;color:#b9b0d6">${o.intro}</p>
+          ${o.intro ? `<p style="margin:0 0 24px;font-family:${F};font-size:17px;line-height:28px;color:#b9b0d6">${o.intro}</p>` : ""}
         </td></tr>
 
 ${(o.body ?? []).map((b) => `        <tr><td class="px" style="padding:0 40px 8px">${b}</td></tr>`).join("\n")}
@@ -148,10 +238,10 @@ ${button}
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="font-family:${F}">
             <tr>
               <td class="stack sig-logo" valign="middle" style="padding:0 20px 0 0"><a href="${BASE}" style="text-decoration:none"><img src="${BASE}/email/lead-velocity-logo.png" width="92" height="100" alt="Lead Velocity" style="display:block;width:92px;height:100px"></a></td>
-              <td class="sig-rule" width="3" bgcolor="#D946EF" style="width:3px;background-color:#D946EF;background-image:linear-gradient(#D946EF,#D946EF);border-radius:3px;font-size:0;line-height:0">&nbsp;</td>
+              <td class="sig-rule" width="3" bgcolor="#D946EF" background="${BASE}/email/bg/d946ef.png" style="width:3px;background-color:#D946EF;background-image:linear-gradient(#D946EF,#D946EF);border-radius:3px;font-size:0;line-height:0">&nbsp;</td>
               <td class="stack sig-text" valign="middle" style="padding:2px 0 2px 20px">
-                <p style="margin:0 0 2px;font-size:17px;line-height:23px;font-weight:700;color:#ffffff">Lead Velocity Team</p>
-                <p style="margin:0 0 12px;font-size:14px;line-height:20px;color:#b9b0d6">Client Services | Lead Velocity</p>
+                <p style="margin:0 0 2px;font-size:17px;line-height:23px;font-weight:700;color:#ffffff">${esc(sig.name)}</p>
+                <p style="margin:0 0 12px;font-size:14px;line-height:20px;color:#b9b0d6">${esc(sig.title)} | Lead Velocity</p>
                 <p style="margin:0 0 6px;font-size:14px;line-height:20px;color:#d9d2ea"><strong style="color:#ffffff">T.</strong> <a href="tel:+27109765618" style="color:#D946EF;text-decoration:none">+27 10 976 5618</a></p>
                 <p style="margin:0 0 6px;font-size:13px;line-height:19px;color:#b9b0d6">210 Amarand Avenue, Pegasus Building 1<br>Menlyn Maine, Pretoria, 0184</p>
                 <p style="margin:0;font-size:14px;line-height:20px;color:#d9d2ea"><strong style="color:#ffffff">E.</strong> <a href="mailto:howzit@leadvelocity.co.za" style="color:#D946EF;text-decoration:none">howzit@leadvelocity.co.za</a> <span style="color:#6f6590">|</span> <a href="${BASE}" style="color:#D946EF;text-decoration:none">leadvelocity.co.za</a></p>

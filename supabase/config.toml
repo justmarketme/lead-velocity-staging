@@ -52,3 +52,9 @@ verify_jwt = false
 
 [functions.appointment-allocation]
 verify_jwt = false
+
+[functions.email-preview]
+verify_jwt = false
+
+[functions.send-broker-invite]
+verify_jwt = false

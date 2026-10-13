@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { communicationEmail } from "../_shared/lv_emails.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -210,11 +211,14 @@ async function sendEmail(to: string, subject: string, content: string, attachmen
   }
 
   try {
+    // Lead Velocity layout; the CRM sends plain text (compose box) or simple HTML (invoices, contracts, proposals).
+    const mail = communicationEmail({ content, subject });
     const payload: any = {
-      from: 'Lead Velocity <noreply@resend.dev>',
+      from: 'Lead Velocity <howzit@leadvelocity.co.za>',
       to: [to],
-      subject,
-      html: content,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
     };
     if (attachments && attachments.length > 0) {
       payload.attachments = attachments;

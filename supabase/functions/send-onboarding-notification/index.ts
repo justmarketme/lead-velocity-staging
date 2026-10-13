@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { onboardingConfirmationEmail, onboardingInternalEmail } from "../_shared/lv_emails.ts";
 
 // Sends two emails when a broker submits the onboarding form:
 //   1. A confirmation to the broker ("we've got your details").
@@ -28,11 +29,6 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-const esc = (v: unknown) => String(v ?? "—").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
-const fmtDateTime = (iso: string | null) => {
-  if (!iso) return "—";
-  try { return new Date(iso).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" }); } catch { return String(iso); }
-};
 
 async function sendEmail(payload: Record<string, unknown>) {
   const res = await fetch("https://api.resend.com/emails", {
@@ -67,27 +63,19 @@ const handler = async (req: Request): Promise<Response> => {
       return new Response(JSON.stringify({ success: false, error: "Submission not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const firstName = (r.full_name || "there").split(" ")[0];
     const results: Record<string, unknown> = {};
 
     // 1. Client confirmation
     if (r.email) {
       try {
+        const mail = onboardingConfirmationEmail({ fullName: r.full_name, preferredCallTime: r.preferred_call_time });
         const c = await sendEmail({
           from: FROM_ADDRESS,
           to: [String(r.email).trim().toLowerCase()],
           reply_to: INTERNAL_INBOX,
-          subject: "We've received your details — Lead Velocity",
-          html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;">
-  <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px;border-radius:12px 12px 0 0;text-align:center;">
-    <h1 style="color:#fff;margin:0;font-size:22px;">Thanks, ${esc(firstName)} 👋</h1>
-  </div>
-  <div style="background:#f9fafb;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
-    <p style="font-size:16px;">We've received your details and your strategy snapshot is in.</p>
-    <p style="font-size:16px;">A Lead Velocity consultant will review your profile and reach out shortly${r.preferred_call_time ? ` — you told us <strong>${esc(r.preferred_call_time)}</strong> suits you best` : ""}. If anything you submitted needs correcting, just reply to this email and we'll update it.</p>
-    <p style="font-size:14px;color:#6b7280;margin-top:24px;">Talk soon,<br/>The Lead Velocity Team</p>
-  </div>
-</body></html>`,
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
         });
         results.client = { sent: true, id: c?.id };
       } catch (e) { results.client = { sent: false, error: (e as Error).message }; }
@@ -96,28 +84,15 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // 2. Internal alert
-    const products = Array.isArray(r.product_focus) ? (r.product_focus as string[]).join(", ") : "—";
-    const rows = [
-      ["Name", r.full_name], ["Firm", r.firm_name], ["Email", r.email], ["Phone", r.phone_number],
-      ["WhatsApp", r.whatsapp_number], ["Preferred call time", r.preferred_call_time],
-      ["Products", products], ["Geography", r.geographic_focus_clarity], ["Timeline to start", r.timeline_to_start],
-      ["Monthly lead spend", r.monthly_lead_spend], ["Desired leads/week", r.desired_leads_weekly],
-      ["Submitted", fmtDateTime(r.created_at as string)],
-    ];
     try {
+      const internal = onboardingInternalEmail(r);
       const a = await sendEmail({
         from: FROM_ADDRESS,
         to: [INTERNAL_INBOX],
         reply_to: r.email ? String(r.email) : INTERNAL_INBOX,
-        subject: `New onboarding: ${r.full_name || "Unknown"}${r.firm_name ? ` — ${r.firm_name}` : ""}`,
-        html: `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.6;color:#111;max-width:640px;margin:0 auto;padding:20px;">
-  <h2 style="margin:0 0 6px;">New broker onboarding submission</h2>
-  <p style="color:#6b7280;margin:0 0 16px;">Received ${fmtDateTime(r.created_at as string)}</p>
-  <table style="width:100%;border-collapse:collapse;font-size:14px;">
-    ${rows.map(([k, v]) => `<tr><td style="padding:8px 10px;border:1px solid #e5e7eb;background:#f9fafb;font-weight:600;width:180px;">${esc(k)}</td><td style="padding:8px 10px;border:1px solid #e5e7eb;">${esc(v)}</td></tr>`).join("")}
-  </table>
-  <p style="font-size:13px;color:#6b7280;margin-top:16px;">Manage this lead in the CRM → Onboarding.</p>
-</body></html>`,
+        subject: internal.subject,
+        html: internal.html,
+        text: internal.text,
       });
       results.internal = { sent: true, id: a?.id };
     } catch (e) { results.internal = { sent: false, error: (e as Error).message }; }

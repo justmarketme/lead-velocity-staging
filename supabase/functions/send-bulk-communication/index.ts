@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { bulkCommunicationEmail } from "../_shared/lv_emails.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,28 +70,18 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-function sanitizeHtml(text: string): string {
-  // Basic HTML sanitization for email content
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-    .replace(/\n/g, '<br>');
-}
-
 function personalizeMessage(template: string, recipient: Recipient): string {
   const firstName = recipient.first_name || '';
   const lastName = recipient.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim() || 'Valued Customer';
-  
+
+  // Function replacers: a "$&" in a name must not be read as a replacement pattern.
   return template
-    .replace(/\{first_name\}/gi, firstName)
-    .replace(/\{last_name\}/gi, lastName)
-    .replace(/\{name\}/gi, fullName)
-    .replace(/\{email\}/gi, recipient.email)
-    .replace(/\{phone\}/gi, recipient.phone);
+    .replace(/\{first_name\}/gi, () => firstName)
+    .replace(/\{last_name\}/gi, () => lastName)
+    .replace(/\{name\}/gi, () => fullName)
+    .replace(/\{email\}/gi, () => recipient.email ?? '')
+    .replace(/\{phone\}/gi, () => recipient.phone ?? '');
 }
 
 serve(async (req) => {
@@ -149,15 +140,8 @@ serve(async (req) => {
         
         switch (channel) {
           case 'email':
-            // Wrap plain text in HTML for better email rendering
-            const htmlContent = `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <p>${sanitizeHtml(personalizedMessage)}</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                <p style="color: #666; font-size: 12px;">This email was sent from Lead Velocity</p>
-              </div>
-            `;
-            result = await sendEmail(recipient.email, subject!, htmlContent);
+            // Lead Velocity layout (escapes the message, keeps paragraphs and line breaks) + plain-text part
+            result = await sendEmail(recipient.email, bulkCommunicationEmail({ message: personalizedMessage, subject: subject! }));
             break;
           case 'sms':
             result = await sendSMS(recipient.phone, personalizedMessage);
@@ -226,7 +210,7 @@ serve(async (req) => {
   }
 });
 
-async function sendEmail(to: string, subject: string, content: string) {
+async function sendEmail(to: string, mail: { subject: string; html: string; text: string }) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (!resendApiKey) {
     return { success: false, error: 'RESEND_API_KEY not configured' };
@@ -240,10 +224,11 @@ async function sendEmail(to: string, subject: string, content: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Lead Velocity <noreply@resend.dev>',
+        from: 'Lead Velocity <howzit@leadvelocity.co.za>',
         to: [to],
-        subject,
-        html: content,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
       }),
     });
 

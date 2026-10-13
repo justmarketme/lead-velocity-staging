@@ -5,6 +5,8 @@
 // higher SEQUENCE removes it from their calendars. SortMyCover is in South Africa (Africa/Johannesburg, UTC+2, no DST since
 // 1944), so local times carry TZID=Africa/Johannesburg with a fixed VTIMEZONE block.
 
+import { grad, kv, linkify, lvEmail, panel, type KvValue } from "./lv_email.ts";
+
 export const TZID = "Africa/Johannesburg";
 export const SAST_OFFSET_MS = 2 * 3600_000;
 export const ORGANIZER = { name: "SortMyCover (Lead Velocity)", email: "howzit@leadvelocity.co.za" };
@@ -206,7 +208,24 @@ export function brokerInvite(c: InviteContext, opts: { inviteClient: boolean; ca
     summary, description, location: c.joinUrl || label, url: c.joinUrl || undefined, attendees,
   });
   const subject = opts.cancel ? `Cancelled: ${summary} – ${sastDay(c.start)} ${sastTime(c.start)}` : `Invitation: ${summary} – ${when}`;
-  const html = emailHtml(opts.cancel ? "Appointment cancelled" : "New SortMyCover appointment", description.split("\n"));
+  // The broker is on the Lead Velocity side: shared Lead Velocity layout. (clientConfirmation below is for the SortMyCover client.)
+  const rows = [
+    ["Client", client], ["Mobile", c.clientPhone], ["Email", c.clientEmail], ["When", when], ["How", label],
+  ].filter(([, v]) => v) as Array<[string, KvValue]>;
+  const html = lvEmail({
+    preheader: `${client} · ${sastDay(c.start)} ${sastTime(c.start)}`,
+    eyebrow: opts.cancel ? "SortMyCover · Cancelled" : "SortMyCover · New appointment",
+    title: opts.cancel ? `Appointment ${grad("cancelled")}` : `New ${grad("appointment")}`,
+    intro: opts.cancel ? "This SortMyCover appointment has been cancelled." : "A SortMyCover appointment has been allocated to you by Lead Velocity.",
+    body: [
+      kv(rows, opts.cancel ? "Cancelled appointment" : "Appointment details"),
+      ...(opts.cancel ? [] : [`<p style="margin:0 0 14px;font-size:15px;line-height:25px;color:#b9b0d6">${linkify(how)}</p>`]),
+      ...(!opts.cancel && c.leadSummary ? [panel(linkify(c.leadSummary), "About the client")] : []),
+    ],
+    button: opts.cancel ? undefined : { label: "Open your portal", url: "https://leadvelocity.co.za/broker" },
+    signoff: null,
+    finePrint: `The client's details are shared under their consent to be contacted by a SortMyCover adviser. Full record: ${linkify("https://leadvelocity.co.za/broker")}`,
+  });
   return { ics, subject, html, text: description, summary };
 }
 
