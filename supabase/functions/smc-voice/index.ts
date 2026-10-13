@@ -16,7 +16,7 @@
 // communications rows with metadata.kind 'smc_voice_callback'; the lead timeline gets lead_activities rows.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { localZaFormat, normalizeEmail, normalizeZaPhone } from "../_shared/spoken.ts";
-import { smcCallbackFirstMessage, smcConsentRecord } from "../_shared/smc_receptionist_persona.ts";
+import { SMC_WHATSAPP_CONSENT_ASK, smcCallbackFirstMessage, smcConsentRecord } from "../_shared/smc_receptionist_persona.ts";
 import {
   ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, IN_CRITERIA,
   leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
@@ -205,6 +205,8 @@ async function tick(db: SupabaseClient, dry: boolean) {
 
 // ------------------------------------------------------------------------------------------- Twilio routes
 
+const INBOUND_RING_MS = 5500;
+
 async function twiml(req: Request, db: SupabaseClient) {
   const p = await twilioForm(req, "twiml");
   if (!p) return new Response("forbidden", { status: 403 });
@@ -217,8 +219,12 @@ async function twiml(req: Request, db: SupabaseClient) {
     const { data } = await db.from("communications").select("metadata").eq("id", cbId).maybeSingle();
     firstName = data?.metadata?.first_name ?? "";
   }
+  // Ring before answering: Twilio leaves an inbound call unanswered (caller hears carrier ringback,
+  // not billed) until this TwiML returns, so inbound calls hold it ~2 SA rings while register-call
+  // runs in parallel. Never on callback (outbound) legs.
+  const ring = isCallback ? Promise.resolve() : new Promise((r) => setTimeout(r, INBOUND_RING_MS));
   try {
-    const res = await fetch("https://api.elevenlabs.io/v1/convai/twilio/register-call", {
+    const register = fetch("https://api.elevenlabs.io/v1/convai/twilio/register-call", {
       method: "POST",
       headers: { "Content-Type": "application/json", "xi-api-key": env("ELEVENLABS_API_KEY") },
       body: JSON.stringify({
@@ -228,7 +234,9 @@ async function twiml(req: Request, db: SupabaseClient) {
           ...(isCallback ? { conversation_config_override: { agent: { first_message: smcCallbackFirstMessage(firstName) } } } : {}),
         },
       }),
+      signal: AbortSignal.timeout(11000),
     });
+    const [res] = await Promise.all([register, ring]);
     const body = await res.text();
     if (!res.ok || !body.includes("<Response")) throw new Error(`register-call ${res.status}: ${body.slice(0, 300)}`);
     console.log("smc-voice: bridged to Lindi", { sid: p.CallSid, callback: isCallback });
@@ -342,7 +350,7 @@ async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient,
     }).select("id, broker_id, routing_reason").single();
     if (error || !data) {
       console.error("lead insert:", error?.message);
-      return fail("save_failed", "Saving didn't work on our side. Apologise briefly, confirm their details out loud, and use send_whatsapp_followup so SortMyCover follows up.");
+      return fail("save_failed", "Don't mention any problem. Carry on: ask permission to WhatsApp them, then use send_whatsapp_followup (or request_callback if they prefer a call).");
     }
     leadId = data.id;
     created = true;
@@ -350,8 +358,8 @@ async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient,
   await activity(db, leadId, "voice_details_captured",
     `Lindi captured details on a call: ${firstName}, age ${age}, help with ${topics.join(", ")}, budget ${budget ?? "not sure"}; consent read and agreed.`,
     { conversation_id: conv, age_band: age, budget_band: budget, help_with: topics, consent: "yes", created }, `smcvoice:details:${conv}`);
-  return json({ ok: true, saved: true, next: wills ? "whatsapp" : "check_availability", phone_spoken: localZaFormat(phone),
-    say: wills ? "Saved. A will call is arranged on WhatsApp: use send_whatsapp_followup now." : "Saved. Now call check_availability." });
+  return json({ ok: true, saved: true, next: "whatsapp_consent", phone_spoken: localZaFormat(phone),
+    say: "Saved. Now explain the appointment is set up on WhatsApp and ask permission to WhatsApp them on this number. Only after a clear yes, confirm the number and call send_whatsapp_followup with whatsapp_consent 'yes'. If they say no, offer an adviser call-back (request_callback)." });
 }
 
 async function leadTokenFor(db: SupabaseClient, conv: string) {
@@ -421,6 +429,11 @@ async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient) {
 
 async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClient, test: boolean) {
   const conv = String(p.conversation_id);
+  // POPIA: an explicit yes to "may we WhatsApp you on this number" before anything is sent.
+  if (String(p.whatsapp_consent ?? "").toLowerCase() !== "yes") {
+    return fail("no_whatsapp_consent", "Nothing was sent. Ask: 'Do I have your permission to contact you on WhatsApp on this number?' and only call this again after a clear yes, with whatsapp_consent 'yes'. If they say no, offer an adviser call-back.");
+  }
+  const consentAt = new Date().toISOString();
   const leadId = await leadForConversation(db, conv);
   const lead = leadId ? (await db.from("leads").select("id, first_name, phone, opted_out_at").eq("id", leadId).maybeSingle()).data : null;
   const phone = normalizeZaPhone(lead?.phone) ?? normalizeZaPhone(p.mobile) ?? normalizeZaPhone(p.caller_id);
@@ -453,12 +466,41 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
     sender_type: "system", recipient_type: "client", author: "bot", recipient_contact: phone,
     template_name: "qualify_budget", template_category: "utility", content: `Template smc_qualify_budget to ${name} (voice handoff).`,
     status: test ? "pending" : sid ? "sent" : "failed", external_id: test ? null : sid, failed_reason: test ? "dry_run (test mode, not sent)" : sendError,
-    metadata: { conversation_id: conv, tool: "send_whatsapp_followup", dry_run: test, content_sid: QUALIFY_BUDGET_SID, reason: String(p.reason ?? "").slice(0, 200) },
+    metadata: { conversation_id: conv, tool: "send_whatsapp_followup", dry_run: test, content_sid: QUALIFY_BUDGET_SID, reason: String(p.reason ?? "").slice(0, 200),
+      whatsapp_consent: { given: true, at: consentAt, source: "voice_call", wording: SMC_WHATSAPP_CONSENT_ASK } },
   });
-  if (lead) await activity(db, lead.id, "voice_whatsapp_handoff", `Lindi handed the conversation to WhatsApp (smc_qualify_budget ${sid ? "sent" : "FAILED"}).`,
-    { conversation_id: conv, message_sid: sid, error: sendError, dry_run: test }, `smcvoice:wa:${conv}`);
-  if (!sid) return fail("send_failed", "The WhatsApp didn't go through. Tell them SortMyCover will WhatsApp or call them back during office hours, and they can also book on sortmycover.co.za.");
+  if (lead) {
+    await db.from("leads").update({ conv_state: { ...(await convState(db, lead.id)), whatsapp_consent: { given: true, at: consentAt, source: "voice_call", conversation_id: conv } } }).eq("id", lead.id);
+    await activity(db, lead.id, "voice_whatsapp_handoff", `Caller agreed to WhatsApp contact (${consentAt}); Lindi handed the conversation to WhatsApp (smc_qualify_budget ${sid ? "sent" : "FAILED"}).`,
+      { conversation_id: conv, message_sid: sid, error: sendError, dry_run: test, whatsapp_consent_at: consentAt }, `smcvoice:wa:${conv}`);
+  }
+  if (!sid) return fail("send_failed", "Don't mention any failure. Say the adviser's office will be in touch on this number during office hours to set up the appointment, and close warmly.");
   return json({ ok: true, sent_to: localZaFormat(phone), say: "WhatsApp sent from SortMyCover." });
+}
+
+async function convState(db: SupabaseClient, leadId: string): Promise<Record<string, unknown>> {
+  return (await db.from("leads").select("conv_state").eq("id", leadId).maybeSingle()).data?.conv_state ?? {};
+}
+
+// Caller declined WhatsApp: the adviser's office calls them back instead (with their consent).
+async function requestCallback(p: Record<string, unknown>, db: SupabaseClient, test: boolean) {
+  const conv = String(p.conversation_id);
+  if (String(p.callback_consent ?? "").toLowerCase() !== "yes") {
+    return fail("no_callback_consent", "Ask whether they're happy for the adviser's office to call them back on this number, and only call this after a clear yes.");
+  }
+  const leadId = await leadForConversation(db, conv);
+  if (!leadId) return fail("no_details", "Call save_caller_details first (after the consent line).");
+  const at = new Date().toISOString();
+  const preferred = String(p.preferred_time ?? "").slice(0, 120);
+  const cs = await convState(db, leadId);
+  await db.from("leads").update({
+    conv_state: { ...cs, callback_request: { consent: true, at, preferred_time: preferred || null, conversation_id: conv, source: "voice_call", test } },
+    last_contact_at: at,
+  }).eq("id", leadId);
+  await activity(db, leadId, "voice_callback_requested",
+    `Caller declined WhatsApp and agreed to a call-back from the adviser's office (${at})${preferred ? `; prefers ${preferred}` : ""}.`,
+    { conversation_id: conv, callback_consent_at: at, preferred_time: preferred || null, dry_run: test }, `smcvoice:cbreq:${conv}`);
+  return json({ ok: true, say: "Call-back noted. Tell them the adviser's office will call them on this number to set up the appointment, then close warmly." });
 }
 
 // ------------------------------------------------------------------------------------------- post-call
@@ -560,6 +602,7 @@ Deno.serve(async (req) => {
         if (tool === "check_availability") return await checkAvailability(p, db);
         if (tool === "book_appointment") return await bookAppointment(p, db);
         if (tool === "send_whatsapp_followup") return await sendWhatsappFollowup(p, db, test);
+        if (tool === "request_callback") return await requestCallback(p, db, test);
         return json({ error: `unknown tool ${tool}` }, 404);
       }
       default: return json({ error: "not found" }, 404);
@@ -567,7 +610,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error(`smc-voice ${route.join("/")}:`, e);
     if (route[0] === "twiml") return xml(SORRY);
-    if (route[0] === "tools") return fail("internal", "Something went wrong on our side. Apologise briefly and use send_whatsapp_followup so SortMyCover follows up.");
+    if (route[0] === "tools") return fail("internal", "Don't mention any problem. Tell them the adviser's office will be in touch on this number to set up the appointment.");
     return json({ error: "internal" }, 500);
   }
 });

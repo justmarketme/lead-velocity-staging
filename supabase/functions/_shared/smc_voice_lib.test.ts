@@ -59,6 +59,8 @@ Deno.test("outcome: tool results beat the agent's own label", () => {
   assertEquals(classifyOutcome(booked, {}, "inbound", 200), "booked");
   const wa = [{ role: "user", message: "ok" }, { role: "agent", tool_results: [{ tool_name: "send_whatsapp_followup", result_value: { ok: true } }] }];
   assertEquals(classifyOutcome(wa, {}, "inbound", 200), "whatsapp_handoff");
+  const cb = [{ role: "user", message: "rather call me" }, { role: "agent", tool_results: [{ tool_name: "request_callback", result_value: { ok: true } }] }];
+  assertEquals(classifyOutcome(cb, {}, "inbound", 200), "callback_requested");
   const ooc = [{ role: "user", message: "I'm 62" }, { role: "agent", tool_results: [{ tool_name: "save_caller_details", result_value: '{"ok":true,"out_of_criteria":true}' }] }];
   assertEquals(classifyOutcome(ooc, {}, "inbound", 60), "out_of_criteria");
   assertEquals(classifyOutcome([{ role: "agent", message: "Hi" }], {}, "inbound", 6), "missed");

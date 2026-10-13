@@ -27,9 +27,11 @@ const TOOLS_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/ayanda-
 
 // ElevenLabs-hosted LLM only (Jono's rule: never Gemini/OpenAI for voice agents).
 const EINSTEIN_LLM = "glm-52";
-// Voice: "Helmut - Polite and Mild" (voice library) — older Austrian-German male; steadiest accent
-// and warmest of 8 auditioned. Runners-up (Potato, Ralf Eisend) in docs/EINSTEIN-AGENT.md.
-export const EINSTEIN_VOICE_ID = Deno.env.get("EINSTEIN_VOICE_ID") || "bRIX82ywyYryS8320ZVY";
+// Voice: "Einstein - Professor A", made with ElevenLabs Voice Design ("elderly German professor speaking
+// English with a strong German accent"), 13 Oct 2026. Replaced Helmut (bRIX82ywyYryS8320ZVY), which Jono
+// heard as Afrikaans. Runners-up and samples in docs/EINSTEIN-AGENT.md. This constant is the ONLY place
+// Einstein's voice is set (sync-voice-agents never touches Einstein).
+export const EINSTEIN_VOICE_ID = Deno.env.get("EINSTEIN_VOICE_ID") || "CPXhqKTBUlO7LO3RX202";
 // High stability keeps the accent from drifting; v4 Turbo + Expressive Mode per Jono.
 const TTS = { model_id: "eleven_v4_turbo", expressive_mode: true, stability: 0.8, similarity_boost: 0.85, speed: 0.98 };
 
@@ -69,7 +71,7 @@ const EVALUATION = [
   { id: "cta", name: "Drove the call to action", type: "prompt",
     conversation_goal_prompt: "Success if the agent offered to book a 15-minute call, and — if the visitor declined or booking failed — offered the WhatsApp link / call-back. Failure if the conversation ended without either being offered while the visitor was engaged." },
   { id: "short_turns", name: "Short turns", type: "prompt",
-    conversation_goal_prompt: "Success if nearly every agent turn was one or two short sentences with at most one question. Failure if the agent gave long monologues or lists." },
+    conversation_goal_prompt: "Success if every agent turn was at most about 65 words (most one or two short sentences) with at most one question. Failure if any turn exceeded about 65 words or was a monologue or list." },
   { id: "confirmed_contact", name: "Confirmed email / mobile", type: "prompt",
     conversation_goal_prompt: "Success if, before booking, the agent read back the email address and waited for confirmation, and before booking or WhatsApp read back the mobile number. Success if neither tool was used." },
 ];
@@ -177,7 +179,14 @@ async function sync() {
         data_collection: DATA_COLLECTION,
         evaluation: { criteria: EVALUATION },
         // The stored prompt is the only prompt: no per-session prompt / first-message overrides.
-        overrides: { conversation_config_override: { agent: { prompt: { prompt: false }, first_message: false } } },
+        // text_only is the one allowed override — the typed chat in the website bubble runs this same
+        // agent (persona, KB, tools) with audio off.
+        overrides: {
+          conversation_config_override: {
+            agent: { prompt: { prompt: false }, first_message: false },
+            conversation: { text_only: true },
+          },
+        },
       },
     }),
   });
@@ -367,6 +376,21 @@ Deno.serve(async (req) => {
       return Response.json(await el(`/voices/add/${body.public_owner_id}/${body.voice_id}`, { method: "POST", body: JSON.stringify({ new_name: body.name }) }));
     }
     if (route === "tts" && req.method === "POST") return await tts(body);
+    if (route === "voice-design" && req.method === "POST") {
+      return Response.json(await el("/text-to-voice/design", {
+        method: "POST",
+        body: JSON.stringify({
+          voice_description: body.voice_description, text: body.text, auto_generate_text: !body.text,
+          model_id: body.model_id ?? "eleven_ttv_v3", seed: body.seed, guidance_scale: body.guidance_scale,
+        }),
+      }));
+    }
+    if (route === "voice-create" && req.method === "POST") {
+      return Response.json(await el("/text-to-voice", {
+        method: "POST",
+        body: JSON.stringify({ voice_name: body.voice_name, voice_description: body.voice_description, generated_voice_id: body.generated_voice_id }),
+      }));
+    }
     if (route === "simulate" && req.method === "POST") {
       return Response.json(await el(`/convai/agents/${EINSTEIN_AGENT_ID}/simulate-conversation`, { method: "POST", body: JSON.stringify(body) }));
     }

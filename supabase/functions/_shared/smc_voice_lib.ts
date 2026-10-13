@@ -179,7 +179,7 @@ export async function elevenSignatureOk(secret: string, header: string, body: st
 
 // ---------------------------------------------------------------------------- post-call classification
 
-export type Outcome = "booked" | "whatsapp_handoff" | "out_of_criteria" | "no_answer" | "missed" | "info_only";
+export type Outcome = "booked" | "whatsapp_handoff" | "callback_requested" | "out_of_criteria" | "no_answer" | "missed" | "info_only";
 
 type Turn = { role: string; message?: string | null; tool_calls?: any[]; tool_results?: any[] };
 
@@ -212,6 +212,7 @@ export function classifyOutcome(
 ): Outcome {
   if (toolResults(transcript, "book_appointment").some((r) => r?.ok === true)) return "booked";
   if (toolResults(transcript, "send_whatsapp_followup").some((r) => r?.ok === true)) return "whatsapp_handoff";
+  if (toolResults(transcript, "request_callback").some((r) => r?.ok === true)) return "callback_requested";
   if (toolResults(transcript, "save_caller_details").some((r) => r?.out_of_criteria === true)) return "out_of_criteria";
   const said = String(collected.outcome ?? "").toLowerCase();
   if (said === "out_of_criteria") return "out_of_criteria";

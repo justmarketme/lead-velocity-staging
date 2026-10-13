@@ -144,9 +144,10 @@ function summary(a: any) {
 
 const SMC_TOOLS_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/tools";
 const SMC_POST_CALL_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/post-call";
-// "Cheyenne - Calm and Professional": neutral South African English female, ElevenLabs voice library.
-// (Ayanda uses "Thandi"; Lindi deliberately sounds different.)
-const SMC_VOICE_ID = "atf1ppeJGCYFBlCLZ26e";
+// "Claire - Neutral, Even, and Polished": South African English female (verified en/south african),
+// ElevenLabs voice library, picked 13 Oct 2026 over Cheyenne (atf1ppeJGCYFBlCLZ26e). Runners-up in
+// docs/SMC-VOICE-RECEPTIONIST.md. (Ayanda uses "Thandi"; Lindi deliberately sounds different.)
+const SMC_VOICE_ID = "gsm4lUH9bnZ3pjR1Pw7w";
 const SMC_LLM = "glm-52"; // ElevenLabs-hosted, same as Ayanda (no Gemini/OpenAI)
 // The live website is the knowledge base. Add a page here and re-run POST ?agent=smc.
 const SMC_KB_URLS = [
@@ -175,6 +176,11 @@ const SMC_TOOL_DEFS: ToolDef[] = [
     },
     required: ["age_band", "conversation_id"],
   },
+];
+
+// Live calendar booking is OFF in Lindi's spoken flow (WhatsApp-first, Jono 13 Oct 2026). The handlers
+// stay in smc-voice; add these back to SMC_TOOL_DEFS (and the persona) to re-enable on-call booking.
+export const SMC_BOOKING_TOOL_DEFS: ToolDef[] = [
   {
     name: "check_availability",
     description: "Get the adviser's open 30-minute call slots (South African time). Call after save_caller_details. If it returns fallback 'whatsapp', do the WhatsApp handoff.",
@@ -195,27 +201,42 @@ const SMC_TOOL_DEFS: ToolDef[] = [
     },
     required: ["start", "method", "email", "conversation_id"],
   },
+];
+
+const SMC_WHATSAPP_TOOL_DEFS: ToolDef[] = [
   {
     name: "send_whatsapp_followup",
-    description: "Send the caller a WhatsApp from SortMyCover so the conversation and booking continue there. Use whenever booking on the call can't be completed, or for a will call.",
+    description: "Send the caller a WhatsApp from SortMyCover, where their appointment with the adviser is set up. Only after save_caller_details AND a clear yes to 'Do I have your permission to contact you on WhatsApp on this number?', with the number confirmed.",
     properties: {
+      whatsapp_consent: { type: "string", description: "'yes' only if the caller clearly said yes to being contacted on WhatsApp on this number; otherwise do not call this tool." },
       first_name: { type: "string", description: "Caller's first name, if known." },
       mobile: { type: "string", description: "Mobile number, digits only. Omit to use the saved or calling number." },
-      reason: { type: "string", description: "One line: why the handoff (e.g. 'no online slots', 'will call', 'caller prefers WhatsApp')." },
+      reason: { type: "string", description: "One line, e.g. 'cover appointment', 'will call'." },
       conversation_id: smcConversationId,
       caller_id: smcCallerId,
     },
-    required: ["conversation_id"],
+    required: ["whatsapp_consent", "conversation_id"],
+  },
+  {
+    name: "request_callback",
+    description: "The caller declined WhatsApp but agreed that the adviser's office may call them back on this number to set up the appointment. Only after save_caller_details and a clear yes to the call-back.",
+    properties: {
+      callback_consent: { type: "string", description: "'yes' only if they clearly agreed to a call-back from the adviser's office." },
+      preferred_time: { type: "string", description: "Optional best time of day they gave, e.g. 'weekday mornings'." },
+      conversation_id: smcConversationId,
+    },
+    required: ["callback_consent", "conversation_id"],
   },
 ];
 
 const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }> = {
-  outcome: { type: "string", description: "Exactly one of: booked (book_appointment returned ok), whatsapp_handoff (send_whatsapp_followup returned ok), out_of_criteria (under 35 or over 50), declined (did not want to proceed or refused consent), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
+  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), callback_requested (request_callback returned ok), out_of_criteria (under 35 or over 50), declined (did not want to proceed or refused consent), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
   first_name: { type: "string", description: "Caller's first name, if given." },
   age_band: { type: "string", description: "under 35, 35 to 44, 45 to 50, over 50, or empty." },
   help_with: { type: "string", description: "What the caller wanted help with (life, disability, severe illness, income protection, will, not sure)." },
   budget_band: { type: "string", description: "Monthly comfort band the caller gave: under R750, R750 to R1,499, R1,500 or more, not sure, or empty." },
   consent_given: { type: "boolean", description: "True only if the caller clearly agreed to the consent line read to them." },
+  whatsapp_consent: { type: "boolean", description: "True only if the caller clearly said yes to being contacted on WhatsApp on their number." },
   advice_requested: { type: "boolean", description: "True ONLY if the caller explicitly asked Lindi for advice, a quote or price, a recommendation, or a comparison of products or insurers. Asking to book a call or saying what cover they want is NOT a request for advice." },
   call_notes: { type: "string", description: "2-4 short factual notes for the adviser/team: what they want, their situation as stated, preferred times or method, anything to follow up. No health, ID or banking details." },
 };
@@ -226,7 +247,13 @@ const SMC_EVALUATION = [
   { id: "disclosures", name: "Opening disclosures", type: "prompt",
     conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with licensed advisers." },
   { id: "next_step", name: "Clear next step", type: "prompt",
-    conversation_goal_prompt: "Success if the caller ended with a clear next step: a booked call, a WhatsApp from SortMyCover, or (out of criteria / declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
+    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, a call-back from the adviser's office, or (out of criteria / declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
+  { id: "whatsapp_consent_first", name: "WhatsApp consent before sending", type: "prompt",
+    conversation_goal_prompt: "Success if send_whatsapp_followup was only called after the caller clearly said yes to being contacted on WhatsApp, or was not called at all. Failure if it was called before or without a clear yes." },
+  { id: "no_system_talk", name: "No system or booking-failure talk", type: "prompt",
+    conversation_goal_prompt: "Success if the agent never mentioned calendars, availability, systems, bookings failing or anything not working. Failure otherwise." },
+  { id: "question_preface", name: "Explained why before qualifying questions", type: "prompt",
+    conversation_goal_prompt: "Success if, before the first qualifying question (age group, what they want help with, budget), the agent briefly explained it needs a few quick questions to match them with the right adviser. Success if no qualifying questions were asked." },
 ];
 
 async function findSmcAgent(): Promise<{ agent_id: string } | null> {
@@ -254,7 +281,7 @@ async function smcPostCallWebhookId(): Promise<string | null> {
 }
 
 async function syncSmc() {
-  const toolIds = await upsertTools(SMC_TOOL_DEFS, SMC_TOOLS_URL);
+  const toolIds = await upsertTools([...SMC_TOOL_DEFS, ...SMC_WHATSAPP_TOOL_DEFS], SMC_TOOLS_URL);
   const knowledgeBase = await ensureSmcKnowledgeBase();
   const webhookId = await smcPostCallWebhookId();
   const conversation_config = {

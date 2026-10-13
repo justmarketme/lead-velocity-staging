@@ -1,6 +1,6 @@
 # SortMyCover voice receptionist ("Lindi"): runbook
 
-Built 13 Oct 2026. Code is on branch `feat/smc-voice-receptionist` (based on `feat/ayanda-receptionist-tools`), in the worktree `C:/Users/Jono/lv-smc-voice`.
+Built 13 Oct 2026. Merged into `release/smc-nurture` (with Ayanda's tools and Einstein) on 13 Oct 2026.
 
 ## What it is
 
@@ -9,7 +9,7 @@ Built 13 Oct 2026. Code is on branch `feat/smc-voice-receptionist` (based on `fe
 | Number | **+27 60 015 6480** (Twilio `PN9d25a4fa5ec642d300a1f96ef5886700`, the "Lead Velocity - SortMyCover" Twilio subaccount (SID in the secret `SMC_TWILIO_ACCOUNT_SID`)). Only the voice side changed. The WhatsApp sender and its webhook were not touched. |
 | ElevenLabs agent | **`agent_7501m4v9sez3eb9b26ge4ykdvqwt`**, "SortMyCover receptionist", in the Lead Velocity workspace |
 | Persona | Lindi, SortMyCover's virtual assistant |
-| Voice | "Cheyenne - Calm and Professional" (`atf1ppeJGCYFBlCLZ26e`). It is a neutral South African English female voice from the ElevenLabs library. Ayanda uses Thandi, so the two sound different. |
+| Voice | "Claire - Neutral, Even, and Polished" (`gsm4lUH9bnZ3pjR1Pw7w`), South African English female (verified en/south african), from 13 Oct 2026. Runners-up: Mel `hPCkcWzRwKvb97383AaN`, Sim `Sy7d8PNbkbjIJxf1li2K`, Ramona `NPuwPNKx2XCQDddfkHN4`; previous Cheyenne `atf1ppeJGCYFBlCLZ26e`. Samples in `C:/tmp/lindi-voices/`. Ayanda uses Thandi, so the two sound different. |
 | TTS | Eleven v4 Turbo, Expressive Mode on, `ulaw_8000` in and out, ElevenLabs text normalisation |
 | LLM | `glm-52`, hosted by ElevenLabs (no Gemini or OpenAI), temperature 0.3 |
 | Knowledge base | 20 live sortmycover.co.za pages, added by URL with RAG (documents named `SMC /…`) |
@@ -17,19 +17,20 @@ Built 13 Oct 2026. Code is on branch `feat/smc-voice-receptionist` (based on `fe
 
 ## How a call flows
 
-1. Twilio sends the call to `POST /functions/v1/smc-voice/twiml`. The request must carry a valid X-Twilio-Signature from the subaccount token. The function calls ElevenLabs `register-call`, which returns TwiML that connects the call to Lindi. It passes `caller_number`, `call_type` and `first_name`.
-2. Lindi asks for: first name, age band (35–50 only), what they want help with, a rough monthly budget band (never presented as a quote), and their mobile. Then she reads the consent line word for word, naming Mark Weston, Oracle Brokers, FSP 28418, or Capital Legacy (FSP 43826) for wills. She asks for an email only at booking confirmation.
-3. Tools are served by `POST /functions/v1/smc-voice/tools/<name>`. Every request is checked against the live ElevenLabs conversation, which must belong to this agent.
+1. Twilio sends the call to `POST /functions/v1/smc-voice/twiml`. **Inbound calls ring about twice (5.5 s) before Lindi answers:** Twilio does not answer until our TwiML returns, so the function holds the response while `register-call` runs in parallel (11 s ceiling, inside Twilio's 15 s limit). Callback (outbound) legs answer immediately. The request must carry a valid X-Twilio-Signature from the subaccount token. The function calls ElevenLabs `register-call`, which returns TwiML that connects the call to Lindi. It passes `caller_number`, `call_type` and `first_name`.
+2. Before the first question she says, in one sentence, why she's asking (to match them with the right adviser). Then: first name, age band (35–50 only), what they want help with, a rough monthly budget band (never presented as a quote), and their mobile. Then she reads the consent line word for word, naming Mark Weston, Oracle Brokers, FSP 28418, or Capital Legacy (FSP 43826) for wills.
+3. **WhatsApp-first (no live booking on the call).** She asks permission to WhatsApp them on that number (POPIA), waits for a clear yes, confirms the number, and sends the WhatsApp where the appointment is locked in. If they decline, she offers a call-back from the adviser's office (with consent). She never mentions calendars, availability or anything failing.
+4. Tools are served by `POST /functions/v1/smc-voice/tools/<name>`. Every request is checked against the live ElevenLabs conversation, which must belong to this agent.
    - `save_caller_details` creates or matches the lead in `public.leads` (brand SMC). It stores the consent (`consent_source=voice_call`, `consent_mode=named`, `consent_text_version=smc-voice-v1`), `age_band`, `budget_band`, `reasons` and `product_interest`, and writes a `lead_activities` entry. If the caller is outside 35–50, it stores nothing.
-   - `check_availability` checks Mark's calendar first. If his calendar is connected, it mints a `lt1` lead token (same as `automation/security/lead-token.js`) and calls n8n W04 `GET /webhook/slots`.
+   - `check_availability` / `book_appointment`: code kept, but **not attached to the agent** (`SMC_BOOKING_TOOL_DEFS` in sync-voice-agents). To bring on-call booking back, move them into `SMC_TOOL_DEFS` and restore the booking steps in the persona. `check_availability` checks Mark's calendar first. If his calendar is connected, it mints a `lt1` lead token (same as `automation/security/lead-token.js`) and calls n8n W04 `GET /webhook/slots`.
    - `book_appointment` calls n8n W05 `POST /webhook/book` with the lead token. The response is booked, held (the caller must verify their email), slot taken (next options offered), or fallback.
-   - `send_whatsapp_followup` sends the approved template **smc_qualify_budget** (`HX5a0030506140a58a86e8611f15a5af64`) from `whatsapp:+27600156480`, at most once per call. Replies go to the n8n WhatsApp webhook, the existing W03/W07 flow.
-4. If booking can't complete, Lindi confirms the caller's details, sends the WhatsApp, and tells them to reply there.
+   - `send_whatsapp_followup` requires `whatsapp_consent: "yes"` (otherwise nothing is sent) and stores the consent with its timestamp in the WhatsApp `communications` row (`metadata.whatsapp_consent`), on the lead (`conv_state.whatsapp_consent`) and in the `voice_whatsapp_handoff` activity. It sends the approved template **smc_qualify_budget** (`HX5a0030506140a58a86e8611f15a5af64`) from `whatsapp:+27600156480`, at most once per call. Replies go to the n8n WhatsApp webhook, the existing W03/W07 flow.
+   - `request_callback` (caller declined WhatsApp) requires `callback_consent: "yes"`; it writes `conv_state.callback_request` (consent timestamp, preferred time) and a `voice_callback_requested` activity on the lead. Outcome `callback_requested`.
 5. After the call, ElevenLabs sends the post-call webhook (HMAC) to `POST /functions/v1/smc-voice/post-call`. The function writes the CRM records described below.
 
 ## Records (no new tables)
 
-- **`communications`**: one row per call. Columns: `channel='call'`, `workflow='smc-voice'`, `external_id=<Twilio CallSid>`, `lead_id` when linked, `content` = full transcript, `call_duration`, and `subject` "SortMyCover voice call: <outcome>". `metadata` holds `summary` (ElevenLabs AI summary), `call_notes`, `data_collection`, `evaluation`, `started_at`, `ended_at`, `conversation_id`, `call_type` (inbound/callback) and `tags {brand:'sortmycover', source:'voice', outcome}`. Outcome is one of `booked | whatsapp_handoff | out_of_criteria | no_answer | missed | info_only`. The CRM's call tab reads `channel='call'`.
+- **`communications`**: one row per call. Columns: `channel='call'`, `workflow='smc-voice'`, `external_id=<Twilio CallSid>`, `lead_id` when linked, `content` = full transcript, `call_duration`, and `subject` "SortMyCover voice call: <outcome>". `metadata` holds `summary` (ElevenLabs AI summary), `call_notes`, `data_collection`, `evaluation`, `started_at`, `ended_at`, `conversation_id`, `call_type` (inbound/callback) and `tags {brand:'sortmycover', source:'voice', outcome}`. Outcome is one of `booked | whatsapp_handoff | callback_requested | out_of_criteria | no_answer | missed | info_only`. The CRM's call tab reads `channel='call'`.
 - **`lead_activities`** (the lead timeline): `voice_details_captured`, `voice_booked`, `voice_whatsapp_handoff`, `voice_call` (with the summary) and `voice_callback_scheduled`. Each has an idempotency key `smcvoice:*:<conversation_id>`.
 - **WhatsApp sends**: `communications` rows with `channel='whatsapp'`, `workflow='smc-voice'` and `template_name='qualify_budget'`.
 - **Out of criteria**: the call row keeps the transcript and outcome. The data kept is only the outcome and age band. No lead is created.

@@ -2,6 +2,14 @@
 // ElevenLabs' register-call API returns the TwiML that bridges the call to
 // Ayanda's agent; her prompt, voice and tools live on the agent itself
 // (pushed by sync-voice-agents), so nothing is overridden per call.
+//
+// Ring before answering: Twilio leaves an inbound call unanswered (the caller hears carrier
+// ringback and nothing is billed) until our TwiML comes back. So an inbound call holds the
+// response for RING_MS while register-call runs in parallel: about two SA rings, well inside
+// Twilio's 15 s webhook limit.
+const RING_MS = 5500;
+const REGISTER_TIMEOUT_MS = 11000;
+
 const say = (text: string) =>
   new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>${text}</Say></Response>`, {
     headers: { "Content-Type": "text/xml" },
@@ -19,9 +27,13 @@ Deno.serve(async (req) => {
   const from = String(form.get("From") ?? "");
   const to = String(form.get("To") ?? "");
   const callSid = String(form.get("CallSid") ?? "");
+  // Only a caller dialling in hears the ring delay; never an outbound leg.
+  const ring = String(form.get("Direction") ?? "inbound") === "inbound"
+    ? new Promise((r) => setTimeout(r, RING_MS))
+    : Promise.resolve();
 
   try {
-    const res = await fetch("https://api.elevenlabs.io/v1/convai/twilio/register-call", {
+    const register = fetch("https://api.elevenlabs.io/v1/convai/twilio/register-call", {
       method: "POST",
       headers: { "Content-Type": "application/json", "xi-api-key": apiKey },
       body: JSON.stringify({
@@ -29,7 +41,9 @@ Deno.serve(async (req) => {
         // Ayanda's prompt and tools default WhatsApp/booking numbers to this.
         conversation_initiation_client_data: { dynamic_variables: { caller_number: from } },
       }),
+      signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
     });
+    const [res] = await Promise.all([register, ring]);
     const twiml = await res.text();
     if (!res.ok || !twiml.includes("<Response")) throw new Error(`register-call ${res.status}: ${twiml.slice(0, 300)}`);
     console.log("inbound call bridged to Ayanda", { callSid, from });

@@ -11,25 +11,31 @@ He never appears in the broker portal, admin, console or auth pages.
 |---|---|
 | ElevenLabs agent | `agent_2501m4s6nhfveywrvw9961va7sp3` ("Einstein-77 (Lead Velocity)"), visible in Jono's ElevenLabs dashboard |
 | LLM | `glm-52`, hosted by ElevenLabs. Never Gemini or OpenAI. Temperature 0.3 |
-| Voice | **Helmut – Polite and Mild** `bRIX82ywyYryS8320ZVY` (voice library): older Austrian-German male |
+| Voice | **Einstein - Professor A** `CPXhqKTBUlO7LO3RX202`, made with ElevenLabs Voice Design (prompt: elderly German physics professor speaking English with a strong German accent). Replaced Helmut on 13 Oct 2026 because Jono heard Helmut as Afrikaans |
 | TTS | Eleven v4 Turbo (`eleven_v4_turbo`), Expressive Mode on, stability 0.8 (stops accent drift), similarity 0.85, speed 0.98, ElevenLabs text normalisation |
-| Persona source | `supabase/functions/_shared/einstein_persona.ts` (branch `feat/einstein-upgrade`) |
+| Persona source | `supabase/functions/_shared/einstein_persona.ts` (branch `release/smc-nurture`) |
+| Turn length | Target under 50 words, hard cap 65 words per turn (persona rule 1 + `short_turns` evaluation) |
+| Typed chat | The bubble's text box runs the **same agent in text-only mode** (`@elevenlabs/client` `Conversation.startSession({ signedUrl, textOnly: true })` in `src/hooks/useChatbot.ts`). Same persona, KB and tools as voice. The agent allows exactly one override, `conversation.text_only`. During a voice session, typed text goes into the live voice conversation. `einstein-ai` (Gemini/OpenRouter) is no longer used by the bubble |
 | Config-as-code | `supabase/functions/einstein-agent/index.ts`. `sync-voice-agents` no longer touches Einstein |
 | Widget | `src/components/ChatBot.tsx` (branch `release/smc-nurture`), mounted in `App.tsx` |
-| Prompt overrides | **Off.** The site sends no prompt or first message, so the dashboard shows what actually runs |
+| Prompt overrides | **Off.** The site sends no prompt or first message, so the dashboard shows what actually runs. Only `text_only` may be overridden |
 
-## Voice: runners-up (to swap)
+## Voice: candidates (to swap by ear)
 
-Eight older German-accent voices were auditioned on the same passage, two takes each. Samples are in `deliverables/einstein-voice-candidates/`, and the greeting sample is `deliverables/einstein-voice-sample.mp3`.
+Re-auditioned 13 Oct 2026 after Jono said Helmut sounded Afrikaans. Library voices tagged "German" were checked through `eleven_v4_turbo` with a script that has no German words; most came out neutral British or South African (Klaus and Marshal read as South African; Helmut as neutral), so the shortlist leans on Voice Design voices built for a strong German accent. Samples (greeting + "Wonderful, ja, let us find a time that works"), all rendered with v4 Turbo at stability 0.8, are in `C:/tmp/einstein-voices-v2/`:
 
-| Rank | Voice | ID | Notes |
+| Rank | Voice | ID | File |
 |---|---|---|---|
-| 1 (live) | Helmut – Polite and Mild | `bRIX82ywyYryS8320ZVY` | ~68 yrs, strongest and steadiest accent across takes, warmest |
-| 2 | Potato – Earthy & Rooted | `0pkdtmrxitYBWv6q9NJO` | ~67 yrs, deep and gravelly, more of a character voice |
-| 3 | Ralf Eisend – Deep and Gravely | `A9evEp8yGjv4c3WsIKuY` | ~66 yrs, audiobook clarity, slightly more formal |
-| – (old) | Gerrit – Friendly German Accent | `k9IoIFgHU1p8OEu6LGem` | middle-aged, sounded too young |
+| 1 (live) | Einstein - Professor A (Voice Design) | `CPXhqKTBUlO7LO3RX202` | `1-Professor-A-design.mp3` |
+| 2 | Einstein - Professor B (Voice Design) | `ADVoJoQKqU8WzHvaJaAo` | `2-Professor-B-design.mp3` |
+| 3 | Potato - Earthy & Rooted (library, old, en/german) | `0pkdtmrxitYBWv6q9NJO` | `3-Potato.mp3` |
+| 4 | Einstein - Professor C (Voice Design) | `BLv8FOTq5ngQLrtElQcK` | `4-Professor-C-design.mp3` |
+| 5 | Marshal - Friendly, Funny Professor (library, en/german) | `nzeAacJi50IvxcyDnMXa` | `5-Marshal.mp3` |
+| previous | Helmut - Polite and Mild | `bRIX82ywyYryS8320ZVY` | `0-Helmut-previous.mp3` |
 
-To swap the voice, either change `EINSTEIN_VOICE_ID` in `einstein-agent/index.ts` and redeploy, or set the Supabase secret `EINSTEIN_VOICE_ID`. Then run `/sync`.
+Raw Voice Design previews are in `designs/`, neutral-script renders in `neutral/`. The `einstein-agent` routes `POST /voice-design` and `POST /voice-create` generate and save new designs.
+
+To swap the voice, change `EINSTEIN_VOICE_ID` in `einstein-agent/index.ts` (the only place it is set; `sync-voice-agents` never touches Einstein) and redeploy, or set the Supabase secret `EINSTEIN_VOICE_ID`. Then run `/sync`.
 
 ## Tools (same bridge as Ayanda)
 

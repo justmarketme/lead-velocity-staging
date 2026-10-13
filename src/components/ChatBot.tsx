@@ -51,6 +51,12 @@ export function ChatBot() {
         if (!input.trim()) return;
         const text = input.trim();
         setInput("");
+        // During a voice session, typed text goes into that same live conversation.
+        if (isVoiceActive && conversationRef.current) {
+            conversationRef.current.sendUserMessage(text);
+            addMessage({ id: `typed-${Date.now()}`, role: "user", content: text });
+            return;
+        }
         sendMessage(text);
     };
 
