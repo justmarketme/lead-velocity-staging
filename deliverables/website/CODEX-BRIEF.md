@@ -75,3 +75,6 @@ Tell Claude Code: branch name, what changed, `npm run build` + `npm test` result
 **What Codex should deliver:** section 7 ads and section 8 site. Hand back as in section 9. When you hand back, also tick or comment on these checklist items: "Hand over to Codex", "Decide on the site redesign".
 
 **Reminder for Jono (check in the morning):** the site redesign decision is still open ("Decide on the site redesign: Codex review?"). If you read this and it has not been decided, remind Jono at the start of the session.
+
+## 11. Second task: emails
+See `docs/CODEX-EMAIL-TASK.md` in `lead-velocity-staging` (branch `release/smc-nurture`): move every Lead Velocity email onto the shared layout `supabase/functions/_shared/lv_email.ts`. Do this after, or alongside, the ads and site.
