@@ -6,7 +6,6 @@ import { LayoutDashboard, Users, Upload, BarChart3, Menu, X, LogOut, Database, U
 import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import NotificationBell from "@/components/notifications/NotificationBell";
-import { EinsteinLiveVoice } from "@/components/voice/EinsteinLiveVoice";
 
 import { useSearchParams } from "react-router-dom";
 
@@ -151,7 +150,6 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <EinsteinLiveVoice />
               <div className="flex items-center gap-2">
                 <NotificationBell userRole="admin" onNavigateToAICalls={() => setActiveTab('ai-calls')} />
                 <Button variant="ghost" size="sm" onClick={handleLogout}>

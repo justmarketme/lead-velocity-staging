@@ -39,7 +39,6 @@ import { format } from "date-fns";
 import { CallRecordingPlayer } from "./CallRecordingPlayer";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { Bot, Sparkles } from "lucide-react";
-import { EinsteinLiveVoice } from "../voice/EinsteinLiveVoice";
 
 interface Communication {
   id: string;
@@ -701,16 +700,6 @@ export function UnifiedCommunicationHub({
                   </Button>
                 </div>
 
-                <div className="border-t border-dashed pt-4 mt-2">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="h-4 w-4 text-pink-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Einstein Co-pilot</span>
-                  </div>
-                  <EinsteinLiveVoice className="w-full" size="md" />
-                  <p className="text-[10px] text-muted-foreground mt-2 text-center italic">
-                    Talk to Einstein about ze best strategy for this {recipientType}.
-                  </p>
-                </div>
               </div>
             )}
           </TabsContent>
