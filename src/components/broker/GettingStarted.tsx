@@ -16,9 +16,13 @@ import { TERMS, zar } from "@/lib/pricing";
 import { SUPPORT_EMAIL } from "@/lib/smc";
 import CalendarHowToVideo from "./smc/CalendarHowToVideo";
 import BrokerVideo from "./BrokerVideo";
+import WatchHow, { type Clip } from "./WatchHow";
 import {
   BROKER_ONBOARDING_CAPTIONS_URL, BROKER_ONBOARDING_POSTER_URL, BROKER_ONBOARDING_VIDEO_TITLE, BROKER_ONBOARDING_VIDEO_URL,
   BROKER_ONBOARDING_VIDEO_DURATION, BROKER_GUIDE_VIDEO_URL, BROKER_GUIDE_POSTER_URL, BROKER_GUIDE_VIDEO_TITLE, BROKER_GUIDE_VIDEO_DURATION,
+  BROKER_FSP_CLIP_URL, BROKER_FSP_CLIP_POSTER_URL, BROKER_FSP_CLIP_TITLE, BROKER_FSP_CLIP_DURATION,
+  BROKER_INTRO_CLIP_URL, BROKER_INTRO_CLIP_POSTER_URL, BROKER_INTRO_CLIP_TITLE, BROKER_INTRO_CLIP_DURATION,
+  BROKER_WHATSAPP_CLIP_URL, BROKER_WHATSAPP_CLIP_POSTER_URL, BROKER_WHATSAPP_CLIP_TITLE, BROKER_WHATSAPP_CLIP_DURATION,
 } from "@/lib/brokerMedia";
 
 type Tab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
@@ -29,7 +33,13 @@ interface Step {
   action?: { label: string; tab?: Tab; href?: string; run?: () => void; expand?: boolean };
   /** Inline panel (form or explainer), opened by the action with expand: true. */
   panel?: ReactNode;
+  /** Short how-to clip, opened from "Watch how" under the detail line. */
+  clip?: Clip;
 }
+
+const FSP_CLIP: Clip = { src: BROKER_FSP_CLIP_URL, poster: BROKER_FSP_CLIP_POSTER_URL, title: BROKER_FSP_CLIP_TITLE, duration: BROKER_FSP_CLIP_DURATION };
+const INTRO_CLIP: Clip = { src: BROKER_INTRO_CLIP_URL, poster: BROKER_INTRO_CLIP_POSTER_URL, title: BROKER_INTRO_CLIP_TITLE, duration: BROKER_INTRO_CLIP_DURATION };
+const WHATSAPP_CLIP: Clip = { src: BROKER_WHATSAPP_CLIP_URL, poster: BROKER_WHATSAPP_CLIP_POSTER_URL, title: BROKER_WHATSAPP_CLIP_TITLE, duration: BROKER_WHATSAPP_CLIP_DURATION };
 
 const store = {
   get(k: string) { try { return window.localStorage.getItem(k); } catch { return null; } },
@@ -83,11 +93,13 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
           : "Clients see it with your practice name.",
         action: { label: broker?.fsp_number ? "Edit" : "Enter it", expand: true },
         panel: <FspForm broker={broker} suggestedFsp={planState?.agreementFsp} onSaved={saved("fsp")} onCancel={() => setOpenPanel(null)} />,
+        clip: FSP_CLIP,
       },
       {
         key: "intro", label: "Add your photo and a short bio", done: introDone,
         detail: introDone ? "Your intro card is ready." : "Clients see these when they book a call with you.",
         action: { label: introDone ? "Edit" : "Add them", tab: "intro" },
+        clip: INTRO_CLIP,
       },
       {
         key: "whatsapp", label: "Confirm your business WhatsApp number", done: waDone,
@@ -95,6 +107,7 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
           : waSuggest ? `Is ${fmtZa(waSuggest)} your business WhatsApp? New leads and bookings are sent to it.` : "New leads and bookings are sent to this number.",
         action: { label: waDone ? "Change" : waSuggest ? "Confirm" : "Add it", expand: true },
         panel: <WhatsAppForm broker={broker} onSaved={saved("whatsapp")} />,
+        clip: WHATSAPP_CLIP,
       },
       {
         key: "calendar", label: "Connect your Outlook calendar", done: calConnected,
@@ -214,6 +227,7 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
                           {s.label}<span className="sr-only">{s.done ? " (done)" : " (to do)"}</span>
                         </p>
                         <p className="text-sm text-slate-400 mt-0.5">{s.detail}</p>
+                        {s.clip && <WatchHow {...s.clip} className="-mt-1 -mb-3" />}
                       </div>
                       {s.action && (s.action.href ? (
                         <m.a whileTap={{ scale: 0.96 }} href={s.action.href} className={actionCls}>{s.action.label}</m.a>

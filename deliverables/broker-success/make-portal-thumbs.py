@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONTS = os.path.join(HERE, "..", "emails", "fonts")
 OUTDIR = os.path.join(HERE, "..", "..", "public", "media", "broker")
+CLIPDIR = os.path.join(OUTDIR, "clips")
 LOGO = os.path.join(HERE, "..", "..", "public", "email", "lead-velocity-logo.png")
 S = 4
 BASE, SLATE, LIFT = (7, 12, 25), (15, 23, 42), (30, 41, 59)
@@ -141,8 +142,8 @@ def make(name, W, H, eyebrow, title_plain, title_grad, chips, duration, scale=1.
     d.line([(sx, ty - int(12 * k)), (sx, ty + int(12 * k))], fill=(255, 255, 255, 110), width=2)
     d.text((sx + int(11 * k), ty), duration, font=bf, fill=(255, 255, 255, 230), anchor="lm")
 
-    os.makedirs(OUTDIR, exist_ok=True)
-    out = os.path.join(OUTDIR, name)
+    out = name if os.path.isabs(name) else os.path.join(OUTDIR, name)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
     im.convert("RGB").save(out, quality=86, optimize=True, progressive=True)
     print(os.path.getsize(out), out)
 
@@ -152,3 +153,11 @@ make("onboarding-guide-poster.jpg", 1280, 720, "YOUR BROKER PORTAL", "Your onboa
      ["Sign. Pay. Start.", "Your introduction", "Your lead journey"], "3:53", scale=1.12)
 make("connect-outlook-poster.jpg", 720, 1280, "2-MINUTE GUIDE", "Connect your", "Outlook calendar",
      ["What we can see", "How to connect", "Turn it off any time"], "2:24", scale=1.0, vertical=True)
+
+# Getting-started step clips (portrait), chips = what each clip shows (verified against the portal code by the clip agents)
+make(os.path.join(CLIPDIR, "fsp-poster.jpg"), 720, 1280, "GETTING STARTED · STEP 3", "Confirm your", "FSP number",
+     ["Tap Enter it", "Check FSP and practice", "Save: the step ticks"], "0:31", vertical=True)
+make(os.path.join(CLIPDIR, "intro-card-poster.jpg"), 720, 1280, "GETTING STARTED · STEP 4", "Add your photo", "and a short bio",
+     ["Take or upload a photo", "Two lines about you", "Save your intro card"], "0:36", vertical=True)
+make(os.path.join(CLIPDIR, "whatsapp-poster.jpg"), 720, 1280, "GETTING STARTED · STEP 5", "Confirm your", "WhatsApp number",
+     ["Check the number", "Confirm or use another", "Leads and bookings go there"], "0:33", vertical=True)

@@ -1,0 +1,6 @@
+audio/
+out/
+frames/
+node_modules/
+run.log
+*.mp4

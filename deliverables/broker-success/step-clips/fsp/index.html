@@ -1,0 +1,411 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Confirm Your FSP Number</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Portrait step clip, 720x1280. Every visual is a pure function of the clock (window.seek), so frames are exact.
+   The phone shows the real /broker-elite portal at phone width (BrokerPortalShell + GettingStarted + FspForm),
+   copy verbatim from the code. Gradient pills and the WhatsApp card are film annotations, not portal UI. */
+:root {
+  --bg: #050816; --base: #070c19; --primary: #b83df5; --pink: #ec4899; --pink4: #f472b6; --rose4: #fb7185;
+  --s300: #cbd5e1; --s400: #94a3b8; --s500: #64748b; --em4: #34d399;
+  --epi: linear-gradient(90deg, #e600ff 0%, #ff00cc 33%, #ff7f50 70%, #ff8c00 100%);
+  --ann: linear-gradient(100deg, #b83df5, #ec4899);
+  --font: "Inter", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #02040b; }
+body { font-family: var(--font); -webkit-font-smoothing: antialiased; }
+.holder { display: grid; place-items: center; min-height: 100vh; padding: 16px; gap: 12px; }
+.render .holder { padding: 0; min-height: 0; display: block; }
+#stage { position: relative; width: 720px; height: 1280px; overflow: hidden; background: var(--base); color: var(--s300); transform-origin: top left; }
+#stage::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(60% 34% at 8% 4%, rgba(184,61,245,.22), transparent 70%),
+  radial-gradient(60% 34% at 96% 96%, rgba(236,72,153,.16), transparent 70%); }
+
+/* film top bar */
+.top { position: absolute; left: 0; right: 0; top: 0; height: 92px; display: flex; align-items: center; gap: 14px; padding: 14px 40px 0; z-index: 3; }
+.top::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--epi); }
+.top img { width: 50px; height: 50px; object-fit: contain; }
+.top .nm { font-weight: 700; color: #fff; font-size: 26px; letter-spacing: -.02em; line-height: 1.12; }
+.top .nm small { display: block; font-size: 13px; font-weight: 600; color: var(--primary); letter-spacing: .2em; text-transform: uppercase; }
+.dots { margin-left: auto; display: flex; gap: 6px; }
+.dots i { width: 34px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; position: relative; }
+.dots i b { position: absolute; inset: 0; background: var(--ann); transform-origin: left; transform: scaleX(0); }
+
+/* phone */
+#phone { position: absolute; left: 78px; top: 98px; width: 564px; height: 972px; border-radius: 66px; padding: 10px; z-index: 1;
+  background: linear-gradient(160deg, #262b3d, #0d1120 40%, #171b2b); box-shadow: 0 0 0 1.5px rgba(255,255,255,.14) inset, 0 40px 80px -30px rgba(0,0,0,.8), 0 0 90px -20px rgba(184,61,245,.35); }
+.screen { position: relative; width: 400px; height: 700px; transform: scale(1.36); transform-origin: top left; overflow: hidden; border-radius: 41px; background: var(--bg); color: #e2e8f0; font-size: 16px; line-height: 1.5; }
+.screen .glow { position: absolute; inset: 0 0 auto 0; height: 420px; background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(236,72,153,.10), transparent 70%); pointer-events: none; }
+.sb { position: absolute; left: 0; right: 0; top: 0; height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 4px 26px 0 30px; font-size: 13px; font-weight: 600; color: #fff; z-index: 4; }
+.sb .isl { position: absolute; left: 50%; top: 6px; width: 92px; height: 22px; margin-left: -46px; border-radius: 12px; background: #000; }
+.sb .ic { display: flex; gap: 5px; align-items: center; }
+.hdr { position: absolute; left: 0; right: 0; top: 30px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 16px; z-index: 3;
+  background: rgba(5,8,22,.85); border-bottom: 1px solid rgba(255,255,255,.06); }
+.hdr .who { display: flex; align-items: center; gap: 12px; min-width: 0; transform: scale(.94); transform-origin: left center; }
+.hdr img { width: 32px; height: 32px; object-fit: contain; }
+.hdr .fn { font-size: 14px; font-weight: 600; color: #fff; line-height: 20px; }
+.hdr .pl { font-size: 12px; color: var(--s400); line-height: 16px; }
+.hdr .av { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); display: grid; place-items: center; font-size: 14px; font-weight: 600; color: #fff; }
+.vp { position: absolute; left: 0; right: 0; top: 94px; bottom: 74px; overflow: hidden; }
+.dim { position: absolute; inset: 0; background: var(--bg); opacity: 0; z-index: 2; pointer-events: none; }
+.content { position: absolute; left: 0; right: 0; top: 0; padding: 8px 16px 160px; }
+.nav { position: absolute; left: 0; right: 0; bottom: 0; height: 74px; border-top: 1px solid rgba(255,255,255,.08); background: rgba(7,11,26,.95); z-index: 3; }
+.nav ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); }
+.nav li { position: relative; height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--s400); }
+.nav li.on { color: #fff; } .nav li.on svg { color: var(--pink4); }
+.nav li.on::before { content: ""; position: absolute; top: 0; width: 40px; height: 2px; border-radius: 2px; background: var(--pink4); }
+.nav .home { position: absolute; left: 50%; bottom: 6px; width: 128px; height: 5px; margin-left: -64px; border-radius: 3px; background: rgba(255,255,255,.8); }
+svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Getting started (GettingStarted.tsx, phone layout) */
+.gs { border-radius: 28px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); }
+.gs .head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
+.gs h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 700; color: #fff; }
+.gs .cnt { margin: 4px 0 0; font-size: 14px; line-height: 20px; color: var(--s400); }
+.gs .bar { margin-top: 12px; height: 6px; width: 192px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; }
+.gs .bar b { display: block; height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, #ec4899, #fb7185); transform-origin: left; transform: scaleX(.1667); }
+.gs .chev { flex: none; border-radius: 50%; border: 1px solid rgba(255,255,255,.1); padding: 8px; color: var(--s300); display: grid; transform: rotate(180deg); }
+.gs .bd { padding: 0 20px 24px; }
+.gs h3 { margin: 0 0 12px; font-size: 16px; line-height: 24px; font-weight: 600; color: #fff; }
+.gs ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.st { position: relative; border-radius: 16px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.02); padding: 16px; }
+.st.done { border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.04); }
+.st .row { display: flex; align-items: flex-start; gap: 12px; }
+.st .cir { margin-top: 2px; flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); display: grid; place-items: center; color: #020617; }
+.st.done .cir { border-color: var(--em4); background: var(--em4); }
+.st .cir svg { width: 16px; height: 16px; stroke-width: 3; opacity: 0; }
+.st.done .cir svg { opacity: 1; }
+.st .tx { flex: 1; min-width: 0; }
+.st .lb { margin: 0; font-weight: 500; color: #fff; line-height: 24px; }
+.st.done .lb { color: var(--s300); }
+.st .dt { margin: 2px 0 0; font-size: 14px; line-height: 20px; color: var(--s400); }
+.act { flex: none; display: inline-flex; align-items: center; min-height: 44px; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); padding: 0 12px; font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; }
+.st .ring2 { position: absolute; inset: -1px; border-radius: 16px; box-shadow: 0 0 0 2px rgba(244,114,182,.8), 0 0 28px rgba(236,72,153,.35); opacity: 0; pointer-events: none; }
+.pw { overflow: hidden; height: 0; }
+.panel { padding-top: 16px; padding-left: 36px; display: grid; gap: 12px; }
+
+/* FspForm (ProfileForms.tsx) */
+.fld { display: block; position: relative; }
+.fl { display: block; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--s400); }
+.inp { position: relative; display: flex; align-items: center; width: 100%; min-height: 44px; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.04); padding: 0 12px; font-size: 16px; color: #fff; }
+.inp.focus { box-shadow: 0 0 0 2px rgba(244,114,182,.6); }
+.inp.off { opacity: .6; }
+.inp .v { position: relative; border-radius: 4px; }
+.inp .v i { position: absolute; inset: -2px -4px; border-radius: 5px; background: rgba(184,61,245,.5); opacity: 0; }
+.inp .v span { position: relative; }
+.caret { display: inline-block; width: 1.5px; height: 20px; margin-left: 1px; background: #fff; opacity: 0; }
+.help { margin: 0; font-size: 12px; line-height: 16px; color: var(--s400); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.pri { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; background: #fff; color: #020617; padding: 0 16px; font-size: 14px; font-weight: 600; }
+.gh { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); color: #fff; padding: 0 16px; font-size: 14px; font-weight: 600; }
+.lockonly { display: none; }
+.locked .lockonly { display: block; } .locked .openonly { display: none; }
+
+/* film annotations (not portal UI) */
+.tag { position: absolute; right: 0; top: -4px; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; background: var(--ann); color: #fff; font-size: 11.5px; line-height: 16px; font-weight: 700; white-space: nowrap; box-shadow: 0 6px 18px -6px rgba(236,72,153,.8); opacity: 0; transform-origin: right center; z-index: 2; }
+.scene { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; }
+.wa { position: absolute; left: 44px; right: 44px; top: 404px; border-radius: 26px; padding: 20px 22px 22px; background: rgba(11,16,32,.94); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 30px 70px -20px rgba(0,0,0,.85), 0 0 0 1px rgba(184,61,245,.25); opacity: 0; }
+.wa .k { font-size: 14px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--pink4); display: flex; align-items: center; gap: 10px; }
+.wa .k svg { width: 22px; height: 22px; }
+.wa .chat { margin-top: 14px; border-radius: 18px; padding: 16px; background: #0b141a; }
+.wa .bub { position: relative; max-width: 94%; border-radius: 4px 16px 16px 16px; background: #202c33; color: #e9edef; padding: 12px 14px 22px; font-size: 21px; line-height: 1.42; }
+.wa .bub b { color: #fff; }
+.wa .bub mark { background: none; color: #fff; font-weight: 700; box-shadow: inset 0 -3px 0 rgba(244,114,182,.95); }
+.wa .bub small { position: absolute; right: 12px; bottom: 6px; font-size: 13px; color: #8696a0; }
+.later { position: absolute; left: 50%; top: 900px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 10px; padding: 12px 22px; border-radius: 99px; background: var(--ann); color: #fff; font-size: 21px; font-weight: 700; white-space: nowrap; box-shadow: 0 14px 34px -10px rgba(236,72,153,.75); opacity: 0; }
+.later svg { width: 22px; height: 22px; stroke-width: 2.4; }
+
+/* captions + touch */
+.cap { position: absolute; left: 0; right: 0; bottom: 0; height: 210px; display: grid; place-items: center; padding: 0 40px 22px; z-index: 4; }
+.cap span { font-size: 31px; line-height: 1.25; font-weight: 700; color: #fff; text-align: center; background: rgba(2,6,23,.88); padding: 12px 20px; border-radius: 16px; box-decoration-break: clone; -webkit-box-decoration-break: clone; letter-spacing: -.01em; }
+.cap span:empty { display: none; }
+.touch { position: absolute; left: 0; top: 0; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; z-index: 5; pointer-events: none; opacity: 0;
+  background: rgba(255,255,255,.38); border: 2px solid rgba(255,255,255,.85); box-shadow: 0 6px 18px rgba(0,0,0,.45); }
+.ring { position: absolute; left: 0; top: 0; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; border: 3px solid var(--pink4); z-index: 5; opacity: 0; pointer-events: none; }
+
+/* poster (designed card, rendered by render.mjs -> out/poster.jpg) */
+#poster { position: absolute; inset: 0; z-index: 10; display: none; background: var(--base); text-align: center; color: #fff; }
+.poster #poster { display: block; }
+#poster::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(44% 26% at 13% 8%, rgba(184,61,245,.36), transparent 70%),
+  radial-gradient(46% 28% at 90% 96%, rgba(236,72,153,.30), transparent 70%),
+  radial-gradient(50% 28% at 50% 48%, rgba(30,41,59,.75), transparent 75%); }
+#poster .pin { position: absolute; left: 0; right: 0; top: 296px; display: grid; justify-items: center; }
+#poster img { width: 104px; height: auto; }
+#poster .eb { margin-top: 24px; font-size: 17px; font-weight: 500; letter-spacing: .25em; text-transform: uppercase; color: rgba(184,61,245,.92); }
+#poster h1 { margin: 22px 0 0; font-size: 66px; line-height: 1.16; font-weight: 700; letter-spacing: -.025em; }
+#poster h1 em { font-style: normal; background: var(--epi); -webkit-background-clip: text; background-clip: text; color: transparent; }
+#poster .chips { margin-top: 40px; display: grid; gap: 12px; width: 440px; }
+#poster .chip { display: flex; align-items: center; gap: 14px; height: 64px; padding: 0 18px; border-radius: 16px; background: rgba(15,23,42,.6); border: 1px solid rgba(255,255,255,.05); font-size: 21px; font-weight: 700; text-align: left; }
+#poster .chip i { flex: none; width: 32px; height: 32px; border-radius: 50%; background: rgba(184,61,245,.2); color: var(--primary); display: grid; place-items: center; font-style: normal; font-size: 15px; }
+#poster .watch { margin-top: 40px; display: inline-flex; align-items: center; gap: 14px; height: 62px; padding: 0 24px 0 22px; border-radius: 12px; background: var(--primary); font-size: 23px; font-weight: 500; box-shadow: 0 14px 30px -6px rgba(184,61,245,.55); }
+#poster .watch svg { width: 22px; height: 22px; fill: #fff; }
+#poster .watch s { width: 2px; height: 24px; background: rgba(255,255,255,.43); text-decoration: none; }
+
+/* preview controls (not rendered) */
+.ctl { display: flex; gap: 10px; align-items: center; color: #e2e8f0; font: 600 14px var(--font); }
+.ctl button { border: 0; border-radius: 99px; padding: 10px 18px; background: var(--ann); color: #fff; font: inherit; cursor: pointer; }
+.render .ctl { display: none; }
+@media (prefers-reduced-motion: reduce) { .touch, .ring { display: none; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></symbol>
+  <symbol id="i-fold" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></symbol>
+</svg>
+
+<div class="holder">
+<div id="stage">
+  <div class="top"><img src="logo.png" alt=""><div class="nm"><small>Getting started</small>Confirm your FSP number</div><div class="dots" id="dots"></div></div>
+
+  <div id="phone"><div class="screen" id="screen">
+    <div class="glow"></div>
+    <div class="sb"><span>9:41</span><span class="isl"></span><span class="ic">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="#fff"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <svg width="15" height="11" viewBox="0 0 15 11" fill="#fff"><path d="M7.5 2.2c2.1 0 4 .8 5.5 2.1l1.1-1.1A9.4 9.4 0 0 0 7.5.6 9.4 9.4 0 0 0 .9 3.2L2 4.3a7.8 7.8 0 0 1 5.5-2.1zm0 3.1c1.2 0 2.4.5 3.3 1.3l1.1-1.1a6.3 6.3 0 0 0-8.8 0l1.1 1.1c.9-.8 2.1-1.3 3.3-1.3zm0 3.1c.4 0 .8.2 1.1.4L7.5 10 6.4 8.8c.3-.2.7-.4 1.1-.4z"/></svg>
+      <svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="rgba(255,255,255,.5)"/><rect x="2" y="2" width="17" height="8" rx="1.6" fill="#fff"/><rect x="23.6" y="4" width="1.6" height="4" rx=".8" fill="rgba(255,255,255,.5)"/></svg></span></div>
+    <div class="hdr"><div class="who"><img src="logo.png" alt=""><div><div class="fn">Your Practice</div><div class="pl">Bronze plan · awaiting payment</div></div></div><div class="av">YN</div></div>
+
+    <div class="vp"><div class="content" id="content">
+      <section class="gs">
+        <div class="head"><div><h2>Getting started</h2><p class="cnt" id="cnt">1 of 6 done</p><div class="bar"><b id="bar"></b></div></div>
+          <span class="chev"><svg class="i"><use href="#i-chev"/></svg></span></div>
+        <div class="bd">
+          <h3>What you need to do</h3>
+          <ol>
+            <li class="st done"><div class="row"><span class="cir"><svg class="i"><use href="#i-check"/></svg></span>
+              <div class="tx"><p class="lb">Review your signed agreement</p><p class="dt">Signed and saved in Documents.</p></div><span class="act">Open</span></div></li>
+            <li class="st"><div class="row"><span class="cir"><svg class="i"><use href="#i-check"/></svg></span>
+              <div class="tx"><p class="lb">Pay your first invoice</p><p class="dt">Your invoice is in Documents.</p></div><span class="act">Open</span></div></li>
+            <li class="st" id="st-fsp"><span class="ring2" id="hl"></span><div class="row"><span class="cir" id="cir"><svg class="i" id="tick"><use href="#i-check"/></svg></span>
+              <div class="tx"><p class="lb">Confirm your FSP number</p><p class="dt" id="dt">Your agreement lists FSP 28418. Check it and save it to your profile.</p></div><span class="act" id="act">Enter it</span></div>
+              <div class="pw" id="pw"><div class="panel" id="panel">
+                <div class="fld"><span class="fl">FSP number</span><span class="tag" id="tag1">From your signed agreement</span>
+                  <div class="inp" id="in-fsp"><span class="v"><i id="flash"></i><span>28418</span></span><i class="caret" id="car1"></i></div></div>
+                <div class="fld"><span class="fl">Practice name</span><span class="tag" id="tag2">As on your FSP licence</span>
+                  <div class="inp" id="in-firm"><span class="v"><span>Your Practice</span></span><i class="caret" id="car2"></i></div></div>
+                <p class="help openonly">We check it on the FSCA register. Clients see it with your practice name.</p>
+                <p class="help lockonly">Locked while you receive leads. Ask Lead Velocity to change it.</p>
+                <div class="btns openonly"><span class="pri" id="save">Save</span><span class="gh">Cancel</span></div>
+              </div></div></li>
+            <li class="st"><div class="row"><span class="cir"><svg class="i"><use href="#i-check"/></svg></span>
+              <div class="tx"><p class="lb">Add your photo and a short bio</p><p class="dt">Clients see these when they book a call with you.</p></div><span class="act">Add them</span></div></li>
+            <li class="st"><div class="row"><span class="cir"><svg class="i"><use href="#i-check"/></svg></span>
+              <div class="tx"><p class="lb">Confirm your business WhatsApp number</p><p class="dt">Is +27 82 123 4567 your business WhatsApp? New leads and bookings are sent to it.</p></div><span class="act">Confirm</span></div></li>
+            <li class="st"><div class="row"><span class="cir"><svg class="i"><use href="#i-check"/></svg></span>
+              <div class="tx"><p class="lb">Connect your Outlook calendar</p><p class="dt">Opens once your campaign is set up after payment.</p></div><span class="act">What you'll be asked</span></div></li>
+          </ol>
+        </div>
+      </section>
+    </div><div class="dim" id="dim"></div></div>
+
+    <nav class="nav"><ul>
+      <li class="on"><svg class="i"><use href="#i-dash"/></svg>Home</li>
+      <li><svg class="i"><use href="#i-db"/></svg>Leads</li>
+      <li><svg class="i"><use href="#i-cal"/></svg>Appointments</li>
+      <li><svg class="i"><use href="#i-fold"/></svg>Documents</li>
+      <li><svg class="i"><use href="#i-more"/></svg>More</li>
+    </ul><span class="home"></span></nav>
+  </div></div>
+
+  <!-- 1: Getting started -> Enter it -> the form, pre-filled -->
+  <section class="scene" data-id="s01"></section>
+
+  <!-- 2: Save -> tick -> what clients see -> Edit -> locked later -->
+  <section class="scene" data-id="s02">
+    <div class="wa" id="wa"><div class="k"><svg class="i"><use href="#i-msg"/></svg>What your client gets on WhatsApp</div>
+      <div class="chat"><div class="bub">… Your details have been passed to <mark>Your Practice (FSP 28418)</mark>, an authorised financial services provider. …<small>10:02</small></div></div></div>
+    <div class="later" id="later"><svg class="i"><use href="#i-lock"/></svg>Later, once you're receiving leads</div>
+  </section>
+
+  <div class="touch" id="touch"></div>
+  <div class="ring" id="ring"></div>
+  <div class="cap"><span id="cap"></span></div>
+
+  <div id="poster"><div class="pin">
+    <img src="logo.png" alt="">
+    <div class="eb">Getting started · step guide</div>
+    <h1>Confirm your<br><em>FSP number</em></h1>
+    <div class="chips">
+      <div class="chip"><i>1</i>Tap Enter it</div>
+      <div class="chip"><i>2</i>Check the number and practice</div>
+      <div class="chip"><i>3</i>Save: the step gets its tick</div>
+    </div>
+    <div class="watch"><svg viewBox="0 0 24 24"><path d="M5 2.5v19l16-9.5z"/></svg>Watch the video<s></s><span id="pdur">0:31</span></div>
+  </div></div>
+</div>
+<div class="ctl"><button id="play" type="button">Play</button><span id="time"></span></div>
+</div>
+<audio id="vo" preload="auto"></audio>
+<script src="timings.js"></script>
+<script>
+(() => {
+  const T = window.TIMINGS, LEAD = T.lead;
+  const render = location.search.includes('render');
+  if (render) document.documentElement.classList.add('render');
+  if (location.search.includes('poster')) document.documentElement.classList.add('poster');
+  const reduce = !render && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), touch = $('touch'), ring = $('ring'), cap = $('cap');
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = x => 1 - Math.pow(1 - x, 3);
+  const inout = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  const ramp = (g, t0, d) => reduce ? (g >= t0 ? 1 : 0) : clamp((g - t0) / d);
+  const meta = [...document.querySelectorAll('.scene')].map((el, i) => ({ el, i, ...T.scenes[i] }));
+  let acc = 0; meta.forEach(m => { m.start = acc; acc += m.clip; }); const TOTAL = acc;
+  const M = Object.fromEntries(meta.map(m => [m.id, m]));
+  function timeOf(m, spec) {
+    const r = /^(.*?)(?:#(\d+))?([+-]\d*\.?\d+)?$/.exec(String(spec).trim());
+    const word = r[1], nth = r[2] ? +r[2] : 1, off = r[3] ? parseFloat(r[3]) : 0;
+    if (/^\d*\.?\d+$/.test(word)) return parseFloat(word) + off;
+    let c = nth; for (const w of m.words) if (norm(w.w) === norm(word) && --c === 0) return w.t + off;
+    throw new Error(`${m.id}: anchor word not found: ${spec}`);
+  }
+  const A = (id, spec) => M[id].start + timeOf(M[id], spec);   // global time of a spoken word
+  const t = {
+    confirm: A('s01', 'Confirm'), enter: A('s01', 'Enter'), agree: A('s01', 'agreement'), check: A('s01', 'Check'),
+    practice: A('s01', 'practice'), save: A('s02', 'Save,'), tick: A('s02', 'tick.'), clients: A('s02', 'Clients'),
+    to: A('s02', 'To'), edit: A('s02', 'Edit.'), once: A('s02', 'Once'),
+  };
+  meta.forEach(m => { const d = document.createElement('i'); d.appendChild(document.createElement('b')); $('dots').appendChild(d); m.dot = d.firstChild; });
+
+  const SC = 1.36;                                   // .screen scale
+  const el = { content: $('content'), st: $('st-fsp'), hl: $('hl'), cir: $('cir'), tick: $('tick'), dt: $('dt'), act: $('act'), pw: $('pw'), panel: $('panel'),
+    fsp: $('in-fsp'), firm: $('in-firm'), car1: $('car1'), car2: $('car2'), flash: $('flash'), tag1: $('tag1'), tag2: $('tag2'), save: $('save'),
+    cnt: $('cnt'), bar: $('bar'), dim: $('dim'), wa: $('wa'), later: $('later'), phone: $('phone') };
+  let A1 = 0, G = null;                              // set by prep() once fonts are in (layout-dependent)
+  const DONE_AT = t.save + .4;
+
+  // ---- the portal's state as a function of global time g ----
+  function scrollAt(g) {
+    let v = 0;
+    for (const [t0, d, a, b] of [[t.enter + .1, .8, 0, A1], [t.save + .75, .7, A1, 0], [t.edit + .1, .8, 0, A1]])
+      if (g >= t0) v = a + (b - a) * (reduce ? 1 : inout(clamp((g - t0) / d)));
+    return v;
+  }
+  function openAt(g) {
+    if (g < t.save + .15) return ramp(g, t.enter + .1, .45);
+    if (g < t.edit + .1) return 1 - ramp(g, t.save + .15, .35);
+    return ramp(g, t.edit + .1, .45);
+  }
+  function apply(g) {
+    const done = g >= DONE_AT, locked = g >= t.once + .27;
+    el.st.classList.toggle('done', done);
+    el.st.classList.toggle('locked', locked);
+    el.dt.textContent = done ? 'FSP 28418 · Your Practice' : 'Your agreement lists FSP 28418. Check it and save it to your profile.';
+    el.act.textContent = done ? 'Edit' : 'Enter it';
+    const pop = done ? clamp((g - DONE_AT) / .35) : 0;
+    el.cir.style.transform = `scale(${1 + .22 * Math.sin(Math.PI * pop)})`;
+    el.tick.style.transform = `scale(${done ? ease(clamp((g - DONE_AT) / .25)) : 0})`;
+    el.cnt.textContent = done ? '2 of 6 done' : '1 of 6 done';
+    el.bar.style.transform = `scaleX(${(1 + (done ? ease(ramp(g, DONE_AT, .8)) : 0)) / 6})`;
+    // highlight the step while it is named
+    el.hl.style.opacity = ramp(g, t.confirm, .3) * (1 - ramp(g, t.enter + .2, .3));
+    // inline panel (AnimatePresence + layout)
+    const o = openAt(g);
+    el.pw.style.height = `${el.panel.scrollHeight * (reduce ? (o > 0 ? 1 : 0) : inout(o))}px`;
+    el.panel.style.opacity = o; el.panel.style.transform = `translateY(${(1 - o) * -6}px)`;
+    el.content.style.transform = `translateY(${-scrollAt(g)}px)`;
+    // focus, caret (blinks 0.53 s), pre-fill flash, annotation tags
+    const f1 = g >= t.agree && g < t.practice, f2 = g >= t.practice && g < t.save;
+    el.fsp.classList.toggle('focus', f1); el.firm.classList.toggle('focus', f2);
+    const blink = Math.floor(g / .53) % 2 === 0 ? 1 : 0;
+    el.car1.style.opacity = f1 ? blink : 0; el.car2.style.opacity = f2 ? blink : 0;
+    el.flash.style.opacity = g >= t.agree ? .9 * (1 - clamp((g - t.agree - .5) / 1.4)) * ramp(g, t.agree, .2) : 0;
+    const tag = (n, a, b) => { const v = ramp(g, a, .3) * (1 - ramp(g, b, .3)); n.style.opacity = v; n.style.transform = `scale(${.85 + .15 * ease(v)})`; };
+    tag(el.tag1, t.agree, t.practice); tag(el.tag2, t.practice + .3, t.save - .2);
+    el.fsp.classList.toggle('off', locked); el.firm.classList.toggle('off', locked);
+    // "later": a short dip to the locked state
+    el.dim.style.opacity = .85 * ramp(g, t.once, .25) * (1 - ramp(g, t.once + .3, .35));
+    // stage annotations
+    const wa = ramp(g, t.clients - .1, .4) * (1 - ramp(g, t.to, .35));
+    el.wa.style.opacity = wa; el.wa.style.transform = `translateY(${(1 - ease(wa)) * 24}px)`;
+    const lt = ramp(g, t.once, .35);
+    el.later.style.opacity = lt; el.later.style.transform = `translateX(-50%) translateY(${(1 - ease(lt)) * -12}px)`;
+  }
+
+  // ---- touch gestures: taps on the real targets, one swipe to scroll back up ----
+  function pos(n) { const s = stage.getBoundingClientRect(), r = n.getBoundingClientRect(), k = s.width / 720; return [(r.left - s.left + r.width / 2) / k, (r.top - s.top + r.height / 2) / k]; }
+  function prep() {
+    el.phone.style.transform = '';                   // measure without the intro slide
+    A1 = el.st.offsetTop - 24;                       // scroll that brings the FSP step near the top of the screen
+    G = [{ kind: 'tap', t: t.enter, el: el.act }, { kind: 'tap', t: t.save, el: el.save },
+         { kind: 'swipe', t0: t.save + .75, t1: t.save + 1.45 }, { kind: 'tap', t: t.edit, el: el.act }];
+    // tap targets are measured where they are at the moment of the tap
+    G.forEach(x => { if (x.kind === 'tap') { apply(x.t); x.at = pos(x.el); x.s = x.t - .75; x.e = x.t + .9; }
+                     else { x.at = [300, 470]; x.to = [300, 470 + Math.min(A1 * SC, 330)]; x.s = x.t0 - .25; x.e = x.t1 + .25; } });
+  }
+  function gesture(g) {
+    if (!G) return;
+    let k = -1; G.forEach((x, i) => { if (g >= x.s && g < x.e) k = i; });
+    const x = G[k];
+    touch.style.opacity = 0; ring.style.opacity = 0; el.act.style.transform = el.save.style.transform = '';
+    if (!x) return;
+    if (x.kind === 'swipe') {
+      const p = reduce ? 1 : inout(clamp((g - x.t0) / (x.t1 - x.t0)));
+      const xy = [x.at[0], x.at[1] + (x.to[1] - x.at[1]) * p];
+      touch.style.opacity = clamp((g - x.s) / .2) * clamp((x.e - g) / .2);
+      touch.style.transform = `translate(${xy[0]}px, ${xy[1]}px)`;
+      return;
+    }
+    const prev = G[k - 1], from = prev && x.s - prev.e < .6 ? (prev.to || prev.at) : [x.at[0] + 70, x.at[1] + 150];
+    const p = ease(clamp((g - x.s) / .65));
+    touch.style.transform = `translate(${from[0] + (x.at[0] - from[0]) * p}px, ${from[1] + (x.at[1] - from[1]) * p}px) scale(${g >= x.t && g < x.t + .18 ? .82 : 1})`;
+    touch.style.opacity = clamp((g - x.s) / .2) * clamp((x.e - g) / .3);
+    const r = (g - x.t) / .5;
+    ring.style.opacity = r >= 0 && r <= 1 ? 1 - r : 0; ring.style.transform = `translate(${x.at[0]}px, ${x.at[1]}px) scale(${.4 + r * 1.6})`;
+    if (g >= x.t && g < x.t + .18) x.el.style.transform = 'scale(.96)';
+  }
+
+  function draw(g) {
+    g = clamp(g, 0, TOTAL - 1e-3);
+    const m = meta.findLast(x => x.start <= g), st = g - m.start;
+    meta.forEach(x => { x.el.style.opacity = x === m ? 1 : 0; x.dot.style.transform = `scaleX(${x.i < m.i ? 1 : x.i > m.i ? 0 : st / x.clip})`; });
+    const intro = reduce ? 1 : ease(clamp(g / .6));
+    el.phone.style.opacity = intro; el.phone.style.transform = `translateY(${(1 - intro) * 30}px)`;
+    apply(g); gesture(g);
+    const cue = m.cues.find(q => st >= q.t && st < q.e);
+    const txt = cue ? cue.text : ''; if (cap.textContent !== txt) cap.textContent = txt;
+    return m;
+  }
+  window.TOTAL = TOTAL;
+  window.seek = g => { draw(g); };
+  window.setPosterDuration = s => { $('pdur').textContent = s; };
+  window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(i => i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; })))).then(() => { prep(); draw(0); return true; });
+  draw(0);
+
+  // preview player (not part of the render)
+  if (!render) {
+    const fit = () => { const k = Math.min(1, (innerWidth - 32) / 720, (innerHeight - 90) / 1280); stage.style.transform = `scale(${k})`; stage.style.marginBottom = `${-1280 * (1 - k)}px`; stage.style.marginRight = `${-720 * (1 - k)}px`; };
+    fit(); addEventListener('resize', fit);
+    const vo = $('vo'), btn = $('play'), time = $('time');
+    let g = 0, playing = false, last = performance.now(), cur = null;
+    const hm = /^#(\d+(?:\.\d+)?)$/.exec(location.hash); if (hm) g = +hm[1];
+    function step(now) {
+      const dt = Math.min(1, (now - last) / 1000); last = now;
+      if (playing) {
+        const m = meta.findLast(x => x.start <= g), st = g - m.start;
+        if (cur !== m.id) { cur = m.id; vo.src = `audio/${m.id}.mp3`; vo.pause(); }
+        if (st >= LEAD && st < LEAD + m.audio - .1) { if (vo.paused) { vo.currentTime = st - LEAD; vo.play().catch(() => {}); } else g = m.start + LEAD + vo.currentTime; }
+        else g += dt;
+        if (g >= TOTAL) { playing = false; vo.pause(); g = TOTAL - .01; }
+      }
+      draw(g); time.textContent = `${g.toFixed(1)} / ${TOTAL.toFixed(1)} s`; btn.textContent = playing ? 'Pause' : 'Play';
+      requestAnimationFrame(step);
+    }
+    btn.onclick = () => { playing = !playing; if (!playing) vo.pause(); else { cur = null; } };
+    requestAnimationFrame(step);
+  }
+})();
+</script>

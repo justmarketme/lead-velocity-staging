@@ -26,3 +26,22 @@ export const BROKER_GUIDE_VIDEO_URL = "/media/broker/onboarding-guide-720p.mp4";
 export const BROKER_GUIDE_POSTER_URL = "/media/broker/onboarding-guide-poster.jpg";
 export const BROKER_GUIDE_VIDEO_TITLE = "Your onboarding guide";
 export const BROKER_GUIDE_VIDEO_DURATION = "3:53";
+
+/**
+ * Short how-to clips for the Getting-started steps (portrait 720x1280, captions burned in, 30-40 seconds each). Sources:
+ * deliverables/broker-success/step-clips/<slug>, served from public/media/broker/clips/. Opened from "Watch how".
+ */
+export const BROKER_FSP_CLIP_URL = "/media/broker/clips/fsp-720p.mp4";
+export const BROKER_FSP_CLIP_POSTER_URL = "/media/broker/clips/fsp-poster.jpg";
+export const BROKER_FSP_CLIP_TITLE = "Confirm your FSP number";
+export const BROKER_FSP_CLIP_DURATION = "0:31";
+
+export const BROKER_INTRO_CLIP_URL = "/media/broker/clips/intro-card-720p.mp4";
+export const BROKER_INTRO_CLIP_POSTER_URL = "/media/broker/clips/intro-card-poster.jpg";
+export const BROKER_INTRO_CLIP_TITLE = "Add your photo and a short bio";
+export const BROKER_INTRO_CLIP_DURATION = "0:36";
+
+export const BROKER_WHATSAPP_CLIP_URL = "/media/broker/clips/whatsapp-720p.mp4";
+export const BROKER_WHATSAPP_CLIP_POSTER_URL = "/media/broker/clips/whatsapp-poster.jpg";
+export const BROKER_WHATSAPP_CLIP_TITLE = "Confirm your business WhatsApp number";
+export const BROKER_WHATSAPP_CLIP_DURATION = "0:33";
