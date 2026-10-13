@@ -46,3 +46,6 @@ verify_jwt = false
 # start/disconnect verify the broker JWT inside the function.
 [functions.ms-oauth]
 verify_jwt = false
+
+[functions.smc-voice]
+verify_jwt = false
