@@ -12,6 +12,7 @@ import BrokerInvite from "@/components/dashboard/BrokerInvite";
 import AdminDocuments from "@/components/dashboard/AdminDocuments";
 import AdminReferrals from "@/components/dashboard/AdminReferrals";
 import AdminCalendar from "@/components/dashboard/AdminCalendar";
+import AppointmentAllocation from "@/components/dashboard/AppointmentAllocation";
 import MessageTemplates from "@/components/dashboard/MessageTemplates";
 import AICallRequests from "@/components/dashboard/AICallRequests";
 import WorkflowManagement from "@/components/dashboard/WorkflowManagement";
@@ -127,6 +128,7 @@ const Dashboard = () => {
       {activeTab === "workflow" && <WorkflowManagement />}
       {activeTab === "leads" && <LeadsTable />}
       {activeTab === "referrals" && <AdminReferrals />}
+      {activeTab === "appointments" && <AppointmentAllocation />}
       {activeTab === "calendar" && <AdminCalendar />}
       {activeTab === "broker-analysis" && <BrokerAnalysisDashboard />}
       {activeTab === "broker-management" && <BrokerManagement />}

@@ -49,3 +49,6 @@ verify_jwt = false
 
 [functions.smc-voice]
 verify_jwt = false
+
+[functions.appointment-allocation]
+verify_jwt = false
