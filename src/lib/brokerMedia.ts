@@ -8,3 +8,12 @@ export const BROKER_ONBOARDING_POSTER_URL = "https://cmsylaupctrbsvzrgzwy.supaba
 /** WebVTT captions for the explainer, when available. */
 export const BROKER_ONBOARDING_CAPTIONS_URL = "";
 export const BROKER_ONBOARDING_VIDEO_TITLE = "What happens next";
+
+/**
+ * "Connect your Outlook calendar" (about 2.5 minutes, portrait 720x1280, captions burned in). Source:
+ * deliverables/broker-success/calendar-connect-film. Empty until the MP4 and poster are uploaded to the public
+ * marketing-media bucket; while empty the calendar card and the Getting-started step show a short note instead.
+ */
+export const BROKER_CALENDAR_VIDEO_URL = "";
+export const BROKER_CALENDAR_POSTER_URL = "";
+export const BROKER_CALENDAR_VIDEO_TITLE = "Connect your Outlook calendar";

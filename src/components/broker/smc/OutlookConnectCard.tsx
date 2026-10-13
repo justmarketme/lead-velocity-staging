@@ -14,6 +14,7 @@ import { msCall, msIsBeingSetUp, msStartError, rememberMsReturn } from "@/lib/sm
 import type { SmcBroker } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
+import CalendarHowToVideo from "./CalendarHowToVideo";
 
 interface Props {
   broker: SmcBroker;
@@ -163,6 +164,8 @@ export default function OutlookConnectCard({ broker, reload, tone = "theme", ret
             </div>
           </div>
         )}
+
+        {showConnect && <CalendarHowToVideo mutedClass={c.muted} />}
 
         {showConnect && (
           <div className="space-y-2">

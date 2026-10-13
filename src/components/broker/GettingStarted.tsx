@@ -14,6 +14,7 @@ import { loadBrokerDocuments, openAdminDocument } from "@/lib/adminDocs";
 import { fmtZa, toZaE164 } from "@/lib/brokerProfile";
 import { TERMS, zar } from "@/lib/pricing";
 import { SUPPORT_EMAIL } from "@/lib/smc";
+import CalendarHowToVideo from "./smc/CalendarHowToVideo";
 import {
   BROKER_ONBOARDING_CAPTIONS_URL, BROKER_ONBOARDING_POSTER_URL, BROKER_ONBOARDING_VIDEO_TITLE, BROKER_ONBOARDING_VIDEO_URL,
 } from "@/lib/brokerMedia";
@@ -99,6 +100,7 @@ export default function GettingStarted({ broker, planState, onGo, onBrokerPatch 
         action: calConnected ? undefined : { label: "What you'll be asked", expand: true },
         panel: (
           <div className="space-y-2 text-sm text-slate-300">
+            <CalendarHowToVideo mutedClass="text-slate-400" />
             <ol className="list-decimal pl-5 space-y-1.5">
               <li>You sign in with your work Microsoft account.</li>
               <li>Microsoft shows a permission screen listing calendar access: seeing when you're free and adding the booked calls (with their Teams links) to your calendar. Choose Accept.</li>
