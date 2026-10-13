@@ -24,3 +24,11 @@ Branch name, list of converted functions, test results, and a sample preview sen
 
 ## Not covered here (Claude Code will do in the Supabase dashboard)
 Supabase Auth templates: Invite user, Confirm signup, Magic link, Change email, Reauthentication. Only "Reset password" is branded today.
+
+## Status: done by Claude Code, 14 Oct 2026
+- All 11 senders converted (builders in `supabase/functions/_shared/lv_emails.ts`, appointment broker invite in `appointment_alloc.ts`), plain-text parts added, values escaped, deployed to cmsylaupctrbsvzrgzwy.
+- Deno tests: `deno test --allow-read supabase/functions/_shared/lv_emails.test.ts` (52 pass). Sample data shared with `email-preview` (service-role only, sends ONLY to jono@vantagestack.co.za).
+- Sender change: send-communication, send-bulk-communication, send-scheduled-report, send-sla-alert used `noreply@resend.dev` (a sandbox sender); now `Lead Velocity <howzit@leadvelocity.co.za>`.
+- Not converted on purpose: appointment-allocation CLIENT confirmation (SortMyCover end client) keeps its existing design; needs an SMC-kit design decision.
+- Still unbranded Supabase Auth templates: Invite user, Confirm signup, Magic link, Change email, Reauthentication.
+- New tile `public/email/bg/d946ef.png` (signature rule) goes live with the next website deploy; until then that 3px cell falls back to its bgcolor, as today.

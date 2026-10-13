@@ -6,7 +6,8 @@
 //   ... -d '{"only":["sla-critical","admin-invite"]}'                       # send a few (ids: see "available" in the answer)
 //   ... -d '{"dry_run":true}'                                                # render only, send nothing
 //
-// Auth: the bearer token must be exactly the project's SUPABASE_SERVICE_ROLE_KEY (checked here, so verify_jwt is off in config.toml).
+// Auth: verify_jwt stays ON (config.toml default), so the gateway has already verified the JWT signature; we then require
+// role=service_role (or an exact match with SUPABASE_SERVICE_ROLE_KEY). Do NOT turn verify_jwt off for this function.
 // Secrets: RESEND_API_KEY (sending-only, restricted to leadvelocity.co.za).
 import { buildSamples } from "../_shared/lv_emails.samples.ts";
 
@@ -44,7 +45,9 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, error: "POST only" }, 405);
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!token || !serviceKey || !safeEqual(token, serviceKey)) return json({ ok: false, error: "service-role key required" }, 403);
+  let role = "";
+  try { role = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role ?? ""; } catch { /* not a JWT */ }
+  if (!token || !((serviceKey && safeEqual(token, serviceKey)) || role === "service_role")) return json({ ok: false, error: "service-role key required" }, 403);
 
   const body = await req.json().catch(() => ({}));
   const only = Array.isArray(body.only) ? new Set(body.only.map(String)) : null;
