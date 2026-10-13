@@ -144,11 +144,27 @@ function summary(a: any) {
 
 const SMC_TOOLS_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/tools";
 const SMC_POST_CALL_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/post-call";
-// "Claire - Neutral, Even, and Polished": South African English female (verified en/south african),
-// ElevenLabs voice library, picked 13 Oct 2026 over Cheyenne (atf1ppeJGCYFBlCLZ26e). Runners-up in
-// docs/SMC-VOICE-RECEPTIONIST.md. (Ayanda uses "Thandi"; Lindi deliberately sounds different.)
-const SMC_VOICE_ID = "gsm4lUH9bnZ3pjR1Pw7w";
+// THE ONE PLACE Lindi's voice id lives (the persona file, smc-voice and docs never set it). Every
+// POST ?agent=smc pushes it and then reads it back, failing loudly if ElevenLabs holds anything else.
+// "Linet - African & Friendly": ElevenLabs library, accent "south african", locale en-ZA, conversational,
+// mid-age female; chosen 14 Oct 2026 over Claire (gsm4lUH9bnZ3pjR1Pw7w, 13-14 Oct). Alternatives and the
+// reasoning are in docs/SMC-VOICE-RECEPTIONIST.md. (Ayanda uses "Thandi"; Lindi deliberately sounds different.)
+const SMC_VOICE_ID = "7Ojkrcr68EynjSd90VK0";
 const SMC_LLM = "glm-52"; // ElevenLabs-hosted, same as Ayanda (no Gemini/OpenAI)
+// Speech model and delivery. ElevenLabs-only, per Jono: Eleven v4 Turbo with Expressive Mode (audio tags).
+const SMC_TTS_MODEL = "eleven_v4_turbo";
+const SMC_TTS_SETTINGS = { stability: 0.5, similarity_boost: 0.75, speed: 1 };
+// Turn-taking (conversation_config.turn). ElevenLabs has no "seconds of pause after the caller stops" field:
+// the wait is decided by the turn-detection model, steered by turn_eagerness. patient = waits for the highest
+// end-of-turn confidence; spelling_patience auto = waits longer while names/numbers/emails are read out;
+// speculative_turn off = the LLM only starts after the turn is confirmed (so she never pre-empts a pause);
+// turn_timeout = seconds of caller silence before she re-engages ("Are you still there?").
+const SMC_TURN = {
+  turn_eagerness: "patient", spelling_patience: "auto", speculative_turn: false, turn_model: "turn_v3", turn_timeout: 10,
+};
+// Call recordings and transcripts are kept at ElevenLabs this long, then deleted there (the CRM keeps its own
+// transcript copy under the consent-record rules). 12 months matches the privacy page's lead-details period.
+const SMC_RETENTION_DAYS = 365;
 // The live website is the knowledge base. Add a page here and re-run POST ?agent=smc.
 const SMC_KB_URLS = [
   "", "how-it-works/", "faq/", "how-we-make-money/", "about/", "contact/", "complaints/", "advisers/",
@@ -303,8 +319,9 @@ async function syncSmc() {
     // emails/numbers in written form while the voice pronounces them.
     tts: {
       voice_id: SMC_VOICE_ID,
-      model_id: "eleven_v4_turbo",
+      model_id: SMC_TTS_MODEL,
       expressive_mode: true,
+      ...SMC_TTS_SETTINGS,
       agent_output_audio_format: "ulaw_8000",
       text_normalisation_type: "elevenlabs",
       suggested_audio_tags: [
@@ -315,7 +332,7 @@ async function syncSmc() {
       ],
     },
     asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Brokers", "Capital Legacy", "Teams", "gmail.com", "co.za"] },
-    turn: { turn_eagerness: "patient" },
+    turn: SMC_TURN,
     conversation: { max_duration_seconds: 900 },
   };
   const platform_settings = {
@@ -323,7 +340,7 @@ async function syncSmc() {
     evaluation: { criteria: SMC_EVALUATION },
     // smc-voice/twiml sends a different first message when we return a missed call.
     overrides: { conversation_config_override: { agent: { first_message: true } } },
-    privacy: { record_voice: true, retention_days: -1 },
+    privacy: { record_voice: true, retention_days: SMC_RETENTION_DAYS },
     ...(webhookId ? { workspace_overrides: { webhooks: { post_call_webhook_id: webhookId, events: ["transcript"], send_audio: false } } } : {}),
   };
   const existing = await findSmcAgent();
@@ -332,6 +349,15 @@ async function syncSmc() {
     : await el("/agents/create", { method: "POST", body: JSON.stringify({ name: SMC_AGENT_NAME, conversation_config, platform_settings, tags: ["sortmycover"] }) });
   const agentId = agent.agent_id ?? existing?.agent_id;
   const full = await el(`/agents/${agentId}`);
+  // Read-back guard: the voice, speech model and turn-taking in code must be what ElevenLabs now holds.
+  const live = full.conversation_config ?? {};
+  const drift = [
+    live.tts?.voice_id !== SMC_VOICE_ID && `voice_id ${live.tts?.voice_id}`,
+    live.tts?.model_id !== SMC_TTS_MODEL && `model_id ${live.tts?.model_id}`,
+    live.tts?.expressive_mode !== true && "expressive_mode off",
+    ...Object.entries(SMC_TURN).filter(([k, v]) => live.turn?.[k] !== v).map(([k]) => `turn.${k}=${live.turn?.[k]}`),
+  ].filter(Boolean);
+  if (drift.length) throw new Error(`Lindi config did not stick: ${drift.join(", ")}`);
   return {
     created: !existing, agent_id: agentId, tools: toolIds, knowledge_base: knowledgeBase.length, post_call_webhook_id: webhookId,
     smc: summary(full),
@@ -354,16 +380,17 @@ Deno.serve(async (req) => {
   if (!isServiceRole(req)) return new Response("forbidden", { status: 403 });
   try {
     // ?el=/convai/... → raw ElevenLabs v1 passthrough (admin tooling: voice library search,
-    // simulate-conversation tests, workspace settings). The key never leaves this function.
+    // simulate-conversation tests, workspace settings, voice design and sample renders). The key never leaves
+    // this function. Binary-safe: audio comes back byte for byte with ElevenLabs' own content type.
     const elPath = new URL(req.url).searchParams.get("el");
     if (elPath) {
-      if (!/^\/(convai|shared-voices|voices|models|workspace)\b/.test(elPath)) return new Response("path not allowed", { status: 400 });
+      if (!/^\/(convai|shared-voices|voices|models|workspace|text-to-voice|text-to-speech)\b/.test(elPath)) return new Response("path not allowed", { status: 400 });
       const res = await fetch(`https://api.elevenlabs.io/v1${elPath}`, {
         method: req.method,
         headers: { "xi-api-key": key(), "Content-Type": "application/json" },
         body: req.method === "GET" ? undefined : await req.text(),
       });
-      return new Response(await res.text(), { status: res.status, headers: { "Content-Type": "application/json" } });
+      return new Response(await res.arrayBuffer(), { status: res.status, headers: { "Content-Type": res.headers.get("Content-Type") ?? "application/json" } });
     }
     // GET ?signed=ayanda|einstein → a one-off session URL for testing an agent end to end.
     const signed = new URL(req.url).searchParams.get("signed");

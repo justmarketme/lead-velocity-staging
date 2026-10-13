@@ -8,6 +8,8 @@
 //   POST /tools/<name>   ElevenLabs webhook tools. Auth: the live conversation must belong to the SMC agent.
 //   POST /post-call      ElevenLabs post-call webhook (HMAC). Transcript + summary + notes + tags -> CRM.
 //   POST /tick           pg_cron every 5 min (x-cron-secret): dial due callbacks inside CPA s12 hours.
+//   GET  /recording?conversation_id=conv_...   Call audio (mp3), streamed from ElevenLabs. Service-role key only;
+//                        there is no public audio URL. The CRM call record carries audio_available + conversation_id.
 //
 // Test mode (service-role JWT + header x-smc-test: 1) on /tools and /tick: no conversation lookup,
 // leads are is_synthetic, and nothing is sent or dialled.
@@ -39,15 +41,25 @@ const fail = (error: string, say: string, extra: Record<string, unknown> = {}) =
 const xml = (body: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?>${body}`, { headers: { "Content-Type": "text/xml" } });
 const SORRY = "<Response><Say>Sorry, SortMyCover can't take your call right now. We'll call you back shortly, or you can WhatsApp us on this number.</Say><Hangup/></Response>";
 
-function isServiceRole(req: Request): boolean {
-  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+// This function is deployed with verify_jwt = false (Twilio and ElevenLabs can't send a Supabase JWT), so the
+// gateway never checks a signature, and reading "role" out of an unverified JWT payload is forgeable. Admin
+// routes therefore ask Supabase itself: only a genuine service-role key can call the auth admin API.
+const verifiedAdminTokens = new Map<string, number>(); // token -> verified until (ms)
+async function isServiceRole(req: Request): Promise<boolean> {
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!token) return false;
+  if ((verifiedAdminTokens.get(token) ?? 0) > Date.now()) return true;
   try {
-    return JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role === "service_role";
+    const res = await fetch(`${env("SUPABASE_URL")}/auth/v1/admin/users?page=1&per_page=1`, { headers: { apikey: token, Authorization: `Bearer ${token}` } });
+    await res.body?.cancel();
+    if (!res.ok) return false;
+    verifiedAdminTokens.set(token, Date.now() + 60_000);
+    return true;
   } catch {
     return false;
   }
 }
-const testMode = (req: Request) => req.headers.get("x-smc-test") === "1" && isServiceRole(req);
+const testMode = async (req: Request) => req.headers.get("x-smc-test") === "1" && await isServiceRole(req);
 
 const twilioAuth = () => "Basic " + btoa(`${env("SMC_TWILIO_ACCOUNT_SID")}:${env("SMC_TWILIO_AUTH_TOKEN")}`);
 
@@ -503,6 +515,52 @@ async function requestCallback(p: Record<string, unknown>, db: SupabaseClient, t
   return json({ ok: true, say: "Call-back noted. Tell them the adviser's office will call them on this number to set up the appointment, then close warmly." });
 }
 
+// ------------------------------------------------------------------------------------------- recordings
+
+const EL_CONVAI = "https://api.elevenlabs.io/v1/convai";
+
+/** True/false once ElevenLabs reports whether the call has audio; null if it can't be confirmed. */
+async function audioAvailable(conv: string): Promise<boolean | null> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(`${EL_CONVAI}/conversations/${conv}`, { headers: { "xi-api-key": env("ELEVENLABS_API_KEY") } });
+      if (res.ok) {
+        const c = await res.json();
+        if (c.has_audio === true) return true;
+        if (attempt === 2) return c.has_audio === false ? false : null;
+      }
+    } catch (e) {
+      console.warn("audioAvailable:", e instanceof Error ? e.message : e);
+    }
+    if (attempt === 1) await new Promise((r) => setTimeout(r, 2000)); // audio can lag the webhook by a moment
+  }
+  return null;
+}
+
+/** Admin playback. Audio is stored only at ElevenLabs; this streams it to a service-role caller. Never public. */
+async function recording(req: Request) {
+  if (!(await isServiceRole(req))) return new Response("forbidden", { status: 403 });
+  let id = new URL(req.url).searchParams.get("conversation_id");
+  if (!id && req.method === "POST") id = (await req.json().catch(() => ({})))?.conversation_id ?? null;
+  if (typeof id !== "string" || !/^conv_[a-z0-9]+$/i.test(id)) return json({ error: "conversation_id required" }, 400);
+  const headers = { "xi-api-key": env("ELEVENLABS_API_KEY") };
+  const meta = await fetch(`${EL_CONVAI}/conversations/${id}`, { headers });
+  if (!meta.ok) return json({ error: `conversation lookup ${meta.status}` }, 404);
+  const conv = await meta.json();
+  if (conv.agent_id !== env("SMC_ELEVENLABS_AGENT_ID")) return json({ error: "not a SortMyCover conversation" }, 404);
+  if (conv.has_audio === false) return json({ error: "no audio for this conversation", has_audio: false }, 404);
+  const audio = await fetch(`${EL_CONVAI}/conversations/${id}/audio`, { headers });
+  if (!audio.ok || !audio.body) return json({ error: `audio ${audio.status}` }, 502);
+  console.log(`smc-voice recording played: ${id}`); // access trail (Supabase function logs)
+  return new Response(audio.body, {
+    headers: {
+      "Content-Type": audio.headers.get("Content-Type") ?? "audio/mpeg",
+      "Content-Disposition": `inline; filename="${id}.mp3"`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
 // ------------------------------------------------------------------------------------------- post-call
 
 async function postCall(req: Request, db: SupabaseClient) {
@@ -535,6 +593,7 @@ async function postCall(req: Request, db: SupabaseClient) {
   const kept = outcome === "out_of_criteria" ? { outcome: collected.outcome ?? "out_of_criteria", age_band: collected.age_band ?? null } : collected;
   const inbound = callType !== "callback";
   const tags = { brand: "sortmycover", source: "voice", outcome, call_type: callType };
+  const audio = d.has_audio === true ? true : await audioAvailable(conv);
 
   await upsertCallRecord(db, key, {
     direction: inbound ? "inbound" : "outbound", sender_type: inbound ? "client" : "system", recipient_type: inbound ? "system" : "client",
@@ -548,6 +607,8 @@ async function postCall(req: Request, db: SupabaseClient) {
     summary, call_notes: outcome === "out_of_criteria" ? "Out of criteria (age). No details kept." : notes, data_collection: kept, evaluation: d.analysis?.evaluation_criteria_results ?? {},
     call_successful: d.analysis?.call_successful ?? null, termination_reason: md.termination_reason ?? null,
     user_turns: turns, outcome, tags, missed: outcome === "missed",
+    // The recording lives at ElevenLabs (no audio URL is stored). Admins play it via GET /smc-voice/recording.
+    audio_available: audio, audio_conversation_id: conv, audio_source: "elevenlabs",
   });
   if (leadId) {
     await activity(db, leadId, "voice_call", summary || `Voice call (${outcome}).`,
@@ -565,15 +626,16 @@ Deno.serve(async (req) => {
   const parts = new URL(req.url).pathname.split("/").filter(Boolean);
   const at = parts.indexOf("smc-voice");
   const route = parts.slice(at + 1);
-  if (req.method !== "POST") return json({ error: "POST only" }, 405);
+  if (route[0] !== "recording" && req.method !== "POST") return json({ error: "POST only" }, 405);
   const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   try {
     switch (route[0]) {
+      case "recording": return await recording(req);
       case "twiml": return await twiml(req, db);
       case "status": return await status(req, db);
       case "post-call": return await postCall(req, db);
       case "tick": {
-        const test = testMode(req);
+        const test = await testMode(req);
         if (!test && req.headers.get("x-cron-secret") !== env("SMC_VOICE_CRON_SECRET")) return new Response("forbidden", { status: 403 });
         const url = new URL(req.url);
         if (test && url.searchParams.get("simulate_missed")) {
@@ -590,7 +652,7 @@ Deno.serve(async (req) => {
         // Service-role + x-smc-test only. Confirms the number still points here and that a Twilio-signed
         // inbound request gets valid TwiML (and how long Twilio would ring first). Places no call; the
         // ElevenLabs registration it creates is never connected.
-        if (!testMode(req)) return new Response("forbidden", { status: 403 });
+        if (!(await testMode(req))) return new Response("forbidden", { status: 403 });
         const acct = env("SMC_TWILIO_ACCOUNT_SID");
         const nums = await (await fetch(`https://api.twilio.com/2010-04-01/Accounts/${acct}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(SMC_NUMBER)}`,
           { headers: { Authorization: twilioAuth() } })).json();
@@ -612,7 +674,7 @@ Deno.serve(async (req) => {
         const tool = route[1];
         const p = await req.json().catch(() => null);
         if (!p) return json({ error: "invalid json" }, 400);
-        const test = testMode(req);
+        const test = await testMode(req);
         if (!test) {
           const denied = await verifyConversation(p.conversation_id);
           if (denied) {
