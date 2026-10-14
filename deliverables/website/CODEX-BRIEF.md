@@ -78,3 +78,6 @@ Tell Claude Code: branch name, what changed, `npm run build` + `npm test` result
 
 ## 11. Second task: emails
 See `docs/CODEX-EMAIL-TASK.md` in `lead-velocity-staging` (branch `release/smc-nurture`): move every Lead Velocity email onto the shared layout `supabase/functions/_shared/lv_email.ts`. Do this after, or alongside, the ads and site.
+
+## 12. Third task: Microsoft publisher verification
+Full pack in `docs/MS-PUBLISHER-VERIFICATION.md` (repo `lead-velocity-staging`, branch `release/smc-nurture`). Jono/KG do the Partner Center sign-up and terms (accounts and agreements are not for Claude/Codex to create). You do the domain proof (DNS TXT at GoDaddy), the MPN ID link-up in Entra, and the test with a non-admin user, via the browser once signed in. Remind Jono at the start of the session if step 1 is not done.
