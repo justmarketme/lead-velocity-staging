@@ -68,12 +68,9 @@ function consentFor(mode, broker) {
 // ---------------------------------------------------------------- tap-only questions (4.6 step 3)
 const AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];
 const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_1499', 'R1,250 to R1,499'], ['budget_1500_plus', 'R1,500 or more']];
-// Quiz v2 (2026-10-13): the 4-option band list for a web lead whose page no longer asks the budget (spec
-// quiz-v2-and-whatsapp-step.md section 3). Never mixed with BUDGET_ROWS (the lead-ad qualify_budget template) in one thread.
-const BUDGET_ROWS_V2 = [['budget_lt750', 'Under R750'], ['budget_750_1499', 'R750 to R1,499'], ['budget_1500_plus', 'R1,500 or more'], ['unsure', 'Not sure']];
-const BUDGET_V2_REVIEW_BODY = "Roughly what's your current monthly premium range? A rough idea is fine.";
-const BUDGET_V2_BODY = 'Roughly what monthly amount are you thinking about? A rough idea is fine.';
-const REVIEW_REASONS = new Set(['paying_too_much', 'cover_still_right', 'old_policy', 'not_sure_what_i_have']);
+// Quiz v2 (2026-10-14): a web lead whose page no longer asks the budget is asked with the approved qualify_budget template
+// (W01 budgetQuestion: the five BUDGET_ROWS bands, forward-looking wording, never "what do you pay now"). A re-ask uses the
+// same list and the same wording; the tap ids are the template's, so one vocabulary serves lead-ad and web leads.
 const BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];
 const METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };
 const QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not
@@ -124,18 +121,14 @@ function threadFromLead(lead) {
   if (lead.budget_band && DB_TO_BUDGET[lead.budget_band]) answers.budget_band = DB_TO_BUDGET[lead.budget_band];
   if (typeof lead.bond === 'boolean') answers.bond = lead.bond;
   if (typeof lead.dependants === 'boolean') answers.dependants = lead.dependants;
-  const cs = lead.conv_state || {};
-  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null, origin: lead.origin || null,
-    // quiz v2 web lead: the band list is the 4-option one, worded for a review when that is what they asked for
-    ...(lead.origin === 'page' && cs.budget_pending ? { budget_v2: true, review: cs.help_with === 'review' || REVIEW_REASONS.has(cs.reason) } : {}) };
+  return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null, origin: lead.origin || null };
 }
 
 const list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });
 const buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });
 
-function question(stage, broker, t) {
+function question(stage, broker) {
   if (stage === 'q_age') return list('Which age group are you in?', 'Choose age', AGE_ROWS);
-  if (stage === 'q_budget' && t && t.budget_v2) return list(t.review ? BUDGET_V2_REVIEW_BODY : BUDGET_V2_BODY, 'Choose range', BUDGET_ROWS_V2);
   if (stage === 'q_budget') return list('Roughly what could you put towards cover each month?', 'Choose amount', BUDGET_ROWS);
   if (stage === 'q_bond') return list('Do you have a bond or people who depend on your income?', 'Choose one', BOND_ROWS);
   if (stage === 'q_method') {
@@ -256,7 +249,7 @@ function qualify(t, msg, ctx, actions) {
     if (t.stage === 'q_budget_clarify') { t.answers.budget_band = 'unsure'; return outOfBand(t, ctx, 'budget_band', actions); }
     t.stage = 'q_budget_clarify';
     actions.push({ kind: 'update_lead', id: t.lead_id, set: { conv_state_state: 'q_budget_clarify' } });
-    send({ ...question('q_budget', ctx.broker, t), body: `No problem, a rough idea is fine. ${question('q_budget', ctx.broker, t).body}` });
+    send({ ...question('q_budget', ctx.broker), body: `No problem, a rough idea is fine. ${question('q_budget', ctx.broker).body}` });
     stall('q_budget');
     return { thread: t, actions };
   }
@@ -264,7 +257,7 @@ function qualify(t, msg, ctx, actions) {
     // tap-only: free text mid-question is logged for the brief (W07) and the same question is shown again.
     // A message W07 already handed over (ctx.typed) is not forwarded back: W07 logged it (I-48b, no extra hop).
     if (msg.type === 'text' && !ctx.typed) actions.push({ kind: 'forward_w07', lead_id: t.lead_id, reason: 'free_text_mid_qualifying', reply: false, hops: ctx.hops || 0 });
-    const q = question(STAGE_OF[t.stage] === 'q_budget_clarify' ? 'q_budget' : t.stage, ctx.broker, t);
+    const q = question(STAGE_OF[t.stage] === 'q_budget_clarify' ? 'q_budget' : t.stage, ctx.broker);
     send({ ...q, body: `Please tap one of the options. ${q.body}` });
     return { thread: t, actions };
   }
@@ -333,15 +326,24 @@ function finishLeadAd(t, ctx, actions, val) {
 }
 
 /**
- * Quiz v2 (2026-10-13): a web lead W01 routed provisionally (conv_state.budget_pending) answers the band. Record it; the
- * lead keeps its stage and broker (lt750 on a broker without the standing yes: the database trigger smc_leads_route_check
- * un-routes it to held_low_budget). Then W05 op finalize: a held booking whose email is verified is handed over now.
+ * Quiz v2 (2026-10-14): a web lead W01 stored with conv_state.budget_pending (routed provisionally, or held for want of a free
+ * broker) taps its band on the qualify_budget template. In order:
+ *  1. record the band. In band (tier A/B): also qualified_at + stage 'qualified' (age and reason came from the page, the band from
+ *     WhatsApp), which is what lets the CRM's appointment-request sweep catch a lead whose broker has no bookable calendar. Tier C
+ *     (under R750): band only; the database (smc_leads_route_check) un-routes it to held_low_budget unless the broker has the
+ *     standing yes, and it is never marked qualified here.
+ *  2. route_and_first_touch (W01 core). A no-op for an already routed lead; a held lead is routed now that its tier is known, and a
+ *     tier C lead that lost its broker gets the one honest lead_low_budget_held message.
+ *  3. W05 op finalize: a held booking whose email is verified is handed over now. Without a verified email or a held booking it
+ *     returns nothing, and the email-verify step runs the same finalize when the link is opened (band first or email first).
  */
 function finishPageBudget(t, ctx, actions, val) {
   t.stage = 'done';
+  const inBand = QUAL_BUDGET.has(val);
   actions.push({ kind: 'cancel_stall' });
-  actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], conv_state_state: NEXT_STATE.q_method } });
-  actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks, that helps the adviser prepare.' } });
+  actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], conv_state_state: NEXT_STATE.q_method, ...(inBand ? { qualified_at: ctx.at, stage: 'qualified' } : {}) } });
+  if (inBand) actions.push({ kind: 'send', message: { type: 'text', body: 'Thanks, that helps the adviser prepare.' } });
+  actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });
   actions.push({ kind: 'finalize_booking', op: 'finalize', lead_id: t.lead_id });
   return { thread: t, actions };
 }
@@ -370,4 +372,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { BUDGET_ROWS, BUDGET_ROWS_V2, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

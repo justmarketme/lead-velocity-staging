@@ -213,8 +213,11 @@ UPDATE public.leads
        broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE broker_id END,
        -- a qualified lead keeps nothing scheduled for deletion (lead-ad budget reminder sets reminder + 24 h; a tap in time clears it)
        retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after) END,
-       stage                  = coalesce($2::jsonb->>'stage', stage),
-       stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' THEN now() ELSE stage_entered_at END,
+       -- a stage only moves forward from the pre-booking stages (a lead a broker already booked is never pulled back to 'qualified' by a
+       -- late button tap); 'disqualified' / 'opted_out' may be written from any stage
+       stage                  = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))
+                                     THEN $2::jsonb->>'stage' ELSE stage END,
+       stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified')) THEN now() ELSE stage_entered_at END,
        -- I-48k: W03 writes leads.conv_state.state itself on every qualifying turn (W07 skips state on hand-off turns)
        conv_state             = CASE WHEN $2::jsonb ? 'conv_state_state'
                                      THEN coalesce(conv_state, '{}'::jsonb) || jsonb_build_object('state', $2::jsonb->>'conv_state_state', 'last_turn_at', now())

@@ -100,6 +100,11 @@ export const LOW_BUDGET_HOLD_DAYS = 7;
 // -> routing_reason held_no_wills_broker). Same nurture, booking, verification and counting rules otherwise.
 export const WILLS_ANGLES = new Set(['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']);
 export const PRODUCTS = new Set(['life_cover', 'wills']);
+// leads.source for every W01 lead. The live CHECK (leads_source_check) allows website_form, referral, campaign, cold_call, other,
+// 'Campaign Lead', 'Search Lead' and 'Ayanda Prospecting%'. W01 used to write 'LV Campaign', which that check rejects, so no web or
+// lead-ad lead could be inserted (found 2026-10-14 by automation/tests/quiz-v2-band.local.test.mjs). 'Campaign Lead' is the CRM's own
+// picklist value for a lead that came from a Lead Velocity campaign.
+export const LEAD_SOURCE = 'Campaign Lead';
 // Quiz v2 (lv-site a206f12, 2026-10-13): the landing page no longer asks the budget. It sends budget_pending: true and
 // help_with (the visitor's main reason, one of these). The band is asked later (WhatsApp / email-confirm page) and W05
 // hands the booking to the adviser only once it is known (contract 5.1(c), S2.2: a self-declared band is Required).
@@ -398,7 +403,7 @@ export function decide(sub, ctx) {
   const method = sub.preferred_method ?? null;
   const consentMode = ctx.consent_mode || sub.consent.mode || 'named';
   const row = {
-    id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: 'LV Campaign', is_synthetic: !!sub.is_synthetic, created_at: at,
+    id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: LEAD_SOURCE, is_synthetic: !!sub.is_synthetic, created_at: at,
     first_name: sub.first_name, phone: ctx.mobile, line_type: lt, language: sub.language ?? null,
     age_band: q.age_band ?? null, budget_band: q.budget_band ?? null, bond: q.bond ?? null, dependants: q.dependants ?? null, work_cover: q.work_cover ?? null,
     method_pref: method, angle: sub.angle ?? null, product_interest: productOf(sub.angle, sub.product_interest),
@@ -450,6 +455,16 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
+  if (pageBudgetPending) {
+    // Quiz v2: the band is the one thing the page did not ask. The first WhatsApp (< 60 s) is the approved qualify_budget
+    // template (budgetQuestion below), whether or not a broker is free right now. The tap comes back W07 -> W03 (state
+    // q_budget is a qualifying state, so no new W07 route) and W03 finishPageBudget records the band, routes a held lead and
+    // finalizes any held booking. help_with (the page's reason) stays in conv_state; no q_reason step is asked on WhatsApp.
+    row.conv_state = { state: 'q_budget', budget_pending: true, help_with: sub.help_with ?? null };
+    activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at,
+      idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: 'page', help_with: sub.help_with ?? null } });
+  }
+
   if (budgetPending) {
     // Not routed, not handed over, no CAPI Lead yet: routeExisting() sends Lead at the hand-over (held_* rule, I-49c).
     // The first WhatsApp (< 60 s, HBR) is the budget question; W07 sends the tap to W03 because conv_state is q_budget.
@@ -468,6 +483,7 @@ export function decide(sub, ctx) {
     // Lead now; routeExisting() sends it at the hand-over (held -> routed), same event_id, so Meta optimises on real leads.
     // Tier C held: one honest WhatsApp (we are checking which adviser can help at that budget), never a promise of a call.
     return { kind: 'insert', outcome: 'held', row, activities, first_touch: null, capi: null, mint_token: false,
+      budget_question: pageBudgetPending,
       notice: r.held === 'held_low_budget' ? lowBudgetHeld(row) : null,
       response: { http_status: 200, body: { ok: true, status: 'held', lead_id: row.id } } };
   }
@@ -475,14 +491,9 @@ export function decide(sub, ctx) {
   Object.assign(row, { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason });
   activities.push({ activity_type: 'routed', actor_type: 'system', occurred_at: at, idempotency_key: `w01:routed:${ctx.lead_id}`,
     payload: { broker_id: row.broker_id, reason: row.routing_reason, ...(pageBudgetPending ? { provisional_tier: 'B' } : {}) } });
-  if (pageBudgetPending) {
-    // q_reason: the WhatsApp reason step (spec section 3) comes next; W05 keeps any booking held until budget_band is set
-    row.conv_state = { state: 'q_reason', budget_pending: true, help_with: sub.help_with ?? null };
-    activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at,
-      idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: 'page', help_with: sub.help_with ?? null } });
-  }
+  // W05 keeps any booking held until budget_band is set (and the email verified)
   return {
-    kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page',
+    kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page', budget_question: pageBudgetPending,
     // routed_at is written in the same statement as the lead row; W06 is called only after that statement returns.
     first_touch: { workflow: 'W06', op: 'routed', lead_id: row.id, not_before: row.routed_at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
     response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id, methods_supported: b.methods_supported || ['whatsapp_call', 'phone'] } },

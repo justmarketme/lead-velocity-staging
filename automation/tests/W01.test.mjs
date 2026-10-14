@@ -47,6 +47,8 @@ const N = {
   inserted: 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)',
   leadAd: 'Lead ad -> submission (w01.normaliseLeadAd + screen)',
   route: 'Route (w01.routeExisting)',
+  bandIf: 'Quiz v2: ask the band on WhatsApp? (web lead, budget pending)',
+  bandQuestion: 'Budget question (w01.budgetQuestion)',
 };
 
 // ============================================================================================
@@ -67,7 +69,7 @@ function orderFields(brokerId, attachedNow) {
 }
 
 function offlineSystem() {
-  const db = { leads: new Map(), capi: [], jobs: [], activities: [], suppression: [], messages: [], events: [] };
+  const db = { leads: new Map(), capi: [], jobs: [], activities: [], suppression: [], messages: [], events: [], sends: [] };
   const brokersOf = (brand) => FIX.brokers.filter((b) => b.brand_id === brand).map((b) => ({ ...dbBroker(b), ...orderFields(b.broker_id, [...db.leads.values()].filter((l) => l.broker_id === b.broker_id).length) }));
 
   /** "Context: counters, prior lead, suppression, brokers" (the SQL, in memory; counts are taken before this request). */
@@ -118,6 +120,11 @@ function offlineSystem() {
       if (c && !db.capi.some((e) => e.event_id === c.event_id && e.event_name === c.event_name)) db.capi.push(c); // CAPI Send: unique(event_id, event_name)
       const ft = ins.json.first_touch;
       if (ft) db.jobs.push({ workflow: ft.workflow, lead_id: ft.lead_id, not_before: ft.not_before, op: ft.op });
+      // quiz v2 (2026-10-14): the branch "Quiz v2: ask the band on WhatsApp?" -> "Budget question (w01.budgetQuestion)" -> WhatsApp Send
+      if (ifBranch(RUN, N.bandIf, { json: ins.json })) {
+        const [bq] = await runCode(RUN, N.bandQuestion, { items: [ins.json], env });
+        db.sends.push(bq.json);
+      }
     }
     return { http: out.http, decision: out.decision, result: out.result };
   }
@@ -878,7 +885,7 @@ const v2Body = (over = {}) => {
   return { fx, sub: { ...s, budget_pending: true, help_with: 'review', product_interest: 'life_cover', ...over } };
 };
 
-test('quiz v2: a web lead with budget_pending is routed (not out of band), gets the lead_token for on-page booking, help_with kept in conv_state', async () => {
+test('quiz v2: a web lead with budget_pending is routed (not out of band), gets the lead_token, help_with kept in conv_state, and the band question goes out on WhatsApp', async () => {
   const { fx, sub } = v2Body();
   const sys = offlineSystem();
   const r = await sys.page(fx, { sub });
@@ -888,19 +895,38 @@ test('quiz v2: a web lead with budget_pending is routed (not out of band), gets 
   const l = (await sys.state(r.body.lead_id)).lead;
   assert.equal(l.broker_id, broker().broker_id); assert.equal(l.budget_band ?? null, null); assert.equal(l.disqualified_reason ?? null, null);
   assert.ok(!String(l.routing_reason).startsWith('held_'), 'routed, not held');
+  // the band question: the approved qualify_budget template through the shared sender, once (correlation); the W06 first touch is unchanged
+  assert.equal(sys.db.sends.length, 1);
+  const q = sys.db.sends[0];
+  assert.deepEqual([q.kind, q.template, q.to, q.lead_id, q.correlation], ['template', 'qualify_budget', l.phone, l.id, `w01:ask_budget:${l.id}`]);
+  assert.deepEqual(q.buttons.map((b) => b.quick_reply), W01.BUDGET_TAP_IDS, 'the template taps are W03 ids');
+  assert.deepEqual(sys.db.jobs.map((j) => [j.workflow, j.op]), [['W06', 'routed']], 'the disclosure first touch is still W06');
   // lib level: the same decision, with the conv_state and timeline entry the insert writes
   const s = W01.normaliseSubmission(sub, {});
   assert.deepEqual([s.budget_pending, s.help_with, s.product_interest, s.quiz.budget_band], [true, 'review', 'life_cover', null]);
   const d = W01.decide(s, tcCtx([tcBroker()]));
-  assert.deepEqual([d.kind, d.outcome, d.mint_token, d.first_touch.workflow], ['insert', 'accepted', true, 'W06']);
-  assert.deepEqual(d.row.conv_state, { state: 'q_reason', budget_pending: true, help_with: 'review' });
+  assert.deepEqual([d.kind, d.outcome, d.mint_token, d.first_touch.workflow, d.budget_question], ['insert', 'accepted', true, 'W06', true]);
+  assert.deepEqual(d.row.conv_state, { state: 'q_budget', budget_pending: true, help_with: 'review' }, 'q_budget is a qualifying state: W07 already sends the tap to W03');
+  assert.ok(W01.QUALIFYING_STATES.has(d.row.conv_state.state));
   assert.ok(d.activities.some((a) => a.activity_type === 'budget_question_pending' && a.payload.help_with === 'review'));
   assert.ok(d.activities.some((a) => a.activity_type === 'routed' && a.payload.provisional_tier === 'B'));
   assert.ok(d.capi, 'CAPI Lead at routing, as for any routed page lead');
-  // provisional tier B: any routable broker (no standing yes needed); no room -> held_no_capacity (not held_low_budget)
-  assert.equal(W01.decide(s, tcCtx([tcBroker({ order_remaining: 0 })])).row.routing_reason, 'held_no_capacity');
+  // provisional tier B: any routable broker (no standing yes needed); no room -> held_no_capacity (not held_low_budget) and the band is STILL asked
+  // (live today no broker is routable yet, so every v2 lead starts here)
+  const held = W01.decide(s, tcCtx([tcBroker({ order_remaining: 0 })]));
+  assert.deepEqual([held.outcome, held.row.routing_reason, held.budget_question, held.first_touch], ['held', 'held_no_capacity', true, null]);
+  assert.deepEqual(held.row.conv_state, { state: 'q_budget', budget_pending: true, help_with: 'review' });
+  assert.equal(held.response.body.status, 'held');
   // the insert SQL stores conv_state (the help_with home: no help_with column on public.leads, no DDL)
   assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /j->'conv_state'/);
+  // wiring: Inserted? -> IF -> the SAME nodes the lead-ad path uses -> smc-whatsapp-send
+  const to = (n) => (WF.connections[n]?.main || []).flat().map((c) => c.node);
+  assert.ok(to(N.inserted).includes(N.bandIf)); assert.deepEqual(to(N.bandIf), [N.bandQuestion]);
+  assert.deepEqual(to(N.bandQuestion), ['WhatsApp Send (qualify_budget)']);
+  assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp Send (qualify_budget)').parameters.workflowId.value, 'smc-whatsapp-send');
+  // not for v1 web leads (they send a band) and not for a suppressed number
+  assert.ok(!W01.decide(tcSub('750_1499'), tcCtx([tcBroker()])).budget_question, 'v1 web lead: no band question');
+  assert.ok(!W01.decide(s, { ...tcCtx([tcBroker()]), suppressed: true }).budget_question, 'suppressed: nothing is sent');
 });
 
 test('quiz v2: no-JS form strings ("true"), help_with whitelisted, product derived from help_with; no band and no flag is still out of band', () => {
@@ -938,36 +964,50 @@ test('quiz v2: the Meta instant-form path is unchanged (no band -> held_budget_p
   assert.equal(d.row.conv_state.help_with, undefined, 'help_with is a page field only');
 });
 
-test('quiz v2: the band arrives later via W03 -> recorded, the lead becomes offerable, W05 finalize hands the held booking over', async () => {
+test('quiz v2: the band arrives later on the qualify_budget template -> recorded, qualified, routed if held, W05 finalize hands the held booking over', async () => {
   const W5 = await import('../lib/w05.mjs');
   const d = W01.decide(W01.normaliseSubmission(v2Body().sub, {}), tcCtx([tcBroker()]));
-  // the WhatsApp reason step (spec section 3, not built yet) moves conv_state to q_budget; W07 sends the tap to W03
-  const lead = { ...d.row, conv_state: { ...d.row.conv_state, state: 'q_budget' } };
+  const lead = { ...d.row }; // conv_state is q_budget straight from W01
   const ctx = { at: TC_AT, mobile: lead.phone, brand: { brand_id: 'smc', consent_mode: 'generic' }, existing_open_lead_id: lead.id, lead, broker: null };
-  // the question a page lead sees is the 4-option v2 list, review wording
+  // the question a page lead sees on a re-ask is the template's five bands, forward-looking (never "what do you pay now")
   const t = W3.threadFromLead(lead);
-  assert.deepEqual([t.origin, t.budget_v2, t.review], ['page', true, true]);
+  assert.deepEqual([t.origin, t.stage, t.from_lead], ['page', 'q_budget', true]);
   const q = W3.question('q_budget', null, t);
-  assert.deepEqual(q.rows.map((r) => r.id), ['budget_lt750', 'budget_750_1499', 'budget_1500_plus', 'unsure']);
-  assert.match(q.body, /current monthly premium range/);
-  assert.match(W3.question('q_budget', null, { ...t, review: false }).body, /thinking about/);
-  const tapMsg = (id) => ({ type: 'interactive', interactive: { list_reply: { id } } });
-  const r = W3.step(null, tapMsg('budget_750_1499'), ctx);
+  assert.deepEqual(q.rows.map((r) => r.id), W01.BUDGET_TAP_IDS);
+  assert.doesNotMatch(q.body, /current|paying|premium/i);
+  // a template button arrives as { payload } (Twilio ButtonPayload through wa-provider normaliseTwilioInbound)
+  const tapMsg = (id) => ({ type: 'button', payload: id });
+  const r = W3.step(null, tapMsg('budget_750_1250'), ctx);
   const upd = r.actions.find((a) => a.kind === 'update_lead');
-  assert.deepEqual(upd.set, { budget_band: '750_1499', conv_state_state: 'unbooked' }, 'band recorded; stage and broker untouched');
+  assert.deepEqual(upd.set, { budget_band: '750_1250', conv_state_state: 'unbooked', qualified_at: TC_AT, stage: 'qualified' }, 'band recorded, lead qualified (age + reason came from the page)');
+  assert.deepEqual(r.actions.filter((a) => ['route_and_first_touch', 'finalize_booking'].includes(a.kind)).map((a) => a.kind), ['route_and_first_touch', 'finalize_booking'], 'route first (no-op when routed), then finalize');
   assert.deepEqual(r.actions.find((a) => a.kind === 'finalize_booking'), { kind: 'finalize_booking', op: 'finalize', lead_id: lead.id });
-  assert.ok(!r.actions.some((a) => a.kind === 'route_and_first_touch'), 'already routed: no second routing');
+  assert.equal(r.actions.find((a) => a.kind === 'send').message.body, 'Thanks, that helps the adviser prepare.');
+  // the routing core is a no-op for a lead that already has its broker
+  assert.equal(W01.routeExisting({ ...lead, suppressed: false }, { brokers: [tcBroker()], now: TC_NOW }).action, 'already_routed');
   // offerable: the lead now carries a tier and W05 hands over the held booking (email verified)
   const after = { ...lead, budget_band: upd.set.budget_band, email: 'a@gmail.com', email_verified: true };
   assert.equal(W01.tierOf(after.budget_band), 'B');
   const hold = { id: 'hv2', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'phone', booked_via: 'page', idempotency_key: 'page:v2:1', verify_by: '2026-10-14T10:00:00+02:00' };
   assert.equal(W5.finalizeRequest(hold, { ...after, budget_band: null }, TC_NOW), null, 'before the band: still held');
   assert.equal(W5.finalizeRequest(hold, after, TC_NOW).finalize_booking_id, 'hv2');
-  // other answers: R1,500+ (A), under R750 (tier C; the DB trigger re-holds it unless the broker has the standing yes); not sure -> one re-ask
-  const tap = (id) => W3.step(null, tapMsg(id), ctx).actions.find((a) => a.kind === 'update_lead').set;
-  assert.equal(tap('budget_1500_plus').budget_band, '1500_plus');
-  assert.equal(tap('budget_lt750').budget_band, 'lt750'); assert.equal(tap('budget_under_750').budget_band, 'lt750');
-  const u1 = W3.step(null, tapMsg('budget_not_sure'), ctx);
+  // every template button: R1,500+ (A), R1,250-R1,499, and the two under-R750 buttons (tier C: band only, never qualified, no thank-you;
+  // the database trigger re-holds it unless the broker has the standing yes, and route_and_first_touch sends the one honest held notice)
+  const tap = (id) => W3.step(null, tapMsg(id), ctx).actions;
+  assert.equal(tap('budget_1500_plus').find((a) => a.kind === 'update_lead').set.budget_band, '1500_plus');
+  assert.equal(tap('budget_1250_1499').find((a) => a.kind === 'update_lead').set.budget_band, '1250_1499');
+  for (const id of ['budget_under_500', 'budget_500_750']) {
+    const a = tap(id);
+    assert.deepEqual(a.find((x) => x.kind === 'update_lead').set, { budget_band: 'lt750', conv_state_state: 'unbooked' }, id);
+    assert.ok(!a.some((x) => x.kind === 'send'), 'tier C: no thank-you; the held notice (if held) is the one message');
+    assert.deepEqual(a.map((x) => x.kind).filter((k) => k === 'route_and_first_touch' || k === 'finalize_booking'), ['route_and_first_touch', 'finalize_booking']);
+  }
+  // not sure (typed through W07's NLU) -> one re-ask with the same five bands
+  const u1 = W3.step(null, { type: 'text', text: 'not sure' }, { ...ctx, typed: { slots: { budget_band: 'unsure' } } });
   assert.equal(u1.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget_clarify');
-  assert.deepEqual(u1.actions.find((a) => a.kind === 'send').message.rows.map((x) => x.id), q.rows.map((x) => x.id), 'the re-ask keeps the v2 list');
+  assert.deepEqual(u1.actions.find((a) => a.kind === 'send').message.rows.map((x) => x.id), q.rows.map((x) => x.id), 'the re-ask keeps the five bands');
+  // a held lead (no broker yet) is routed by the same action once the band is known
+  const heldLead = { ...lead, broker_id: null, routed_at: null, routing_reason: 'held_no_capacity' };
+  const hr = W01.routeExisting({ ...heldLead, budget_band: '750_1250', suppressed: false }, { brokers: [tcBroker()], now: TC_NOW });
+  assert.equal(hr.action, 'routed'); assert.equal(hr.first_touch.workflow, 'W06');
 });

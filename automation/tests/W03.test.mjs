@@ -355,14 +355,15 @@ test('I-47a: for a W07-owned lead the lead row wins over a stale rebuilt thread 
   assert.equal(r.thread.stage, 'q_budget');
 });
 
-// Quiz v2 (2026-10-13): every band code the page / WhatsApp lists send is accepted; the v2 4-option list never mixes with
-// the lead-ad qualify_budget rows; the band of a provisionally routed web lead triggers W05 op finalize.
-test('quiz v2 bands: 750_1499 qualifies (was missing), v2 ids map to DB codes, lead-ad rows unchanged; W03.json wiring', () => {
+// Quiz v2 (2026-10-14): every band code the page / WhatsApp sends is accepted; a web lead is asked with the approved
+// qualify_budget template, so there is ONE list (the template's five bands); the band triggers routing (held leads) and W05 finalize.
+test('quiz v2 bands: 750_1499 qualifies (was missing), ids map to DB codes, one list for lead-ad and web leads; W03.json wiring', () => {
   for (const v of ['750_1250', '750_1499', '1250_1499', '1500_plus']) assert.ok(W3.QUAL_BUDGET.has(v), v);
   assert.deepEqual(['lt750', 'under_750', '750_1499', '1500_plus'].map((v) => W3.BUDGET_TO_DB[v]), ['lt750', 'lt750', '750_1499', '1500_plus']);
-  assert.deepEqual(W3.BUDGET_ROWS_V2.map(([id]) => id), ['budget_lt750', 'budget_750_1499', 'budget_1500_plus', 'unsure']);
+  assert.equal(W3.BUDGET_ROWS_V2, undefined, 'no second band list: the approved template has the five bands');
   assert.deepEqual(W3.BUDGET_ROWS.map(([id]) => id), ['budget_under_500', 'budget_500_750', 'budget_750_1250', 'budget_1250_1499', 'budget_1500_plus'], 'qualify_budget template rows untouched');
-  assert.deepEqual(W3.question('q_budget').rows.map((r) => r.id), W3.BUDGET_ROWS.map(([id]) => id), 'no v2 flag -> the old list');
+  assert.deepEqual(W3.question('q_budget').rows.map((r) => r.id), W3.BUDGET_ROWS.map(([id]) => id));
+  assert.doesNotMatch(W3.question('q_budget').body, /current|paying|premium/i, 'forward-looking wording, never "what do you pay now"');
   // a CTWA lead answering R750-R1,499 (typed or tapped) is in band, not closed
   const t = { stage: 'q_budget', lead_id: 'lead_v2b', answers: { age_band: '35_44' } };
   const r = W3.step(t, { type: 'interactive', interactive: { list_reply: { id: 'budget_750_1499' } } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000188', brand: { brand_id: 'b1', consent_mode: 'generic' } });

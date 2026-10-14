@@ -209,7 +209,7 @@ RETURNING lead_id;`,
   n.push(code('Inserted? (a same-event_id race inserts nothing: answer, send nothing)', pos(13, 1),
 `const d = $('Kind?').first().json;
 const inserted = $input.all().some((i) => i.json && i.json.lead_id);
-return [{ json: { ...d, inserted, first_touch: inserted ? d.decision.first_touch : null, capi: inserted ? d.decision.capi : null, notice: inserted ? d.decision.notice || null : null } }];`));
+return [{ json: { ...d, inserted, first_touch: inserted ? d.decision.first_touch : null, capi: inserted ? d.decision.capi : null, notice: inserted ? d.decision.notice || null : null, budget_question: inserted && d.decision.budget_question === true } }];`));
   n.push(ifTrue('From the page? (respond)', pos(14, 0), "$json.from === 'page'"));
   n.push(ifTrue('No-JS form post? (303 to thanks)', pos(15, 0), '!!$json.redirect'));
   n.push(node('Respond 303 (no-JS form)', 'respondToWebhook', 1.1, pos(16, -1), { respondWith: 'noData', options: { responseCode: 303, responseHeaders: { entries: [{ name: 'Location', value: '={{ $json.redirect }}' }, { name: 'Cache-Control', value: 'no-store' }] } } }));
@@ -446,6 +446,12 @@ return $('Hand off or close?').all().filter((i) => i.json.type === 'close' && i.
   link(c, 'Hand off or close?', 'Close politely (only if still held) + timeline', 1);
   chain(c, 'Claim the hand-off (once per lead)', 'W06 input (low-budget hand-off, only rows just claimed)', 'W06 First touch (low-budget hand-off)');
   chain(c, 'Close politely (only if still held) + timeline', 'Close send input (only rows just closed)', 'WhatsApp Send (lead_low_budget_closed)');
+  // Quiz v2 (2026-10-14): a web lead that said budget_pending (routed provisionally, or held for want of a free broker) gets the
+  // approved qualify_budget template as its band question, through the SAME nodes the lead-ad path uses. Routed leads still get
+  // the W06 first touch as before; the tap returns W07 -> W03 (conv_state.state q_budget) and W03 records the band.
+  n.push(ifTrue('Quiz v2: ask the band on WhatsApp? (web lead, budget pending)', pos(17, 4), '$json.budget_question === true'));
+  link(c, 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)', 'Quiz v2: ask the band on WhatsApp? (web lead, budget pending)');
+  link(c, 'Quiz v2: ask the band on WhatsApp? (web lead, budget pending)', 'Budget question (w01.budgetQuestion)', 0);
   return wf('smc-w01', 'W01 Lead intake (web) (DRAFT pending GATE-TEST-W01)', n, c, ['SortMyCover', 'core-path', 'draft']);
 }
 
