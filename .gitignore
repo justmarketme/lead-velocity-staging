@@ -96,3 +96,32 @@ scripts/out/
 coverage/
 *.tsbuildinfo
 .deno/
+
+# --- Handover hygiene (release/smc-nurture) ---
+# Env: only .env.example is tracked (rules above); keep the local variants explicit too
+.env.local
+.env.*.local
+.vercel/
+.netlify/
+# Supabase CLI state
+supabase/.temp/
+supabase/.branches/
+# Local archives, upload bundles (e.g. smc-dist.zip) and scratch areas
+*.zip
+tmp/
+.tmp/
+scratch/
+scratchpad/
+# Agent / editor local state (shared agent definitions in .claude/agents/ stay tracked)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+# Test output, build output, logs, OS files
+build_output.txt
+ts_errors.txt
+playwright-report/
+test-results/
+coverage/
+Thumbs.db
+desktop.ini
+*.log

@@ -9,20 +9,16 @@ Allow: /pricing
 Allow: /promotions
 Allow: /contact
 Allow: /onboarding
-Allow: /broker-elite
 
 # Block admin and private routes from indexing
 Disallow: /admin
+Disallow: /console
+Disallow: /s/
+Disallow: /r/
+Disallow: /ask/
 Disallow: /dashboard
 Disallow: /login
-Disallow: /broker/dashboard
-Disallow: /broker/leads
-Disallow: /broker/reports
-Disallow: /broker/documents
-Disallow: /broker/calendar
-Disallow: /broker/upload
-Disallow: /broker/referrals
-Disallow: /broker/forgot-password
+Disallow: /broker
 Disallow: /reset-password
 Disallow: /notifications
 Disallow: /invite/
