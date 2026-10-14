@@ -10,6 +10,7 @@
 // PKCE without a table: code_verifier = HMAC(MS_OAUTH_STATE_SECRET, 'ms-pkce|' + nonce). The nonce travels in the signed
 // state; the verifier itself never leaves the server, so an intercepted code is useless without the secret.
 import { createHmac, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { Buffer } from 'node:buffer'; // Supabase edge runtime has no global Buffer
 
 export const LOGIN_HOST = 'https://login.microsoftonline.com';
 export const GRAPH = 'https://graph.microsoft.com/';

@@ -215,3 +215,9 @@ test('edge function source: stores the /me mailbox through smc_set_calendar_mail
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_set_calendar_mailbox\(uuid, text\) FROM PUBLIC, anon, authenticated/);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_set_calendar_mailbox\(uuid, text\) TO service_role/);
 });
+
+test('lib.mjs imports Buffer explicitly (Supabase edge runtime has no global Buffer: start() 500ed "Buffer is not defined")', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../../supabase/functions/ms-oauth/lib.mjs', import.meta.url), 'utf8');
+  assert.match(src, /import \{ Buffer \} from 'node:buffer'/);
+});
