@@ -3,6 +3,8 @@
 Status: site change built and tested on branch `site-research` (not deployed). The W01 change and the WhatsApp step below are **specs only**. Nothing in live n8n was edited.
 Date: 13 Oct 2026. Owner decision: Jono.
 
+**Update 14 Oct 2026 (as built).** The n8n part is deployed (lead-velocity-staging `release/smc-nurture` d1acf1a; runbook `docs/W01-QUIZ-V2-DEPLOY.md` there). Built: section 2a (W01 routes or holds the lead, W05 band gate, W03 band ids) and the WhatsApp band question in its smallest form: the approved `smc_qualify_budget` template (five buttons) goes out from W01 as soon as the lead is saved, routed or held; the tap sets the band, qualifies the lead, routes a held lead and finalizes a held booking. NOT built: the reason list and notes (section 3, message 1) and the 4-option session list (the template's five bands replace it); the reason is the page's `help_with`, kept in `leads.conv_state`. Section 4 (band on the email-confirm page) is not needed: the SMC sender is online. Site build: `smc-dist-v2.zip` from lv-site `site-research` 01984e5. Open: the page line "On WhatsApp we ask what you would like to talk about" (and the terms sentence on the reason) describes the reason step that is not built.
+
 ## 0. The rule (Jono, 13 Oct 2026)
 
 - The landing-page quiz never asks "how much are you paying" or "what are you comfortable paying". The R1,500 figure was internal research for finding the ideal client. It was never meant as a question for visitors.
