@@ -24,12 +24,13 @@ import { localPgBackend, startLocalPg, applyRepoMigrations, makeQuery } from './
 import * as W01 from '../lib/w01.mjs';
 import * as W5 from '../lib/w05.mjs';
 import * as S from '../lib/sub-whatsapp-send.mjs';
+import { evalParam } from './_n8ncode.mjs';
 
 const require = createRequire(import.meta.url);
 const W3 = require('../ctwa/w03.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (f) => JSON.parse(readFileSync(join(ROOT, 'automation', f), 'utf8'));
-const WF01 = load('W01.json'); const WF03 = load('W03.json'); const WF05 = load('W05.json');
+const WF01 = load('W01.json'); const WF03 = load('W03.json'); const WF05 = load('W05.json'); const WFS = load('SUB-whatsapp-send.json');
 const sqlOf = (wf, name) => { const n = wf.nodes.find((x) => x.name === name); assert.ok(n, `node ${name}`); return n.parameters.query; };
 const BACKEND = localPgBackend();
 const SQL_CONTEXT = sqlOf(WF01, 'Context: counters, prior lead, suppression, brokers');
@@ -40,6 +41,8 @@ const SQL_CORE_LOAD = sqlOf(WF01, 'Load CTWA lead + brokers');
 const SQL_CORE_WRITE = sqlOf(WF01, 'Write routing (only if not routed yet) + timeline');
 const SQL_FINALIZE = sqlOf(WF05, 'Load held slot + lead (finalize)');
 const SQL_RELEASE = sqlOf(WF05, 'Release held slots past verify_by (+ timeline)');
+const SENDER_LOAD = 'Load context (brand, suppression, window, template, duplicate)';
+const SENDER_RECORD = 'Record communications row (claim before the Graph call)';
 
 const PNID = '27600156480'; // brands.phone_number_id of SortMyCover (live), digits of the receiving sender
 const SIDS = { qualify_budget: 'HX5a0030506140a58a86e8611f15a5af64' };
@@ -50,6 +53,9 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   t.after(() => pg.stop());
   applyRepoMigrations(pg);
   const q = makeQuery(pg);
+  // Every workflow node's SQL runs as n8n_app, the role n8n connects as (no BYPASSRLS, only the grants and policies of the migrations);
+  // test setup and the CRM's own cron function run as the database owner.
+  const app = (sql, params) => q('SET ROLE n8n_app;\n' + sql, params);
   const uuid = () => crypto.randomUUID();
   const j = (cell) => (cell === undefined || cell === '' ? null : JSON.parse(cell));
   const BRAND = q("SELECT id FROM public.brands WHERE code = 'SMC'")[0][0];
@@ -63,7 +69,7 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   q(`INSERT INTO public.lead_orders (id, broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${ORDER}', '${BROKER}', 'synthetic SMC order', 30, 'paid', now(), '${BRAND}')`);
 
   // ---- helpers that run the workflows' own steps
-  const brokersFor = (mobile) => j(q(SQL_CONTEXT, ['', '', '', '', mobile, BRAND])[0][5]) || [];
+  const brokersFor = (mobile) => j(app(SQL_CONTEXT, ['', '', '', '', mobile, BRAND])[0][5]) || [];
   const quizBody = (mobile, over = {}) => ({
     first_name: 'Synthetic Nomsa', mobile, consent: true, consent_text: 'synthetic consent text', consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic',
     age_band: '35_44', budget_pending: true, help_with: 'review', product_interest: 'life_cover', lang: 'en', started_at: Date.now() - 60e3,
@@ -75,28 +81,28 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
     const d = W01.decide(sub, { now: Date.now(), line_type: 'mobile', mobile, lead_id: uuid(), brand_id: BRAND, brokers: brokersFor(mobile), consent_mode: 'generic' });
     if (d.kind !== 'insert') return { d };
     d.row.is_synthetic = true;
-    q(SQL_INSERT, [JSON.stringify(d.row), JSON.stringify(d.activities)]);
+    app(SQL_INSERT, [JSON.stringify(d.row), JSON.stringify(d.activities)]);
     return { d, id: d.row.id };
   };
   const lead = (id) => { const r = q(`SELECT to_jsonb(l) FROM public.leads l WHERE l.id = '${id}'`); return r[0] ? j(r[0][0]) : null; };
   const acts = (id) => q(`SELECT activity_type FROM public.lead_activities WHERE lead_id = '${id}' ORDER BY occurred_at, id`).map((r) => r[0]);
   /** a button tap from the qualify_budget template, through W03 "Load context" -> "W03 step" -> the action nodes */
   const tap = (mobile, leadId, buttonId) => {
-    const c = q(SQL_LOAD03, [PNID, mobile, leadId]);
+    const c = app(SQL_LOAD03, [PNID, mobile, leadId]);
     assert.equal(c.length, 1, 'W03 Load context returns one row');
     const [brand_id, broker, existing, leadRow, suppressed, thread] = [c[0][0], j(c[0][1]), c[0][2], j(c[0][3]), c[0][4], c[0][5]];
     assert.equal(brand_id, BRAND, 'the receiving number resolves to the SMC brand');
     assert.equal(existing, leadId, 'the open lead is found (W07 passed it, or the 90-day match)');
     const r = W3.step(thread || null, { type: 'button', payload: buttonId }, { at: new Date().toISOString(), mobile, profile_name: 'Synthetic', lead_id: uuid(), broker,
       brand: { brand_id, consent_mode: 'generic' }, existing_open_lead_id: existing, suppressed: suppressed === 't', wamid: `wamid-${uuid()}`, is_synthetic: false, lead: leadRow, typed: null, hops: 0, phone_number_id: PNID });
-    for (const a of r.actions) if (a.kind === 'update_lead') q(SQL_UPDATE03, [a.id, JSON.stringify(a.set)]);
+    for (const a of r.actions) if (a.kind === 'update_lead') app(SQL_UPDATE03, [a.id, JSON.stringify(a.set)]);
     return r.actions;
   };
   /** W01 core "route_and_first_touch": Load CTWA lead + brokers -> Route (w01.routeExisting) -> Write routing */
   const core = (leadId) => {
-    const row = q(SQL_CORE_LOAD, [leadId])[0];
+    const row = app(SQL_CORE_LOAD, [leadId])[0];
     const r = W01.routeExisting(j(row[0]), { brokers: j(row[1]) || [], now: Date.now() });
-    if (['routed', 'held'].includes(r.action)) q(SQL_CORE_WRITE, [leadId, JSON.stringify(r.update || { routing_reason: r.update && r.update.routing_reason })]);
+    if (['routed', 'held'].includes(r.action)) app(SQL_CORE_WRITE, [leadId, JSON.stringify(r.update || { routing_reason: r.update && r.update.routing_reason })]);
     return r;
   };
   let slotNo = 0; // one hour apart: the database forbids overlapping slots for one broker
@@ -106,7 +112,7 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
        VALUES ('${id}', '${over.broker || BROKER}', '${leadId}', '${BRAND}', now() + interval '2 days' + interval '${slotNo} hours', now() + interval '2 days 30 minutes' + interval '${slotNo} hours', 'pending_verification', now() + interval '1 day', 'phone', 'page', 'page:${leadId}:1')`);
     return id;
   };
-  const finalizeView = (leadId) => { const r = q(SQL_FINALIZE, [leadId, ''])[0]; return { hold: j(r[0]), lead: j(r[1]) }; };
+  const finalizeView = (leadId) => { const r = app(SQL_FINALIZE, [leadId, ''])[0]; return { hold: j(r[0]), lead: j(r[1]) }; };
   const verifyEmail = (leadId) => q(`UPDATE public.leads SET email = 'synthetic-${leadId.slice(0, 8)}@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'link' WHERE id = '${leadId}'`);
 
   // =========================================================================================== A: the whole chain
@@ -155,9 +161,9 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   // after the answer the state is no longer a qualifying one, so a late tap on the old message is not W03's (W07 owns it): nothing changes.
   // And the Update lead SQL never pulls a booked lead back to 'qualified' (forward-only stage guard), whoever asks.
   q(`UPDATE public.leads SET stage = 'booked' WHERE id = '${A.id}'`);
-  q(SQL_UPDATE03, [A.id, JSON.stringify({ budget_band: '1500_plus', qualified_at: new Date().toISOString(), stage: 'qualified' })]);
+  app(SQL_UPDATE03, [A.id, JSON.stringify({ budget_band: '1500_plus', qualified_at: new Date().toISOString(), stage: 'qualified' })]);
   assert.deepEqual([lead(A.id).stage, lead(A.id).budget_band], ['booked', '1500_plus'], 'band written, stage stays booked');
-  q(SQL_UPDATE03, [A.id, JSON.stringify({ stage: 'disqualified', disqualified_reason: 'age_band' })]);
+  app(SQL_UPDATE03, [A.id, JSON.stringify({ stage: 'disqualified', disqualified_reason: 'age_band' })]);
   assert.equal(lead(A.id).stage, 'disqualified', 'disqualified / opted_out may be written from any stage');
 
   // =========================================================================================== B: no free broker at intake
@@ -196,7 +202,7 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   assert.equal(q('SELECT public.appointment_request_sweep()')[0][0], '0', 'a held slot is not a request: the lead is already waiting on its time');
   // the hold times out (email never verified): the W05 release sweep cancels it ...
   q(`UPDATE public.appointments SET verify_by = now() - interval '1 minute' WHERE id = '${holdD}'`);
-  const released = q(SQL_RELEASE);
+  const released = app(SQL_RELEASE);
   assert.equal(released.length, 1, 'W05 released the hold');
   // ... and the CRM's 10-minute sweep turns the qualified, band-carrying lead into a request instead of letting it vanish
   assert.equal(q('SELECT public.appointment_request_sweep()')[0][0], '1');
@@ -206,6 +212,20 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   // a lead that never gave a band is NOT queued: nothing may reach a broker without it
   const E = postLead('+27820000105'); const holdE = hold(E.id);
   q(`UPDATE public.leads SET is_synthetic = false, stage_entered_at = now() - interval '1 hour' WHERE id = '${E.id}'`);
-  q(`UPDATE public.appointments SET verify_by = now() - interval '1 minute' WHERE id = '${holdE}'`); q(SQL_RELEASE);
+  q(`UPDATE public.appointments SET verify_by = now() - interval '1 minute' WHERE id = '${holdE}'`); app(SQL_RELEASE);
   assert.equal(q('SELECT public.appointment_request_sweep()')[0][0], '0', 'no band, not qualified, no request');
+
+  // =========================================================================================== F: the sender, as the role n8n really uses
+  // Everything above ran as the database owner. n8n connects as n8n_app (no BYPASSRLS), and the legacy policies on public.communications
+  // ("Admins can view/insert/update communications", TO public) read public.user_roles with the CALLER's privileges. Without
+  // SELECT on user_roles the first SQL step of smc-whatsapp-send fails with "permission denied for table user_roles" (seen live on
+  // 14 Oct, execution of the qualify_budget send). The migration 20261014010000_n8n_app_user_roles_select.sql fixes it.
+  const digits = MOBILE_A.replace(/\D/g, '');
+  const ctxRow = app(sqlOf(WFS, SENDER_LOAD), [A.id, '', digits, `w01:ask_budget:${A.id}`]);
+  assert.equal(ctxRow.length, 1, 'the sender can load its context as n8n_app');
+  assert.equal(ctxRow[0][0], BRAND);
+  const rec = app(sqlOf(WFS, SENDER_RECORD), evalParam(WFS, SENDER_RECORD, 'options.queryReplacement', { json: { ...dry, lead_id: A.id, brand_id: BRAND, to: digits } }));
+  assert.equal(rec.length, 1, 'the dry-run row is recorded as n8n_app');
+  const comm = q(`SELECT status, external_id, template_name, workflow FROM public.communications WHERE lead_id = '${A.id}'`);
+  assert.deepEqual(comm, [['pending', `dry:w01:ask_budget:${A.id}`, 'qualify_budget', 'smc-whatsapp-send']], 'communications row for the band question on the lead timeline (dry: nothing was sent)');
 });
