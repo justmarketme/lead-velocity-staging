@@ -11,7 +11,7 @@ He never appears in the broker portal, admin, console or auth pages.
 |---|---|
 | ElevenLabs agent | `agent_2501m4s6nhfveywrvw9961va7sp3` ("Einstein-77 (Lead Velocity)"), visible in Jono's ElevenLabs dashboard |
 | LLM | `glm-52`, hosted by ElevenLabs. Never Gemini or OpenAI. Temperature 0.3 |
-| Voice | **Einstein - Professor A** `CPXhqKTBUlO7LO3RX202`, made with ElevenLabs Voice Design (prompt: elderly German physics professor speaking English with a strong German accent). Replaced Helmut on 13 Oct 2026 because Jono heard Helmut as Afrikaans |
+| Voice | **Einstein - Younger D (50s)** `hqcrZxSL16M3vTD4fiT0`, made with ElevenLabs Voice Design on 14 Oct 2026 (prompt: German man, 55, deep warm voice, kind thoughtful engineer-turned-professor, strong German accent, steady pace, clear and vigorous, mature but not elderly, smooth with no tremor). Replaced Professor A (`CPXhqKTBUlO7LO3RX202`, "elderly professor") because Jono found it too old; Professor A had replaced Helmut on 13 Oct because Jono heard Helmut as Afrikaans |
 | TTS | Eleven v4 Turbo (`eleven_v4_turbo`), Expressive Mode on, stability 0.8 (stops accent drift), similarity 0.85, speed 0.98, ElevenLabs text normalisation |
 | Persona source | `supabase/functions/_shared/einstein_persona.ts` (branch `release/smc-nurture`) |
 | Turn length | Target under 50 words, hard cap 65 words per turn (persona rule 1 + `short_turns` evaluation) |
@@ -22,20 +22,48 @@ He never appears in the broker portal, admin, console or auth pages.
 
 ## Voice: candidates (to swap by ear)
 
-Re-auditioned 13 Oct 2026 after Jono said Helmut sounded Afrikaans. Library voices tagged "German" were checked through `eleven_v4_turbo` with a script that has no German words; most came out neutral British or South African (Klaus and Marshal read as South African; Helmut as neutral), so the shortlist leans on Voice Design voices built for a strong German accent. Samples (greeting + "Wonderful, ja, let us find a time that works"), all rendered with v4 Turbo at stability 0.8, are in `C:/tmp/einstein-voices-v2/`:
+**14 Oct 2026 round: make him younger.** Jono said Professor A (an "elderly professor" design) was a bit too old. Five new Voice Designs were made for a German man in his 50s, then compared with Professor A, Professors B and C, and 14 native German library voices reading Einstein's English. Everything was rendered through `eleven_v4_turbo` at stability 0.8 (the live settings). Each listening file holds three lines in a row: the real greeting, a plain-English line full of accent-revealing sounds (w, th, v, "Thursday"), and a witty line with a `[chuckles]` tag. Samples are in `C:/tmp/einstein-voices-v3/` (`0-` to `13-` mp3s; per-line renders in `renders/` and `native/`).
 
-| Rank | Voice | ID | File |
+| # | Voice | ID | File |
 |---|---|---|---|
-| 1 (live) | Einstein - Professor A (Voice Design) | `CPXhqKTBUlO7LO3RX202` | `1-Professor-A-design.mp3` |
-| 2 | Einstein - Professor B (Voice Design) | `ADVoJoQKqU8WzHvaJaAo` | `2-Professor-B-design.mp3` |
-| 3 | Potato - Earthy & Rooted (library, old, en/german) | `0pkdtmrxitYBWv6q9NJO` | `3-Potato.mp3` |
-| 4 | Einstein - Professor C (Voice Design) | `BLv8FOTq5ngQLrtElQcK` | `4-Professor-C-design.mp3` |
-| 5 | Marshal - Friendly, Funny Professor (library, en/german) | `nzeAacJi50IvxcyDnMXa` | `5-Marshal.mp3` |
-| previous | Helmut - Polite and Mild | `bRIX82ywyYryS8320ZVY` | `0-Helmut-previous.mp3` |
+| 1 (live) | **Einstein - Younger D (50s)** (Voice Design, strong accent, steady) | `hqcrZxSL16M3vTD4fiT0` | `1-Younger-D-LIVE.mp3` |
+| 2 | Einstein - Younger A (50s) ("clear German accent", coordinator's wording, smoothest voice) | `Ga9NjiruIWOmcPz6aeit` | `2-Younger-A.mp3` |
+| 3 | Einstein - Younger B (50s) (distinguished lecturer, "unmistakable" accent) | `TigEqOIz9jt72hnrVid2` | `3-Younger-B.mp3` |
+| 4 | Einstein - Younger C (50s) (charismatic, lowest-pitched design) | `p38Su6GTGV2aH19lfO0S` | `4-Younger-C.mp3` |
+| 5 | Einstein - Younger E (50s) (A's prompt, second take) | `RHOjtgmGvAfkwRwrhxlb` | `5-Younger-E.mp3` |
+| native | Thomas - Warm German Explainer (library, `de`) | `vv3bG6FrcGtmeOdRSriS` | `6-Native-Thomas-WarmExplainer.mp3` |
+| native | Moritz Wegner - Museums, City Tours & Guiding (library, `de`) | `PhufIH7nYh2Up1uej6aY` | `7-Native-Moritz-Wegner-Guide.mp3` |
+| native | Piet Convo - Thoughtful & Unscripted (library, `de`) | `2QhwfRSog8ArO9AfgYMU` | `8-Native-Piet-Convo.mp3` |
+| native | Hermann - Sympathetic and Trustworthy (library, `de`) | `b0JqlN5qkeuPi5BoQiHn` | `9-Native-Hermann-Sympathetic.mp3` |
+| native | Thomas - Authentic & Natural (library, `de`) | `5faieqDE3osz75KiOI2M` | `10-Native-Thomas-Authentic.mp3` |
+| previous | Einstein - Professor A (too old) | `CPXhqKTBUlO7LO3RX202` | `0-ProfessorA-previous.mp3` |
+| previous | Einstein - Professor B / C (13 Oct runners-up) | `ADVoJoQKqU8WzHvaJaAo` / `BLv8FOTq5ngQLrtElQcK` | `11-` / `12-` |
+| control | George (neutral English, for contrast) | `JBFqnCBsd6RMkjVDRZzb` | `13-Control-neutral-English-George.mp3` |
 
-Raw Voice Design previews are in `designs/`, neutral-script renders in `neutral/`. The `einstein-agent` routes `POST /voice-design` and `POST /voice-create` generate and save new designs.
+The 13 Oct runners-up (Potato `0pkdtmrxitYBWv6q9NJO`, Marshal `nzeAacJi50IvxcyDnMXa`, Helmut `bRIX82ywyYryS8320ZVY`) are unchanged; samples in `C:/tmp/einstein-voices-v2/`.
 
-To swap the voice, change `EINSTEIN_VOICE_ID` in `einstein-agent/index.ts` (the only place it is set; `sync-voice-agents` never touches Einstein) and redeploy, or set the Supabase secret `EINSTEIN_VOICE_ID`. Then run `/sync`.
+**What was measured (a computer cannot hear accent, so this is supporting evidence only):**
+
+| Voice | Pitch (median, Hz) | Speaking rate (words/s) | Pitch stability across identical renders |
+|---|---|---|---|
+| Professor A (previous) | 102 to 255 | 3.96 | Wanders by over 100 Hz between takes of the same line, so the voicing is irregular or creaky |
+| Professors B / C | 204 / 201 | 3.50 / 3.23 | not tested; both are the slowest voices |
+| Younger D (live) | 182 | 4.25 | within 7 Hz over 4 takes |
+| Younger A / B / C / E | 200 / 193 / 166 / 198 | 4.43 / 4.30 / 3.97 / 3.92 | within 9 / 8 / 13 / 12 Hz |
+| Native German voices (14 tested) | 103 to 170 | 3.7 to 4.6 | Thomas and Moritz (3 takes each): within 9 and 21 Hz |
+
+Younger D, A and B are faster, smoother (lower jitter, higher harmonics-to-noise) and far steadier than Professor A. Younger D was picked as the best blend of steady pitch, clear voicing and a prompt that asks for a *strong* accent (A's prompt only asked for a "clear" one).
+
+**Native German voices speaking English (Jono's question, 14 Oct):**
+
+- All 14 native voices read the English lines with no mispronunciation that a speech recogniser could detect (word error rate 0 on the plain-English line, same as the designed voices), so they are intelligible. Their pitch is a more typical adult-male 100 to 170 Hz.
+- Whether the *German accent* holds on English text, and whether it sounds natural on a phone line, could not be measured: a phoneme recogniser returned the same standard English sounds for every voice including the neutral control, so it cannot separate accents. **This needs Jono's ears.** Listen to files 6 to 10 against 1 to 5.
+- Settings that might change how a German-trained voice reads English were checked, not guessed. The agent language is `en` with no language presets, no multi-voice presets and no pronunciation dictionaries; `text_normalisation_type` is `elevenlabs` (emails and URLs only). The TTS `language_code` (en, de, or unset) made no measurable difference to duration, pitch or intelligibility for three voices (3 takes each; the `/tts` route now accepts `language_code`). Caveat: this was tested through the TTS API, because the live agent's own audio path cannot be exercised without a real call. Expressive tags work on v4 Turbo: `[chuckles]` produced an audible laugh and was never read aloud.
+- Wit comes from the persona prompt, not the voice. A fresh simulation after the change: when teased about the hair, the agent said "[Chuckles] Ha, the hair is there — the physics, not so much!" then booked the call; all four evaluations passed.
+- To try a native voice: a library voice renders through `/tts` as is, but the agent needs it in the workspace first. `POST /voice-add {public_owner_id, voice_id, name}` (owner ids from `GET /voices?language=de&gender=male&age=middle_aged`), then set `EINSTEIN_VOICE_ID` and `/sync`.
+- Persona wording still says "older professor with a gentle German accent" (`_shared/einstein_persona.ts`). The voice is now younger; the persona text was left unchanged on purpose. Change it if Jono wants the self-description to match.
+
+To swap the voice, change `EINSTEIN_VOICE_ID` in `einstein-agent/index.ts` (the only place it is set; `sync-voice-agents` never touches Einstein) and redeploy, or set the Supabase secret `EINSTEIN_VOICE_ID`. Then run `/sync` and check `GET /status` shows the new `tts.voice_id` with model `eleven_v4_turbo`, stability 0.8, similarity 0.85, speed 0.98.
 
 ## Tools (same bridge as Ayanda)
 
@@ -107,7 +135,10 @@ Optional: set the `JINA_API_KEY` secret for higher reader rate limits. Keyless a
 | `POST /kb-refresh` | See above |
 | `GET /status` (`?full=1`) | Live config plus KB doc names |
 | `GET /voices?accent=german&gender=male&age=old` | Voice-library search |
-| `POST /tts {voice_id?, text?, stability?}` | MP3 sample |
+| `POST /tts {voice_id?, text?, stability?, language_code?}` | MP3 sample (defaults: live voice, v4 Turbo, live settings) |
+| `POST /voice-design {voice_description, text?, guidance_scale?}` | Voice Design previews (base64 mp3 + `generated_voice_id`) |
+| `POST /voice-create {voice_name, voice_description, generated_voice_id}` | Save a preview as a workspace voice |
+| `POST /voice-add {public_owner_id, voice_id, name}` | Add a library voice to the workspace |
 | `POST /simulate` | ElevenLabs simulate-conversation (tools are mocked by ElevenLabs) |
 
 Get the service-role key with `npx supabase projects api-keys --project-ref cmsylaupctrbsvzrgzwy`.
@@ -137,6 +168,7 @@ Deploy with `npx supabase functions deploy einstein-agent --project-ref cmsylaup
   - a forged conversation returned 401.
 
   Ayanda's bridge path was re-checked: 6 slots.
+- **Voice change, 14 Oct 2026:** `/sync` then `GET /status` readback showed only `tts.voice_id` changed (model, stability 0.8, similarity 0.85, speed 0.98, expressive mode, LLM `glm-52`, temperature 0.3, language `en`, prompt, tools, KB all identical). A fresh `/simulate` run (teasing about the hair, then a full booking with tools mocked) passed all four evaluations, including a witty reply and `end_call`.
 - **KB refresh:**
   - Two crawls gave identical hashes.
   - A forced hash mismatch on `/about` replaced only that doc and deleted the old one.

@@ -27,11 +27,12 @@ const TOOLS_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/ayanda-
 
 // ElevenLabs-hosted LLM only (Jono's rule: never Gemini/OpenAI for voice agents).
 const EINSTEIN_LLM = "glm-52";
-// Voice: "Einstein - Professor A", made with ElevenLabs Voice Design ("elderly German professor speaking
-// English with a strong German accent"), 13 Oct 2026. Replaced Helmut (bRIX82ywyYryS8320ZVY), which Jono
-// heard as Afrikaans. Runners-up and samples in docs/EINSTEIN-AGENT.md. This constant is the ONLY place
-// Einstein's voice is set (sync-voice-agents never touches Einstein).
-export const EINSTEIN_VOICE_ID = Deno.env.get("EINSTEIN_VOICE_ID") || "CPXhqKTBUlO7LO3RX202";
+// Voice: "Einstein - Younger D (50s)", made with ElevenLabs Voice Design (prompt: German man, 55, deep warm voice,
+// kind thoughtful engineer-turned-professor, strong German accent, steady pace, clear and vigorous, mature but not
+// elderly), 14 Oct 2026. Replaced Professor A (CPXhqKTBUlO7LO3RX202, an "elderly professor" voice that Jono found too
+// old), which had replaced Helmut (bRIX82ywyYryS8320ZVY, heard as Afrikaans). Runners-up and samples in
+// docs/EINSTEIN-AGENT.md. This constant is the ONLY place Einstein's voice is set (sync-voice-agents never touches him).
+export const EINSTEIN_VOICE_ID = Deno.env.get("EINSTEIN_VOICE_ID") || "hqcrZxSL16M3vTD4fiT0";
 // High stability keeps the accent from drifting; v4 Turbo + Expressive Mode per Jono.
 const TTS = { model_id: "eleven_v4_turbo", expressive_mode: true, stability: 0.8, similarity_boost: 0.85, speed: 0.98 };
 
@@ -309,13 +310,14 @@ function parseForced(name: string): string {
 
 // ------------------------------------------------------------------ admin helpers
 
-async function tts(p: { voice_id?: string; text?: string; stability?: number; model_id?: string }) {
+async function tts(p: { voice_id?: string; text?: string; stability?: number; model_id?: string; language_code?: string }) {
   const res = await fetch(`${EL}/text-to-speech/${p.voice_id || EINSTEIN_VOICE_ID}?output_format=mp3_44100_128`, {
     method: "POST",
     headers: { "xi-api-key": env("ELEVENLABS_API_KEY"), "Content-Type": "application/json" },
     body: JSON.stringify({
       text: p.text || EINSTEIN_FIRST_MESSAGE,
       model_id: p.model_id || TTS.model_id,
+      ...(p.language_code ? { language_code: p.language_code } : {}),
       voice_settings: { stability: p.stability ?? TTS.stability, similarity_boost: TTS.similarity_boost, speed: TTS.speed },
     }),
   });
