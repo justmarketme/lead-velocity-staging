@@ -107,7 +107,7 @@ function buildW09() {
   sticky('W09 Reminder sequence (client), 4.6 item 6 + 4.12. DRAFT pending GATE-TEST-W09 (nodes stay "in progress" until Jonathan approves automation/tests/W09.test.mjs).\n' +
     'Logic: automation/lib/w09.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs). Jobs are lead_activities rows (activity_type reminder_job, idempotency_key w09:{booking}:{touch}:{at}); a job is finished by ONE append-only reminder_done row (key w09done:{job key}: sent / skipped / cancelled), so each touch is sent at most once even if two ticks overlap (ON CONFLICT DO NOTHING is the claim; no retry storm).\n' +
     'Entries (CONTRACTS.md "Sub-workflow interfaces"): schedule {booking_id} (W05) · rebuild {booking_id} (W10, W05 previous_booking_id) · cancel_all {booking_id|lead_id} (W10, W13, W15) · pause {lead_id, reason} (W07, W15) · resume {lead_id} (console) · taps confirm:{bk} / play_voice_note:{bk} / looking_forward:{bk} (W07) · tick (every 5 min; staging test hook passes {op:"tick", now, is_synthetic:true}, honoured only with TEST_HOOKS_ENABLED=true and only for synthetic leads).\n' +
-    'Sequence: what_to_expect T0+10 min · intro_media(_voice) T-48 h if booked >= 3 days out else T0+15 min (once per lead) · reminder_24h + prep_nudge T-24 h (skipped < 24 h ahead) · reminder_2h · reminder_10m. Quiet hours 20:00-08:00 SAST (reminder_10m exempt). Stops at send time on STOP, suppression, pause, booking moved/not live, meeting started, 12-message budget (reminders are essential).\n' +
+    'Sequence: what_to_expect T0+10 min · intro_media(_voice) T-48 h if booked >= 3 days out else T0+15 min (once per lead) · topic-aware reminder_24h T-24 h (skipped < 24 h ahead) · reminder_2h · reminder_10m. Quiet hours 20:00-08:00 SAST (reminder_10m exempt). Stops at send time on STOP, suppression, pause, booking moved/not live, meeting started, 12-message budget (reminders are essential).\n' +
     'Every lead send Meta accepts touches leads.last_contact_at (I-38d). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W05 / W07 / W10 / W13 / W15 / console', [0, 0]);
@@ -204,6 +204,7 @@ SELECT l.id, l.brand_id, l.broker_id, 'W09', 'admin', $2, jsonb_build_object('by
        j.payload->>'at' AS at, j.payload->>'start' AS start,
        a.status AS booking_status, a.appointment_date, a.method, a.call_number AS booking_call_number,
        l.first_name, l.phone, l.language, l.opted_out_at, l.call_number AS lead_call_number,
+       l.conv_state->>'help_with' AS help_with,
        b.adviser_name, b.contact_person, b.phone_number AS broker_phone, b.whatsapp_number AS broker_whatsapp, b.intro_video_url, b.intro_voice_url,
        br.domain,
        EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone)) AS suppressed,

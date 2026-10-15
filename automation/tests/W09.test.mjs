@@ -5,7 +5,7 @@
 // lands at the right moment, is sent exactly once, and stops the instant the lead says STOP or the booking moves.
 //   T0 + 10 min  what_to_expect
 //   T-48 h       intro_media (video; voice if no video) — if booked >= 3 days out, else straight after booking
-//   T-24 h       reminder_24h (Confirm / Reschedule) + prep_nudge
+//   T-24 h       topic-aware reminder_24h (Confirm / Reschedule)
 //   T-2 h        reminder_2h
 //   T-10 min     reminder_10m
 //   Booked < 24 h ahead -> compressed: no T-24 h touches.
@@ -175,12 +175,16 @@ test(`W09 [${MODE}] message budget: first touch + reminders + post-call touches 
   }
 });
 
-test(`W09 [${MODE}] reminder copy comes from the real templates (positive norm, Confirm/Reschedule, STOP line)`, () => {
-  const t24 = renderBody('reminder_24h', ['Lerato', 'Microsoft Teams', 'Mark Smith', '10:00']);
-  assert.ok(t24.includes('Most people find 30 minutes is all it takes'));
+test(`W09 [${MODE}] reminder names the chosen broad topic, uses the appointment date, and retains Confirm/Reschedule and STOP`, () => {
+  const t24 = renderBody('reminder_24h', ['Lerato', 'Microsoft Teams', 'Mark Smith', 'Tue 7 Oct at 10:00', R.topicReminder('life')]);
+  assert.ok(t24.includes('You mentioned life cover.'));
+  assert.ok(t24.includes('Tue 7 Oct at 10:00'));
+  assert.ok(!t24.includes('tomorrow'));
   assert.ok(t24.includes('Reply STOP to opt out.'));
   const btns = template('reminder_24h').components.find((c) => c.type === 'BUTTONS').buttons.map((b) => b.text);
   assert.deepEqual(btns, ['Confirm', 'Reschedule']);
+  assert.ok(R.topicReminder('wills').includes('wills'));
+  assert.ok(!R.topicReminder('unknown').includes('You mentioned'));
   for (const name of ['what_to_expect', 'reminder_2h', 'reminder_10m', 'prep_nudge', 'intro_media', 'intro_media_voice'])
     assert.equal(template(name).category, 'UTILITY', name);
 });
@@ -273,6 +277,17 @@ test('W09.json "Decide" node at send time: sends the right template; stops on ST
   assert.equal(await why({ booking_status: 'cancelled' }), 'booking_not_live');
   assert.equal(await why({ appointment_date: '2026-10-16T10:00:00+02:00' }), 'booking_moved');
   assert.equal(await why({}, '2026-10-15T10:00:00+02:00'), 'meeting_started');
+});
+
+test('W09 24-hour reminder uses the chosen broad topic and a neutral fallback when no topic was recorded', async () => {
+  const base = { touch: 'reminder_24h', template: 'reminder_24h', at: '2026-10-14T10:00:00+02:00' };
+  const selected = await due(dueRow({ ...base, help_with: 'life' }), base.at);
+  assert.equal(selected.action, 'send');
+  assert.equal(selected.send.wa.template.components[0].parameters.length, 5);
+  assert.match(selected.send.wa.template.components[0].parameters[4].text, /You mentioned life cover/);
+  const missing = await due(dueRow(base), base.at);
+  assert.doesNotMatch(missing.send.wa.template.components[0].parameters[4].text, /You mentioned/);
+  assert.match(node('Due jobs (pending, at <= now)').parameters.query, /conv_state->>'help_with' AS help_with/);
 });
 
 test('W09 quiet hours 20:00-08:00 SAST: a touch due at night waits to 08:00 (or is dropped if that is too close to the call); T-10 min is exempt', async () => {

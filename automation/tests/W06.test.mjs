@@ -289,7 +289,7 @@ test('W06 node "Plan card": slots card from the W04 list -> Cloud API template w
   const b = await plan({ op: 'booking', lead_id: l.id }, {}, { origin: 'page', booking: bk, first_name: 'Lerato' });
   assert.equal(b.plan.template, 'broker_intro_booked');
   assert.deepEqual(b.plan.variables, lead('L01').expected.W06.variables);
-  assert.deepEqual(b.wa.template.components.filter((c) => c.type === 'button').map((c) => c.sub_type), ['url', 'quick_reply', 'quick_reply']);
+  assert.deepEqual(b.wa.template.components.filter((c) => c.type === 'button'), [], 'the first booked-client card is an introduction, without booking controls');
 
   const f = await plan({ op: 'routed', lead_id: l.id }, {}, { origin: 'lead_ad', booking_ui: 'flow' });
   assert.equal(f.plan.template, 'broker_intro_slots_v2');

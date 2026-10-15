@@ -41,7 +41,7 @@ export const slotLabel = (t) => `${dateLabel(t)}, ${timeLabel(t)}`;
 // The approved BODY text of the three submitted templates (automation/templates/*.json). W06.test.mjs checks these
 // are byte-identical to the template files, so a template edit without a code edit fails the test.
 export const TEMPLATE_BODY = {
-  broker_intro_booked: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
+  broker_intro_booked: 'Hi {{1}}, meet *{{4}}* from *{{2}} (FSP {{3}})*, an authorised financial services provider. Here is his intro card ahead of your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
   broker_intro_slots: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below.\n1. {{5}}\n2. {{6}}\n3. {{7}}\nOur WhatsApp assistant uses AI. Reply STOP to opt out.',
   broker_intro_slots_v2: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
 };
@@ -120,7 +120,7 @@ export function planFirstTouch(l, b, ctx = {}) {
     return {
       template: 'broker_intro_booked', ...base,
       variables: [...common, METHOD_LABEL[ctx.booking.method] || ctx.booking.method, dateLabel(st), timeLabel(st)].map(cleanVar),
-      buttons: [{ type: 'url', param: ctx.booking.id }, { type: 'quick_reply', payload: `reschedule:${ctx.booking.id}` }, { type: 'quick_reply', payload: `cancel:${ctx.booking.id}` }],
+      buttons: [],
     };
   }
   if ((ctx.bookingUi ?? 'list') === 'flow') {
