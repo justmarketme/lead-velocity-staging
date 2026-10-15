@@ -76,9 +76,11 @@ function Body() {
         <h2>Your intro card</h2>
         <p className="muted">This is the picture leads get on WhatsApp the moment they book. Check it is right, then approve.</p>
         {latest?.url && latest.state !== "processing" ? (
-          <div style={{ position: "relative", overflow: "hidden", borderRadius: "var(--sm-radius-lg)" }}>
-            <img src={latest.url} alt={`Intro card for ${adviser}`} className="motion-reduce:transition-none"
-              style={{ display: "block", width: "100%", transition: "filter .5s, opacity .5s", ...(alreadyDone ? {} : { filter: "grayscale(1)", opacity: 0.5 }) }} />
+          <div className="group/card" tabIndex={!alreadyDone ? 0 : undefined}
+            aria-label={!alreadyDone ? "Preview your intro card in colour. Approval is still required." : undefined}
+            style={{ position: "relative", overflow: "hidden", borderRadius: "var(--sm-radius-lg)" }}>
+            <img src={latest.url} alt={`Intro card for ${adviser}`}
+              className={`block w-full transition-[filter,opacity] duration-500 motion-reduce:transition-none ${alreadyDone ? "" : "grayscale opacity-50 group-hover/card:grayscale-0 group-hover/card:opacity-100 group-focus/card:grayscale-0 group-focus/card:opacity-100"}`} />
             <ApprovalBand show={!alreadyDone} />
           </div>
         ) : (
@@ -92,6 +94,7 @@ function Body() {
             <span style={{ fontSize: 13, color: "var(--sm-accent)", fontWeight: 800 }}>30-min {methods || "Teams or phone"} call · No obligation</span>
           </div>
         )}
+        {latest?.url && latest.state !== "processing" && !alreadyDone && <p className="hint">Hover over the card or focus it with the keyboard to preview the colour. It stays unapproved until you switch on approval below.</p>}
         {latest?.state === "processing" && <p className="small">Updating your card…</p>}
         <FspVerifiedBadge check={broker.fsp_check} verifiedAt={broker.fsp_verified_at} skin="portal" />
         <BioReviewCard broker={broker} skin="portal" onDecided={() => { void reload(); }} onRewrite={() => { navigate("/broker/profile#bio"); focusWhenReady("bio"); }} />

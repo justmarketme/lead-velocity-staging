@@ -16,6 +16,7 @@
 // admin confirmed. Secrets: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, SMC_LEAD_TOKEN_SECRET,
 // MS_CLIENT_ID, MS_CLIENT_SECRET, SMC_TWILIO_ACCOUNT_SID, SMC_TWILIO_AUTH_TOKEN.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { configuredServiceCredential } from "../_shared/service_credential.ts";
 import {
   brokerInvite, cleanWindows, clientConfirmation, CONFIRM_LABEL, graphEventBody, leadSummary, sastDay, sastTime, verifyLeadToken,
   type InviteContext,
@@ -45,14 +46,7 @@ function bearer(req: Request): string {
   return (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
 }
 function isServiceRole(req: Request): boolean {
-  const t = bearer(req);
-  if (!t) return false;
-  if (t === env("SUPABASE_SERVICE_ROLE_KEY")) return true;
-  try {
-    return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role === "service_role";
-  } catch {
-    return false;
-  }
+  return configuredServiceCredential(bearer(req), env("SUPABASE_SERVICE_ROLE_KEY"));
 }
 /** A client that runs as the caller (auth.uid() in SQL = the admin), so the SQL admin check and the audit see the person. */
 function asCaller(req: Request): SupabaseClient {
