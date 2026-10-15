@@ -6,7 +6,6 @@ import { FaqItem, Reveal, Steps } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { HOME_FAQ, HOW_STEPS } from "@/content/shared";
 import { articlePath, articlesForHub, COVER_HUB, WILLS_HUB } from "@/content";
-import HeroVisual from "@/components/HeroVisual";
 
 /* Spec D.1, extended 11 Oct 2026: the home page presents the two calls SortMyCover books, a cover adviser call (life, disability,
    severe illness, income protection; never funeral cover) and a will and estate call with the will provider (config/site.json ->
@@ -44,11 +43,15 @@ export default function Home() {
               <p className="home-intro">A 30-minute call with a licensed financial adviser about life cover, disability, severe illness or income protection. A separate call connects people to a wills consultant.</p>
               <div className="home-actions"><Link to={BOOK_COVER} className="btn">{BOOK_LABEL} <span aria-hidden="true">↗</span></Link><a href="#h-how" className="home-how-link">How it works ↓</a></div>
             </div>
-            <HeroVisual />
+            <figure className="home-hero-photo">
+              <img src="/smc-conversation-hero-v2.webp" alt="Two people talking through questions together at home" width="1536" height="1024" fetchPriority="high" />
+              <figcaption>Illustrative AI-generated image</figcaption>
+            </figure>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 mt-8 md:mt-10 home-services" aria-label="Choose a call">
             <article className="svc-card" aria-labelledby="h-svc-cover">
+              <img className="svc-photo" src="/smc-conversation-hero-v2.webp" alt="Two people having a thoughtful conversation at home" loading="lazy" width="1536" height="1024" />
               <p className="svc-kicker">Cover adviser call</p>
               <h2 id="h-svc-cover">Talk to a cover adviser</h2>
               <p className="svc-who">With an adviser from an FSCA-authorised financial services provider. You get their name, practice and FSP number before you speak.</p>
@@ -60,6 +63,7 @@ export default function Home() {
             </article>
 
             <article className="svc-card" aria-labelledby="h-svc-wills">
+              <img className="svc-photo" src="/smc-wills-conversation-v1.webp" alt="Two adult family members discussing plans together" loading="lazy" width="1536" height="1024" />
               <p className="svc-kicker">Will and estate call</p>
               <h2 id="h-svc-wills">Get your will drafted</h2>
               <p className="svc-who" data-disclosure data-provider>With a consultant from {provider.legal_name}, {provider.status} (FSP {provider.fsp_number}). {PROVIDER_ROLE_LINE}</p>
@@ -73,6 +77,7 @@ export default function Home() {
               <p className="svc-fine" data-disclosure>{COST_LINE} {PROVIDER_COST_LINE}</p>
             </article>
           </div>
+          <p className="home-image-note">Images on this page are AI-generated illustrations of conversations, not clients or advisers.</p>
 
           <p className="mt-6 text-[15px] text-[#d7d2c8] max-w-[70ch]" data-disclosure>SortMyCover is run by Lead Velocity (Pty) Ltd, registration {company.registration}. Not a financial services provider. We give no advice. <a className="underline text-offwhite" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
           <p className="mt-2 text-[15px] text-[#d7d2c8] max-w-[70ch]">Questions? {site.whatsapp_number ? <>WhatsApp {site.whatsapp_number} or email</> : <>Email</>} <a className="underline text-offwhite" href={"mailto:" + company.email}>{company.email}</a>. We answer questions about how this works, not about cover or wills.</p>
