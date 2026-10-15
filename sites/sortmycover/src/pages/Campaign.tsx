@@ -50,13 +50,14 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
   const origin = campaignOrigin(hostLabel(angle));
   const wills = isWills(angle);
   return (
-    <>
+    <div className="smc-campaign">
       <Seo title={angle.title} description={angle.description} canonical={origin + "/"} robots="noindex,follow" />
       <a className="skip" href="#quiz">Skip to the booking</a>
       <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c9c3b8]">{COST_LINE}</small></div></header>
       <main id="main">
         <section className="hero-band on-dark">
           <div className="wrap-narrow py-8">
+            <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
             <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
             {angle.note && <p className="mt-3 text-[15px] text-[#c9c3b8] max-w-[44ch]" data-disclosure>{angle.note}</p>}
@@ -84,7 +85,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
       </main>
       <CampaignFooter feeLine={!wills} />
       <CampaignSticky />
-    </>
+    </div>
   );
 }
 

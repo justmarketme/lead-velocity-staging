@@ -28,7 +28,7 @@ export default function Home() {
   const cover = ordered(articlesForHub(COVER_HUB), COVER_ORDER);
   const wills = ordered(articlesForHub(WILLS_HUB), WILL_ORDER);
   return (
-    <>
+    <div className="smc-home">
       <Seo
         title="Cover adviser calls and wills | SortMyCover"
         description={`Book a 30-minute call with an adviser from an FSCA-authorised provider about life, disability, severe illness or income cover, or with ${provider.name} about your will.`}
@@ -39,14 +39,15 @@ export default function Home() {
         <div className="wrap py-10 md:py-14">
           <div className="grid gap-8 md:grid-cols-[1.3fr_1fr] items-center">
             <div>
-              <p className="eyebrow mb-3">Cover · Wills and estate</p>
-              <h1 className="text-[clamp(30px,6.5vw,50px)] leading-[1.06]">Talk to an adviser about your cover, <em className="not-italic text-amber">or get your will drafted.</em></h1>
-              <p className="mt-4 text-[18px] text-[#d7d2c8] max-w-[48ch]">SortMyCover books the call, at a time you pick. The adviser or consultant, not us, talks to you about your cover or your will.</p>
+              <p className="eyebrow mb-3">A conversation, not a quote.</p>
+              <h1 className="home-headline">Big life moments.<br /><em>A clearer conversation.</em></h1>
+              <p className="home-intro">A 30-minute call with a licensed financial adviser about life cover, disability, severe illness or income protection. A separate call connects people to a wills consultant.</p>
+              <div className="home-actions"><Link to={BOOK_COVER} className="btn">{BOOK_LABEL} <span aria-hidden="true">↗</span></Link><a href="#h-how" className="home-how-link">How it works ↓</a></div>
             </div>
             <HeroVisual />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 mt-8 md:mt-10" aria-label="Choose a call">
+          <div className="grid gap-4 md:grid-cols-2 mt-8 md:mt-10 home-services" aria-label="Choose a call">
             <article className="svc-card" aria-labelledby="h-svc-cover">
               <p className="svc-kicker">Cover adviser call</p>
               <h2 id="h-svc-cover">Talk to a cover adviser</h2>
@@ -163,6 +164,6 @@ export default function Home() {
           </div>
         </aside>
       </div>
-    </>
+    </div>
   );
 }
