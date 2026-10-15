@@ -20,7 +20,7 @@ import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
 import { profileErrorText } from "@/lib/brokerProfile";
 import HeadshotPicker from "./HeadshotPicker";
-import PreparedIntroCard from "./PreparedIntroCard";
+import PreparedIntroCard, { viewUrl } from "./PreparedIntroCard";
 import { BioReviewCard, FspVerifiedBadge } from "./LvReview";
 import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
 import { bioLocked, cardLocked } from "@/lib/changeRequests";
@@ -47,7 +47,16 @@ export const mediaKey = (stored: string | null | undefined): string | null => {
 
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "SC";
 
-interface MediaRow { id: string; kind: string; state: string; version: number; created_at: string; approved_at: string | null; ai_check: { reason?: string } | null }
+interface MediaRow {
+  id: string; kind: string; state: string; version: number; created_at: string; approved_at: string | null;
+  url: string | null; thumbnail_url: string | null;
+  ai_check: { reason?: string; source?: string; source_detail?: string } | null;
+}
+
+export function introVideoSource(aiCheck: MediaRow["ai_check"]): string | null {
+  if (aiCheck?.source_detail) return aiCheck.source_detail;
+  return aiCheck?.source === "whatsapp" ? "Sent directly by you on WhatsApp" : null;
+}
 
 // ------------------------------------------------------------------------------------------------ preview (WhatsApp)
 export function IntroCardPreview({ photo, adviser, practice, fsp, bio, languages, method = "Teams" }: {
@@ -101,6 +110,8 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [video, setVideo] = useState<MediaRow | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoPoster, setVideoPoster] = useState<string | null>(null);
   const [mediaUnavailable, setMediaUnavailable] = useState(false);
 
   // Signed URL for the stored headshot (private bucket, short-lived, re-signed on every load).
@@ -121,9 +132,17 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
 
   useEffect(() => {
     let alive = true;
-    void smcDb.from("broker_media").select("id, kind, state, version, created_at, approved_at, ai_check")
+    void smcDb.from("broker_media").select("id, kind, state, version, created_at, approved_at, url, thumbnail_url, ai_check")
       .eq("broker_id", broker.id).eq("kind", "video").order("created_at", { ascending: false }).limit(1)
-      .then(({ data, error }) => { if (!alive) return; setMediaUnavailable(!!error); setVideo(((data as MediaRow[] | null) || [])[0] || null); });
+      .then(async ({ data, error }) => {
+        if (!alive) return;
+        setMediaUnavailable(!!error);
+        const row = ((data as MediaRow[] | null) || [])[0] || null;
+        setVideo(row);
+        if (!row?.url) { setVideoUrl(null); setVideoPoster(null); return; }
+        const [url, poster] = await Promise.all([viewUrl(row.url), viewUrl(row.thumbnail_url)]);
+        if (alive) { setVideoUrl(url); setVideoPoster(poster); }
+      });
     return () => { alive = false; };
   }, [broker.id]);
 
@@ -199,7 +218,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
     processing: { text: "Processing your take", cls: c.info },
     ready: { text: "Ready: approve it", cls: c.warn },
     rejected: { text: "Needs another take", cls: c.bad },
-    approved: { text: "Approved: clients see it", cls: c.ok },
+    approved: { text: "Approved for client use", cls: c.ok },
     superseded: { text: "Replaced by a newer take", cls: c.info },
   };
 
@@ -299,14 +318,17 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <CardTitle className={`text-base flex items-center gap-2 ${c.title}`}><Video className="h-4 w-4" />Intro video (optional)</CardTitle>
               {videoState && <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${VIDEO_LABEL[videoState]?.cls || c.info}`}>{VIDEO_LABEL[videoState]?.text || videoState}</span>}
             </div>
-            <CardDescription className={c.muted}>A 25-second hello that clients get before the call. Not needed to go live.</CardDescription>
+            <CardDescription className={c.muted}>A short hello prepared for clients before the call. Not needed to go live.</CardDescription>
           </CardHeader>
           <CardContent className={`space-y-3 text-sm ${tone === "elite" ? "p-6 pt-0" : ""}`}>
+            {videoUrl && <video src={videoUrl} poster={videoPoster || undefined} controls playsInline preload="metadata" className="w-full rounded-xl bg-black" aria-label="Preview your intro video" />}
+            {video?.url && !videoUrl && <p className={c.muted}>The private video preview is unavailable right now. Please try again later.</p>}
+            {introVideoSource(video?.ai_check || null) && <p className={`text-xs ${c.muted}`}>Source: {introVideoSource(video?.ai_check || null)}</p>}
             {video?.state === "rejected" && video.ai_check?.reason && <p className={`rounded-lg px-3 py-2 text-xs ${c.bad}`}>{video.ai_check.reason}</p>}
             {video?.state === "ready" && <a className={`text-sm font-semibold ${c.link}`} href={approveUrl}>Watch and approve your video</a>}
             {video && <p className={`text-xs ${c.muted}`}>Latest take v{video.version}, {fmtDay(video.created_at)}.</p>}
             {/* Video intake (W07/W23) isn't switched on yet: don't ask brokers to send a video that nothing would process. */}
-            <p className={c.muted}>Video intros are coming soon. We'll let you know when you can record yours. You don't need one to go live.</p>
+            {!video && <p className={c.muted}>Video intros are coming soon. We'll let you know when you can record yours. You don't need one to go live.</p>}
           </CardContent>
         </Card>
       </div>
