@@ -99,7 +99,7 @@ const BrokerUpload = () => {
 
       const { error } = await supabase.from("leads").insert({
         broker_id: brokerId,
-        ...validatedData,
+        ...(validatedData as Required<typeof validatedData>),
         source: `${serviceIntent} | ${batchTag}`,
         current_status: "New",
       });
@@ -132,7 +132,7 @@ const BrokerUpload = () => {
 
       try {
         const validated = csvLeadSchema.parse(row);
-        valid.push(validated);
+        valid.push(validated as CSVParseResult['valid'][number]);
       } catch (err: any) {
         errors.push({ row: i + 1, message: "Invalid data format" });
       }

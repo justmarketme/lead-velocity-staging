@@ -8,7 +8,7 @@ interface BrokerOnboardingResponse {
     id: string;
     full_name: string | null;
     email: string | null;
-    phone: string | null;
+    phone?: string | null;
     phone_number: string | null;
     firm_name: string | null;
     company_name: string | null;

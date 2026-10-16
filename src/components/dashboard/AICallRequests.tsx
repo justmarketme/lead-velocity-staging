@@ -32,6 +32,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CallRecordingPlayer } from "@/components/communications/CallRecordingPlayer";
@@ -445,7 +446,7 @@ const CoachingSection = ({ requestId }: { requestId: string }) => {
 
   useEffect(() => {
     const fetchCoaching = async () => {
-      const { data } = await supabase
+      const { data } = await supabaseUntyped
         .from('call_coaching')
         .select('*')
         .eq('call_request_id', requestId)

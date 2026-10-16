@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { TIERS, ALL_PLANS, planByName, zar } from "@/lib/pricing";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   Card,
   CardContent,
@@ -131,7 +132,7 @@ const TeamManagement = () => {
             is_lead_loading: formData.isLeadLoading,
             lead_quota: formData.leadQuota,
             status: 'Active'
-          });
+          } as TablesInsert<'brokers'>); // lead_quota is not in the generated types (see report)
 
         if (brokerError) throw brokerError;
 

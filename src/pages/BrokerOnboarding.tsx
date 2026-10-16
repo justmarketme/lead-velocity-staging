@@ -190,12 +190,12 @@ const BrokerOnboarding = () => {
                 desiredLeadsWeekly: parseInt(budgetCapacityForm.desiredLeadsWeekly) || 10,
                 maxCapacityWeekly: parseInt(budgetCapacityForm.maxCapacityWeekly) || 20,
                 teamSize: budgetCapacityForm.teamSize as any,
-                productFocusClarity: targetMarketForm.idealClient, // Using ideal client description for product focus clarity
-                geographicFocusClarity: targetMarketForm.geographicFocus,
+                productFocusClarity: targetMarketForm.idealClient as OnboardingData['productFocusClarity'], // Using ideal client description for product focus clarity
+                geographicFocusClarity: targetMarketForm.geographicFocus as OnboardingData['geographicFocusClarity'],
                 crmUsage: systemsProcessForm.crmUsage as any,
                 speedToContact: systemsProcessForm.speedToContact as any,
                 followUpClarity: systemsProcessForm.followUpProcess as any,
-                growthGoalClarity: goalsTargetsForm.growthGoals,
+                growthGoalClarity: goalsTargetsForm.growthGoals as OnboardingData['growthGoalClarity'],
             };
 
             const results = calculateScores(scoringData);

@@ -19,7 +19,7 @@ interface BrokerInviteData {
     created_at: string;
     expires_at: string;
     used_at: string | null;
-    portal_type: 'referral' | 'marketing';
+    portal_type: string | null;
 }
 
 interface ResetRequestData {
@@ -484,7 +484,7 @@ const BrokerInvite = () => {
 
                                         <div className="flex items-center md:justify-center gap-2">
                                             <Badge variant="outline" className="text-[9px] h-5 px-1.5 font-bold tracking-wider">
-                                                {invite.portal_type.toUpperCase()}
+                                                {(invite.portal_type || '').toUpperCase()}
                                             </Badge>
                                             <span className="text-[10px] text-muted-foreground tabular-nums">
                                                 Ref: {invite.token.substring(0, 6)}...

@@ -217,7 +217,6 @@ const LeadUploadForm = () => {
           company: validated.company || undefined,
           role: validated.role || undefined,
           address: validated.address || undefined,
-          source: validated.source || undefined,
           date_uploaded: validated.date ? new Date(validated.date).toISOString() : undefined,
           notes: validated.notes || undefined,
         });

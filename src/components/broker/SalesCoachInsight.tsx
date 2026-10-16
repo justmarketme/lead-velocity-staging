@@ -14,6 +14,7 @@ import {
     User
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { format } from "date-fns";
 
 interface SalesCoachInsightProps {
@@ -26,7 +27,7 @@ const SalesCoachInsight = ({ brokerId }: SalesCoachInsightProps) => {
 
     useEffect(() => {
         const fetchCoaching = async () => {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseUntyped
                 .from('call_coaching')
                 .select('*, ai_call_requests(*)')
                 .eq('broker_id', brokerId)
