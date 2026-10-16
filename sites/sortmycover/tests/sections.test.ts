@@ -61,8 +61,15 @@ describe("evidence linkage", () => {
       for (const s of m.sources) expect(m.evidence!.some((id) => ev.find((x) => x.id === id)!.url === s.url), `${m.slug}: source ${s.url} has no evidence id`).toBe(true);
     });
   }
-  it("wills guides rest only on the will provider's own verified statements (cl-*)", () => {
-    for (const m of wills) for (const id of m.evidence!) expect(id, m.slug).toMatch(/^cl-/);
+  /* Jono, 16 Oct 2026: wills guides may cite other trustworthy players, not only the will provider. Allowed: the provider's own
+     statements (cl-*) and VERIFIED entries from regulators, government and industry bodies (SARS, the Master/Justice, FSCA, NCR,
+     SAnews, ASISA, the FPI, the Policyholder Protection Rules). Nothing unverified, nothing from a competing will provider. */
+  const TRUSTED = /^(cl|sars|master|justice|fsca|ncr|sanews|asisa|sam|fpi|ppr)-/;
+  it("wills guides rest on the will provider's statements or verified statements from a trusted public or industry source", () => {
+    for (const m of wills) for (const id of m.evidence!) {
+      expect(id, m.slug).toMatch(TRUSTED);
+      if (!id.startsWith("cl-")) expect(ev.find((x) => x.id === id)!.status, `${m.slug}: ${id}`).toBe("verified");
+    }
   });
   it("cover pages never rest on a will provider statement or a HOLD entry", () => {
     for (const m of cover) for (const id of m.evidence!) { expect(id, m.slug).not.toMatch(/^cl-/); expect(ev.find((x) => x.id === id)!.status).not.toBe("hold"); }

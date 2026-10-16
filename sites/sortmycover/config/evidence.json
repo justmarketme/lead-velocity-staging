@@ -391,5 +391,38 @@
     "checked": "2026-10-11",
     "status": "verified",
     "note": "Read at source on 11 Oct 2026 (desk research). 31 days, not the 30 days of the superseded 2004 rules. Re-check if COFI or a later PPR amendment changes rule 4."
+  },
+  {
+    "id": "sars-estate-duty",
+    "claim": "SARS Estate Duty page: estate duty is levied at 20% on the first R30 million of the dutiable value of an estate and 25% above R30 million; an abatement of R3.5 million is allowed against the net value of the estate; it is normally the executor who pays the duty; where a life policy is paid directly to a beneficiary, the estate duty attributable to that policy is payable by the beneficiary.",
+    "title": "Estate Duty",
+    "publisher": "South African Revenue Service (SARS)",
+    "url": "https://www.sars.gov.za/types-of-tax/estate-duty/",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Read at source on 16 Oct 2026 (page last updated 19 Aug 2026). The page does not describe the surviving-spouse deduction, so the site does not state it."
+  },
+  {
+    "id": "sanews-credit-life-regs",
+    "claim": "Government news agency (SAnews), 15 Feb 2017: the Credit Life Insurance Regulations cap the cost of credit life at R2 per R1,000 of the deferred amount on mortgage agreements and R4.50 per R1,000 on other credit agreements; cover must pay the outstanding debt on death or permanent disability, and pay instalments for up to 12 months on job loss; consumers who are not employed cannot be sold retrenchment cover.",
+    "title": "Credit life insurance regulations published",
+    "publisher": "SAnews (South African Government News Agency)",
+    "url": "https://www.sanews.gov.za/node/33855",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Read at source on 16 Oct 2026. The NCR has been reviewing the 2017 regulations; recheck before quoting the caps in any ad."
+  },
+  {
+    "id": "ncr-credit-life-substitution",
+    "claim": "National Credit Act 34 of 2005, section 106(4): a consumer may waive the credit insurance policy a credit provider proposes and substitute a policy of the consumer's own choice; the National Credit Regulator's guideline on the Credit Life Insurance Regulations restates that consumers must be told of this right.",
+    "title": "Guideline on the application of the Credit Life Insurance Regulations",
+    "publisher": "National Credit Regulator (NCR)",
+    "url": "https://www.ncr.org.za/documents/GUIDELINE%20ON%20THE%20APPLICATION%20OF%20THE%20CREDIT%20LIFE%20INSURANCE%20REGULATIONS.pdf",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Section text checked on Acts Online (acts.co.za/national-credit-act-2005/106__credit_insurance) on 16 Oct 2026."
   }
 ]

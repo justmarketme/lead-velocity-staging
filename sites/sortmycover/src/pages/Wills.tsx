@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import PageFrame from "@/components/PageFrame";
 import { FaqItem, Steps } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
+import { SCENES } from "@/content/imagery";
 import { BOOK_WILLS, COST_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, WILLS_BOOK_LABEL, provider, site } from "@/lib/site";
 import { WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { articlesForHub, hubFor, WILLS_HUB } from "@/content";
@@ -22,7 +23,7 @@ export default function Wills() {
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/wills/" }]}
       ctaKind="wills"
     >
-      <figure className="hub-photo"><img src="/smc-stock-wills.webp" alt="Two adults in conversation" width="1440" height="960" loading="eager" /></figure>
+      <figure className="hub-photo"><img src={SCENES.hubWills.src} alt={SCENES.hubWills.alt} width={SCENES.hubWills.w} height={SCENES.hubWills.h} loading="eager" /></figure>
       <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>
         {PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE} <a href={site.fsca_register_url} rel="noopener noreferrer">Look the firm up on the FSCA register</a>.
       </p>

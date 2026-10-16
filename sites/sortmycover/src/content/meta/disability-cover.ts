@@ -3,7 +3,7 @@ import { sourcesFrom } from "../evidence";
 
 export const meta: ArticleMeta = {
   slug: "disability-cover",
-  title: "Disability cover, in plain words",
+  title: "What is disability cover? Lump sum and income benefits in plain words",
   description:
     "The two kinds of disability cover, lump sum and income, how a policy defines disability, what it is not, and questions to ask an adviser. Information, not advice.",
   hub: 6,

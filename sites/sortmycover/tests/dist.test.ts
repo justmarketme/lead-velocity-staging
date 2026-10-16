@@ -18,8 +18,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (62 files) with real content", () => {
-    expect(pages.length).toBe(62);
+  it("renders every route (64 files) with real content", () => {
+    expect(pages.length).toBe(64); // 62 + the two search-led guides of 16 Oct 2026
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -83,7 +83,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
   });
   it("every article: answer block 40-60 words with the scope sentence, dateModified equals the visible last-reviewed date", () => {
     const arts = pages.filter((p) => /^(learn|wills|cover)\//.test(p.rel) && /data-answer/.test(p.html));
-    expect(arts.length).toBe(19);
+    expect(arts.length).toBe(21);
     for (const p of arts) {
       const ans = /<div class="answer-block" data-answer[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/.exec(p.html)![1].replace(/<[^>]+>/g, "");
       const n = ans.split(/\s+/).filter(Boolean).length;

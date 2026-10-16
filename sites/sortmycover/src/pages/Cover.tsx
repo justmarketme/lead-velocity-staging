@@ -5,6 +5,7 @@ import PageFrame from "@/components/PageFrame";
 import { Steps } from "@/components/Interactive";
 import { BOOK_COVER, BOOK_LABEL, COST_LINE, FEE_LINE, NO_COMMISSION } from "@/lib/site";
 import { HOW_STEPS } from "@/content/shared";
+import { SCENES } from "@/content/imagery";
 import { articlesForHub, COVER_HUB, hubFor } from "@/content";
 import { ArticleList } from "./Learn";
 
@@ -20,7 +21,7 @@ export default function Cover() {
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/cover/" }]}
       ctaKind="cover"
     >
-      <figure className="hub-photo"><img src="/smc-stock-couple.webp" alt="Two adults talking together at home" width="1440" height="960" loading="eager" /></figure>
+      <figure className="hub-photo"><img src={SCENES.hubCover.src} alt={SCENES.hubCover.alt} width={SCENES.hubCover.w} height={SCENES.hubCover.h} loading="eager" /></figure>
       <ArticleList items={articlesForHub(COVER_HUB)} />
       <p className="mt-4">The words used on these pages are defined in the <Link to="/learn/glossary/">glossary</Link>.</p>
 

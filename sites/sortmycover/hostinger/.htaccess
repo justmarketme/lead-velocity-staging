@@ -95,7 +95,7 @@ RewriteRule ^thanks/?$ /_c/where-is-the-will/thanks/index.html [L]
 RewriteCond %{HTTP_HOST} ^[a-z0-9-]+\.sortmycover\.co\.za$ [NC]
 RewriteRule ^sitemap\.xml$ - [R=404,L]
 RewriteCond %{HTTP_HOST} ^[a-z0-9-]+\.sortmycover\.co\.za$ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/)
+RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\.(webp|avif|jpg|png)$)
 RewriteRule ^(.+)$ https://sortmycover.co.za/$1 [L,R=307]
 </IfModule>
 
@@ -114,7 +114,7 @@ Header always set X-Robots-Tag "noindex, nofollow" env=CAMPAIGN_HOST
 <FilesMatch "\.(js|css|woff2)$">
   Header set Cache-Control "public, max-age=31536000, immutable"
 </FilesMatch>
-<FilesMatch "\.(png|ico|svg|webmanifest)$">
+<FilesMatch "\.(png|webp|avif|jpg|ico|svg|webmanifest)$">
   Header set Cache-Control "public, max-age=86400"
 </FilesMatch>
 </IfModule>

@@ -305,7 +305,7 @@
       "continue": true
     },
     {
-      "src": "/(.*)\\.(png|ico|svg|webmanifest)",
+      "src": "/(.*)\\.(png|webp|avif|jpg|ico|svg|webmanifest)",
       "headers": {
         "Cache-Control": "public, max-age=86400"
       },

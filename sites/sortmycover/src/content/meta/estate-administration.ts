@@ -3,7 +3,7 @@ import { sourcesFrom } from "../evidence";
 
 export const meta: ArticleMeta = {
   slug: "estate-administration",
-  title: "What estate administration involves",
+  title: "What an executor does: estate administration in plain words",
   description:
     "The steps an executor follows after a death, as the will provider lists them: reporting the estate, Letters of Executorship, the L&D account and distribution.",
   hub: 5,

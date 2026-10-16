@@ -3,7 +3,7 @@ import { sourcesFrom } from "../evidence";
 
 export const meta: ArticleMeta = {
   slug: "income-protection",
-  title: "Income protection, in plain words",
+  title: "What is income protection insurance? Salary protection in plain words",
   description:
     "What income protection is, how the waiting period works, temporary and permanent benefits, what it is not, and questions to ask an adviser. Not advice.",
   hub: 6,

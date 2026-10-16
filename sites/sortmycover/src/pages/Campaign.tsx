@@ -10,6 +10,7 @@ import { Inline } from "@/lib/inline";
 import { CAMPAIGN_FAQ, HOW_STEPS, WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { h1Segments, hostLabel, type Angle } from "@/campaigns";
 import { slideIn, watchInView } from "@/lib/motion";
+import { CAMPAIGN_SCENES } from "@/content/imagery";
 import { productForTheme } from "@/lib/quiz";
 
 /** Sticky CTA (spec C.1): shown only after the quiz card has left the viewport upwards, hidden while the card is on screen and at the footer. */
@@ -45,11 +46,7 @@ const proofMonth = (ym: string) => { const [y, m] = ym.split("-"); return MONTHS
 
 /** Theme B (wills and estate) pages name the will provider and say what SortMyCover does not do. */
 const isWills = (a: Angle) => a.theme === "B";
-const campaignImage = (a: Angle) => isWills(a)
-  ? a.slug === "children-guardian" ? "/smc-stock-family.webp" : "/smc-stock-wills.webp"
-  : a.slug === "new-baby" ? "/smc-stock-family.webp"
-  : a.slug === "new-bond" ? "/smc-stock-hero.webp"
-  : "/smc-stock-couple.webp";
+const campaignImage = (a: Angle) => CAMPAIGN_SCENES[a.slug];
 
 export function CampaignLanding({ angle }: { angle: Angle }) {
   const origin = campaignOrigin(hostLabel(angle));
@@ -75,7 +72,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
             )}
             </div>
             <figure className="campaign-hero-photo">
-              <img src={campaignImage(angle)} alt="People sharing a conversation at home" width="1440" height="960" fetchPriority="high" />
+              <img src={campaignImage(angle).src} alt={campaignImage(angle).alt} width={campaignImage(angle).w} height={campaignImage(angle).h} fetchPriority="high" />
             </figure>
           </div>
         </section>

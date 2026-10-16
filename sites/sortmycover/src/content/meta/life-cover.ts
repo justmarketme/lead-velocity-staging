@@ -5,7 +5,7 @@ import { sourcesFrom } from "../evidence";
    No product, insurer, price or amount is named, and nothing says what anyone needs (rules S9 to S14). No funeral cover. */
 export const meta: ArticleMeta = {
   slug: "life-cover",
-  title: "Life cover, in plain words",
+  title: "What is life cover? Life insurance in plain words",
   description:
     "What life cover is, who receives the money, what it is not, how insurers decide on cover, and questions to ask an adviser. Information, not advice.",
   hub: 6,
