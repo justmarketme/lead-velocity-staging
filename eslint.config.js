@@ -23,4 +23,12 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    // n8n Code-node bodies: the node wraps them in a function, so a top-level `return` is valid.
+    files: ["optimisation/n8n-code/**/*.js"],
+    languageOptions: {
+      sourceType: "script",
+      parserOptions: { ecmaFeatures: { globalReturn: true } },
+    },
+  },
 );

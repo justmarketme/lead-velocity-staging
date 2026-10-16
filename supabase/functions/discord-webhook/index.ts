@@ -1,4 +1,5 @@
 // deno-lint-ignore-file
+/* eslint-disable @typescript-eslint/ban-ts-comment -- Deno URL imports/globals are unresolved by the Node TS server; ts-expect-error would fail under `deno check` where they do resolve. */
 /// <reference lib="deno.ns" />
 // @ts-ignore
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";

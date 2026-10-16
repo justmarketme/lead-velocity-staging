@@ -3,6 +3,7 @@
 // (via src/lib/contract/agreement.ts). Plan numbers: src/lib/pricing.ts. This screen only fills the
 // template's [PLACEHOLDERS] and picks the Plan; it never edits clause text. No commission, success fee
 // or any payment linked to a policy, premium or sale exists anywhere in the agreement (clause 8.3).
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, Printer, AudioLines, Bot, Download, FileText, Mail, Maximize, Mic, Monitor, Paperclip, Save, SendHorizonal, X, ZoomIn, ZoomOut } from "lucide-react";
@@ -220,8 +221,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
 
     const toggleListening = () => {
         if (isListening) { setIsListening(false); return; }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported.", variant: "destructive" });
             return;
@@ -229,7 +229,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         const recognition = new SpeechRecognition();
         recognition.lang = "en-ZA";
         recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);

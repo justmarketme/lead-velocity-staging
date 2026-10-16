@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -468,8 +469,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     const toggleListening = () => {
         if (isListening) { setIsListening(false); return; }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported.", variant: "destructive" });
             return;
@@ -477,7 +477,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         const recognition = new SpeechRecognition();
         recognition.lang = 'en-ZA';
         recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);

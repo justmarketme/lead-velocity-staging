@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike, type SpeechRecognitionLike } from "@/lib/speechRecognition";
 import { useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { X, Send, Rocket, Sparkles, Mic, AudioLines, Minimize2, Maximize2, Bot, User, Loader2, PhoneOff } from "lucide-react";
@@ -40,7 +41,7 @@ export function ChatBot() {
     const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
     const conversationRef = useRef<VoiceConversation | null>(null);
 
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
     const location = useLocation();
     const { messages, isLoading, sendMessage, addMessage, scrollRef } = useChatbot();
 
@@ -67,7 +68,7 @@ export function ChatBot() {
             return;
         }
 
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             alert("Speech-to-text is not supported in this browser. Try Chrome or Edge.");
             return;
@@ -80,7 +81,7 @@ export function ChatBot() {
         const originalInput = input;
 
         recognition.onstart = () => setIsListening(true);
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             let currentTranscript = "";
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 currentTranscript += event.results[i][0].transcript;
@@ -107,7 +108,7 @@ export function ChatBot() {
         return () => {
             stopVoiceSession();
             if (recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch { }
+                try { recognitionRef.current.stop(); } catch { /* already stopped */ }
             }
         };
     }, [stopVoiceSession]);

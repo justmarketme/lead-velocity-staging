@@ -176,8 +176,7 @@ const BrokerAnalysisDashboard = () => {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            // @ts-ignore
-            setAnalyses((data || []) as BrokerAnalysis[]);
+            setAnalyses((data || []) as unknown as BrokerAnalysis[]);
         } catch (error: any) {
             toast({
                 title: "Error fetching analyses",
