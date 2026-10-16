@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { communicationEmail } from "../_shared/lv_emails.ts";
+import { smcCommunicationEmail, smcLeadIds, SMC_FROM, SMC_REPLY_TO } from "../_shared/smc_email.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,7 +87,11 @@ serve(async (req) => {
 
     switch (channel) {
       case 'email':
-        result = await sendEmail(recipient_contact, subject || 'Message from Lead Velocity', content || '', attachments);
+        {
+          // SortMyCover leads get the SortMyCover layout from hello@sortmycover.co.za; everyone else is unchanged.
+          const isSmc = recipient_type === 'lead' && !!lead_id && (await smcLeadIds(supabase, [lead_id])).has(lead_id);
+          result = await sendEmail(recipient_contact, subject || (isSmc ? 'Message from SortMyCover' : 'Message from Lead Velocity'), content || '', attachments, isSmc);
+        }
         break;
       case 'sms':
         result = await sendSMS(recipient_contact, content || '');
@@ -204,7 +209,7 @@ serve(async (req) => {
   }
 });
 
-async function sendEmail(to: string, subject: string, content: string, attachments?: any[]) {
+async function sendEmail(to: string, subject: string, content: string, attachments?: any[], smc = false) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (!resendApiKey) {
     return { success: false, error: 'RESEND_API_KEY not configured' };
@@ -212,9 +217,10 @@ async function sendEmail(to: string, subject: string, content: string, attachmen
 
   try {
     // Lead Velocity layout; the CRM sends plain text (compose box) or simple HTML (invoices, contracts, proposals).
-    const mail = communicationEmail({ content, subject });
+    const mail = smc ? smcCommunicationEmail({ content, subject }) : communicationEmail({ content, subject });
     const payload: any = {
-      from: 'Lead Velocity <howzit@leadvelocity.co.za>',
+      from: smc ? SMC_FROM : 'Lead Velocity <howzit@leadvelocity.co.za>',
+      ...(smc ? { reply_to: SMC_REPLY_TO } : {}),
       to: [to],
       subject: mail.subject,
       html: mail.html,
