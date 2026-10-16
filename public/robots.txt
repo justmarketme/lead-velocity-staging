@@ -17,7 +17,6 @@ Disallow: /s/
 Disallow: /r/
 Disallow: /ask/
 Disallow: /dashboard
-Disallow: /login
 Disallow: /broker
 Disallow: /reset-password
 Disallow: /notifications

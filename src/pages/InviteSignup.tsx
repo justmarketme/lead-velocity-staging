@@ -154,7 +154,7 @@ const InviteSignup = () => {
 
       // Redirect to login page after a delay
       setTimeout(() => {
-        navigate("/login", { state: { message: "Please verify your email before logging in." } });
+        navigate("/admin", { state: { message: "Please verify your email before logging in." } });
       }, 2000);
     } catch (error: any) {
       console.error("Signup error:", error);
@@ -205,8 +205,8 @@ const InviteSignup = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => navigate("/login")}>
-              Go to Login
+            <Button className="w-full" onClick={() => navigate("/admin")}>
+              Go to Admin Sign In
             </Button>
           </CardContent>
         </Card>
@@ -229,10 +229,10 @@ const InviteSignup = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate("/admin")}
                   className="mt-2"
                 >
-                  Go to Login
+                  Go to Admin Sign In
                 </Button>
               </div>
             </div>

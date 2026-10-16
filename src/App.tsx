@@ -9,7 +9,6 @@ import Services from "./pages/Services";
 import SpecializedServices from "./pages/SpecializedServices";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
 import Dashboard from "./pages/Dashboard";
 import BrokerPortal from "./pages/BrokerPortal";
@@ -94,7 +93,7 @@ const App = () => {
             <Route path="/specialized-services" element={<SpecializedServices />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/broker" element={<BrokerPortal />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<Navigate to="/admin" replace />} />
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/broker/dashboard" element={<BrokerDashboard />} />
