@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
-import { z } from "zod";
+import { parseRecoveryParams, passwordStrength, postResetDestination, validateNewPassword, verifyFailureIsFinal } from "@/lib/passwordReset";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import { Check, Eye, EyeOff } from "lucide-react";
@@ -11,23 +11,6 @@ import { BrokerMotion, EASE, Stagger, StaggerItem } from "@/components/broker/mo
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const passwordSchema = z.object({
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
-
-/** 0–4: length, then variety. Shown as a bar; the only hard rule is the 8-character minimum. */
-function strength(pw: string) {
-  if (pw.length < 8) return pw.length ? 1 : 0;
-  let score = 2;
-  if (pw.length >= 12) score++;
-  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  return Math.min(score, 4);
-}
 const STRENGTH = [
   { label: "", color: "bg-slate-800" },
   { label: "Too short", color: "bg-rose-500" },
@@ -63,18 +46,25 @@ const ResetPassword = () => {
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const link = parseRecoveryParams(location.search, location.hash);
+
+    // Never leave a one-time token, code or access token in the address bar, history or Referer.
+    // The token is kept in state; the supabase client has already read any hash session.
+    const portal = query.get("portal");
+    const scrubUrl = () => window.history.replaceState(null, "", location.pathname + (portal === "admin" ? "?portal=admin" : ""));
 
     // Supabase puts link errors (expired / already used) in the hash or query.
-    if (hash.get("error") || query.get("error")) {
+    if (link.kind === "error") {
+      scrubUrl();
       setCheckingSession(false);
       return;
     }
 
-    const th = query.get("token_hash");
-    if (th && (query.get("type") || "recovery") === "recovery") {
-      setTokenHash(th);
+    if (link.kind === "token_hash") {
+      setTokenHash(link.tokenHash);
       setIsValidSession(true);
       setCheckingSession(false);
+      scrubUrl();
       return;
     }
 
@@ -85,9 +75,8 @@ const ResetPassword = () => {
     });
 
     (async () => {
-      const code = query.get("code");
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (link.kind === "code") {
+        const { error } = await supabase.auth.exchangeCodeForSession(link.code);
         if (!error) setIsValidSession(true);
       }
       // Implicit-flow links (#access_token=…&type=recovery) fire PASSWORD_RECOVERY during client init.
@@ -97,6 +86,7 @@ const ResetPassword = () => {
       if (hash.get("type") === "recovery" && session && session.access_token === hash.get("access_token")) setIsValidSession(true);
       if (session?.user?.user_metadata?.must_reset_password === true) setIsValidSession(true);
       setCheckingSession(false);
+      if (hash.get("access_token") || query.get("code")) scrubUrl();
     })();
 
     return () => subscription.unsubscribe();
@@ -105,9 +95,9 @@ const ResetPassword = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = passwordSchema.safeParse({ password, confirmPassword });
-    if (!parsed.success) {
-      toast({ title: "Check your password", description: parsed.error.errors[0].message, variant: "destructive" });
+    const problem = validateNewPassword(password, confirmPassword);
+    if (problem) {
+      toast({ title: "Check your password", description: problem, variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -117,8 +107,7 @@ const ResetPassword = () => {
         if (error) {
           // A rejected token (403 otp_expired, or any other 4xx) means the link is dead. A dropped
           // connection, a rate limit (429) or a server error leaves the token valid, so let them retry.
-          const status = error.status ?? 0;
-          if (error.code === "otp_expired" || (status >= 400 && status < 500 && status !== 429)) {
+          if (verifyFailureIsFinal(error)) {
             setTokenHash(null);
             setIsValidSession(false);
           } else {
@@ -130,7 +119,7 @@ const ResetPassword = () => {
       }
 
       const { data, error } = await supabase.auth.updateUser({
-        password: parsed.data.password,
+        password,
         data: { must_reset_password: false },
       });
       if (error || !data.user) {
@@ -138,20 +127,23 @@ const ResetPassword = () => {
         return;
       }
 
+      // A reset usually means "someone else may have my password": end every other session for this account.
+      // Best effort: the password is already changed, so a failure here must not block the redirect.
+      await supabase.auth.signOut({ scope: "others" }).catch(() => undefined);
+
       // Admins go to the dashboard; brokers straight to their portal (same routing as /broker's sign-in).
       const [{ data: role }, { data: broker }] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle(),
         supabase.from("brokers").select("portal_type").eq("user_id", data.user.id).maybeSingle(),
       ]);
-      const premium = broker?.portal_type === "marketing" || broker?.portal_type === "premium";
       setDone(true);
-      setTimeout(() => navigate(role ? "/dashboard" : premium ? "/broker-elite" : "/broker", { replace: true }), reduceMotion ? 600 : 1600);
+      setTimeout(() => navigate(postResetDestination(!!role, broker?.portal_type), { replace: true }), reduceMotion ? 600 : 1600);
     } finally {
       setLoading(false);
     }
   };
 
-  const score = strength(password);
+  const score = passwordStrength(password);
   const eyebrow = isSetup ? "Lead Velocity / Broker onboarding" : "Lead Velocity / Account";
   // Visual system = the public /onboarding page (src/pages/BrokerOnboarding.tsx): its input, primary and outline button classes.
   const field = "bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md";

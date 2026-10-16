@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { RATE_LIMITED_MESSAGE, RESET_SENT_MESSAGE, requestPasswordReset } from "@/lib/passwordReset";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,36 +112,17 @@ const AdminLogin = () => {
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setResetLoading(true);
-
     try {
-      const emailValidation = z.string().trim().email("Please enter a valid email address");
-      emailValidation.parse(resetEmail);
-
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
+      // One outcome for every address (registered or not); redirect is pinned to the production origin allow-list.
+      const outcome = await requestPasswordReset(supabase, resetEmail, window.location.origin);
+      if (outcome === "invalid_email") {
+        toast({ title: "Validation Error", description: "Please enter a valid email address", variant: "destructive" });
+      } else if (outcome === "rate_limited") {
+        toast({ title: "Please wait", description: RATE_LIMITED_MESSAGE, variant: "destructive" });
       } else {
-        toast({
-          title: "Password Reset Email Sent",
-          description: "Check your email for a link to reset your password.",
-        });
+        toast({ title: "Check your email", description: RESET_SENT_MESSAGE });
         setShowForgotPassword(false);
         setResetEmail("");
-      }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
       }
     } finally {
       setResetLoading(false);
