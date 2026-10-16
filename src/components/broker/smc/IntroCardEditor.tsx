@@ -7,7 +7,7 @@
  * (then frozen), fsp_number only once the broker has a SortMyCover order (brand_id). The intro video is recorded by
  * sending it on WhatsApp (W23); its state is read from broker_media.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +117,24 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   const [videoBusy, setVideoBusy] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoNonce, setVideoNonce] = useState(0);
+  // The broker must have seen the video before the approve switch unlocks: at least 90% of it actually played
+  // (video.played, so scrubbing to the end doesn't count).
+  const [videoWatched, setVideoWatched] = useState(false);
+  const videoResigned = useRef(false);
+  useEffect(() => { setVideoWatched(false); }, [videoUrl]);
+  function trackWatched(e: SyntheticEvent<HTMLVideoElement>) {
+    const v = e.currentTarget;
+    if (!v.duration || !Number.isFinite(v.duration)) return;
+    let seen = 0;
+    for (let i = 0; i < v.played.length; i++) seen += v.played.end(i) - v.played.start(i);
+    if (seen >= v.duration * 0.9) setVideoWatched(true);
+  }
+  // Signed URLs last 10 minutes: if the page sat open longer, sign a fresh one once instead of showing a dead player.
+  function videoFailed() {
+    if (videoResigned.current) return;
+    videoResigned.current = true;
+    setVideoNonce((n) => n + 1);
+  }
 
   // Signed URL for the stored headshot (private bucket, short-lived, re-signed on every load).
   useEffect(() => {
@@ -216,7 +234,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   }
 
   async function approveVideo() {
-    if (!video || video.state !== "ready" || !videoUrl) return;
+    if (!video || video.state !== "ready" || !videoUrl || !videoWatched) return;
     setVideoError(null);
     if (preview) { setVideoError("Preview only: nothing is saved."); return; }
     setVideoBusy(true);
@@ -340,13 +358,16 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
             <CardDescription className={c.muted}>A short hello prepared for clients before the call. Not needed to go live.</CardDescription>
           </CardHeader>
           <CardContent className={`space-y-3 text-sm ${tone === "elite" ? "p-6 pt-0" : ""}`}>
-            {videoUrl && <video src={videoUrl} poster={videoPoster || undefined} controls playsInline preload="metadata" className="w-full rounded-xl bg-black" aria-label="Preview your intro video" />}
+            {videoUrl && <video src={videoUrl} poster={videoPoster || undefined} controls playsInline preload="metadata" className="w-full rounded-xl bg-black" aria-label="Preview your intro video"
+              onTimeUpdate={trackWatched} onEnded={trackWatched} onError={videoFailed} />}
             {video?.url && !videoUrl && <p className={c.muted}>The private video preview is unavailable right now. Please try again later.</p>}
             {introVideoSource(video?.ai_check || null) && <p className={`text-xs ${c.muted}`}>Source: {introVideoSource(video?.ai_check || null)}</p>}
             {video?.state === "rejected" && video.ai_check?.reason && <p className={`rounded-lg px-3 py-2 text-xs ${c.bad}`}>{video.ai_check.reason}</p>}
             {video?.state === "ready" && (
-              <ApprovalSwitch label="Approve my intro video" approved={false} blocked={preview || !videoUrl}
-                blockedNote={preview ? "Preview only: nothing is saved." : "Wait until the private video preview loads before approving."}
+              <ApprovalSwitch label="Approve my intro video" approved={false} blocked={preview || !videoUrl || !videoWatched}
+                blockedNote={preview ? "Preview only: nothing is saved."
+                  : !videoUrl ? "Wait until the private video preview loads before approving."
+                  : "Watch your video to the end first. The switch unlocks once you've seen it."}
                 busy={videoBusy} error={videoError} onConfirm={approveVideo} />
             )}
             {video?.state === "approved" && <p role="status" className={c.ok}>You approved this video. Lead Velocity will complete the delivery check before using it with clients.</p>}
