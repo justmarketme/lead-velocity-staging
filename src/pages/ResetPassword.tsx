@@ -48,6 +48,8 @@ const STRENGTH = [
 const ResetPassword = () => {
   const location = useLocation();
   const isSetup = location.pathname.startsWith("/broker/set-password");
+  // The reset email adds &portal=admin for owner/admin logins (user_metadata.admin_portal), so their dead ends lead back to the admin CRM.
+  const isAdmin = new URLSearchParams(location.search).get("portal") === "admin";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -152,7 +154,7 @@ const ResetPassword = () => {
   };
 
   const score = strength(password);
-  const eyebrow = isSetup ? "Lead Velocity / Broker onboarding" : "Lead Velocity / Account";
+  const eyebrow = isSetup ? "Lead Velocity / Broker onboarding" : isAdmin ? "Lead Velocity / Admin CRM" : "Lead Velocity / Account";
   // Visual system = the public /onboarding page (src/pages/BrokerOnboarding.tsx): its input, primary and outline button classes.
   const field = "bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md";
   const pill =
@@ -179,7 +181,7 @@ const ResetPassword = () => {
           <Check className="h-8 w-8 text-white" strokeWidth={3} />
         </m.div>
         <h1 className="text-3xl font-bold tracking-tight text-white font-inter">You&apos;re <span className="gradient-text-epiphany">in</span></h1>
-        <p className="mt-2 text-slate-400">Password saved. Taking you to your portal...</p>
+        <p className="mt-2 text-slate-400">Password saved. Taking you to {isAdmin ? "the admin CRM" : "your portal"}...</p>
       </m.div>
     );
   } else if (!isValidSession) {
@@ -190,7 +192,7 @@ const ResetPassword = () => {
           Password links work once and expire after a short while. Get a fresh one below, or reply to the email you received and we&apos;ll send one.
         </p>
         <div className="mt-8 space-y-3">
-          <Button size="lg" className={pill} onClick={() => navigate("/broker/forgot-password")}>Send me a new link</Button>
+          <Button size="lg" className={pill} onClick={() => navigate(isAdmin ? "/admin?forgot=1" : "/broker/forgot-password")}>Send me a new link</Button>
           <Button
             variant="outline"
             size="lg"
@@ -198,7 +200,7 @@ const ResetPassword = () => {
             onClick={async () => {
               // A failed link leaves any other account's session in place; drop it so /broker shows sign-in, not their portal.
               await supabase.auth.signOut({ scope: "local" });
-              navigate("/broker");
+              navigate(isAdmin ? "/admin" : "/broker");
             }}
           >
             Go to sign in
@@ -217,6 +219,7 @@ const ResetPassword = () => {
             <p className="mt-3 text-slate-400 leading-relaxed">
               {isSetup
                 ? "Welcome to Lead Velocity. Choose a password for your broker portal and you'll go straight in."
+                : isAdmin ? "Choose a new password for your Lead Velocity admin CRM login."
                 : "Choose a new password for your Lead Velocity account."}
             </p>
           </StaggerItem>

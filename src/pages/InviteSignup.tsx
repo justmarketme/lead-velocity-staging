@@ -139,22 +139,24 @@ const InviteSignup = () => {
           new_user_id: authData.user.id,
         });
 
-      if (useError) {
+      // Sign-up auto-confirms, so this runs on the new account's own session; the server checks the
+      // account's email matches the invite and the invite is unused and unexpired.
+      if (useError || useResult !== true) {
         console.error("Error using invite:", useError);
-        // Still proceed - the trigger might have already added the role
+        await supabase.auth.signOut();
+        throw new Error("Your account was created, but this invite could not give it admin access (it may be used, expired, or for a different email). Ask an admin for a new invite.");
       }
 
-      // Sign out so user can login fresh after email verification
+      // Sign out so the new admin signs in fresh on the admin login with the password just chosen.
       await supabase.auth.signOut();
 
       toast({
-        title: "Account Created Successfully!",
-        description: "Please check your email to verify your account, then log in to access the admin dashboard.",
+        title: "Admin account created",
+        description: "Sign in on the admin login with your email and new password.",
       });
 
-      // Redirect to login page after a delay
       setTimeout(() => {
-        navigate("/login", { state: { message: "Please verify your email before logging in." } });
+        navigate("/admin");
       }, 2000);
     } catch (error: any) {
       console.error("Signup error:", error);
@@ -205,8 +207,8 @@ const InviteSignup = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => navigate("/login")}>
-              Go to Login
+            <Button className="w-full" onClick={() => navigate("/admin")}>
+              Go to admin sign in
             </Button>
           </CardContent>
         </Card>
@@ -224,15 +226,18 @@ const InviteSignup = () => {
               <div className="space-y-2">
                 <p className="text-amber-500 font-medium">Account Already Exists</p>
                 <p className="text-sm text-muted-foreground">
-                  An account with this email already exists. Please log in instead.
+                  This email already has a Lead Velocity login, so you don't need to sign up again. Sign in on the admin login. Forgotten the password? Use "Forgot password?" there and we'll email you a reset link.
                 </p>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate("/admin")}
                   className="mt-2"
                 >
-                  Go to Login
+                  Go to admin sign in
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin?forgot=1")} className="mt-2 ml-2">
+                  Forgot password
                 </Button>
               </div>
             </div>

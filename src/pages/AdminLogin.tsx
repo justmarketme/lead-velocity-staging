@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,9 @@ const AdminLogin = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  // /admin?forgot=1 opens straight on "Forgot password" (used by expired admin reset links and the invite page).
+  const [searchParams] = useSearchParams();
+  const [showForgotPassword, setShowForgotPassword] = useState(searchParams.get("forgot") === "1");
   const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
