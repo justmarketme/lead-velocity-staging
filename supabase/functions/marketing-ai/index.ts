@@ -86,8 +86,8 @@ const handler = async (req: Request) => {
                     tavilyResults = tavilyData.results || [];
                     console.log(`[Tavily] Found ${tavilyResults.length} results.`);
                 }
-            } catch (err: any) {
-                console.warn("[Tavily] Research failed:", err.message);
+            } catch (err: unknown) {
+                console.warn("[Tavily] Research failed:", (err instanceof Error ? err.message : String(err)));
             }
         }
 
@@ -113,8 +113,8 @@ const handler = async (req: Request) => {
                     exaResults = exaData.results || [];
                     console.log(`[Exa] Found ${exaResults.length} semantic matches.`);
                 }
-            } catch (err: any) {
-                console.warn("[Exa] Research failed:", err.message);
+            } catch (err: unknown) {
+                console.warn("[Exa] Research failed:", (err instanceof Error ? err.message : String(err)));
             }
         }
 
@@ -208,8 +208,8 @@ const handler = async (req: Request) => {
                 responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
                 usedProvider = "gemini";
             }
-        } catch (error: any) {
-            throw new Error(`AI Synthesis Collapse: ${error.message}`);
+        } catch (error: unknown) {
+            throw new Error(`AI Synthesis Collapse: ${(error instanceof Error ? error.message : String(error))}`);
         }
 
         let result;
@@ -229,10 +229,10 @@ const handler = async (req: Request) => {
             headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-AI-Provider': usedProvider },
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Marketing AI Failure:", error);
         return new Response(JSON.stringify({ 
-            error: error.message,
+            error: (error instanceof Error ? error.message : String(error)),
             leads: [],
             context: null 
         }), {

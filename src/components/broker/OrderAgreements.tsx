@@ -1,3 +1,5 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
+import { errorMessage } from "@/lib/groupB-errors";
 import { useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,7 @@ const BANK = {
 };
 
 // ── Types (kept loose — these custom tables aren't in generated types) ──────
-interface LeadOrder {
+export interface LeadOrder {
   id: string;
   broker_id: string;
   title: string | null;
@@ -152,9 +154,9 @@ const OrderAgreements = ({
 
       pdf.save(fileName);
       toast({ title: "Downloaded", description: fileName });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(`${key} pdf error`, e);
-      toast({ title: "Export failed", description: e?.message || "Could not generate the PDF.", variant: "destructive" });
+      toast({ title: "Export failed", description: errorMessage(e) || "Could not generate the PDF.", variant: "destructive" });
     } finally {
       setBusy(null);
     }
@@ -174,7 +176,7 @@ const OrderAgreements = ({
     const name = signature.trim() || brokerContactName || firmName;
     setSigning(true);
     try {
-      const { data, error } = await (supabase as any).rpc("sign_order_contract_drawn", {
+      const { data, error } = await supabaseUntyped.rpc("sign_order_contract_drawn", {
         p_order_id: order.id,
         p_signature_name: name,
         p_signature_image: image,
@@ -188,9 +190,9 @@ const OrderAgreements = ({
         status: row?.out_status ?? "contract_signed",
       });
       toast({ title: "Agreement signed", description: "Thank you — your agreement is now on file." });
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("sign_order_contract_drawn error", e);
-      toast({ title: "Signing failed", description: e?.message || "Could not record your signature.", variant: "destructive" });
+      toast({ title: "Signing failed", description: errorMessage(e) || "Could not record your signature.", variant: "destructive" });
     } finally {
       setSigning(false);
     }

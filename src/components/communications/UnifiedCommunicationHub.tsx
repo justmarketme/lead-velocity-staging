@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,19 @@ import { format } from "date-fns";
 import { CallRecordingPlayer } from "./CallRecordingPlayer";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { Bot, Sparkles } from "lucide-react";
+
+/** Shape of `communications.metadata` for AI-call rows (Einstein proposals). */
+interface ProposedChanges {
+  suggested_date?: string;
+  suggested_time?: string;
+  action?: string;
+  [key: string]: Json | undefined;
+}
+interface CommMetadata {
+  proposed_changes?: ProposedChanges | null;
+  ai_call_request_id?: string;
+  [key: string]: Json | undefined | ProposedChanges | null;
+}
 
 interface Communication {
   id: string;
@@ -447,7 +462,7 @@ export function UnifiedCommunicationHub({
   };
 
   const handleApproveAction = async (comm: Communication) => {
-    const metadata = comm.metadata as any;
+    const metadata = comm.metadata as CommMetadata | null;
     if (!metadata?.proposed_changes) return;
 
     try {
@@ -505,9 +520,9 @@ export function UnifiedCommunicationHub({
         .eq('id', comm.id);
 
       fetchCommunications();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error approving action:', error);
-      toast.error(`Quantum failure: ${error.message}`);
+      toast.error(`Quantum failure: ${errorMessage(error)}`);
     }
   };
 
@@ -906,7 +921,7 @@ export function UnifiedCommunicationHub({
                         </div>
 
                         <div className="space-y-2">
-                          {Object.entries(comm.metadata.proposed_changes as Record<string, any>).map(([key, value]) => (
+                          {Object.entries(comm.metadata.proposed_changes as Record<string, Json | undefined>).map(([key, value]) => (
                             <div key={key} className="flex items-center gap-2 text-xs">
                               <Badge variant="outline" className="text-[9px] uppercase h-4 px-1 border-pink-500/30 text-pink-400 capitalize">
                                 {key.replace('_', ' ')}
@@ -930,7 +945,7 @@ export function UnifiedCommunicationHub({
                             variant="ghost"
                             className="h-7 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-400"
                             onClick={async () => {
-                              const metadata = comm.metadata as any;
+                              const metadata = comm.metadata as CommMetadata | null;
                               await supabase
                                 .from('communications')
                                 .update({

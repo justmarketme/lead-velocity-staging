@@ -3,19 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
-interface BrokerOnboardingResponse {
-    id: string;
-    full_name: string | null;
-    email: string | null;
-    phone?: string | null;
-    phone_number: string | null;
-    firm_name: string | null;
-    company_name: string | null;
-    desired_leads_weekly: number;
-    // adding other fields that might be used
-    [key: string]: any;
-}
+type BrokerOnboardingResponse = BrokerOnboardingRow;
 
 interface BrokerSelectorProps {
     onSelect: (broker: BrokerOnboardingResponse) => void;
@@ -36,10 +27,10 @@ export const BrokerSelector = ({ onSelect }: BrokerSelectorProps) => {
 
                 if (error) throw error;
                 if (data) setBrokers(data);
-            } catch (error: any) {
+            } catch (error: unknown) {
                 toast({
                     title: "Error fetching brokers",
-                    description: error.message,
+                    description: getErrorMessage(error),
                     variant: "destructive",
                 });
             } finally {

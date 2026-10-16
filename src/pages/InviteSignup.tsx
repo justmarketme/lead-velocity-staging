@@ -1,3 +1,5 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,7 +75,7 @@ const InviteSignup = () => {
     try {
       // Validate the token server-side (SECURITY DEFINER RPC) — the admin_invites
       // table is not directly readable, so this checks validity + returns the email.
-      const { data, error } = await (supabase as any).rpc("get_admin_invite_by_token", { p_token: token });
+      const { data, error } = await supabaseUntyped.rpc("get_admin_invite_by_token", { p_token: token });
       const row = Array.isArray(data) ? data[0] : data;
 
       if (error || !row || !row.valid) {
@@ -156,7 +158,7 @@ const InviteSignup = () => {
       setTimeout(() => {
         navigate("/login", { state: { message: "Please verify your email before logging in." } });
       }, 2000);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Signup error:", error);
 
       if (error instanceof z.ZodError) {
@@ -165,12 +167,12 @@ const InviteSignup = () => {
           description: error.errors[0].message,
           variant: "destructive",
         });
-      } else if (error.message?.toLowerCase().includes("user already registered")) {
+      } else if (errorMessage(error)?.toLowerCase().includes("user already registered")) {
         setUserExists(true);
       } else {
         toast({
           title: "Error",
-          description: error.message || "Failed to create account",
+          description: errorMessage(error) || "Failed to create account",
           variant: "destructive",
         });
       }

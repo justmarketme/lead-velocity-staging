@@ -114,7 +114,7 @@ async function upsertTools(defs: ToolDef[] = TOOL_DEFS, baseUrl = TOOLS_URL): Pr
   const { tools = [] } = await el("/tools");
   const ids: Record<string, string> = {};
   for (const def of defs) {
-    const existing = tools.find((x: any) => x.tool_config?.name === def.name && x.tool_config?.api_schema?.url?.startsWith(baseUrl));
+    const existing = tools.find((x: ElTool) => x.tool_config?.name === def.name && x.tool_config?.api_schema?.url?.startsWith(baseUrl));
     const saved = existing
       ? await el(`/tools/${existing.id}`, { method: "PATCH", body: JSON.stringify(toolConfig(def, baseUrl)) })
       : await el("/tools", { method: "POST", body: JSON.stringify(toolConfig(def, baseUrl)) });
@@ -123,17 +123,45 @@ async function upsertTools(defs: ToolDef[] = TOOL_DEFS, baseUrl = TOOLS_URL): Pr
   return ids;
 }
 
-function summary(a: any) {
+/** The slice of an ElevenLabs agent response that summary() reads. */
+interface ElAgent {
+  agent_id?: string;
+  name?: string;
+  conversation_config?: {
+    agent?: {
+      first_message?: string;
+      prompt?: { llm?: string; tool_ids?: string[]; built_in_tools?: Record<string, unknown>; prompt?: string };
+      dynamic_variables?: { dynamic_variable_placeholders?: unknown };
+    };
+    asr?: { user_input_audio_format?: string };
+    tts?: {
+      voice_id?: string;
+      model_id?: string;
+      agent_output_audio_format?: string;
+      text_normalisation_type?: string;
+      expressive_mode?: boolean;
+      suggested_audio_tags?: { tag: string }[];
+    };
+  };
+  platform_settings?: { overrides?: unknown };
+}
+
+interface ElTool {
+  id: string;
+  tool_config?: { name?: string; api_schema?: { url?: string } };
+}
+
+function summary(a: ElAgent) {
   const c = a.conversation_config ?? {};
   return {
     agent_id: a.agent_id, name: a.name,
     first_message: c.agent?.first_message,
     llm: c.agent?.prompt?.llm,
     tool_ids: c.agent?.prompt?.tool_ids,
-    built_in_tools: Object.keys(c.agent?.prompt?.built_in_tools ?? {}).filter((k) => c.agent.prompt.built_in_tools[k]),
+    built_in_tools: Object.keys(c.agent?.prompt?.built_in_tools ?? {}).filter((k) => c.agent?.prompt?.built_in_tools?.[k]),
     voice_id: c.tts?.voice_id, tts_model: c.tts?.model_id,
     audio: [c.asr?.user_input_audio_format, c.tts?.agent_output_audio_format], text_normalisation: c.tts?.text_normalisation_type,
-    expressive_mode: c.tts?.expressive_mode, audio_tags: (c.tts?.suggested_audio_tags ?? []).map((t: any) => t.tag),
+    expressive_mode: c.tts?.expressive_mode, audio_tags: (c.tts?.suggested_audio_tags ?? []).map((t) => t.tag),
     dynamic_variables: c.agent?.dynamic_variables?.dynamic_variable_placeholders,
     overrides: a.platform_settings?.overrides,
     prompt_head: String(c.agent?.prompt?.prompt ?? "").slice(0, 200),
@@ -274,7 +302,7 @@ const SMC_EVALUATION = [
 
 async function findSmcAgent(): Promise<{ agent_id: string } | null> {
   const { agents = [] } = await el(`/agents?page_size=100&search=${encodeURIComponent(SMC_AGENT_NAME)}`);
-  return agents.find((a: any) => a.name === SMC_AGENT_NAME) ?? null;
+  return agents.find((a: { agent_id: string; name?: string }) => a.name === SMC_AGENT_NAME) ?? null;
 }
 
 async function ensureSmcKnowledgeBase() {
@@ -282,7 +310,7 @@ async function ensureSmcKnowledgeBase() {
   const out: Array<{ type: string; id: string; name: string; usage_mode: string }> = [];
   for (const url of SMC_KB_URLS) {
     const name = `SMC ${url.replace("https://sortmycover.co.za/", "/")}`;
-    let doc = documents.find((d: any) => d.name === name);
+    let doc = documents.find((d: { id: string; name?: string }) => d.name === name);
     if (!doc) doc = await el("/knowledge-base/url", { method: "POST", body: JSON.stringify({ url, name }) });
     out.push({ type: "url", id: doc.id, name, usage_mode: "auto" });
   }
@@ -293,7 +321,7 @@ async function smcPostCallWebhookId(): Promise<string | null> {
   const res = await fetch("https://api.elevenlabs.io/v1/workspace/webhooks?include_usages=false", { headers: { "xi-api-key": key() } });
   if (!res.ok) return null;
   const { webhooks = [] } = await res.json();
-  return webhooks.find((w: any) => w.webhook_url === SMC_POST_CALL_URL && !w.is_disabled)?.webhook_id ?? null;
+  return webhooks.find((w: { webhook_url?: string; is_disabled?: boolean; webhook_id?: string }) => w.webhook_url === SMC_POST_CALL_URL && !w.is_disabled)?.webhook_id ?? null;
 }
 
 async function syncSmc() {
@@ -407,11 +435,11 @@ Deno.serve(async (req) => {
       const smc = smcRow ? await el(`/agents/${smcRow.agent_id}`) : null;
       return Response.json({
         smc: smc ? (full ? smc : summary(smc)) : null,
-        llms: (llms.llms ?? []).map((l: any) => ({ llm: l.llm, deprecation: l.deprecation_info ?? undefined })),
+        llms: (llms.llms ?? []).map((l: { llm?: string; deprecation_info?: unknown }) => ({ llm: l.llm, deprecation: l.deprecation_info ?? undefined })),
         ayanda: full ? ayanda : summary(ayanda),
         einstein: full ? einstein : summary(einstein),
-        tools: (tools.tools ?? []).map((t: any) => ({ id: t.id, name: t.tool_config?.name, url: t.tool_config?.api_schema?.url })),
-        agents: (agents.agents ?? []).map((a: any) => ({ id: a.agent_id, name: a.name, created: a.created_at_unix_secs })),
+        tools: (tools.tools ?? []).map((t: ElTool) => ({ id: t.id, name: t.tool_config?.name, url: t.tool_config?.api_schema?.url })),
+        agents: (agents.agents ?? []).map((a: { agent_id?: string; name?: string; created_at_unix_secs?: number }) => ({ id: a.agent_id, name: a.name, created: a.created_at_unix_secs })),
       });
     }
 

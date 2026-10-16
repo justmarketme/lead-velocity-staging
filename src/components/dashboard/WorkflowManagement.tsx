@@ -81,6 +81,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 interface Broker {
   id: string;
@@ -243,8 +244,10 @@ const WorkflowManagement = () => {
     const channel = supabase
       .channel("ai-call-pulse")
       .on("postgres_changes", { event: "*", schema: "public", table: "ai_call_requests" }, (payload) => {
-        const phone = (payload.new as any)?.recipient_phone || (payload.old as any)?.recipient_phone;
-        const status = (payload.new as any)?.call_status;
+        const newRow = payload.new as { recipient_phone?: string; call_status?: string } | undefined;
+        const oldRow = payload.old as { recipient_phone?: string } | undefined;
+        const phone = newRow?.recipient_phone || oldRow?.recipient_phone;
+        const status = newRow?.call_status;
         
         if (phone) {
           setActiveAiCalls(prev => ({
@@ -373,7 +376,7 @@ const WorkflowManagement = () => {
       if (callsError) throw callsError;
 
       // Map calls to leads (only take most recent call for each lead)
-      const callMap: Record<string, any> = {};
+      const callMap: Record<string, NonNullable<typeof callsData>[number]> = {};
       callsData?.forEach(call => {
         if (!callMap[call.recipient_id]) {
           callMap[call.recipient_id] = call;
@@ -1834,8 +1837,10 @@ const WorkflowManagement = () => {
 
 // ── Einstein: proactive read on the lead-sourcing pipeline ──────────────────
 // Auto-runs when the board loads. Hormozi/Brunson framing, admin-only function.
-const PipelineCoach = ({ leadsByStage, totalLeads }: { leadsByStage: Record<string, any[]>; totalLeads: number }) => {
-  const [coach, setCoach] = useState<{ headline?: string; suggestions?: { action: string; why: string }[]; script?: string } | null>(null);
+type CoachResult = { headline?: string; suggestions?: { action: string; why: string }[]; script?: string };
+
+const PipelineCoach = ({ leadsByStage, totalLeads }: { leadsByStage: Record<string, unknown[]>; totalLeads: number }) => {
+  const [coach, setCoach] = useState<CoachResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1851,10 +1856,11 @@ const PipelineCoach = ({ leadsByStage, totalLeads }: { leadsByStage: Record<stri
         body: { mode: "lead_pipeline", context: { mode: "lead_pipeline", total_leads: totalLeads, stage_counts: stageCounts } },
       });
       if (error) throw new Error(error.message);
-      if ((data as any)?.success === false) throw new Error((data as any).error || "Coach unavailable");
-      setCoach(data as any);
-    } catch (e: any) {
-      setErr(e.message || "Couldn't reach Einstein");
+      const result = data as (CoachResult & { success?: boolean; error?: string }) | null;
+      if (result?.success === false) throw new Error(result.error || "Coach unavailable");
+      setCoach(result);
+    } catch (e: unknown) {
+      setErr(getErrorMessage(e) || "Couldn't reach Einstein");
     } finally { setLoading(false); }
   };
 

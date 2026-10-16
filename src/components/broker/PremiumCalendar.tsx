@@ -1,3 +1,5 @@
+import type { PortalAppointment } from "@/types/groupB-broker";
+import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,15 +39,15 @@ import { PREVIEW_READ_ONLY, useBrokerPreview } from "@/lib/brokerPreview";
 import { useToast } from "@/hooks/use-toast";
 
 interface PremiumCalendarProps {
-    appointments: any[];
+    appointments: PortalAppointment[];
     onUpdateStatus: (id: string, status: string, notes: string) => void;
 }
 
 const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps) => {
     const [date, setDate] = useState<Date | undefined>(new Date());
-    const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+    const [selectedAppointment, setSelectedAppointment] = useState<PortalAppointment | null>(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
-    const [notes, setNotes] = useState<any[]>([]);
+    const [notes, setNotes] = useState<Tables<"broker_notes">[]>([]);
     const [newNote, setNewNote] = useState("");
     const { toast } = useToast();
     const preview = !!useBrokerPreview();
@@ -64,7 +66,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
         }
     };
 
-    const handleOpenEdit = async (appt: any) => {
+    const handleOpenEdit = async (appt: PortalAppointment) => {
         setSelectedAppointment(appt);
         setTempStatus(appt.appointment_status?.toLowerCase() || "scheduled");
         setTempNote(appt.reason_notes || "");

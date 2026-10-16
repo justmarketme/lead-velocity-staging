@@ -1,3 +1,4 @@
+import { errorProp } from "@/lib/groupB-errors";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getSpeechRecognition, type SpeechRecognitionEventLike, type SpeechRecognitionLike } from "@/lib/speechRecognition";
 import { useLocation, Link } from "react-router-dom";
@@ -170,12 +171,13 @@ export function ChatBot() {
 
             conversationRef.current = conversation;
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Voice Call Error:", err);
             setIsConnectingVoice(false);
             setIsVoiceActive(false);
             let errorMessage = "Ze neural link could not be established. Voice chat is unavailable — text chat is still active, ja!";
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            const errName = errorProp(err, 'name');
+            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
                 errorMessage = "Microphone access required for voice mode. Please check your browser settings and try again.";
             }
             addMessage({ id: Date.now().toString(), role: "bot", content: errorMessage });

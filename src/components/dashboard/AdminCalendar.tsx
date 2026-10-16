@@ -139,7 +139,7 @@ const AdminCalendar = () => {
           .filter((x) => !!x.appointment_date)
           .sort((x, y) => x.appointment_date.localeCompare(y.appointment_date)),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching appointments:", error);
       toast({
         title: "Error",

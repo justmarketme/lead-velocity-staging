@@ -68,7 +68,7 @@ const Dashboard = () => {
           return;
         }
         setLoading(false);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("Role check failed:", e);
       }
     };

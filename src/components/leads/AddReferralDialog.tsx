@@ -202,7 +202,7 @@ const AddReferralDialog = ({ leadId, leadName, onReferralAdded }: AddReferralDia
             <Label>What is this referral for?</Label>
             <Select
               value={formData.referral_reason}
-              onValueChange={(v) => setFormData({ ...formData, referral_reason: v as any })}
+              onValueChange={(v) => setFormData({ ...formData, referral_reason: v as "estate_planning" | "financial_advice" })}
             >
               <SelectTrigger className="w-full h-12">
                 <SelectValue placeholder="Select purpose" />

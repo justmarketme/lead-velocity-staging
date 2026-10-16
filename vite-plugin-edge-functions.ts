@@ -52,7 +52,7 @@ export function edgeFunctionsPlugin(): Plugin {
                                             })
                                         });
                                         if (tavilyRes.ok) {
-                                            const tavilyData = await tavilyRes.json();
+                                            const tavilyData = (await tavilyRes.json()) as { results?: unknown };
                                             researchData = JSON.stringify(tavilyData.results);
                                         }
                                     } catch (e) {
@@ -80,7 +80,7 @@ export function edgeFunctionsPlugin(): Plugin {
                                 });
 
                                 if (aiRes.ok) {
-                                    const aiData = await aiRes.json();
+                                    const aiData = (await aiRes.json()) as { choices?: { message?: { content?: string } }[] };
                                     const content = aiData.choices?.[0]?.message?.content || "[]";
                                     const parsed = JSON.parse(content.replace(/```json\n?/g, "").replace(/```/g, "").trim());
                                     result = Array.isArray(parsed) ? parsed : (Object.values(parsed).find(v => Array.isArray(v)) || parsed);
@@ -93,7 +93,7 @@ export function edgeFunctionsPlugin(): Plugin {
                                             generationConfig: { temperature: 0.7, response_mime_type: "application/json" }
                                         })
                                     });
-                                    const geminiData = await geminiRes.json();
+                                    const geminiData = (await geminiRes.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
                                     const content = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
                                     result = JSON.parse(content.replace(/```json\n?/g, "").replace(/```/g, "").trim());
                                 }
@@ -108,10 +108,10 @@ export function edgeFunctionsPlugin(): Plugin {
                         res.setHeader('Access-Control-Allow-Origin', '*');
                         res.end(JSON.stringify(result));
                         return;
-                    } catch (err: any) {
+                    } catch (err: unknown) {
                         console.error("[Emulator Error]:", err);
                         res.statusCode = 500;
-                        res.end(JSON.stringify({ error: err.message }));
+                        res.end(JSON.stringify({ error: (err instanceof Error ? err.message : String(err)) }));
                         return;
                     }
                 }

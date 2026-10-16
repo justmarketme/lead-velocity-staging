@@ -22,6 +22,10 @@ import {
   type InviteContext,
 } from "../_shared/appointment_alloc.ts";
 
+// Database rows and request bodies are untyped JSON here (no generated schema types in this Deno function).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped Supabase rows / JSON request bodies
+type Row = Record<string, any>;
+
 const SMC_NUMBER = "+27600156480";
 const BOOKING_CONFIRMED_SID = "HXea3cd0796b41eab3c0442a816b0ed435"; // smc_booking_confirmed (UTILITY, approved)
 const FROM = "SortMyCover <howzit@leadvelocity.co.za>";
@@ -87,7 +91,7 @@ async function sendEmail(to: string[], subject: string, html: string, text: stri
 }
 
 // ------------------------------------------------------------------------------------------- Microsoft Graph (broker's Outlook)
-async function graphToken(db: SupabaseClient, broker: Record<string, any>): Promise<string | null> {
+async function graphToken(db: SupabaseClient, broker: Row): Promise<string | null> {
   const { data: rt, error } = await db.rpc("smc_vault_ms_refresh", { p_broker_id: broker.id });
   if (error || !rt) { console.warn("graph: no refresh token", error?.code); return null; }
   const tenant = /^[A-Za-z0-9.-]{1,100}$/.test(String(broker.ms_tenant_id ?? "")) ? broker.ms_tenant_id : "organizations";
@@ -103,7 +107,7 @@ async function graphToken(db: SupabaseClient, broker: Record<string, any>): Prom
   }
   return String(j.access_token);
 }
-async function graphCreate(db: SupabaseClient, broker: Record<string, any>, ctx: InviteContext, inviteClient: boolean) {
+async function graphCreate(db: SupabaseClient, broker: Row, ctx: InviteContext, inviteClient: boolean) {
   const token = await graphToken(db, broker);
   if (!token) return { ok: false as const, error: "calendar token unavailable" };
   const res = await fetch(`${GRAPH}/me/events`, {
@@ -115,7 +119,7 @@ async function graphCreate(db: SupabaseClient, broker: Record<string, any>, ctx:
   if (!res.ok || !j.id) return { ok: false as const, error: `graph ${res.status}: ${String(j?.error?.code ?? "")}` };
   return { ok: true as const, id: String(j.id), ical_uid: j.iCalUId ? String(j.iCalUId) : null, join_url: j.onlineMeeting?.joinUrl ? String(j.onlineMeeting.joinUrl) : null };
 }
-async function graphDelete(db: SupabaseClient, broker: Record<string, any>, eventId: string) {
+async function graphDelete(db: SupabaseClient, broker: Row, eventId: string) {
   const token = await graphToken(db, broker);
   if (!token) return false;
   const res = await fetch(`${GRAPH}/me/events/${encodeURIComponent(eventId)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
@@ -123,7 +127,7 @@ async function graphDelete(db: SupabaseClient, broker: Record<string, any>, even
 }
 
 // ------------------------------------------------------------------------------------------- WhatsApp (Twilio SMC sender)
-async function whatsappConfirm(lead: Record<string, any>, ctx: InviteContext) {
+async function whatsappConfirm(lead: Row, ctx: InviteContext) {
   const phone = String(lead.phone ?? "");
   if (!/^\+27[6-8]\d{8}$/.test(phone)) return { status: "skipped" as const, detail: "no SA mobile" };
   const vars = {
@@ -148,7 +152,7 @@ async function logComm(db: SupabaseClient, row: Record<string, unknown>) {
   const { error } = await db.from("communications").insert({ direction: "outbound", workflow: WORKFLOW, sender_type: "system", author: "system", ...row });
   if (error) console.warn("communications insert:", error.message);
 }
-async function activity(db: SupabaseClient, a: Record<string, any>, type: string, notes: string, payload: Record<string, unknown>) {
+async function activity(db: SupabaseClient, a: Row, type: string, notes: string, payload: Record<string, unknown>) {
   const { error } = await db.from("lead_activities").insert({
     lead_id: a.client_id, brand_id: a.brand_id, broker_id: a.broker_id, actor_type: "system", workflow: "console", activity_type: type, notes,
     payload: { appointment_id: a.id, ...payload }, occurred_at: new Date().toISOString(),
@@ -158,7 +162,7 @@ async function activity(db: SupabaseClient, a: Record<string, any>, type: string
 }
 const domainOf = (e: string | null | undefined) => (e && e.includes("@") ? e.split("@")[1] : null);
 
-function inviteContext(a: Record<string, any>, lead: Record<string, any>, broker: Record<string, any>, brokerEmail: string, joinUrl: string | null): InviteContext {
+function inviteContext(a: Row, lead: Row, broker: Row, brokerEmail: string, joinUrl: string | null): InviteContext {
   return {
     appointmentId: a.id, start: a.appointment_date, end: a.ends_at, method: a.method, sequence: a.invite_sequence,
     clientFirst: lead.first_name ?? "", clientLast: lead.last_name ?? null, clientPhone: lead.phone ?? null,
@@ -171,7 +175,7 @@ const LEAD_COLS = "id, first_name, last_name, phone, email, email_status, is_syn
 const BROKER_COLS = "id, contact_person, adviser_name, firm_name, email, calendar_email, calendar_status, calendar_mode, ms_tenant_id, add_client_as_attendee";
 
 /** Removes what the previous allocation put in a calendar (re-allocation / cancel). */
-async function retractPrevious(db: SupabaseClient, a: Record<string, any>, prev: Record<string, any>, lead: Record<string, any>, keep: { brokerId?: string; email?: string } = {}) {
+async function retractPrevious(db: SupabaseClient, a: Row, prev: Row, lead: Row, keep: { brokerId?: string; email?: string } = {}) {
   if (!prev || prev.status === "requested" || !prev.appointment_date) return { retracted: "none" };
   if (prev.calendar_provider === "outlook" && prev.graph_event_id) {
     const { data: pb } = await db.from("brokers").select(BROKER_COLS).eq("id", prev.broker_id).maybeSingle();
@@ -192,7 +196,7 @@ async function retractPrevious(db: SupabaseClient, a: Record<string, any>, prev:
 }
 
 // ------------------------------------------------------------------------------------------- actions
-async function request(req: Request, body: Record<string, any>) {
+async function request(req: Request, body: Row) {
   const db = service();
   let leadId: string | null = null;
   let source = "page";
@@ -215,7 +219,7 @@ async function request(req: Request, body: Record<string, any>) {
   return json({ ...(data as Record<string, unknown>) });
 }
 
-async function allocate(req: Request, body: Record<string, any>) {
+async function allocate(req: Request, body: Row) {
   if (!bearer(req)) return bad(401, "unauthorised", "Sign in first.");
   const start = typeof body.start === "string" && !Number.isNaN(Date.parse(body.start)) ? new Date(body.start).toISOString() : null;
   if (!start) return bad(400, "invalid", "Pick a date and time.");
@@ -226,7 +230,7 @@ async function allocate(req: Request, body: Record<string, any>) {
     p_calendar_email: typeof body.broker_email === "string" ? body.broker_email : null,
   });
   if (error) return sqlError(error);
-  const out = data as { appointment: Record<string, any>; previous: Record<string, any>; reallocated: boolean; allocated_by_email: string | null };
+  const out = data as { appointment: Row; previous: Row; reallocated: boolean; allocated_by_email: string | null };
   const a = out.appointment;
   const db = service();
   const [{ data: lead }, { data: broker }] = await Promise.all([
@@ -306,13 +310,13 @@ async function allocate(req: Request, body: Record<string, any>) {
   return json({ ok: true, appointment: fresh ?? a, reallocated: out.reallocated, delivery, client_confirmation: client, retract });
 }
 
-async function cancel(req: Request, body: Record<string, any>) {
+async function cancel(req: Request, body: Row) {
   if (!bearer(req)) return bad(401, "unauthorised", "Sign in first.");
   const { data, error } = await asCaller(req).rpc("appointment_cancel", {
     p_appointment_id: body.appointment_id, p_reason: typeof body.reason === "string" ? body.reason.slice(0, 300) : null,
   });
   if (error) return sqlError(error);
-  const out = data as { appointment: Record<string, any>; previous: Record<string, any> };
+  const out = data as { appointment: Row; previous: Row };
   const a = out.appointment;
   const db = service();
   const { data: lead } = await db.from("leads").select(LEAD_COLS).eq("id", a.client_id).single();

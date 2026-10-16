@@ -21,6 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Pencil, History as HistoryIcon } from "lucide-react";
 import { format } from "date-fns";
+import type { TablesInsert } from "@/integrations/supabase/types";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
+import type { AuditLogEntry } from "@/types/groupA-audit";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 interface BrokerAnalysis {
     id: string;
@@ -84,7 +88,7 @@ const BrokerAnalysisDashboard = () => {
     const [editForm, setEditForm] = useState({ full_name: "", email: "", phone_number: "", whatsapp_number: "", firm_name: "", preferred_call_time: "" });
     const [savingEdit, setSavingEdit] = useState(false);
     const [historyForId, setHistoryForId] = useState<string | null>(null);
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<AuditLogEntry[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
 
     useEffect(() => {
@@ -115,7 +119,7 @@ const BrokerAnalysisDashboard = () => {
                 whatsapp_number: editForm.whatsapp_number.trim() || null,
                 firm_name: editForm.firm_name.trim() || null,
                 preferred_call_time: editForm.preferred_call_time.trim() || null,
-            } as any)
+            })
             .eq("id", editResponseId);
         setSavingEdit(false);
         if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
@@ -134,7 +138,7 @@ const BrokerAnalysisDashboard = () => {
         setSavingNotes(analysisId);
         const { error } = await supabase
             .from("broker_analysis")
-            .update({ admin_notes: text.trim() || null } as any)
+            .update({ admin_notes: text.trim() || null })
             .eq("id", analysisId);
         setSavingNotes(null);
         if (error) { toast({ title: "Couldn't save notes", description: error.message, variant: "destructive" }); return; }
@@ -154,13 +158,13 @@ const BrokerAnalysisDashboard = () => {
     const openHistory = async (responseId: string) => {
         setHistoryForId(responseId);
         setLoadingHistory(true);
-        const { data, error } = await (supabase as any)
+        const { data, error } = await supabaseUntyped
             .from("audit_log")
             .select("*")
             .eq("record_id", responseId)
             .order("changed_at", { ascending: false });
         if (error) { toast({ title: "Couldn't load history", description: error.message, variant: "destructive" }); }
-        setHistory((data || []) as any[]);
+        setHistory((data || []) as AuditLogEntry[]);
         setLoadingHistory(false);
     };
 
@@ -177,10 +181,10 @@ const BrokerAnalysisDashboard = () => {
 
             if (error) throw error;
             setAnalyses((data || []) as unknown as BrokerAnalysis[]);
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast({
                 title: "Error fetching analyses",
-                description: error.message,
+                description: getErrorMessage(error),
                 variant: "destructive",
             });
         } finally {
@@ -212,7 +216,7 @@ const BrokerAnalysisDashboard = () => {
                     is_lead_loading: isLeadLoading,
                     portal_style: portalStyle,
                     status: 'Active'
-                } as any, { onConflict: 'email' })
+                } as TablesInsert<'brokers'>, { onConflict: 'email' })
                 .select()
                 .single();
 
@@ -224,8 +228,8 @@ const BrokerAnalysisDashboard = () => {
             });
 
             handleAction(analysis.id, 'proceed');
-        } catch (e: any) {
-            toast({ title: "Provisioning Failed", description: e.message, variant: "destructive" });
+        } catch (e: unknown) {
+            toast({ title: "Provisioning Failed", description: getErrorMessage(e), variant: "destructive" });
         }
     };
 
@@ -244,10 +248,10 @@ const BrokerAnalysisDashboard = () => {
             });
 
             setAnalyses(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast({
                 title: "Update Failed",
-                description: error.message,
+                description: getErrorMessage(error),
                 variant: "destructive",
             });
         }

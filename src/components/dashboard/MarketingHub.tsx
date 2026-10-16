@@ -72,6 +72,27 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import einsteinMascot from "@/assets/marketing-einstein.png";
+import { getErrorMessage } from "@/lib/groupA-errors";
+
+interface DetectedLead {
+    id?: string;
+    name?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    company?: string | null;
+    role?: string | null;
+    address?: string | null;
+    notes?: string | null;
+    vibe?: number | null;
+    broker_id?: string | null;
+}
+
+interface ResearchContext {
+    primary_research?: { title?: string; content?: string; url: string }[];
+    semantic_context?: { title?: string; text?: string; url: string }[];
+}
 
 const MarketingHub = () => {
     const { toast } = useToast();
@@ -83,16 +104,16 @@ const MarketingHub = () => {
     const [industry, setIndustry] = useState("");
     const [scraperProvider, setScraperProvider] = useState<"firecrawl" | "apify" | "tavily">("firecrawl");
     const [scraperCredits, setScraperCredits] = useState({ firecrawl: 500, apify: 5.00, tavily: 1000 });
-    const [detectedLeads, setDetectedLeads] = useState([]);
+    const [detectedLeads, setDetectedLeads] = useState<DetectedLead[]>([]);
     const [isTransferring, setIsTransferring] = useState(false);
     const [isTransferred, setIsTransferred] = useState(false);
     const [searchIntent, setSearchIntent] = useState("");
     const [targetGeos, setTargetGeos] = useState("");
-    const [researchContext, setResearchContext] = useState<any>(null);
+    const [researchContext, setResearchContext] = useState<ResearchContext | null>(null);
 
     // Ayanda Call State
     const [isAyandaModalOpen, setIsAyandaModalOpen] = useState(false);
-    const [selectedLeadForCall, setSelectedLeadForCall] = useState<any>(null);
+    const [selectedLeadForCall, setSelectedLeadForCall] = useState<DetectedLead | null>(null);
 
     // --- Media Engine State ---
     const [activeMediaEngine, setActiveMediaEngine] = useState<"veo3" | "nano" | "visual">("veo3");
@@ -235,15 +256,16 @@ const MarketingHub = () => {
                 title: "Neural Link Synchronized",
                 description: `${(Array.isArray(leads) ? leads : []).length} leads synthesized via Einstein Data Engine.`,
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const err = error as { message?: string; details?: string; hint?: string; code?: string } | null;
             console.error("Neural Link Error Details:", {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code
+              message: err?.message,
+              details: err?.details,
+              hint: err?.hint,
+              code: err?.code
             });
             
-            let displayMessage = error.message || "The data engine encountered static.";
+            let displayMessage = err?.message || "The data engine encountered static.";
             if (displayMessage.includes("Unexpected end of JSON input")) {
                 displayMessage = "Neural Link timed out or returned an empty matrix. Retrying in stealth mode might help.";
             }
@@ -266,7 +288,7 @@ const MarketingHub = () => {
         try {
             // Robustly prepare leads. If no brokerId is found but user is NOT an admin, this will fail RLS.
             // If user IS an admin, broker_id can be null or selected by admin.
-            const leadsToInsert = detectedLeads.map((lead: any) => {
+            const leadsToInsert = detectedLeads.map((lead) => {
                 const nameParts = (lead.name || "").trim().split(" ");
                 const first_name = nameParts[0] || "Anonymous";
                 const last_name = nameParts.slice(1).join(" ") || "Lead";
@@ -318,17 +340,17 @@ const MarketingHub = () => {
                 }
             } else if (insertedLeads) {
                 setIsTransferred(true);
-                setDetectedLeads(insertedLeads as any);
+                setDetectedLeads(insertedLeads);
                 toast({
                     title: "Sync Success!",
                     description: `${insertedLeads.length} leads successfully transferred to the Lead Database.`,
                 });
             }
-        } catch (dbErr: any) {
+        } catch (dbErr: unknown) {
             console.error("Could not save leads to database:", dbErr);
             toast({
                 title: "Sync Error",
-                description: dbErr.message || "Failed to transfer leads to the database.",
+                description: getErrorMessage(dbErr) || "Failed to transfer leads to the database.",
                 variant: "destructive"
             });
         } finally {
@@ -455,7 +477,7 @@ const MarketingHub = () => {
         }
     };
 
-    const handleBuddyUp = async (lead: any) => {
+    const handleBuddyUp = async (lead: DetectedLead) => {
         if (!brokerId) {
             toast({ title: "Authentication Error", description: "Broker profile not found. Please relogin.", variant: "destructive" });
             return;
@@ -475,13 +497,13 @@ const MarketingHub = () => {
             });
             if (error) throw error;
             toast({ title: "Dialing Prospect", description: "Stay ready. Ayanda will bridge you in once contact is established." });
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Buddy Up bridge error:", err);
-            toast({ title: "Bridge Failed", description: err.message, variant: "destructive" });
+            toast({ title: "Bridge Failed", description: getErrorMessage(err), variant: "destructive" });
         }
     };
 
-    const handleRetrieveCall = async (lead: any) => {
+    const handleRetrieveCall = async (lead: DetectedLead) => {
         toast({ title: "Consulting AI Records", description: `Retrieving latest intelligence for ${lead.first_name || lead.name}...` });
         
         try {
@@ -614,7 +636,7 @@ const MarketingHub = () => {
         }
     };
 
-    const handleAyandaClick = (lead: any) => {
+    const handleAyandaClick = (lead: DetectedLead) => {
         setSelectedLeadForCall(lead);
         setIsAyandaModalOpen(true);
         toast({
@@ -1069,7 +1091,7 @@ const MarketingHub = () => {
                                                             <Search className="h-3 w-3" /> Primary Research Fragments (Tavily)
                                                         </h4>
                                                         <div className="space-y-3">
-                                                            {researchContext.primary_research?.map((res: any, i: number) => (
+                                                            {researchContext.primary_research?.map((res, i) => (
                                                                 <div key={i} className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10 space-y-1 hover:bg-blue-500/10 transition-colors">
                                                                     <h5 className="text-sm font-bold text-white line-clamp-1">{res.title}</h5>
                                                                     <p className="text-xs text-slate-400 line-clamp-2">{res.content}</p>
@@ -1087,7 +1109,7 @@ const MarketingHub = () => {
                                                             <Zap className="h-3 w-3" /> Semantic Neural Context (Exa.ai)
                                                         </h4>
                                                         <div className="space-y-3">
-                                                            {researchContext.semantic_context?.map((res: any, i: number) => (
+                                                            {researchContext.semantic_context?.map((res, i) => (
                                                                 <div key={i} className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/10 space-y-2">
                                                                     <div className="flex items-center justify-between">
                                                                         <h5 className="text-sm font-bold text-white line-clamp-1">{res.title}</h5>

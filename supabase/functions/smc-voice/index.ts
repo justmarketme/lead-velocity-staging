@@ -133,7 +133,7 @@ async function scheduleCallback(db: SupabaseClient, caller: string | null, misse
   const { data: recent } = await db.from("communications").select("id, metadata")
     .eq("channel", "call").eq("workflow", WORKFLOW).eq("recipient_contact", phone).gte("created_at", since)
     .contains("metadata", { kind: "smc_voice_callback" });
-  if ((recent ?? []).some((r: any) => r.metadata?.for_call === missedCallKey)) return { scheduled: false, why: "already_scheduled" };
+  if ((recent ?? []).some((r: { metadata?: { for_call?: string } | null }) => r.metadata?.for_call === missedCallKey)) return { scheduled: false, why: "already_scheduled" };
   if ((recent ?? []).length >= MAX_AUTO_CALLBACKS_PER_24H) return { scheduled: false, why: "callback_cap_24h" };
   const due = callbackDueAt(Date.now());
   const { data, error } = await db.from("communications").insert({
@@ -166,7 +166,7 @@ async function tick(db: SupabaseClient, dry: boolean) {
   const { data: rows } = await db.from("communications").select("id, recipient_contact, lead_id, metadata, created_at")
     .eq("channel", "call").eq("workflow", WORKFLOW).eq("status", "pending").contains("metadata", { kind: "smc_voice_callback" })
     .order("created_at").limit(20);
-  const report: any[] = [];
+  const report: Record<string, unknown>[] = [];
   for (const r of rows ?? []) {
     const m = r.metadata ?? {};
     const due = Date.parse(m.scheduled_for);
@@ -184,7 +184,7 @@ async function tick(db: SupabaseClient, dry: boolean) {
       .eq("recipient_contact", r.recipient_contact).gt("created_at", r.created_at).contains("metadata", { kind: "smc_voice_call" });
     const { data: origin } = await db.from("communications").select("metadata").eq("channel", "call").eq("workflow", WORKFLOW)
       .eq("external_id", m.for_call).maybeSingle();
-    const reached = (later ?? []).some((c: any) => (c.metadata?.user_turns ?? 0) > 0) || (origin?.metadata?.user_turns ?? 0) > 1;
+    const reached = (later ?? []).some((c: { metadata?: { user_turns?: number } | null }) => (c.metadata?.user_turns ?? 0) > 0) || (origin?.metadata?.user_turns ?? 0) > 1;
     if (lead?.opted_out_at || reached) {
       if (!dry) await db.from("communications").update({ status: "failed", failed_reason: reached ? "caller_reached_us" : "opted_out", metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
       report.push({ id: r.id, action: "cancelled", why: reached ? "caller_reached_us" : "opted_out" });
@@ -403,7 +403,7 @@ async function checkAvailability(p: Record<string, unknown>, db: SupabaseClient)
   }
   return json({
     ok: true, timezone: "South Africa (SAST)", adviser_first_name: body.adviser_first_name ?? null, methods: body.methods ?? ["teams", "phone"],
-    slots: body.slots.slice(0, 4).map((s: any) => ({ start: s.start, spoken: spokenSast(Date.parse(s.start)) })),
+    slots: body.slots.slice(0, 4).map((s: { start: string }) => ({ start: s.start, spoken: spokenSast(Date.parse(s.start)) })),
   });
 }
 
@@ -430,7 +430,7 @@ async function bookAppointment(p: Record<string, unknown>, db: SupabaseClient) {
       say: body.held ? `Held ${when} for them. They must tap the link in the email SortMyCover sends to ${email} to confirm it.` : `Booked for ${when}. The confirmation goes to ${email}.` });
   }
   if (res.status === 409 && Array.isArray(body.next) && body.next.length) {
-    return fail("slot_taken", "That time was just taken. Offer two of these instead.", { slots: body.next.slice(0, 3).map((s: any) => ({ start: s.start, spoken: spokenSast(Date.parse(s.start)) })) });
+    return fail("slot_taken", "That time was just taken. Offer two of these instead.", { slots: body.next.slice(0, 3).map((s: { start: string }) => ({ start: s.start, spoken: spokenSast(Date.parse(s.start)) })) });
   }
   if (res.status === 422 && /email/.test(String(body.error_code))) {
     return fail(String(body.error_code), body.suggestion ? `Check the email: did they mean ${body.suggestion}?` : "The email didn't work. Ask them to say it again and read it back.");
@@ -579,7 +579,7 @@ async function postCall(req: Request, db: SupabaseClient) {
   const callType = String(dyn.call_type ?? (pc.direction === "outbound" ? "callback" : "inbound"));
   const transcript = d.transcript ?? [];
   const collected: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(d.analysis?.data_collection_results ?? {})) collected[k] = (v as any)?.value ?? null;
+  for (const [k, v] of Object.entries(d.analysis?.data_collection_results ?? {})) collected[k] = (v as { value?: unknown } | null)?.value ?? null;
   const duration = Number(md.call_duration_secs ?? 0);
   const outcome = classifyOutcome(transcript, collected, callType, duration);
   const turns = userTurns(transcript);

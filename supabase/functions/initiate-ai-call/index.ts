@@ -147,8 +147,8 @@ serve(async (req) => {
         });
         if (exaResponse.ok) {
           const exaData = await exaResponse.json();
-          const results = exaData.results
-            .map((r: any) => `Source: ${r.title}\nUpdate: ${r.highlights?.[0] || 'N/A'}`)
+          const results = (exaData.results as { title?: string; highlights?: string[] }[])
+            .map((r) => `Source: ${r.title}\nUpdate: ${r.highlights?.[0] || 'N/A'}`)
             .join("\n---\n");
           if (results) researchContext = results;
         }

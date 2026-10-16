@@ -4,6 +4,7 @@
  * done (the choice is remembered per broker in this browser). Plain, FAIS-safe copy: no promises about results.
  * The broker finishes items in place: FSP number + practice and WhatsApp number save through broker_update_profile().
  */
+import type { PortalBroker } from "@/types/groupB-broker";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { Check, ChevronDown, Eye, Mail, PlayCircle } from "lucide-react";
@@ -57,7 +58,7 @@ const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-ZA", { day:
 const actionCls = "shrink-0 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-white/15 px-3 text-sm font-semibold text-white hover:bg-white/10";
 
 export default function GettingStarted({ broker, planState, onGo, onBrokerPatch }: {
-  broker: any; planState: BrokerPlanState | null; onGo: (t: Tab) => void; onBrokerPatch: (p: ProfilePatch) => void;
+  broker: PortalBroker | null; planState: BrokerPlanState | null; onGo: (t: Tab) => void; onBrokerPatch: (p: ProfilePatch) => void;
 }) {
   const [hasInvoice, setHasInvoice] = useState(false);
   const [openPanel, setOpenPanel] = useState<string | null>(null);

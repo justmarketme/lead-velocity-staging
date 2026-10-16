@@ -61,6 +61,13 @@ interface AICallRecord {
 
 type StatusFilter = 'all' | 'pending' | 'completed' | 'approved' | 'rejected';
 
+/** The few PostgREST filter methods the status filter needs; every builder returned by supabase.from().select() has them. */
+interface FilterableQuery<Self> {
+  in(column: string, values: string[]): Self & FilterableQuery<Self>;
+  eq(column: string, value: string | boolean): Self & FilterableQuery<Self>;
+  is(column: string, value: null): Self & FilterableQuery<Self>;
+}
+
 const NotificationHistory = () => {
   const navigate = useNavigate();
   const [records, setRecords] = useState<AICallRecord[]>([]);
@@ -98,7 +105,8 @@ const NotificationHistory = () => {
     fetchRecords();
   }, [currentPage, statusFilter, pageSize]);
 
-  const buildFilterQuery = useCallback((query: any) => {
+  const buildFilterQuery = useCallback(<Q,>(builder: Q): Q => {
+    const query = builder as unknown as FilterableQuery<Q>;
     switch (statusFilter) {
       case 'pending':
         return query.in('call_status', ['pending', 'in_progress']);
@@ -109,7 +117,7 @@ const NotificationHistory = () => {
       case 'rejected':
         return query.eq('changes_approved', false);
       default:
-        return query;
+        return builder;
     }
   }, [statusFilter]);
 

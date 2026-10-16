@@ -18,6 +18,14 @@ const PUBLIC_KEY = Deno.env.get("DISCORD_PUBLIC_KEY")!;
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+interface LeadRow {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  current_status?: string | null;
+}
+
 // @ts-ignore
 serve(async (req: Request) => {
     const signature = req.headers.get("X-Signature-Ed25519")!;
@@ -109,7 +117,7 @@ serve(async (req: Request) => {
             }
 
             if (aiResult.action === "get_schedule") {
-                const schedule = stats.appointmentsToday?.map((a: any) => `- **${a.leads?.first_name}**: ${a.reason} at ${new Date(a.appointment_date).toLocaleTimeString()}`).join('\n') || "No appointments today.";
+                const schedule = stats.appointmentsToday?.map((a: { leads?: { first_name?: string }; reason?: string; appointment_date: string }) => `- **${a.leads?.first_name}**: ${a.reason} at ${new Date(a.appointment_date).toLocaleTimeString()}`).join('\n') || "No appointments today.";
                 return new Response(JSON.stringify({ type: 4, data: { content: `📅 **Today's Schedule:**\n${schedule}\n\n${aiResult.response}` } }), { headers: { "Content-Type": "application/json" } });
             }
 
@@ -117,8 +125,8 @@ serve(async (req: Request) => {
                 const { data: leads } = await searchLeads(aiResult.params.query || aiResult.params.name);
                 if (!leads?.length) return new Response(JSON.stringify({ type: 4, data: { content: `🔍 No matches for "${aiResult.params.query}"` } }), { headers: { "Content-Type": "application/json" } });
 
-                const list = leads.map((l: any) => `👤 **${l.first_name} ${l.last_name}** (${l.phone})\nStatus: ${l.current_status}`).join('\n\n');
-                const buttons = leads.slice(0, 2).flatMap((l: any) => ([
+                const list = leads.map((l: LeadRow) => `👤 **${l.first_name} ${l.last_name}** (${l.phone})\nStatus: ${l.current_status}`).join('\n\n');
+                const buttons = leads.slice(0, 2).flatMap((l: LeadRow) => ([
                     { type: 2, style: 1, label: `📞 Call ${l.first_name}`, custom_id: `action:call:${l.id}` },
                     { type: 2, style: 2, label: `📧 Email ${l.first_name}`, custom_id: `action:email:${l.id}` }
                 ]));

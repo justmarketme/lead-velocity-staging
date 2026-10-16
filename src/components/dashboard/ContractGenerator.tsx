@@ -34,6 +34,9 @@ import { renderAgreementHtml } from "@/lib/contract/renderHtml";
 import contractLogo from "@/assets/lead-velocity-logo-contract.png";
 import { callLegalAI } from "@/utils/legalAI";
 import { ALL_PLANS, PILOT, PILOT_OFFERED, isPilot, perLead, pricingSummaryText, zar } from "@/lib/pricing";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 import {
     AGREEMENT_TITLE,
     PRIMARY_FIELDS,
@@ -47,7 +50,7 @@ import {
 
 interface ContractGeneratorProps {
     onBack: () => void;
-    initialData?: any;
+    initialData?: Record<string, unknown>;
 }
 
 const EMAIL_SUBJECT = `${AGREEMENT_TITLE} — draft for your review`;
@@ -63,7 +66,7 @@ const AI_GUIDANCE =
     `the fee is flat per Billing Cycle (clause 8.3; FAIS, Raspberry Academy v Oaksure). For questions about the clauses, answer in "response" and return empty "changes".`;
 
 /** content_data saved by the old Service Level Agreement screen: carry the client details over. */
-function fromLegacy(old: Record<string, any>): AgreementFields {
+function fromLegacy(old: Record<string, unknown>): AgreementFields {
     const strip = (v: unknown, prefix: RegExp, junk: string[] = []) => {
         const s = String(v ?? "").replace(prefix, "").trim();
         return junk.includes(s) ? "" : s;
@@ -96,7 +99,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     const [recipientEmail, setRecipientEmail] = useState("");
     const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
     const [confirmAction, setConfirmAction] = useState<null | "save" | "email">(null);
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<Tables<'admin_documents'>[]>([]);
 
     const [isListening, setIsListening] = useState(false);
     const [aiInput, setAiInput] = useState("");
@@ -156,7 +159,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     };
 
     // Fills client details only. The Plan is never inferred from desired leads: Bronze by default, the user picks.
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         const phone = broker.phone_number || broker.phone || broker.whatsapp_number || "";
         setFields((prev) => ({
             ...prev,
@@ -261,10 +264,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             if (Object.keys(allowed).length > 0) setPendingChanges(allowed);
             if (Array.isArray(suggestions) && suggestions.length > 0) setAiSuggestions(suggestions);
             if (response && isConversational) speak(response);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("AI Assistant Error:", error);
             setAiResponse("I'm sorry, I couldn't connect to the AI. Please check your internet connection.");
-            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+            toast({ title: "AI Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsThinking(false);
         }
@@ -322,7 +325,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         await new Promise<void>((resolve) => { frame.onload = () => resolve(); frame.srcdoc = html; });
         const fdoc = frame.contentDocument!;
         await Promise.all(Array.from(fdoc.images).map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
-        if ((fdoc as any).fonts?.ready) await (fdoc as any).fonts.ready;
+        if (fdoc.fonts?.ready) await fdoc.fonts.ready;
         return frame;
     };
 
@@ -353,8 +356,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             const suffix = fields.include_notes ? "_INTERNAL-NOTES" : "";
             if (kind === "word") download(await buildContractDocx(doc, { logoUrl: contractLogo }), `${safeName()}${suffix}.docx`);
             else download((await renderPdf(fields)).output("blob"), `${safeName()}${suffix}.pdf`);
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            toast({ title: "Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -390,7 +393,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                     file_size: pdfBlob.size,
                     category: "contracts",
                     uploaded_by: user.id,
-                    content_data: { template_version: doc.templateVersion, fields: clientFields() } as any,
+                    content_data: { template_version: doc.templateVersion, fields: clientFields() } as unknown as Json,
                 });
                 if (dbError) throw dbError;
                 fetchHistory();
@@ -418,8 +421,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             } else {
                 toast({ title: "Saved to Library" });
             }
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            toast({ title: "Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }

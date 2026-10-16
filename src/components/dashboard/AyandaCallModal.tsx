@@ -9,13 +9,13 @@ interface AyandaCallModalProps {
     isOpen: boolean;
     onClose: () => void;
     lead: {
-        id: string | number;
+        id?: string | number;
         name?: string;
         first_name?: string | null;
         last_name?: string | null;
-        company?: string;
-        role?: string;
-        phone?: string;
+        company?: string | null;
+        role?: string | null;
+        phone?: string | null;
     } | null;
     brokerId?: string | null;
 }
@@ -27,7 +27,7 @@ export function AyandaCallModal({ isOpen, onClose, lead, brokerId }: AyandaCallM
     const [duration, setDuration] = useState(0);
 
     useEffect(() => {
-        let timer: any;
+        let timer: ReturnType<typeof setInterval> | undefined;
         if (isOpen && !isConnecting) {
             timer = setInterval(() => setDuration(d => d + 1), 1000);
         }
@@ -58,7 +58,7 @@ export function AyandaCallModal({ isOpen, onClose, lead, brokerId }: AyandaCallM
             setIsConnecting(false);
             setStatus(data?.phoneDialed ? `Dialing ${lead?.phone || 'lead'}...` : "Call Session Active");
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
             setStatus("Neural Bridge Failed");
             setTimeout(onClose, 3000);

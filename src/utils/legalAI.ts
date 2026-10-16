@@ -2,17 +2,18 @@
  * Shared utility for the legal/document AI assistant.
  * Calls the `gemini-proxy` Supabase Edge Function (auth required); GEMINI_API_KEY stays server-side (I-32c).
  */
+import { errorMessage } from "@/lib/groupB-errors";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AIAssistantResult {
     response: string;
-    changes: Record<string, any>;
+    changes: Record<string, unknown>;
     suggestions: string[];
 }
 
 export async function callLegalAI(
     command: string,
-    currentState: Record<string, any>,
+    currentState: object,
     documentType: string = "Document",
     /** Document-specific rules the model must follow (e.g. fixed contract wording, flat-fee model). */
     guidance?: string
@@ -23,7 +24,7 @@ export async function callLegalAI(
         { name: "gemini-1.5-flash-8b", version: "v1" }
     ];
 
-    let lastError: any = null;
+    let lastError: unknown = null;
 
     for (const config of modelConfigs) {
         try {
@@ -84,19 +85,21 @@ User Command/Intent:
             }
 
             return JSON.parse(aiText) as AIAssistantResult;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(`Error with model ${config.name}:`, error);
             lastError = error;
-            if (error.message === "429" || error.message === "404") continue;
+            const message = errorMessage(error);
+            if (message === "429" || message === "404") continue;
             // For other errors, we could also continue or break.
         }
     }
 
     // Comprehensive error messaging
-    if (lastError?.message === "429" || lastError?.message?.includes("429")) {
+    const lastMessage = errorMessage(lastError);
+    if (lastMessage === "429" || lastMessage?.includes("429")) {
         throw new Error("The AI is currently at capacity due to high demand. Please wait about 30 seconds and try again.");
     }
-    if (lastError?.message === "404" || lastError?.message?.includes("404")) {
+    if (lastMessage === "404" || lastMessage?.includes("404")) {
         throw new Error("AI service temporarily unavailable. Please try again in a moment.");
     }
     throw lastError || new Error("Failed to connect to AI Assistant.");

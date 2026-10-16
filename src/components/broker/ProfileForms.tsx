@@ -3,6 +3,7 @@
  * broker_update_profile() (migration 20261012180000): the broker's own row, these columns only, validated server-side,
  * frozen while routing is on. The CRM admin drawer reads the same brokers columns.
  */
+import type { PortalBroker } from "@/types/groupB-broker";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +35,7 @@ function Status({ err, ok }: { err: string | null; ok: string | null }) {
 }
 
 /** FSP number + practice name. `suggestedFsp` (e.g. from the signed agreement) pre-fills an empty field. */
-export function FspForm({ broker, suggestedFsp, onSaved, onCancel }: { broker: any; suggestedFsp?: string | null; onSaved: (p: ProfilePatch) => void; onCancel?: () => void }) {
+export function FspForm({ broker, suggestedFsp, onSaved, onCancel }: { broker: PortalBroker | null; suggestedFsp?: string | null; onSaved: (p: ProfilePatch) => void; onCancel?: () => void }) {
   const preview = !!useBrokerPreview();
   const locked = !!broker?.routing_on;
   const [fsp, setFsp] = useState<string>(broker?.fsp_number || suggestedFsp || "");
@@ -83,7 +84,7 @@ export function FspForm({ broker, suggestedFsp, onSaved, onCancel }: { broker: a
 }
 
 /** Business WhatsApp number: confirm the one on record (or his phone number as a suggestion), or enter another. */
-export function WhatsAppForm({ broker, onSaved }: { broker: any; onSaved: (p: ProfilePatch) => void }) {
+export function WhatsAppForm({ broker, onSaved }: { broker: PortalBroker | null; onSaved: (p: ProfilePatch) => void }) {
   const preview = !!useBrokerPreview();
   const locked = !!broker?.routing_on;
   const onRecord: string | null = broker?.whatsapp_number || null;

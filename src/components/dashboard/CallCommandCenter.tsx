@@ -53,8 +53,14 @@ interface CallRequest {
   created_at: string;
   is_roleplay?: boolean;
   join_url?: string;
-  conversation_history?: any[];
+  conversation_history?: ConversationEntry[];
   admin_notes?: string;
+}
+
+interface ConversationEntry {
+  role?: string;
+  content?: string;
+  text?: string;
 }
 
 interface CallCommandCenterProps {
@@ -109,7 +115,7 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
   useEffect(() => {
     if (liveCall?.conversation_history && Array.isArray(liveCall.conversation_history)) {
       setTranscript(
-        liveCall.conversation_history.map((entry: any) => ({
+        liveCall.conversation_history.map((entry) => ({
           speaker: entry.role === 'agent' || entry.role === 'assistant' ? 'agent' : 'user',
           text: entry.content || entry.text || '',
         }))
@@ -173,7 +179,7 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
     return "Neutral";
   };
 
-  const formatTranscriptText = (history: any[] | undefined) => {
+  const formatTranscriptText = (history: ConversationEntry[] | undefined) => {
     if (!history || !Array.isArray(history)) return null;
     return history
       .map((entry) => {
@@ -268,12 +274,12 @@ const CallCommandCenter = ({ isOpen, onClose, activeCallId }: CallCommandCenterP
                           <div className="min-h-[140px] max-h-[140px] overflow-y-auto p-4 bg-background/40 rounded-2xl border border-border/20 backdrop-blur-md shadow-inner">
                             {transcript.length > 0 ? (
                               <div className="space-y-3">
-                                {transcript.slice(-4).map((t: any, i) => (
+                                {transcript.slice(-4).map((t, i) => (
                                   <div key={i} className={cn(
                                     "text-xs leading-relaxed transition-all duration-300",
-                                    (t.role === 'agent' || t.role === 'assistant') ? "text-primary font-medium" : "text-foreground opacity-80"
+                                    t.speaker === 'agent' ? "text-primary font-medium" : "text-foreground opacity-80"
                                   )}>
-                                    <span className="uppercase text-[8px] font-black mr-2 opacity-40">{(t.role === 'agent' || t.role === 'assistant') ? 'Ayanda' : 'Prospect'}:</span>
+                                    <span className="uppercase text-[8px] font-black mr-2 opacity-40">{t.speaker === 'agent' ? 'Ayanda' : 'Prospect'}:</span>
                                     {t.text}
                                   </div>
                                 ))}

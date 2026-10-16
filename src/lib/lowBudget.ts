@@ -1,6 +1,7 @@
 // C-tier (under R750) leads: names shared with the crm-nurture backend.
 // Change them here only. The columns may not exist on the live DB yet, so every
 // caller treats a query error as "feature off" and hides its controls.
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { supabase } from "@/integrations/supabase/client";
 
 export const LOW_BUDGET = {
@@ -21,7 +22,7 @@ export const ASSIGN_REFUSED_TEXT = "Broker not ready, full, or the client's cons
 
 export const COUNTS_HELPER = "Counts toward the broker's order only once they've seen the client (attendance confirmed).";
 
-const db = supabase as any;
+const db = supabaseUntyped;
 
 /** Broker id -> switch value, or null when the column doesn't exist yet. */
 export async function loadLowBudgetSwitches(): Promise<Record<string, boolean> | null> {

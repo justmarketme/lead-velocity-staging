@@ -83,7 +83,7 @@ const BrokerReferrals = () => {
       if (error) throw error;
 
       setReferrals(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching referrals:", error);
       toast({
         title: "Error",

@@ -395,16 +395,16 @@ const LeadUploadForm = () => {
                   <Label htmlFor="company">Company</Label>
                   <Input
                     id="company"
-                    value={(formData as any).company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value } as any)}
+                    value={formData.company}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
                   <Input
                     id="role"
-                    value={(formData as any).role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value } as any)}
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   />
                 </div>
               </div>
@@ -412,8 +412,8 @@ const LeadUploadForm = () => {
                 <Label htmlFor="address">Address</Label>
                 <Input
                   id="address"
-                  value={(formData as any).address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value } as any)}
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
               </div>
               <div className="space-y-2">

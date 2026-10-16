@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,8 +109,8 @@ const BrokerUpload = () => {
 
       toast({ title: "Success", description: "Client added to your book" });
       setFormData({ first_name: "", last_name: "", email: "", phone: "", source: "Broker Book", notes: "" });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      toast({ title: "Error", description: errorMessage(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -127,13 +128,13 @@ const BrokerUpload = () => {
       const line = lines[i].trim();
       if (!line) continue;
       const values = line.split(',').map(v => v.trim());
-      const row: any = {};
+      const row: Record<string, string | undefined> = {};
       headers.forEach((h, idx) => row[h] = values[idx]);
 
       try {
         const validated = csvLeadSchema.parse(row);
         valid.push(validated as CSVParseResult['valid'][number]);
-      } catch (err: any) {
+      } catch (err: unknown) {
         errors.push({ row: i + 1, message: "Invalid data format" });
       }
     }

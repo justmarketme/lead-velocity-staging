@@ -185,16 +185,18 @@ export async function elevenSignatureOk(secret: string, header: string, body: st
 
 export type Outcome = "booked" | "whatsapp_handoff" | "callback_requested" | "out_of_criteria" | "no_answer" | "missed" | "info_only";
 
-type Turn = { role: string; message?: string | null; tool_calls?: any[]; tool_results?: any[] };
+type Turn = { role: string; message?: string | null; tool_calls?: unknown[]; tool_results?: ToolResult[] };
+type ToolResult = { tool_name?: string; result_value?: unknown; result?: unknown };
+type ToolOut = { ok?: boolean; out_of_criteria?: boolean; [k: string]: unknown };
 
-function toolResults(transcript: Turn[], name: string): any[] {
-  const out: any[] = [];
+function toolResults(transcript: Turn[], name: string): ToolOut[] {
+  const out: ToolOut[] = [];
   for (const t of transcript ?? []) {
     for (const r of t.tool_results ?? []) {
       if (r?.tool_name !== name) continue;
       let v = r.result_value ?? r.result;
       if (typeof v === "string") { try { v = JSON.parse(v); } catch { /* keep string */ } }
-      out.push(v);
+      out.push(v as ToolOut);
     }
   }
   return out;

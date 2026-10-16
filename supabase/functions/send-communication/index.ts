@@ -7,6 +7,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/** Resend attachment: base64 `content` or a remote `path`. */
+interface EmailAttachment {
+  filename?: string;
+  content?: string;
+  path?: string;
+  content_type?: string;
+}
+
 interface CommunicationPayload {
   channel: 'email' | 'sms' | 'whatsapp' | 'call';
   recipient_contact: string;
@@ -16,7 +24,7 @@ interface CommunicationPayload {
   lead_id?: string;
   referral_id?: string;
   broker_id?: string;
-  attachments?: any[];
+  attachments?: EmailAttachment[];
 }
 
 serve(async (req) => {
@@ -204,7 +212,7 @@ serve(async (req) => {
   }
 });
 
-async function sendEmail(to: string, subject: string, content: string, attachments?: any[]) {
+async function sendEmail(to: string, subject: string, content: string, attachments?: EmailAttachment[]) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (!resendApiKey) {
     return { success: false, error: 'RESEND_API_KEY not configured' };
@@ -213,7 +221,7 @@ async function sendEmail(to: string, subject: string, content: string, attachmen
   try {
     // Lead Velocity layout; the CRM sends plain text (compose box) or simple HTML (invoices, contracts, proposals).
     const mail = communicationEmail({ content, subject });
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       from: 'Lead Velocity <howzit@leadvelocity.co.za>',
       to: [to],
       subject: mail.subject,
