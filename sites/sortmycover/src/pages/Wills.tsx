@@ -22,6 +22,7 @@ export default function Wills() {
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/wills/" }]}
       ctaKind="wills"
     >
+      <figure className="hub-photo"><img src="/smc-stock-wills.webp" alt="Two adults in conversation" width="1440" height="960" loading="eager" /></figure>
       <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>
         {PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE} <a href={site.fsca_register_url} rel="noopener noreferrer">Look the firm up on the FSCA register</a>.
       </p>

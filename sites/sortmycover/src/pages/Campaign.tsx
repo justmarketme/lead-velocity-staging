@@ -45,6 +45,11 @@ const proofMonth = (ym: string) => { const [y, m] = ym.split("-"); return MONTHS
 
 /** Theme B (wills and estate) pages name the will provider and say what SortMyCover does not do. */
 const isWills = (a: Angle) => a.theme === "B";
+const campaignImage = (a: Angle) => isWills(a)
+  ? a.slug === "children-guardian" ? "/smc-stock-family.webp" : "/smc-stock-wills.webp"
+  : a.slug === "new-baby" ? "/smc-stock-family.webp"
+  : a.slug === "new-bond" ? "/smc-stock-hero.webp"
+  : "/smc-stock-couple.webp";
 
 export function CampaignLanding({ angle }: { angle: Angle }) {
   const origin = campaignOrigin(hostLabel(angle));
@@ -56,7 +61,8 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
       <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c9c3b8]">{COST_LINE}</small></div></header>
       <main id="main">
         <section className="hero-band on-dark">
-          <div className="wrap-narrow py-8">
+          <div className="wrap campaign-hero-grid">
+            <div className="campaign-hero-copy">
             <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
             <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
@@ -67,6 +73,10 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
                 {angle.proof.text} <span>Source: {angle.proof.source}, {proofMonth(angle.proof.month)}.</span>
               </p>
             )}
+            </div>
+            <figure className="campaign-hero-photo">
+              <img src={campaignImage(angle)} alt="People sharing a conversation at home" width="1440" height="960" fetchPriority="high" />
+            </figure>
           </div>
         </section>
         <section className="wrap-narrow py-6" id="quiz" aria-label="Book my adviser call">

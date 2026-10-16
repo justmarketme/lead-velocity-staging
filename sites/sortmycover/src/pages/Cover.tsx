@@ -20,6 +20,7 @@ export default function Cover() {
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/cover/" }]}
       ctaKind="cover"
     >
+      <figure className="hub-photo"><img src="/smc-stock-couple.webp" alt="Two adults talking together at home" width="1440" height="960" loading="eager" /></figure>
       <ArticleList items={articlesForHub(COVER_HUB)} />
       <p className="mt-4">The words used on these pages are defined in the <Link to="/learn/glossary/">glossary</Link>.</p>
 

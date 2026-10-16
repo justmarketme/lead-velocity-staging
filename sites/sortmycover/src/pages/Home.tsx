@@ -35,23 +35,38 @@ export default function Home() {
         jsonld={[organization(), website()]}
       />
       <section className="hero-band on-dark">
-        <div className="wrap py-10 md:py-14">
-          <div className="grid gap-8 md:grid-cols-[1.3fr_1fr] items-center">
-            <div>
+        <div className="wrap home-hero-wrap">
+          <div className="home-hero-stage">
+            <img src="/smc-stock-hero.webp" alt="Two adults enjoying a conversation at home" width="1440" height="960" fetchPriority="high" />
+            <div className="home-hero-shade" aria-hidden="true" />
+            <div className="home-hero-copy">
               <p className="eyebrow mb-3">A conversation, not a quote.</p>
-              <h1 className="home-headline">Big life moments.<br /><em>A clearer conversation.</em></h1>
-              <p className="home-intro">A 30-minute call with a licensed financial adviser about life cover, disability, severe illness or income protection. A separate call connects people to a wills consultant.</p>
-              <div className="home-actions"><Link to={BOOK_COVER} className="btn">{BOOK_LABEL} <span aria-hidden="true">↗</span></Link><a href="#h-how" className="home-how-link">How it works ↓</a></div>
+              <h1 className="home-headline">Life moves.<br /><em>Clarity starts here.</em></h1>
+              <p className="home-intro">Talk through life cover, disability, severe illness or income protection with a licensed adviser in a 30-minute call.</p>
+              <div className="home-actions"><Link to={BOOK_COVER} className="btn">{BOOK_LABEL} <span aria-hidden="true">↗</span></Link><a href="#h-how" className="home-how-link">See how it works ↓</a></div>
             </div>
-            <figure className="home-hero-photo">
-              <img src="/smc-conversation-hero-v2.webp" alt="Two people talking through questions together at home" width="1536" height="1024" fetchPriority="high" />
-              <figcaption>Illustrative AI-generated image</figcaption>
-            </figure>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 mt-8 md:mt-10 home-services" aria-label="Choose a call">
+          <div className="home-moments" >
+            <div className="home-moments-intro">
+              <p className="eyebrow eyebrow-light">The questions behind the call</p>
+              <h2>Life changes.<br />The questions change too.</h2>
+              <p>A home, an income, the people who matter. A conversation can help make sense of what cover is for.</p>
+            </div>
+            <Link to={articlePath("income-protection")} className="home-moment">
+              <img src="/smc-stock-couple.webp" alt="Two adults talking at a table" width="1440" height="960" loading="lazy" />
+              <span><small>01 / Income</small><strong>What happens when work stops?</strong><b>Explore income protection →</b></span>
+            </Link>
+            <Link to={articlePath("what-a-will-does")} className="home-moment">
+              <img src="/smc-stock-family.webp" alt="A family drawing together at home" width="1440" height="810" loading="lazy" />
+              <span><small>02 / Family</small><strong>How are future wishes recorded?</strong><b>Explore wills →</b></span>
+            </Link>
+          </div>
+
+          <div className="home-choice-heading"><p className="eyebrow eyebrow-light">Choose your conversation</p><h2>Two ways to start.</h2></div>
+          <div className="grid gap-4 md:grid-cols-2 home-services" aria-label="Choose a call">
             <article className="svc-card" aria-labelledby="h-svc-cover">
-              <img className="svc-photo" src="/smc-conversation-hero-v2.webp" alt="Two people having a thoughtful conversation at home" loading="lazy" width="1536" height="1024" />
+              <img className="svc-photo" src="/smc-stock-hero.webp" alt="Two people talking in their home" loading="lazy" width="1440" height="960" />
               <p className="svc-kicker">Cover adviser call</p>
               <h2 id="h-svc-cover">Talk to a cover adviser</h2>
               <p className="svc-who">With an adviser from an FSCA-authorised financial services provider. You get their name, practice and FSP number before you speak.</p>
@@ -63,7 +78,7 @@ export default function Home() {
             </article>
 
             <article className="svc-card" aria-labelledby="h-svc-wills">
-              <img className="svc-photo" src="/smc-wills-conversation-v1.webp" alt="Two adult family members discussing plans together" loading="lazy" width="1536" height="1024" />
+              <img className="svc-photo" src="/smc-stock-wills.webp" alt="Two adults discussing plans together" loading="lazy" width="1440" height="960" />
               <p className="svc-kicker">Will and estate call</p>
               <h2 id="h-svc-wills">Get your will drafted</h2>
               <p className="svc-who" data-disclosure data-provider>With a consultant from {provider.legal_name}, {provider.status} (FSP {provider.fsp_number}). {PROVIDER_ROLE_LINE}</p>
@@ -77,7 +92,6 @@ export default function Home() {
               <p className="svc-fine" data-disclosure>{COST_LINE} {PROVIDER_COST_LINE}</p>
             </article>
           </div>
-          <p className="home-image-note">Images on this page are AI-generated illustrations of conversations, not clients or advisers.</p>
 
           <p className="mt-6 text-[15px] text-[#d7d2c8] max-w-[70ch]" data-disclosure>SortMyCover is run by Lead Velocity (Pty) Ltd, registration {company.registration}. Not a financial services provider. We give no advice. <a className="underline text-offwhite" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
           <p className="mt-2 text-[15px] text-[#d7d2c8] max-w-[70ch]">Questions? {site.whatsapp_number ? <>WhatsApp {site.whatsapp_number} or email</> : <>Email</>} <a className="underline text-offwhite" href={"mailto:" + company.email}>{company.email}</a>. We answer questions about how this works, not about cover or wills.</p>
@@ -85,14 +99,16 @@ export default function Home() {
       </section>
 
       <section className="wrap py-12" aria-labelledby="h-cover">
-        <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
+        <div className="home-editorial">
+          <img src="/smc-stock-father-sons.webp" alt="A father spending time with his children at home" width="1440" height="2160" loading="lazy" />
           <div>
             <p className="eyebrow eyebrow-light">Cover types</p>
-            <h2 id="h-cover" className="text-[26px]">Four kinds of cover, in plain words</h2>
+            <h2 id="h-cover">Cover is about the life around it.</h2>
+            <p>From a monthly income to a family’s future, each type of cover does a different job. These guides explain the basics before the adviser call.</p>
+            <Link className="home-text-link" to="/cover/">Explore all cover types →</Link>
           </div>
-          <Link className="underline" to="/cover/">All cover types</Link>
         </div>
-        <Reveal className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Reveal className="home-guide-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cover.map((m) => (
             <Link key={m.slug} to={articlePath(m.slug)} className="card-link card-tall" data-reveal><b>{m.title.replace(/, in plain words$/, "")}</b><span>{COVER_LINES[m.slug] ?? m.description}</span><i aria-hidden="true">Read →</i></Link>
           ))}
@@ -102,15 +118,17 @@ export default function Home() {
 
       <section className="bg-muted py-12" aria-labelledby="h-wills">
         <div className="wrap">
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+          <div className="home-editorial home-editorial-reverse">
+            <img src="/smc-stock-wills.webp" alt="Two adults talking together" width="1440" height="960" loading="lazy" />
             <div>
               <p className="eyebrow eyebrow-light">Wills and estate</p>
-              <h2 id="h-wills" className="text-[26px]">What a will does, and what happens to an estate</h2>
+              <h2 id="h-wills">The conversations that help shape a will.</h2>
+              <p>People, wishes and practical details all matter. Read what a will does and what happens during an estate appointment.</p>
+              <Link className="home-text-link" to="/wills/">Explore wills and estate →</Link>
             </div>
-            <Link className="underline" to="/wills/">All wills and estate guides</Link>
           </div>
           <p className="mb-5 max-w-prose text-[15px] text-muted-foreground" data-disclosure>Every fact in these guides is a statement {provider.name} publishes, with the source and date on each page. {PROVIDER_ROLE_LINE}</p>
-          <Reveal className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Reveal className="home-guide-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {wills.map((m) => (
               <Link key={m.slug} to={articlePath(m.slug)} className="card-link" data-reveal><b>{m.title}</b><span>{m.description}</span></Link>
             ))}
@@ -119,7 +137,8 @@ export default function Home() {
       </section>
 
       <section className="wrap py-12" aria-labelledby="h-how">
-        <h2 id="h-how" className="text-[26px] mb-6">How booking works</h2>
+        <p className="eyebrow eyebrow-light">A simple path</p><h2 id="h-how" className="home-section-heading">From a few questions to a real conversation.</h2>
+        <div className="home-how-photo"><img src="/smc-stock-couple.webp" alt="Two adults talking together at home" width="1440" height="960" loading="lazy" /></div>
         <Steps items={HOW_STEPS} />
         <p className="mt-6 max-w-prose" data-disclosure>Before you speak, a cover adviser gives you their name, practice and FSP number, and on the call they tell you how they are paid. A will call works the same way with a {provider.name} consultant. <Link to="/how-it-works/" className="underline">Read the full walk-through</Link>.</p>
       </section>
