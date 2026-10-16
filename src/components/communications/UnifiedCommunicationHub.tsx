@@ -51,6 +51,8 @@ interface Communication {
   recipient_contact: string;
   call_duration: number | null;
   call_recording_url: string | null;
+  lead_id: string | null;
+  broker_id: string | null;
   metadata: unknown;
 }
 

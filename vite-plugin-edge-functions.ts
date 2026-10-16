@@ -29,7 +29,6 @@ export function edgeFunctionsPlugin(): Plugin {
                         const GEMINI_API_KEY = env.GEMINI_API_KEY;
                         const TAVILY_API_KEY = env.VITE_TAVILY_API_KEY || env.TAVILY_API_KEY;
                         const OPENROUTER_API_KEY = env.VITE_OPENROUTER_API_KEY || env.OPENROUTER_API_KEY;
-                        const ULTRAVOX_API_KEY = env.ULTRAVOX_API_KEY;
 
                         console.log(`[Edge Emulator] Intercepted: ${functionName}`);
 
@@ -101,43 +100,6 @@ export function edgeFunctionsPlugin(): Plugin {
                             } else {
                                 result = { status: "success", message: "Action acknowledged by emulator." };
                             }
-                        } else if (functionName === 'create-einstein-call') {
-                            if (!ULTRAVOX_API_KEY) {
-                                throw new Error("ULTRAVOX_API_KEY is missing in local .env");
-                            }
-
-                            const ELEVENLABS_VOICE_ID = env.ELEVENLABS_EINSTEIN_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
-                            
-                            const ultravoxResponse = await fetch('https://api.ultravox.ai/api/calls', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-API-Key': ULTRAVOX_API_KEY,
-                                },
-                                body: JSON.stringify({
-                                    systemPrompt: `You are Einstein, a witty, cyberpunk astronaut version of Albert Einstein. Accent: German and eccentric.`,
-                                    model: 'ultravox-v0.7',
-                                    externalVoice: {
-                                        elevenLabs: {
-                                            voiceId: ELEVENLABS_VOICE_ID,
-                                            model: 'eleven_turbo_v2_5'
-                                        }
-                                    },
-                                    medium: { webRtc: {} },
-                                    firstSpeaker: 'FIRST_SPEAKER_AGENT'
-                                }),
-                            });
-
-                            if (!ultravoxResponse.ok) {
-                                const errText = await ultravoxResponse.text();
-                                throw new Error(`Ultravox API error: ${ultravoxResponse.status}. ${errText}`);
-                            }
-
-                            const callData = await ultravoxResponse.json();
-                            result = {
-                                joinUrl: callData.joinUrl || callData.join_url,
-                                callId: callData.callId || callData.call_id
-                            };
                         } else {
                             result = { status: "success", message: `Emulating ${functionName}` };
                         }

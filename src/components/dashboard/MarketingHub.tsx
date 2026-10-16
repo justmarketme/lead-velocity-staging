@@ -487,22 +487,22 @@ const MarketingHub = () => {
         try {
             const { data, error } = await supabase
                 .from('ai_call_requests')
-                .select('summary, recording_url, call_status')
+                .select('call_summary, call_recording_url, call_status')
                 .eq('recipient_id', lead.id)
                 .order('created_at', { ascending: false })
                 .limit(1)
                 .single();
 
             if (error || !data) {
-                toast({ title: "No Records Found", description: "Einstein hasn't engaged this entity via voice protocol yet.", variant: "secondary" });
+                toast({ title: "No Records Found", description: "Einstein hasn't engaged this entity via voice protocol yet.", variant: "default" });
                 return;
             }
 
             toast({
                 title: "Intelligence Retrieved",
-                description: `Summary: ${data.summary || 'Transcription in progress.'}`,
-                action: data.recording_url ? (
-                    <Button variant="outline" size="sm" onClick={() => window.open(data.recording_url, '_blank')}>Listen</Button>
+                description: `Summary: ${data.call_summary || 'Transcription in progress.'}`,
+                action: data.call_recording_url ? (
+                    <Button variant="outline" size="sm" onClick={() => window.open(data.call_recording_url, '_blank')}>Listen</Button>
                 ) : undefined
             });
         } catch (err) {
