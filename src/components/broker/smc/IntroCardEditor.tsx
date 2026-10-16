@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Camera, CheckCircle2, Circle, Loader2, Lock, Video } from "lucide-react";
-import { INTRO_MEDIA_URL, MEDIA_BUCKET, SUPPORT_EMAIL, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
+import { MEDIA_BUCKET, SUPPORT_EMAIL, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
 import type { SmcBroker, SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
 import { useBrokerPreview } from "@/lib/brokerPreview";
@@ -25,6 +25,7 @@ import { BioReviewCard, FspVerifiedBadge } from "./LvReview";
 import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
 import { bioLocked, cardLocked } from "@/lib/changeRequests";
 import RequestChange from "./RequestChange";
+import ApprovalSwitch from "./ApprovalSwitch";
 
 export const LANGS: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "af", label: "Afrikaans" }, { code: "isiZulu", label: "isiZulu" },
@@ -113,6 +114,9 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoPoster, setVideoPoster] = useState<string | null>(null);
   const [mediaUnavailable, setMediaUnavailable] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoNonce, setVideoNonce] = useState(0);
 
   // Signed URL for the stored headshot (private bucket, short-lived, re-signed on every load).
   useEffect(() => {
@@ -144,7 +148,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
         if (alive) { setVideoUrl(url); setVideoPoster(poster); }
       });
     return () => { alive = false; };
-  }, [broker.id]);
+  }, [broker.id, videoNonce]);
 
   // Lead Velocity's decision (accept) rewrites bio_short on the server: show it in the box when it changes.
   useEffect(() => { setBio(broker.bio_short || ""); }, [broker.bio_short]);
@@ -211,14 +215,29 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
     void reload();
   }
 
-  const approveUrl = INTRO_MEDIA_URL.replace(/[^/]*$/, "approve.html");
+  async function approveVideo() {
+    if (!video || video.state !== "ready" || !videoUrl) return;
+    setVideoError(null);
+    if (preview) { setVideoError("Preview only: nothing is saved."); return; }
+    setVideoBusy(true);
+    const { error } = await smcDb.rpc("broker_approve_intro_video", { p_media_id: video.id });
+    setVideoBusy(false);
+    if (error) {
+      setVideoError((error as { code?: string }).code === "PGRST202"
+        ? "Video approval is not available yet. Please contact Lead Velocity."
+        : profileErrorText(error));
+      return;
+    }
+    setVideoNonce((n) => n + 1);
+    void reload();
+  }
   const videoState = mediaUnavailable ? null : video?.state || "none";
   const VIDEO_LABEL: Record<string, { text: string; cls: string }> = {
     none: { text: "Not recorded yet", cls: c.info },
     processing: { text: "Processing your take", cls: c.info },
     ready: { text: "Ready: approve it", cls: c.warn },
     rejected: { text: "Needs another take", cls: c.bad },
-    approved: { text: "Approved for client use", cls: c.ok },
+    approved: { text: "Approved by you", cls: c.ok },
     superseded: { text: "Replaced by a newer take", cls: c.info },
   };
 
@@ -325,7 +344,12 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
             {video?.url && !videoUrl && <p className={c.muted}>The private video preview is unavailable right now. Please try again later.</p>}
             {introVideoSource(video?.ai_check || null) && <p className={`text-xs ${c.muted}`}>Source: {introVideoSource(video?.ai_check || null)}</p>}
             {video?.state === "rejected" && video.ai_check?.reason && <p className={`rounded-lg px-3 py-2 text-xs ${c.bad}`}>{video.ai_check.reason}</p>}
-            {video?.state === "ready" && <a className={`text-sm font-semibold ${c.link}`} href={approveUrl}>Watch and approve your video</a>}
+            {video?.state === "ready" && (
+              <ApprovalSwitch label="Approve my intro video" approved={false} blocked={preview || !videoUrl}
+                blockedNote={preview ? "Preview only: nothing is saved." : "Wait until the private video preview loads before approving."}
+                busy={videoBusy} error={videoError} onConfirm={approveVideo} />
+            )}
+            {video?.state === "approved" && <p role="status" className={c.ok}>You approved this video. Lead Velocity will complete the delivery check before using it with clients.</p>}
             {video && <p className={`text-xs ${c.muted}`}>Latest take v{video.version}, {fmtDay(video.created_at)}.</p>}
             {/* Video intake (W07/W23) isn't switched on yet: don't ask brokers to send a video that nothing would process. */}
             {!video && <p className={c.muted}>Video intros are coming soon. We'll let you know when you can record yours. You don't need one to go live.</p>}
