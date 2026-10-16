@@ -119,3 +119,12 @@ Thumbs.db
 desktop.ini
 *.log
 supabase/.branches/
+
+# Large rendered media (video/audio) in deliverables/ stays on disk but is not tracked (decision B, 16 Oct 2026).
+# Archive masters outside git; do not rewrite history.
+deliverables/**/*.mp4
+deliverables/**/*.mp3
+deliverables/**/*.wav
+deliverables/**/*.mov
+deliverables/**/*.webm
+deliverables/**/*.m4a
