@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { appointmentBookedEmail } from "../_shared/lv_emails.ts";
+import { smcLeadIds } from "../_shared/smc_email.ts";
+import { formatBookingTime, planBookingEmails } from "../_shared/booking_emails.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,20 +37,11 @@ serve(async (req) => {
         : Promise.resolve({ data: null })
     ]);
 
+    const isSmc = (await smcLeadIds(supabase, [leadId])).has(leadId);
     const leadName = lead ? `${lead.first_name} ${lead.last_name}`.trim() : 'Unknown Lead';
     const brokerName = broker?.contact_person || 'Your Broker';
-    const firmName = broker?.firm_name || 'Lead Velocity';
-    const brokerEmail = broker?.calendar_email || Deno.env.get('ADMIN_EMAIL') || 'admin@leadvelocity.co.za';
 
-    const formattedTime = new Date(appointmentTime).toLocaleString('en-ZA', {
-      timeZone: 'Africa/Johannesburg',
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const formattedTime = formatBookingTime(appointmentTime);
 
     // 2. Update lead status to Booked
     await supabase
@@ -57,27 +49,20 @@ serve(async (req) => {
       .update({ current_status: 'Booked' })
       .eq('id', leadId);
 
-    // 3. Send confirmation email via Resend
+    // 3. Send emails via Resend: the client gets a confirmation only; the broker/internal address gets the call notes.
     if (RESEND_API_KEY) {
-      const recipients = [brokerEmail];
-      if (lead?.email) recipients.push(lead.email);
-      const mail = appointmentBookedEmail({ leadName, phone: lead?.phone, brokerName, firmName, whenText: formattedTime, notes });
-
-      const sent = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: 'Ayanda <appointments@leadvelocity.co.za>',
-          to: recipients,
-          subject: mail.subject,
-          html: mail.html,
-          text: mail.text,
-        })
+      const emails = planBookingEmails({
+        lead, isSmc, broker, appointmentTime, notes,
+        adminEmail: Deno.env.get('ADMIN_EMAIL') || 'admin@leadvelocity.co.za',
       });
-      if (!sent.ok) console.error('book-appointment: Resend error', sent.status, await sent.text());
+      for (const mail of emails) {
+        const sent = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: mail.from, to: mail.to, reply_to: mail.reply_to, subject: mail.subject, html: mail.html, text: mail.text }),
+        });
+        if (!sent.ok) console.error(`book-appointment: Resend error (${mail.audience})`, sent.status, await sent.text());
+      }
     }
 
     console.log(`Appointment booked: ${leadName} at ${formattedTime} — broker: ${brokerName}`);
