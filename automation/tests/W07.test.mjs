@@ -664,3 +664,15 @@ test('never silent: W07.json guard runs beside every hand-off that carries the r
   assert.match(nd('Never silent: escalation').parameters.query, /'needs_human', 'urgent'/);
   for (const n of ['Never silent: anything sent since the inbound?', 'Never silent: send fallback', 'Never silent: escalation']) assert.equal(nd(n).onError, 'continueRegularOutput', n);
 });
+
+test('Cal.com booking_confirm_chat tap: routes to the contact step, which asks to confirm the WhatsApp number', () => {
+  const ld = mkLead(L01, { first_name: 'Lerato', conv_state: { state: 'booked', via: 'calcom' } });
+  assert.equal(W.routeInbound({ from: ld.phone, text: "Yes, let's chat", payload: 'booking_chat_yes:appt-1' }, { lead: ld, broker_numbers: new Set() }).route, 'W07_contact');
+  const s = W.contactStep(ld, { payload: 'booking_chat_yes:appt-1' });
+  assert.equal(s.conv_state.contact_step, 'call_number');
+  assert.equal(s.conv_state.via, 'calcom');
+  assert.equal(s.reply.type, 'buttons');
+  assert.match(s.reply.body, /^Thanks, Lerato! I'm Lindi, SortMyCover's AI booking assistant\. A few quick things before your call: is this WhatsApp number the best one to reach you on\?$/);
+  assert.deepEqual(s.reply.buttons.map(([id]) => id), ['call_number_yes', 'call_number_other']);
+  assert.equal(W.contactStep({ ...ld, conv_state: s.conv_state }, { payload: 'call_number_yes' }).conv_state.contact_step, 'alt', 'then the existing sequence');
+});

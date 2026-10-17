@@ -107,9 +107,10 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W34 | W34 DSR webhook token | `httpHeaderAuth` |
 | W35 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W36 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
+| W37 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 30 credentials across 43 workflow files.
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 30 credentials across 44 workflow files.
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
@@ -118,7 +119,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 | Header `x-api-key` | `ANTHROPIC_API_KEY` (C1) |
 | Console -> n8n shared secret | `httpHeaderAuth` | W25 | Webhook header auth on `POST /billing/pricing/publish` | No `.env` name. Same value configured in the console's server-side caller |
 | Hostinger SFTP (static sites) | `sftp` | W25 | Host, port, user, password or key | Hostinger hPanel SFTP account for the static sites (password manager). No `.env` name |
-| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
+| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35, W37 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W22, W36 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Meta Page Token | `httpHeaderAuth` | W30, W31 | `Authorization: Bearer …` | `PAGE_ACCESS_TOKEN` |
 | Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20, W22 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |

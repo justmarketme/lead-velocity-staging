@@ -86,3 +86,9 @@ test('WhatsApp tap (e: "wa", 17 Oct 2026): ref codes accepted even with an angle
   const rows = L.applyIncrement(L.applyIncrement(new Map(), inc), inc);
   assert.deepEqual(rows.get('2026-10-17|brand|/a06/').quiz_steps, { wa: { views: 2, abandons: 0 } });
 });
+
+test('desktop calendar opened (e: "cal"): same ref codes as WhatsApp taps, counted under quiz_steps.cal', () => {
+  const b = JSON.stringify({ v: 1, sid: SID, a: 'w-learn-bond', e: 'cal' });
+  assert.deepEqual(L.normalise({ body: b, env: { BEACON_ANGLE_SLUGS: 'new-bond' } }), { ok: true, event: 'cal', slug: 'w-learn-bond', step: null, sid: SID });
+  assert.equal(L.increment({ event: 'cal', slug: 'a02', step: null }, Date.parse('2026-10-17T12:00:00Z'), 'brand').step_key, 'cal');
+});

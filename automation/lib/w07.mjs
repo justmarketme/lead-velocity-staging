@@ -55,6 +55,8 @@ const LEAD_TAPS = {
   see_open_times: 'W04_list', not_now: 'W08', no_thanks: 'W08',
   reach_yes: 'W12', reach_no: 'W12', pulse_yes: 'W35', pulse_no: 'W35',
   call_number_yes: 'W07_contact', call_number_other: 'W07_contact', alt_add: 'W07_contact', alt_no: 'W07_contact',
+  // 2026-10-17 Cal.com desktop booking: "Yes, let's chat" on booking_confirm_chat (W37) -> confirm the WhatsApp number first
+  booking_chat_yes: 'W07_contact',
   play_voice_note: 'W09', looking_forward: 'W09',
   // I-45d: the Flow completion (nfm_reply) books through W05 (booking-flow-endpoint.md 'complete'); W28 is only the
   // encrypted data_exchange endpoint and never sees the closing message.
@@ -516,6 +518,14 @@ export function contactStep(lead, msg, lookup = null) {
   const toAlt = () => { out.conv_state.contact_step = 'alt'; out.conv_state.attempts = 0; out.reply = ALT_Q; };
   const toBest = () => { out.conv_state.contact_step = 'best_time'; out.reply = BEST_Q; };
   if (BEST_TIME[key]) { out.update.best_time = BEST_TIME[key]; out.conv_state.contact_step = 'done'; out.reply = { type: 'text', body: L.SAVED }; return out; }
+  if (key === 'booking_chat_yes') {
+    // W37 booking_confirm_chat tap (Cal.com booking): opens the 24-h window; same contact sequence as a WhatsApp booking
+    const first = sanitiseField('first_name', lead.first_name || '').value;
+    out.conv_state.contact_step = 'call_number'; out.conv_state.attempts = 0; out.conv_state.via = 'calcom';
+    out.reply = { type: 'buttons', body: `Thanks${first ? `, ${first}` : ''}! I'm Lindi, SortMyCover's AI booking assistant. A few quick things before your call: is this WhatsApp number the best one to reach you on?`,
+      buttons: [['call_number_yes', 'Yes, this one'], ['call_number_other', 'Use another number']] };
+    return out;
+  }
   if (key === 'call_number_yes') { out.update.call_number = lead.phone; out.update.call_number_line_type = lead.line_type || 'mobile'; toAlt(); return out; }
   if (key === 'call_number_other') { out.conv_state.contact_step = 'typed_number'; out.reply = { type: 'text', body: L.CONTACT_TYPE_NUMBER }; return out; }
   if (key === 'alt_add') { out.conv_state.contact_step = 'typed_alt'; out.reply = { type: 'text', body: L.CONTACT_TYPE_ALT }; return out; }
