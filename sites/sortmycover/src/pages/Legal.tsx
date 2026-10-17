@@ -14,7 +14,7 @@ function OptOutControl() {
   useEffect(() => { setOff(isOptedOut()); }, []);
   return (
     <div className="draftnote" id="opt-out-control">
-      <p role="status" aria-live="polite">{off === null ? "Checking your setting…" : off ? "Ad measurement is OFF for this browser, on every SortMyCover page." : "Ad measurement is OFF unless you gave the optional consent on the booking form."}</p>
+      <p role="status" aria-live="polite">{off === null ? "Checking your setting…" : off ? "Ad measurement is OFF for this browser, on every SortMyCover page." : "Ad measurement is OFF unless you gave the optional consent in the WhatsApp chat panel."}</p>
       {off !== true && <p><button type="button" className="btn btn-sm" onClick={() => { adsOff(); setOff(true); }}>Opt out of ad measurement</button></p>}
       {off === true && <p><button type="button" className="link-btn" onClick={() => { adsOn(); setOff(false); }}>Remove my opt-out</button></p>}
       <noscript><p>This control needs JavaScript. You can also block cookies in your browser settings, or email <a href="mailto:hello@sortmycover.co.za">hello@sortmycover.co.za</a>.</p></noscript>

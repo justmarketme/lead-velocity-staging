@@ -65,13 +65,37 @@ export function campaignContext(a: { slug: string; meta_code: string; theme?: st
   return a.theme === "B" ? WILL(topic, a.meta_code) : COVER(topic, a.meta_code);
 }
 
-/** The prefilled first message. Plain words; the last line is machine-readable for Lindi (docs/WHATSAPP-OPENERS.md). */
-export function opener(c: ChatContext): string {
+/** The prefilled first message. Plain words; the tail is machine-readable for Lindi (docs/WHATSAPP-OPENERS.md):
+    "Ref <code>" = the page or landing page, and "via <source>/<campaign>/<content>" = where the visitor came from before that. */
+export function opener(c: ChatContext, via?: string): string {
   const who = c.wills ? `share my details with ${provider.name}` : "share my details with an authorised adviser";
-  return `Hi Lindi, I'd like to chat about ${c.topic}. I agree that SortMyCover may message me on WhatsApp about this and ${who}. Ref ${c.ref}`;
+  return `Hi Lindi, I'd like to chat about ${c.topic}. I agree that SortMyCover may message me on WhatsApp about this and ${who}. Ref ${c.ref}${via ? " via " + via : ""}`;
 }
 
-export const waHref = (c: ChatContext) => `https://wa.me/${WA_DIGITS}?text=${encodeURIComponent(opener(c))}`;
+export const waHref = (c: ChatContext, via?: string) => `https://wa.me/${WA_DIGITS}?text=${encodeURIComponent(opener(c, via))}`;
+
+const tag = (v: string | undefined, max: number) => (v || "").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, max);
+/** Where the visitor came from, for the opener (Jono, 17 Oct 2026: every opt-in must show its origin in the CRM).
+    First touch, from the stored attribution (utm_* and fbclid, src/lib/pixel.ts) and, failing that, the referrer host:
+    "ig/<campaign>/<content>" or "fb/..." for ads (ads carry utm_source={{site_source_name}}), "ig" / "fb" / "google" for an
+    organic post, link or search, nothing for a direct visit. Read only when "Open WhatsApp" is tapped, never during render. */
+export function sourceTag(a: { utm?: Record<string, string>; fbclid?: string; ref?: string }, referrer: string): string {
+  const u = a.utm || {};
+  let src = tag(u.utm_source, 16);
+  if (src === "instagram") src = "ig";
+  if (src === "facebook") src = "fb";
+  if (!src && a.fbclid) src = "fb";
+  if (!src) {
+    let host = "";
+    try { host = a.ref || (referrer ? new URL(referrer).hostname : ""); } catch { /* ignore */ }
+    if (/instagram\.com$/.test(host)) src = "ig";
+    else if (/(^|\.)facebook\.com$|^fb\.me$|(^|\.)fb\.com$/.test(host)) src = "fb";
+    else if (/(^|\.)google\./.test(host)) src = "google";
+    else if (host && !/sortmycover\.co\.za$/.test(host)) src = tag(host.replace(/^www\./, ""), 24);
+  }
+  if (!src) return "";
+  return [src, tag(u.utm_campaign, 32), tag(u.utm_content, 32)].filter(Boolean).join("/");
+}
 
 /** What to expect on WhatsApp, in the order Lindi runs it (flow spec, 17 Oct 2026). Shown with every WhatsApp CTA. */
 export const WA_STEPS = (wills?: boolean): string[] => [

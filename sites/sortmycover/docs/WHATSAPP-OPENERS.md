@@ -12,7 +12,7 @@ Jono, 17 Oct 2026: WhatsApp is the only way to book. The site has no booking for
 ## The opener (the first message Lindi receives)
 
 ```
-Hi Lindi, I'd like to chat about <topic>. I agree that SortMyCover may message me on WhatsApp about this and share my details with <who>. Ref <code>
+Hi Lindi, I'd like to chat about <topic>. I agree that SortMyCover may message me on WhatsApp about this and share my details with <who>. Ref <code>[ via <source>[/<campaign>[/<content>]]]
 ```
 
 - `<who>` is `an authorised adviser`, or `Capital Legacy` for wills topics.
@@ -21,14 +21,35 @@ Hi Lindi, I'd like to chat about <topic>. I agree that SortMyCover may message m
 Parse with:
 
 ```
-/^Hi Lindi, I'd like to chat about (.+?)\. I agree that SortMyCover may message me on WhatsApp about this and share my details with (.+?)\. Ref ([a-z0-9-]+)\s*$/i
+/^Hi Lindi, I'd like to chat about (.+?)\. I agree that SortMyCover may message me on WhatsApp about this and share my details with (.+?)\. Ref ([a-z0-9-]+)(?: via ([a-z0-9_\/-]+))?\s*$/i
 ```
 
 | Group | Meaning |
 |---|---|
 | 1 | Topic, plain words. Use it to pre-select the option in the welcome list. |
 | 2 | Who the details go to. `Capital Legacy` means a will call. |
-| 3 | Source code (table below). Store it on the lead as the source. |
+| 3 | Page code (table below): the site page or landing page the chat started from. |
+| 4 | Optional origin before that page: `<source>/<campaign>/<content>`. `ig` or `fb` for Instagram or Facebook (ads carry `utm_source={{site_source_name}}`), `google` for search, another host for a referring site; absent means a direct visit. Built by `sourceTag()` in `src/lib/whatsapp.ts`. |
+
+## Every opt-in must show where it came from (Jono, 17 Oct 2026)
+
+The CRM must show, for every opt-in, exactly where it came from, at any time later. Record these with each consent:
+
+| Door | What identifies it |
+|---|---|
+| Website or landing page | Group 3 (page code) and group 4 (origin: ig, fb, google, campaign, ad) of the opener |
+| Click-to-WhatsApp ad or boosted post | Twilio's inbound `ReferralSourceType` (ad or post), `ReferralSourceId`, `ReferralSourceUrl`, `ReferralHeadline` and `ReferralCtwaClid` |
+| Anything else | Recorded as `whatsapp-direct` |
+
+Also store the consent version, the wording or opener the person sent, the inbound message SID and the received time.
+
+**Ad URL parameters** (set on every Meta ad that links to the site):
+
+```
+utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.name}}
+```
+
+`{{site_source_name}}` resolves to `fb` or `ig`, so the opener says which platform the ad ran on.
 
 ## What Lindi should do with it (to set up in W07)
 

@@ -395,3 +395,11 @@ legend { padding: 0; width: 100%; }
 .chat-expect li{font-size:13.5px;line-height:1.5;color:#36414b}
 .chat-expect li::marker{color:var(--sm-amber-dark);font-weight:800}
 .prose-sm .cta-quiet p.cta-expect{margin:16px 0 0;font-size:14px;color:#a9afb7}
+.chat-ads{border:1.5px solid #e3ddd1;border-radius:14px;padding:10px 12px;margin:0;background:#fff}
+.chat-ads legend{padding:0 6px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#865500;width:auto}
+.chat-ads p{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:#45505a}
+.chat-ads-pair{display:flex;flex-wrap:wrap;gap:4px 18px}
+.chat-ads-pair label{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-weight:800;font-size:14px;cursor:pointer}
+.chat-ads-pair input{width:20px;height:20px;accent-color:var(--sm-amber)}
+.chat-ads-note{margin:0;font-size:12.5px;line-height:1.5;color:var(--sm-text-muted)}
+.chat-ads-note a{text-decoration:underline;text-underline-offset:3px}

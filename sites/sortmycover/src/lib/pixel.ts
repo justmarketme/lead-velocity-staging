@@ -95,7 +95,7 @@ export function uuid(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-interface Attr { utm?: Record<string, string>; fbclid?: string; fbclid_ts?: number }
+interface Attr { utm?: Record<string, string>; fbclid?: string; fbclid_ts?: number; /** first external referrer host (organic posts, search) */ ref?: string }
 /** First-party attribution (utm_*, fbclid) so the lead record keeps its source. Not a Meta cookie; stored regardless of ad consent. */
 export function attribution(): Attr {
   const win = w();
@@ -108,6 +108,9 @@ export function attribution(): Attr {
   UTM_KEYS.forEach((k) => { const v = q.get(k); if (v) { saved.utm![k] = v; changed = true; } });
   const f = q.get("fbclid");
   if (f && f !== saved.fbclid) { saved.fbclid = f; saved.fbclid_ts = Date.now(); changed = true; }
+  if (!saved.ref) {
+    try { const h = win.document.referrer ? new URL(win.document.referrer).hostname : ""; if (h && h !== win.location.hostname && !/sortmycover\.co\.za$/.test(h)) { saved.ref = h.slice(0, 80); changed = true; } } catch { /* ignore */ }
+  }
   if (changed) store(ATTR_KEY, JSON.stringify(saved));
   return saved;
 }
