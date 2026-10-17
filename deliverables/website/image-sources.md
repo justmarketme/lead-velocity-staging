@@ -31,3 +31,9 @@ Rules: images are decorative life scenes, never presented as clients, advisers, 
 | c-where-will.webp | 1440x966 | 102 |
 | hub-cover.webp | 1440x966 | 192 |
 | hub-wills.webp | 1440x966 | 101 |
+| learn-home-loan.webp | 1264x848 | 70 |
+| learn-income.webp | 1264x848 | 86 |
+| learn-owners.webp | 1264x848 | 127 |
+| learn-adviser.webp | 1264x848 | 98 |
+
+The four `learn-*` scenes were generated on 17 Oct 2026 (Higgsfield, nano_banana_2 routed to nano_banana_flash, 2 credits each; learn-home-loan was regenerated once because the first take had warped print on the papers and a laptop logo, so 10 credits in all, approved by Jono). They sit on the four /learn/ guides the cycle-1 ads link to (`ARTICLE_SCENES` in imagery.ts).

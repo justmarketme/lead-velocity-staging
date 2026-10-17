@@ -35,6 +35,11 @@ export const SCENES = {
   cWillMyth: s("c-will-myth", "A young couple at home with their dog", "Black South African couple, mid-30s, on the floor of a small flat with their dog, relaxed weekend, Braamfontein"),
   cWillCover: s("c-will-cover", "A couple planning at the kitchen counter", "Indian South African couple, about 45, at a kitchen counter with a notepad and laptop, Chatsworth home"),
   cWhereWill: s("c-where-will", "A woman putting a folder in a cabinet", "Coloured South African woman, about 50, placing a folder into a wooden filing cabinet in a study, Port Elizabeth home"),
+  /* learn guides the cycle-1 paid ads link to (17 Oct 2026) */
+  lHomeLoan: s("learn-home-loan", "A couple reading home loan papers at a dining table", "Black South African couple, late 30s, reading bond documents together at a dining table with a laptop and coffee, Johannesburg south home, soft daylight", 1264, 848),
+  lIncome: s("learn-income", "A worker getting ready before an early shift", "Indian South African man, about 45, in a work shirt packing a lunch box in a Durban kitchen at dawn, car keys on the counter, calm", 1264, 848),
+  lOwners: s("learn-owners", "A business owner at work in her nursery", "White South African woman, about 48, owner of a small plant nursery in the KwaZulu-Natal Midlands, clipboard in hand, greenhouse behind her, morning light", 1264, 848),
+  lAdviser: s("learn-adviser", "A couple on a video call with notes beside them", "Coloured South African couple, early 40s, on a video call at a laptop in a Mitchells Plain living room, notebook open, listening, afternoon light", 1264, 848),
   /* hub pages */
   hubCover: s("hub-cover", "A couple walking in the park", "Black and white mixed South African couple, about 40, walking in Delta Park with a pram, Johannesburg"),
   hubWills: s("hub-wills", "A family looking at old photographs", "White South African family across three generations looking at an old photo album at a dining table, Stellenbosch"),
@@ -59,5 +64,8 @@ export const CAMPAIGN_SCENES: Record<string, SceneImage> = {
 
 /** Article slug -> its own scene (only the guides the paid ads link to carry a photo; the rest keep the text layout). */
 export const ARTICLE_SCENES: Record<string, SceneImage> = {
-  /* The four cycle-1 ad guides get one scene each once Jono approves the Higgsfield credits (deliverables/website/DEPLOY-2026-10-17.md). */
+  "life-cover-and-a-home-loan": SCENES.lHomeLoan,
+  "income-protection-vs-disability-cover": SCENES.lIncome,
+  "cover-for-business-owners-and-directors": SCENES.lOwners,
+  "questions-to-ask-a-financial-adviser": SCENES.lAdviser,
 };
