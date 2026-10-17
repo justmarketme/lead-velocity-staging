@@ -721,7 +721,10 @@ export function parseTurn(raw) {
 
 // Turns whose words stay fixed (safety, compliance, or another workflow owns the message).
 const FIXED_TURN_ACTIONS = new Set(['stop', 'handoff_urgent', 'human_review', 'paused', 'handoff', 'close_unbooked', 'close_oob', 'consent_yes',
-  'consent_no', 'consent_reask', 'record_answer', 'next_question', 'repeat_question', 'budget_clarify', 'flag_band_conflict', 'capture_contact']);
+  'consent_no', 'consent_reask', 'record_answer', 'next_question', 'repeat_question', 'budget_clarify', 'flag_band_conflict', 'capture_contact',
+  // 17 Oct 2026 live: the model wrote "Done, I've cancelled your call" over the Yes/Keep-it confirm buttons; the
+  // question must stay the approved CANCEL_CONFIRM_Q until the person taps.
+  'cancel_confirm']);
 const OWNED_ELSEWHERE = new Set(['W03', 'W07_contact', 'W15', 'W08']);
 const SAFETY_KEYS = ['ID_WARNING', 'BANK_WARNING', 'MEDIA_NOT_OPENED'];
 

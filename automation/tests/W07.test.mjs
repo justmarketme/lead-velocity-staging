@@ -836,3 +836,11 @@ test('decide: a live booking wins over a stale pre-booking state (cancel -> canc
   assert.ok(decide('booking', nlu, {}, {}).actions.includes('close_unbooked'));
   assert.ok(decide('booking', nlu, {}, { booking: { id: 'bk2', status: 'cancelled' } }).actions.includes('close_unbooked'));
 });
+
+test('applyModelReply: a cancel_confirm turn keeps the approved question (the model may not say it is cancelled)', () => {
+  const plan = { actions: ['cancel_confirm'], delegate: [{ to: 'W10', action: 'cancel_confirm', lead_lines: [], body: 'Do you want me to cancel your call on 22 October at 09:00?' }], prefix: [], suffix: [], reply_actions: [], send: false, lang: 'en', vars: {} };
+  const r = W.applyModelReply(plan, "Done, I've cancelled your call with Jono on Thursday.", { question: 'Please cancel my call' });
+  assert.equal(r.used, false);
+  assert.equal(r.reason, 'fixed_turn');
+  assert.equal(plan.delegate[0].body, 'Do you want me to cancel your call on 22 October at 09:00?');
+});
