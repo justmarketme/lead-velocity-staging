@@ -7,7 +7,18 @@ Marshall's question for every rand: **are we spending on the most relevant searc
 ## 1. Before launch: open decisions for Jono
 1. **Meta budget vs plan.** The master brief plans R6,500/month: Google Search R3,900 (≈R128/day) and Meta R2,600 (≈R85/day). The Meta draft campaign is set to **R150/day (≈R4,500/month)**, more than its whole allocation. Choose: cut Meta to ≈R85/day, or raise the total and say so.
 2. **"Compare" keywords.** The brief lists "compare life insurance" and "life cover comparison". SortMyCover does not compare products (site wording rules ban "compare"), so the landing page cannot deliver what the search asks. Recommended: **exclude** them (section 2, list A). If kept, the ad and page must say plainly that an adviser explains options, not that SortMyCover compares.
-3. **Target cost per lead.** Working target below uses Mark's real deal: R16,500 for 20 leads = **R825 revenue per delivered lead**. At the 14–30% margins in the pricing research, the ceiling is about **R580–R710 all-in cost per delivered lead**, with ad spend only part of that. Confirm the number before launch.
+3. **Target ad cost per lead (protects Lead Velocity's profit).** Mark's deal: R16,500 for 20 leads = **R825 revenue per delivered lead**. Ad spend must leave room for running costs and profit:
+
+   | Per delivered lead | 40% profit | 50% profit |
+   |---|---:|---:|
+   | Revenue | R825 | R825 |
+   | Lead Velocity profit | R330 | R413 |
+   | Running costs (WhatsApp, voice, tools; **estimate** ~R50, replace with real figures) | R50 | R50 |
+   | **Max ad spend per delivered lead** | **R445** | **R362** |
+
+   Ads pay for every raw lead, not only delivered ones (under-R750 band held, no-replies, no-shows). At an assumed 60% delivery rate, max ad spend per **raw** lead is about **R267** (40% profit) or **R217** (50% profit).
+
+   **Working target (17 Oct 2026, pending Jono):** R350 ad spend per delivered lead, hard stop at R450; watch R210–R270 per raw lead in Ads Manager. Two inputs to confirm: whether R16,500 included VAT (if so, revenue is R717 and every figure drops by about R100), and Jono's profit target. Replace the 60% delivery rate with the real rate once the CRM has 30–50 leads.
 4. **Google financial services verification.** Check whether Google requires advertiser verification for financial services in South Africa before ads can run (not verified here).
 
 ## 2. Negative keywords (paste-ready)
@@ -177,9 +188,9 @@ Expect low volumes on most of these (Trends: credit life 2, income protection 4,
 ## 4. Test plan
 1. **One variable at a time.** Change the hook or the image or the landing page, never two at once, so a result can be attributed.
 2. **Measure the right result.** The decision metric is **cost per qualified, booked appointment** (and later attendance), pulled from the CRM. Clicks, CTR and WhatsApp taps are diagnostics only.
-3. **Minimum before judging.** Do not call a test before an ad group has spent about **2× the target cost per lead** or produced 10 qualified bookings, whichever comes first. New YMYL accounts are volatile in weeks 1–2.
+3. **Minimum before judging.** Do not call a test before an ad group has spent about **2× the target ad cost per delivered lead (≈R700 at the R350 target)** or produced 10 qualified bookings, whichever comes first. New YMYL accounts are volatile in weeks 1–2.
 4. **Weekly search-terms review** (every Monday): add new negatives, promote converting terms to exact match.
-5. **Kill rule.** Pause an ad group that has spent 2× the target cost per lead with **zero** qualified bookings. Pause an ad that is 50% worse on cost per qualified booking than its sibling after the minimum spend.
+5. **Kill rule.** Pause an ad group that has spent 2× the target (≈R700) with **zero** qualified bookings, or whose ad cost per delivered lead is above the R450 hard stop for two weeks. Pause an ad that is 50% worse on cost per qualified booking than its sibling after the minimum spend.
 6. **80/20 reallocation.** Every two weeks, move budget from the bottom 80% of ad groups to the top 20% by cost per qualified booking. Keep a small test slice (≈10%) for new hooks.
 7. **Compliance gate is separate.** A strong score never overrides a PASS / REVIEW / BLOCK compliance check (master brief section 6).
 
