@@ -357,6 +357,10 @@ test('offerMessage after a cancel: confirms in words, with times as a list or al
   const withTimes = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
   assert.equal(withTimes.kind, 'list_session');
   assert.match(withTimes.body, /^Done, your call is cancelled\. If you'd like another time, pick one below/);
+  assert.ok(withTimes.rows.length > 0, 'times offered');
+  for (const r of withTimes.rows) assert.equal(r.id, `slot_${slots.find((s) => r.id === `slot_${s.start}`)?.start}`, 'a pick after a cancel is a new booking (W05), never a move of the cancelled one');
+  const tpl = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'rebook_after_cancel' });
+  assert.ok(tpl.buttons.slice(0, 3).every((b) => /^slot_/.test(b) && !b.includes(':resched:')));
   const none = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
   assert.deepEqual(none, { kind: 'text_session', body: "Done, your call is cancelled. If you'd like another time later, just say." });
   const af = R.offerMessage({ booking: bk(), lead: ld({ language: 'af' }), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });

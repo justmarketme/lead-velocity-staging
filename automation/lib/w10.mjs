@@ -49,6 +49,9 @@ export function offerMessage({ booking, lead, broker, brand = {}, slots = [], no
   // 17 Oct 2026: a lead's cancel is confirmed in words, with or without times to offer. CANCEL_DONE was never sent, so the
   // client heard nothing after "Yes, cancel" and W07's never-silent fallback ("something went wrong") answered instead.
   const cancelled = reason === 'rebook_after_cancel';
+  // After a cancel the old booking is gone: a pick is a NEW booking (plain slot_ -> W07 routes it to W05). A ":resched:"
+  // pick would reach W10's move of a cancelled booking, which rejects it.
+  const pickId = (s) => (cancelled ? `slot_${s.start}` : `slot_${s.start}:resched:${booking.id}`);
   if (!slots.length) return cancelled && window ? { kind: 'text_session', body: leadBody('cancel_done', { delegate, lead, booking, broker }) } : { kind: 'no_slots', escalate: 'no_slots', text: null };
   if (brand.booking_ui === 'flow') {
     const prefill = { booking_id: booking.id, current_date: slotLabel(booking.appointment_date).split(',')[0], current_time: slotLabel(booking.appointment_date).split(', ')[1], method: booking.method };
@@ -56,11 +59,11 @@ export function offerMessage({ booking, lead, broker, brand = {}, slots = [], no
       : { kind: 'template', template: 'reschedule_offer_v2', vars: [first, adviser, prefill.current_date, prefill.current_time], prefill };
   }
   if (window) {
-    const rows = slots.slice(0, 10).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
+    const rows = slots.slice(0, 10).map((s) => ({ id: pickId(s), title: slotLabel(s.start).slice(0, 24) }));
     return { kind: 'list_session', rows, body: leadBody(cancelled ? 'cancel_done_times' : reason === 'broker_rescheduled' ? 'slots' : 'reschedule', { delegate, lead, booking, broker }) };
   }
   const three = pick3(slots);
-  return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map((s) => `slot_${s.start}:resched:${booking.id}`).concat([`other_times:${booking.id}`]) };
+  return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map(pickId).concat([`other_times:${booking.id}`]) };
 }
 
 /**
