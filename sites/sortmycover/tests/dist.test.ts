@@ -203,11 +203,18 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Capital%20Legacy[^"]*Ref%20w-book-will"/);
     expect(pages.some((p) => p.rel === "book/thanks/index.html")).toBe(false);
   });
-  it("legal drafts keep their DRAFT mark and noindex", () => {
-    for (const r of ["privacy", "terms", "paia"]) {
+  it("privacy and terms are signed off (17 Oct 2026): no DRAFT mark, indexable; the PAIA placeholder stays DRAFT and noindex", () => {
+    for (const r of ["privacy", "terms"]) {
       const h = pages.find((p) => p.rel === `${r}/index.html`)!.html;
-      expect(h).toMatch(/DRAFT/);
-      expect(h).toMatch(/noindex/);
+      expect(h, r).not.toMatch(/DRAFT/);
+      expect(h, r).not.toMatch(/<meta name="robots" content="noindex/);
     }
+    const paia = pages.find((p) => p.rel === "paia/index.html")!.html;
+    expect(paia).toMatch(/DRAFT/);
+    expect(paia).toMatch(/noindex/);
+  });
+  it("the privacy notice covers call recording (POPIA): automated voice assistant, recorded, 365 days, ElevenLabs, s72, the Information Officer", () => {
+    const v = visible(pages.find((p) => p.rel === "privacy/index.html")!.html);
+    for (const t of ["Phone calls and recordings", "+27 60 015 6480", "automated voice assistant", "the call is recorded", "365 days", "ElevenLabs", "section 72 of POPIA", "Kgomotso Pule", "2026-069309"]) expect(v, t).toContain(t);
   });
 });

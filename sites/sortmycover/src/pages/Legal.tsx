@@ -1,5 +1,5 @@
 /* Privacy, Terms and PAIA. The text is ported from landing/holding/*.html (files in src/content/legal) with the compliance edits listed in
-   the README. All three are marked DRAFT and noindex until the compliance practitioner signs them off. */
+   the README. The privacy notice and terms were signed off on 17 Oct 2026; the PAIA manual is still a noindex placeholder. */
 import { Fragment, useEffect, useState } from "react";
 import PageFrame, { DraftNote } from "@/components/PageFrame";
 import privacyHtml from "@/content/legal/privacy.html?raw";
@@ -25,7 +25,7 @@ function OptOutControl() {
 export function Privacy() {
   const parts = privacyHtml.split("<!--OPTOUT-->");
   return (
-    <PageFrame title="Privacy notice | SortMyCover" description="How SortMyCover uses your details under POPIA: what we collect, who gets it, how long we keep it and how to opt out." path="/privacy/" h1="Privacy notice" robots="noindex,follow" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Privacy", path: "/privacy/" }]}>
+    <PageFrame title="Privacy notice | SortMyCover" description="How SortMyCover uses your details under POPIA: what we collect, who gets it, how long we keep it and how to opt out." path="/privacy/" h1="Privacy notice" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Privacy", path: "/privacy/" }]}>
       {parts.map((p, i) => (<Fragment key={i}><Raw html={p} />{i < parts.length - 1 && <OptOutControl />}</Fragment>))}
     </PageFrame>
   );
@@ -33,7 +33,7 @@ export function Privacy() {
 
 export function Terms() {
   return (
-    <PageFrame title="Terms of use | SortMyCover" description="What SortMyCover does, what it does not do, and what we ask of you." path="/terms/" h1="Terms of use" robots="noindex,follow" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Terms", path: "/terms/" }]}>
+    <PageFrame title="Terms of use | SortMyCover" description="What SortMyCover does, what it does not do, and what we ask of you." path="/terms/" h1="Terms of use" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Terms", path: "/terms/" }]}>
       <Raw html={termsHtml} />
     </PageFrame>
   );
