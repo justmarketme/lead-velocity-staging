@@ -1222,7 +1222,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/intent-slot.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\nconst state = (j.lead && j.lead.conv_state && j.lead.conv_state.state) || (j.booking ? 'booked' : 'unbooked');\nconst known = j.lead ? ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => j.lead[k] != null) : [];\nconst user = L.intentUserTurn({ state, booking: j.booking ? { day: '', date: j.booking.appointment_date, time: '', method: j.booking.method } : null, now_ms: Date.now(), known, text_llm: j.text_llm });\nreturn { json: { ...j, state, t0: Date.now(), intent_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 400, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "// Lindi turn (17 Oct 2026): ONE call returns the labels AND the reply (conversation/prompts/lindi-turn.md).\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/lindi-turn.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $('Media only? (never sent to a model)').item.json;\nconst turns = $json && Array.isArray($json.turns) ? $json.turns : [];\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst t = L.turnRequest({ j, turns, faq, system, now_ms: Date.now(), model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001' });\nreturn { json: { ...j, state: t.state, t0: Date.now(), intent_body: t.request, turn_prompt: L.TURN_PROMPT } };"
       }
     },
     {
@@ -1282,7 +1282,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst nlu = L.parseNlu(raw);\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, unanswered: cs.unanswered || 0, text_store: j.text_store });\nreturn { json: { ...j, nlu, decision, plan, latency_ms: Date.now() - j.t0 } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst turn = L.parseTurn(raw); // { nlu, reply }: one call (lindi-turn.md)\nconst nlu = turn.nlu;\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, unanswered: cs.unanswered || 0, text_store: j.text_store });\n// deterministic gates; STOP / distress / a person / consent / qualifying stay fixed; never a second model call\nconst model_reply = L.applyModelReply(plan, turn.reply, { question: (j.msg && j.msg.text) || '', disclosed: !!cs.disclosed, lead_used_emoji: !!(j.pre && j.pre.lead_used_emoji), topics: nlu.topics });\nreturn { json: { ...j, nlu, decision, plan, model_reply, latency_ms: Date.now() - j.t0 } };"
       }
     },
     {
@@ -1708,7 +1708,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ String($json.plan.send && $json.plan.reply_actions.length > 0) }}",
+              "leftValue": "={{ String($json.plan.send && $json.plan.reply_actions.length > 0 && !$json.plan.no_second_call) }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -2809,6 +2809,31 @@
       ]
     },
     {
+      "id": "lt-turns",
+      "name": "Load recent turns (Lindi memory)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Lindi turn (17 Oct 2026): the recent chat so the reply picks up where it left off. Inbound text is the stored (redacted) copy; lib/w07.mjs turnLines() redacts again for the model.",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The last turns of this WhatsApp chat (7 days), oldest first, as ONE row. Outbound rows logged as '[text]' or\n-- 'template:...' carry no words and are skipped by turnLines().\nSELECT coalesce(json_agg(json_build_object('direction', t.direction, 'content', t.content) ORDER BY t.created_at), '[]'::json) AS turns\n  FROM (SELECT direction, left(coalesce(content, ''), 300) AS content, created_at\n          FROM public.communications\n         WHERE channel = 'whatsapp' AND created_at > now() - interval '7 days'\n           AND ((nullif($1, '') IS NOT NULL AND lead_id = nullif($1, '')::uuid) OR recipient_contact = $2)\n         ORDER BY created_at DESC\n         LIMIT 12) t;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || \"\", ($json.msg && $json.msg.from) || \"\" ] }}"
+        }
+      }
+    },
+    {
       "id": "ns-wait",
       "name": "Never silent: wait 25 s",
       "type": "n8n-nodes-base.wait",
@@ -3335,7 +3360,7 @@
         ],
         [
           {
-            "node": "Build intent-slot request (Haiku)",
+            "node": "Load recent turns (Lindi memory)",
             "type": "main",
             "index": 0
           }
@@ -4045,6 +4070,17 @@
         [
           {
             "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load recent turns (Lindi memory)": {
+      "main": [
+        [
+          {
+            "node": "Build intent-slot request (Haiku)",
             "type": "main",
             "index": 0
           }

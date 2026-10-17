@@ -457,7 +457,11 @@ export function gateAndAssemble(plan, { draft = '', verdict = null, question = '
   let trip = false;
   let rule = null;
   let used = 'none';
-  if (plan.reply_actions.length) {
+  // Lindi's turn (17 Oct 2026): the one model call already wrote the reply and applyModelReply() gated it
+  if (plan.model_text && !plan.reply_actions.length) { body = plan.model_text; used = 'llm'; }
+  // the one-call path never makes a second call: a dropped reply uses the approved fallback straight away (not a trip)
+  else if (plan.reply_actions.length && plan.no_second_call) { body = fallback; used = 'fallback'; }
+  else if (plan.reply_actions.length) {
     const gate = outputGate(draft, { fixed_lines: fixed, question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
     const v0 = verdict || { verdict: 'block', categories: ['not_run'] };
     // #4: low-confidence pass is not a pass (the W07 Sonnet re-check node resolves it before this point; unresolved = fails closed); a block is never appealed
@@ -619,4 +623,133 @@ export function neverSilentSend(j = {}) {
   const wa = { messaging_product: 'whatsapp', to: msg.from, type: 'text', text: { body } };
   return { kind: 'prebuilt', wa, to: msg.from, record: true, caller: 'W07', bypass_suppression: false, phone_number_id: null,
     lead_id: lead.id || null, broker_id: null, correlation: `W07:never_silent:${msg.wamid || 'none'}` };
+}
+
+// ---------- Lindi's turn: ONE model call writes the labels AND the reply (17 Oct 2026, Jono: option 1) ----------
+// Before: the model only labelled the message; replies were fixed lines from lines.mjs glued together, and a drafted
+// reply often died at the classifier and became a stock line ("she responds like a chat bot"). Now the ElevenLabs agent
+// (smc-lindi-chat) returns { ...labels, reply } in one call (conversation/prompts/lindi-turn.md). decide() still decides
+// every action from the labels; applyModelReply() swaps the conversational fixed lines for the reply when it passes the
+// deterministic gates. STOP, distress, a person taking over, consent and the qualifying taps stay fixed.
+export const TURN_PROMPT = 'lindi-turn-v1.0.0';
+export const TURN_MAX_TURNS = 8;
+const PLACEHOLDER = /\{(\w+)\}/gu;
+
+/** Approved FAQ answers as "FAQ-xx: text" lines; unknown placeholders drop their sentence (never sent with braces). */
+export function faqLines(faq = {}, lang = 'en', vars = {}) {
+  const out = [];
+  for (const [id, e] of Object.entries(faq)) {
+    if (!e || e.type !== 'answer') continue;
+    const t = String((lang === 'af' && e.af) || e.en || '').replace(PLACEHOLDER, (m, k) => (vars[k] != null && vars[k] !== '' ? String(vars[k]) : m));
+    const kept = t.split(/(?<=[.!?])\s+/u).filter((s) => !/\{\w+\}/u.test(s)).join(' ').trim();
+    if (kept) out.push(`${id}: ${kept}`);
+  }
+  return out;
+}
+
+/** What the system will most likely do after this message, so the reply can lead into it. */
+export function nextHint(state, booking) {
+  if (state === 'consent_pending') return 'waiting for their yes or no to sharing their details with the adviser';
+  if (QUALIFYING_TAP_STATES.includes(state)) return 'asking a short qualifying question with tap options';
+  if (booking && booking.status === 'pending_verification') return 'a time is held for them; waiting for their email address so the invite can be sent';
+  if (booking && booking.time) return 'they have a booking; help with questions, moving or cancelling it';
+  if (state === 'handoff') return 'a person from the team is taking over';
+  return 'if they want to book, or seem ready to, the system sends a list of open times with your reply';
+}
+
+/** Recent communications rows (oldest first) -> "them: ..." / "lindi: ..." lines; the current inbound is dropped. */
+export function turnLines(rows = [], max = TURN_MAX_TURNS) {
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && typeof r.content === 'string' && r.content.trim() && !/^\[|^template:/u.test(r.content.trim()));
+  if (list.length && list[list.length - 1].direction === 'inbound') list.pop();
+  return list.slice(-max).map((r) => (r.direction === 'inbound' ? `them: ${redactForLLM(r.content).slice(0, 300)}` : `lindi: ${String(r.content).slice(0, 300)}`).replace(/\s+/gu, ' '));
+}
+
+/** The one /v1/messages request for this inbound (j = the W07 item: lead, booking, broker, adviser_first, pre, text_llm). */
+export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms = Date.now(), model = 'claude-haiku-4-5-20251001' } = {}) {
+  const lead = j.lead || {};
+  const cs = lead.conv_state || {};
+  const state = cs.state || (j.booking ? 'booked' : 'unbooked');
+  const lang = lead.language === 'af' ? 'af' : 'en';
+  const bv = bookingView(j.booking, lang);
+  const broker = j.broker || {};
+  const adviser_first = j.adviser_first || String(broker.contact_person || '').split(' ')[0] || 'your adviser';
+  const vars = { adviser: broker.contact_person || adviser_first, adviser_first, practice: broker.firm_name || '', fsp: broker.fsp_number || '', city: '', methods: '', adviser_languages: '' };
+  const known = ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => lead[k] != null);
+  const first = sanitiseField('first_name', lead.first_name || '').value || '';
+  const user = [
+    `STATE: ${state}`, `CONSENT_PENDING: ${state === 'consent_pending'}`, `DISCLOSED: ${!!cs.disclosed}`, `NEXT: ${nextHint(state, bv)}`,
+    `NOW: ${new Date(now_ms + SAST).toISOString().slice(0, 19)}+02:00 Africa/Johannesburg`, `FIRST_NAME: ${first}`, `ADVISER: ${adviser_first}`,
+    `BOOKING: ${bv && bv.time ? `${bv.day} ${bv.date} ${bv.time} by ${bv.method_label}${bv.status === 'pending_verification' ? ' (held, waiting for their email)' : ''}` : 'none'}`,
+    `KNOWN: ${known.join(', ')}`, `LANGUAGE: ${lang}`, `LEAD_USED_EMOJI: ${!!(j.pre && j.pre.lead_used_emoji)}`,
+    'FAQ (approved answers you may use, in your own words):', ...faqLines(faq, lang, vars),
+    'RECENT TURNS (oldest first):', ...(turnLines(turns).length ? turnLines(turns) : ['(none)']),
+    `MESSAGE: """${String(j.text_llm || '').replace(/"{3,}/gu, '"').slice(0, 1200)}"""`,
+  ].join('\n');
+  return { state, request: { model, max_tokens: 600, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } };
+}
+
+/** The one answer -> { nlu (same validation as parseNlu), reply }. Prose around the JSON is tolerated; no reply = ''. */
+export function parseTurn(raw) {
+  let o = null;
+  const s = typeof raw === 'string' ? raw.replace(/```json|```/gu, '').trim() : raw;
+  if (s && typeof s === 'object') o = s;
+  else { try { o = JSON.parse(s); } catch { const m = String(s || '').match(/\{[\s\S]*\}/u); if (m) { try { o = JSON.parse(m[0]); } catch { o = null; } } } }
+  const nlu = o ? parseNlu(o) : parseNlu('');
+  const reply = o && typeof o.reply === 'string' ? o.reply.replace(/[ \t]+/gu, ' ').trim().slice(0, 900) : '';
+  return { nlu, reply };
+}
+
+// Turns whose words stay fixed (safety, compliance, or another workflow owns the message).
+const FIXED_TURN_ACTIONS = new Set(['stop', 'handoff_urgent', 'human_review', 'paused', 'handoff', 'close_unbooked', 'close_oob', 'consent_yes',
+  'consent_no', 'consent_reask', 'record_answer', 'next_question', 'repeat_question', 'budget_clarify', 'flag_band_conflict', 'capture_contact']);
+const OWNED_ELSEWHERE = new Set(['W03', 'W07_contact', 'W15', 'W08']);
+const SAFETY_KEYS = ['ID_WARNING', 'BANK_WARNING', 'MEDIA_NOT_OPENED'];
+
+/**
+ * Put Lindi's reply in place of the conversational fixed lines (DISCLOSE when she introduces herself, CLARIFY, STAY_IN_LANE,
+ * DEFER, BOOKING_STATUS, FAQ answers, the slots / reschedule intro inside the one W04 / W10 message). Safety lines
+ * (ID / bank / media warnings) are kept. Mutates plan; returns { used, reason }. A reply that fails outputGate or the tone
+ * check is dropped and the fixed lines go out unchanged, with no second model call (plan.no_second_call).
+ */
+export function applyModelReply(plan, reply, ctx = {}) {
+  if (!plan) return { used: false, reason: 'no_plan' };
+  plan.no_second_call = true;
+  const r = String(reply || '').trim();
+  if (!r) return { used: false, reason: 'no_reply' };
+  if ((plan.actions || []).some((a) => FIXED_TURN_ACTIONS.has(a)) || plan.escalation) return { used: false, reason: 'fixed_turn' };
+  if ((plan.delegate || []).some((d) => OWNED_ELSEWHERE.has(d.to))) return { used: false, reason: 'delegate_owns_message' };
+  const one = (plan.delegate || []).find((d) => ONE_MESSAGE[d.to]?.(d));
+  const onlyNone = (plan.actions || []).length === 1 && plan.actions[0] === 'none';
+  if (!one && !plan.send && !onlyNone) return { used: false, reason: 'nothing_to_send' };
+  const lang = plan.lang === 'af' ? 'af' : 'en';
+  const gate = outputGate(r, { question: ctx.question || '', first_name_raw: plan.first_name_raw });
+  if (!gate.pass) return { used: false, reason: `outputGate:${gate.categories.join(',')}` };
+  const tone = toneCheck(r, { lead_used_emoji: !!ctx.lead_used_emoji, lang, max_sentences: 4, max_chars: 480, max_grade: 10 });
+  if (!tone.pass) return { used: false, reason: `tone:${tone.issues.join(',')}` };
+  const askedWhoRuns = (ctx.topics || []).some((t) => t === 'lead_velocity' || t === 'business_model');
+  if (/lead\s*velocity/iu.test(r) && !askedWhoRuns) return { used: false, reason: 'brand:lead_velocity' };
+  const L = LINES[lang];
+  const vars = plan.vars || {};
+  const mentionsLindi = /\bLindi\b/u.test(r);
+  const isSafety = (x, filled) => SAFETY_KEYS.some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  if (one) {
+    const lines = one.lead_lines || [];
+    const disc = !ctx.disclosed && !mentionsLindi ? lines.filter((x) => isDisclose(x, true)) : [];
+    const keep = lines.filter((x) => isSafety(x, true));
+    one.lead_lines = [...disc, ...keep];
+    one.body = [...disc, r, ...keep].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
+    one.model_reply = true;
+    one.carries_disclose = !ctx.disclosed && (mentionsLindi || disc.length > 0);
+    plan.discloses = one.carries_disclose;
+  } else {
+    plan.prefix = !ctx.disclosed && !mentionsLindi ? plan.prefix.filter((x) => isDisclose(x, false)) : [];
+    plan.suffix = plan.suffix.filter((x) => isSafety(x, false));
+    plan.reply_actions = [];
+    plan.model_text = r;
+    plan.send = true;
+    plan.discloses = !ctx.disclosed && (mentionsLindi || plan.prefix.length > 0);
+  }
+  plan.used_model_reply = true;
+  return { used: true, reason: null };
 }
