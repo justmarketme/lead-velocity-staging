@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const C = require('../ctwa/capture-v2.js');
 
 export const RESEND_URL = 'https://api.resend.com/emails';
+export const SMC_EMAIL_RELAY_URL = 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-email-send';
 export const DEFAULT_FROM = 'SortMyCover <hello@sortmycover.co.za>';
 export const RESEND_GAP_MS = 10 * 60 * 1000; // one email per 10 minutes per lead (a repeat issue inside it is a no-op)
 const first = (s) => String(s || '').trim().split(/\s+/)[0] || '';
@@ -47,7 +48,10 @@ export function issuePlan(lead, env = {}, now = Date.now()) {
   const last = lead.email_verify_sent_at ? Date.parse(lead.email_verify_sent_at) : NaN;
   if (Number.isFinite(last) && now - last < RESEND_GAP_MS) return { action: 'skip', reason: 'recently_sent' };
   if (!env.EMAIL_VERIFY_SECRET || String(env.EMAIL_VERIFY_SECRET).length < 32) return { action: 'skip', reason: 'secret_missing' };
-  if (!env.RESEND_API_KEY) return { action: 'skip', reason: 'resend_key_missing' };
+  // 17 Oct 2026: without a Resend key on the n8n server the email goes through the smc-email-send function (the key is a
+  // Supabase secret there), authorised by the n8n relay token.
+  const relay = !env.RESEND_API_KEY && env.LINDI_RELAY_TOKEN;
+  if (!env.RESEND_API_KEY && !relay) return { action: 'skip', reason: 'resend_key_missing' };
   const iss = C.issueEmailVerification(lead, { secret: env.EMAIL_VERIFY_SECRET, now, baseUrl: env.VERIFY_BASE_URL || 'https://sortmycover.co.za', adviser: first(lead.adviser_name) || 'your adviser' });
   if (!iss) return { action: 'skip', reason: 'no_email' };
   const m = iss.mail.message;
@@ -56,7 +60,7 @@ export function issuePlan(lead, env = {}, now = Date.now()) {
   return {
     action: 'send',
     set: iss.set,
-    resend: { url: RESEND_URL, headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': `ev:${lead.id}:${iss.set.email_verify_sent_at}` }, body },
+    resend: { url: relay ? env.SMC_EMAIL_RELAY_URL || SMC_EMAIL_RELAY_URL : RESEND_URL, headers: { Authorization: `Bearer ${relay ? env.LINDI_RELAY_TOKEN : env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': `ev:${lead.id}:${iss.set.email_verify_sent_at}` }, body },
     activity: { activity_type: 'email_verify_sent', payload: { via: 'resend', expires_at: iss.set.email_verify_expires_at } },
   };
 }

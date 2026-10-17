@@ -66,3 +66,8 @@ verify_jwt = false
 # SortMyCover client booking emails (Resend, hello@sortmycover.co.za). n8n W05 calls it with the relay token (x-api-key).
 [functions.smc-client-email]
 verify_jwt = false
+
+# Prebuilt SortMyCover emails from n8n through Resend without a Resend key on the n8n server (smc-email-verify link).
+# n8n calls it with the relay token (Authorization: Bearer).
+[functions.smc-email-send]
+verify_jwt = false

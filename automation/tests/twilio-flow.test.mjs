@@ -255,6 +255,12 @@ test('email verification: Resend email from hello@sortmycover.co.za with code + 
   assert.equal(EV.issuePlan(lead({ email_verify_sent_at: new Date(now - 60_000).toISOString() }), { EMAIL_VERIFY_SECRET: SECRET, RESEND_API_KEY: 'k' }, now).reason, 'recently_sent');
   assert.equal(EV.issuePlan(lead({ email_verified: true }), { EMAIL_VERIFY_SECRET: SECRET, RESEND_API_KEY: 'k' }, now).reason, 'already_verified');
   assert.equal(EV.issuePlan(lead(), { RESEND_API_KEY: 'k' }, now).reason, 'secret_missing');
+  // 17 Oct 2026: no Resend key on the n8n server -> the smc-email-send relay with the n8n relay token
+  const r = EV.issuePlan(lead(), { EMAIL_VERIFY_SECRET: SECRET, LINDI_RELAY_TOKEN: 'relay-token' }, now);
+  assert.equal(r.action, 'send');
+  assert.equal(r.resend.url, 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-email-send');
+  assert.equal(r.resend.headers.Authorization, 'Bearer relay-token');
+  assert.equal(EV.issuePlan(lead(), { EMAIL_VERIFY_SECRET: SECRET }, now).reason, 'resend_key_missing');
   // the typed code (W07 -> smc-email-verify op code)
   const stored = { ...lead(), ...p.set };
   assert.deepEqual([EV.codePlan(stored, code, now + 1000).ok, EV.codePlan(stored, code, now + 1000).set.email_verified_via], [true, 'code']);
