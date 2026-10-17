@@ -68,3 +68,10 @@ test('egress detector: finds and gates synthetic ungated senders (WhatsApp, Twil
   assert.equal(wf.nodes.length, 8 + 5 * 2);
   assert.deepEqual(wf.connections['Dry-run stub (wa)'].main[0].map((t) => t.node), ['after']);
 });
+
+test('egress detector: the smc-client-email edge function (Resend, SortMyCover client email) is an email sender; other functions are not', () => {
+  const mk = (url) => ({ id: url, name: url, type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [0, 0], parameters: { url } });
+  assert.equal(senderKind(mk("={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://x.supabase.co/functions/v1') + '/smc-client-email' }}")), 'email');
+  assert.equal(senderKind(mk('https://x.supabase.co/functions/v1/smc-client-email')), 'email');
+  assert.equal(senderKind(mk("={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://x.supabase.co/functions/v1') + '/ms-oauth' }}")), null);
+});

@@ -838,3 +838,157 @@ test('parseSub: a W07 hand-off is recognised by route W05 + msg (W07 never sets 
   assert.equal(Date.parse(r.slot_start), Date.parse('2026-10-23T08:00:00Z')); // 10:00 SAST
   assert.equal(r.booked_via, 'list');
 });
+
+// ============================================================================================
+// 17 Oct 2026 (Jono): SortMyCover leads (brands.code 'SMC') get their booking email FROM SortMyCover: the smc-client-email
+// edge function sends it through Resend from hello@sortmycover.co.za, never howzit@. Any other brand keeps the howzit@
+// Graph sendMail exactly as before. Synthetic data only.
+// ============================================================================================
+const SMC_FN = '../../supabase/functions/smc-client-email/render.ts';
+const SMC_MAIL = 'Email client from SortMyCover (smc-client-email)';
+const SMC_GATE = `Live send? (${SMC_MAIL})`;
+const smcLead = (over = {}) => ({ ...ctx5().lead, brand_code: 'SMC', email: 'sipho.test@example.com', email_verified: true, email_status: 'valid', ...over });
+const ownCal = (over = {}) => ({ ...broker(), calendar_status: 'ok', calendar_mode: 'oauth', add_client_as_attendee: null, ...over });
+const pTeams = { start: '2026-10-13T10:30:00+02:00', end: '2026-10-13T11:00:00+02:00', method: 'teams', email: 'sipho.test@example.com', idempotency_key: 'k-smc', booked_via: 'page', context: {}, route: 'graph' };
+const bkOf = (id, p = pTeams) => ({ id, broker_id: broker().broker_id, appointment_date: p.start, ends_at: p.end, method: p.method, status: 'booked' });
+
+test('W05 lib (SMC): Outlook-connected broker -> SortMyCover email (invite from the adviser calendar, accept it); no howzit@ email; the function accepts the body', async () => {
+  const { validate, render } = await import(SMC_FN);
+  const c = ctx5({ broker: ownCal(), lead: smcLead() });
+  const f = W5.finish(c, pTeams, bkOf('bk-smc-1'), { ok: true, graph_event_id: 'AAMk1', join_url: 'https://teams.microsoft.com/l/meetup-join/x' });
+  assert.equal(f.invite, null, 'never howzit@ for a SortMyCover lead');
+  assert.deepEqual(f.client_email, {
+    kind: 'booking_confirmed', to: 'sipho.test@example.com', lead_first_name: 'Sipho', slot_start: '2026-10-13T10:30:00+02:00', slot_end: '2026-10-13T11:00:00+02:00',
+    method: 'teams', adviser_name: 'Mark Smith', practice_name: 'Synthetic Test Advisory (TEST ONLY)', fsp_number: 'TEST-00000',
+    join_url: 'https://teams.microsoft.com/l/meetup-join/x', booking_id: 'bk-smc-1', calendar_invite: 'adviser', idempotency_key: 'w05:client_email:booking_confirmed:bk-smc-1',
+  });
+  assert.equal(f.appointment_update.invite_email_status, 'sent');
+  const v = validate(f.client_email);
+  assert.ok(v.ok, `the edge function accepts exactly what W05 sends: ${JSON.stringify(v)}`);
+  const m = render(v.input, Date.parse('2026-10-12T10:00:00Z'));
+  assert.equal(m.subject, 'Booked: your call with Mark on Tue 13 Oct at 10:30');
+  assert.match(m.text, /calendar invite is on its way from Mark's own calendar\. Please accept it/);
+  assert.match(m.text, /Synthetic Test Advisory \(TEST ONLY\), an authorised financial services provider \(FSP TEST-00000\)/);
+  assert.equal(m.attachments.length, 0);
+});
+
+test('W05 lib (SMC): no adviser invite (opt-out, shared calendar, failed create) -> .ics attached; call methods get the email too; no usable email -> none', async () => {
+  const { validate } = await import(SMC_FN);
+  const att = (c, p, ev, id) => W5.finish(c, p, bkOf(id, p), ev).client_email;
+  assert.equal(att(ctx5({ broker: ownCal({ add_client_as_attendee: false }), lead: smcLead() }), pTeams, { ok: true }, 'b1').calendar_invite, 'attached', 'opt-out');
+  assert.equal(att(ctx5({ broker: ownCal({ calendar_status: 'blocked_admin_consent' }), lead: smcLead() }), { ...pTeams, route: 'shared' }, { ok: true }, 'b2').calendar_invite, 'attached', 'shared calendar');
+  const failed = W5.finish(ctx5({ broker: ownCal(), lead: smcLead() }), pTeams, bkOf('b3'), { ok: false, reason: 'http_500' });
+  assert.equal(failed.client_email.calendar_invite, 'attached'); assert.equal(failed.invite, null); assert.equal(failed.appointment_update.invite_email_status, 'sent');
+  // phone booking of a verified lead: the plan carries no email (verification-only), the verified address gets the confirmation
+  const pPhone = { ...pTeams, method: 'phone', email: null };
+  const ph = W5.finish(ctx5({ broker: ownCal(), lead: smcLead() }), pPhone, bkOf('b4', pPhone), { ok: true });
+  assert.equal(ph.client_email.to, 'sipho.test@example.com'); assert.equal(ph.client_email.method, 'phone');
+  assert.equal(ph.client_email.calendar_invite, 'attached'); assert.equal('join_url' in ph.client_email, false);
+  assert.equal(ph.appointment_update.invite_email_status, 'not_needed');
+  assert.ok(validate(ph.client_email).ok);
+  // nothing to send to: unverified + no email on the plan, or a bounced address
+  assert.equal(W5.finish(ctx5({ broker: ownCal(), lead: smcLead({ email_verified: false }) }), pPhone, bkOf('b5', pPhone), { ok: true }).client_email, null);
+  assert.equal(W5.finish(ctx5({ broker: ownCal(), lead: smcLead({ email_status: 'bounced' }) }), pPhone, bkOf('b6', pPhone), { ok: true }).client_email, null);
+});
+
+test('W05 lib: any other brand keeps the howzit@ Graph email unchanged and gets no SortMyCover email', () => {
+  for (const brand_code of ['LV', undefined, '']) {
+    const lead = smcLead({ brand_code });
+    const c = ctx5({ broker: ownCal({ add_client_as_attendee: false }), lead });
+    const f = W5.finish(c, pTeams, bkOf('bk-lv'), { ok: true });
+    assert.equal(f.client_email, null, `brand ${brand_code}`);
+    assert.deepEqual(f.invite, W5.inviteMail(c, pTeams, { ...bkOf('bk-lv'), join_url: null, ics_url: f.appointment_update.ics_url }, { ok: true }));
+    assert.equal(f.invite.message.toRecipients[0].emailAddress.address, 'sipho.test@example.com');
+  }
+  assert.equal(W5.isSmcLead({ brand_code: 'smc' }), true); assert.equal(W5.isSmcLead({ brand_id: 'x' }), false); assert.equal(W5.isSmcLead(null), false);
+});
+
+test('W05 lib: update_method -> SMC booking_updated email (adviser invite when the new or old method put the client on the Outlook event); other brands keep howzit@', async () => {
+  const { validate } = await import(SMC_FN);
+  const own = ownCal({ add_client_as_attendee: true, methods_supported: ['teams', 'phone'] });
+  const booking = { id: 'bk1', status: 'booked', appointment_date: '2026-10-14T10:00:00+02:00', ends_at: '2026-10-14T10:30:00+02:00', calendar_provider: 'outlook', idempotency_key: 'k', booked_via: 'page', method: 'phone' };
+  const lead = smcLead({ email: 'client@gmail.com', email_purpose: 'meeting_invite' });
+  const now = Date.parse('2026-10-13T09:00:00Z');
+  const toTeams = W5.planUpdateMethod({ req: { method: 'teams', email: 'client@gmail.com', email_confirmed: true }, booking, lead, broker: own, mx: { has_mx: true } });
+  const e1 = W5.methodChangeEmails({ lead, broker: own, booking }, toTeams.plan, now);
+  assert.equal(e1.mail, null);
+  assert.equal(e1.smc_email.kind, 'booking_updated'); assert.equal(e1.smc_email.method, 'teams'); assert.equal(e1.smc_email.calendar_invite, 'adviser');
+  assert.equal(e1.smc_email.idempotency_key, `w05:client_email:booking_updated:bk1:teams:${Math.floor(now / 60000)}`);
+  assert.ok(validate(e1.smc_email).ok);
+  // teams -> phone on his calendar: the client was an attendee, so the update comes from his calendar too (no second entry)
+  const toPhone = W5.planUpdateMethod({ req: { method: 'phone' }, booking: { ...booking, method: 'teams' }, lead, broker: own });
+  assert.equal(W5.methodChangeEmails({ lead, broker: own, booking: { ...booking, method: 'teams' } }, toPhone.plan, now).smc_email.calendar_invite, 'adviser');
+  // the same change on the shared calendar: nobody was invited from Outlook -> the updated .ics is attached
+  const shared = { ...booking, method: 'teams', calendar_provider: 'shared_lv' };
+  assert.equal(W5.methodChangeEmails({ lead, broker: own, booking: shared }, W5.planUpdateMethod({ req: { method: 'phone' }, booking: shared, lead, broker: own }).plan, now).smc_email.calendar_invite, 'attached');
+  // another brand: exactly the howzit@ invite the node built before
+  const lv = { ...lead, brand_code: 'LV' };
+  const sh = { ...booking, calendar_provider: 'shared_lv' };
+  const pl = W5.planUpdateMethod({ req: { method: 'teams', email: 'client@gmail.com', email_confirmed: true }, booking: sh, lead: lv, broker: own, mx: { has_mx: true } }).plan;
+  const inv = W5.inviteMail({ lead: lv, broker: own }, pl, sh, {});
+  assert.deepEqual(W5.methodChangeEmails({ lead: lv, broker: own, booking: sh }, pl, now), { mail: { message: inv.message, saveToSentItems: true }, smc_email: null });
+});
+
+test('W05 lib: smc-client-email result -> nothing when sent or dry-run; one amber W22 alert otherwise (the booking stands)', () => {
+  const sent = { lead_id: 'l1', smc_email: { kind: 'booking_confirmed', booking_id: 'bk9' } };
+  assert.equal(W5.clientEmailResult({ statusCode: 200, body: { id: 're_1' } }, sent), null);
+  assert.equal(W5.clientEmailResult({ dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:0' }] } }, sent), null);
+  const a = W5.clientEmailResult({ statusCode: 502, body: { error: 'resend', status: 403 } }, sent);
+  assert.equal(a.signal_key, 'client_email_failed'); assert.equal(a.severity, 'amber'); assert.equal(a.source, 'W05');
+  assert.equal(a.scope, 'booking:bk9'); assert.equal(a.lead_id, 'l1');
+  assert.match(a.what, /booking_confirmed email to the client not sent for booking bk9 \(HTTP 502 resend \(Resend 403\)\)/);
+  assert.match(W5.clientEmailResult({ statusCode: 400, body: { error: 'invalid', fields: ['fsp_number'] } }, sent).what, /fields fsp_number/);
+  assert.match(W5.clientEmailResult({ error: { message: 'timeout of 15000ms exceeded' } }, sent).what, /error: timeout/);
+  assert.equal(W5.clientEmailResult({ statusCode: 200, body: {} }, sent).signal_key, 'client_email_failed', '2xx without a Resend id is not a send');
+});
+
+test('W05.json (SMC email): function call behind DRY_RUN_SENDS, relay token from $env, failures -> W22; brand read in both loads; Code nodes run', async () => {
+  const { runCode: run, many: mk } = await import('./_n8ncode.mjs');
+  const { findUngated } = createRequire(import.meta.url)('../lib/egress-gate.cjs');
+  const byName = (nm) => WF5.nodes.find((x) => x.name === nm);
+  const nxt = (a, i = 0) => (WF5.connections[a]?.main[i] || []).map((x) => x.node);
+  const h = byName(SMC_MAIL);
+  assert.equal(h.type, 'n8n-nodes-base.httpRequest'); assert.equal(h.parameters.method, 'POST');
+  assert.match(h.parameters.url, /'https:\/\/cmsylaupctrbsvzrgzwy\.supabase\.co\/functions\/v1'\) \+ '\/smc-client-email'/);
+  assert.deepEqual(h.parameters.headerParameters.parameters, [{ name: 'x-api-key', value: '={{ $env.LINDI_RELAY_TOKEN }}' }]);
+  assert.equal(h.parameters.jsonBody, '={{ JSON.stringify($json.smc_email) }}');
+  assert.equal(h.onError, 'continueRegularOutput'); assert.equal(h.credentials, undefined, 'no n8n credential: the token is $env');
+  assert.equal(h.parameters.options.response.response.neverError, true);
+  // DRY_RUN_SENDS gate (lib/egress-gate.cjs counts the function as an email sender)
+  assert.match(JSON.stringify(byName(SMC_GATE).parameters), /DRY_RUN_SENDS !== 'true'/);
+  assert.deepEqual(nxt(SMC_GATE, 0), [SMC_MAIL]); assert.deepEqual(nxt(SMC_GATE, 1), [`Dry-run stub (${SMC_MAIL})`]);
+  assert.deepEqual(nxt(`Dry-run stub (${SMC_MAIL})`), ['Client email result (w05.clientEmailResult)']);
+  assert.deepEqual(findUngated(WF5), []);
+  // routes in: the fan-out (Effect? smc_email) and update_method (Save method -> Method client email); out: W22 on failure
+  const eff = byName('Effect?').parameters.rules.values.map((r) => r.outputKey);
+  assert.deepEqual(nxt('Effect?', eff.indexOf('smc_email')), [SMC_GATE]);
+  assert.deepEqual(nxt('Effect?', eff.indexOf('mail')), ['Live send? (Email from howzit@ (Graph sendMail))'], 'Graph path unchanged');
+  assert.ok(nxt('Save method').includes('Method client email (SortMyCover)') && nxt('Save method').includes('Method invite?'));
+  assert.deepEqual(nxt('Method client email (SortMyCover)'), [SMC_GATE]);
+  assert.deepEqual(nxt('Method invite?'), ['Live send? (Email from howzit@ (Graph sendMail))']);
+  assert.deepEqual(nxt(SMC_MAIL), ['Client email result (w05.clientEmailResult)']);
+  assert.deepEqual(nxt('Client email result (w05.clientEmailResult)'), ['-> W22 Alerts']);
+  assert.match(byName('Load lead, broker, replay, live booking').parameters.query, /SELECT br\.code FROM public\.brands br WHERE br\.id = l\.brand_id\) AS brand_code/);
+  assert.match(byName('Load booking for method change').parameters.query, /l\.email_verified,[\s\S]*AS brand_code/);
+  // Fan out effects: the client email is its own effect, next to the broker's howzit@ mail
+  const smcBody = { kind: 'booking_confirmed', booking_id: 'bk1' };
+  const fan = (await run(WF5, 'Fan out effects', { json: { lane: 'sub', lead_id: 'l1', f: { client_email: smcBody, broker: { email: { to: 'broker@example.test', subject: 's', body: 'b' } } } } })).map((x) => x.json);
+  assert.deepEqual(fan.find((x) => x.kind === 'smc_email'), { kind: 'smc_email', lead_id: 'l1', smc_email: smcBody });
+  assert.equal(fan.filter((x) => x.kind === 'mail').length, 1, 'only the broker notice goes to Graph');
+  // result node: failure -> alert (request found through the gate's paired item); dry-run stub -> nothing
+  const sent = { kind: 'smc_email', lead_id: 'l1', smc_email: smcBody };
+  const fail = (await run(WF5, 'Client email result (w05.clientEmailResult)', { json: { statusCode: 502, body: { error: 'resend', status: 403 } }, refs: { [SMC_GATE]: mk([sent]) } })).map((x) => x.json);
+  assert.equal(fail.length, 1); assert.equal(fail[0].signal_key, 'client_email_failed'); assert.equal(fail[0].scope, 'booking:bk1');
+  assert.deepEqual(await run(WF5, 'Client email result (w05.clientEmailResult)', { json: { ...sent, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:0' }] } }, refs: {} }), []);
+  assert.deepEqual(await run(WF5, 'Client email result (w05.clientEmailResult)', { json: { statusCode: 200, body: { id: 're_1' } }, refs: { [SMC_GATE]: mk([sent]) } }), []);
+  // update_method: the plan node builds smc_email for an SMC lead; the method node forwards it
+  const plan = (await run(WF5, 'Plan method change (w05.planUpdateMethod)', {
+    json: { booking: { id: 'bk1', status: 'booked', appointment_date: '2026-10-14T10:00:00+02:00', ends_at: '2026-10-14T10:30:00+02:00', calendar_provider: 'outlook', idempotency_key: 'k', booked_via: 'page', method: 'phone' },
+      lead: smcLead({ email: 'client@gmail.com' }), broker: ownCal({ methods_supported: ['teams', 'phone'] }) },
+    refs: { 'Normalise sub-call (w05.parseSub)': { req: { op: 'update_method', booking_id: 'bk1', method: 'teams', email: 'client@gmail.com', email_confirmed: true } } },
+  }))[0].json;
+  assert.equal(plan.action, 'patch'); assert.equal(plan.mail, null); assert.equal(plan.smc_email.kind, 'booking_updated'); assert.equal(plan.lead_id, 'lead_test_L02');
+  const fwd = (await run(WF5, 'Method client email (SortMyCover)', { refs: { 'Plan method change (w05.planUpdateMethod)': plan } })).map((x) => x.json);
+  assert.deepEqual(fwd, [{ kind: 'smc_email', lead_id: 'lead_test_L02', smc_email: plan.smc_email }]);
+  assert.deepEqual(await run(WF5, 'Method client email (SortMyCover)', { refs: { 'Plan method change (w05.planUpdateMethod)': { ...plan, smc_email: null } } }), []);
+});

@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 380,
-        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d). VERIFY GATE (2026-10-11): a lead whose email is not verified gets a HELD slot (status pending_verification, verify_by = min(+24 h, start - 2 h)): no Outlook event, no Teams link, no broker notice, no W06/W09/CAPI; booking_held_verify_email + smc-email-verify issue. smc-email-verify calls op finalize after the link / code: the held row becomes booked and the normal fan-out runs. Every 5 min: held slots past verify_by are released + booking_hold_released nudge."
+        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. SortMyCover leads (brands.code SMC, 17 Oct 2026): no howzit@ email; every booked call with a usable email gets the SortMyCover email (smc-client-email edge function -> Resend, hello@sortmycover.co.za; x-api-key = LINDI_RELAY_TOKEN; failures -> W22 client_email_failed). Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d). VERIFY GATE (2026-10-11): a lead whose email is not verified gets a HELD slot (status pending_verification, verify_by = min(+24 h, start - 2 h)): no Outlook event, no Teams link, no broker notice, no W06/W09/CAPI; booking_held_verify_email + smc-email-verify issue. smc-email-verify calls op finalize after the link / code: the held row becomes booked and the normal fan-out runs. Every 5 min: held slots past verify_by are released + booking_hold_released nudge."
       }
     },
     {
@@ -502,7 +502,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- lead + its broker + idempotent replay + the lead's live booking (one round trip)\nWITH ld AS (\n  SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,\n         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,\n         l.conv_state, l.opted_out_at, l.is_synthetic, l.email_verified\n    FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)\n), byuser AS (\n  SELECT b.id FROM public.brokers b WHERE $3 <> '' AND b.user_id::text = $3 AND b.brand_id IS NOT NULL LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker, (SELECT to_jsonb(byuser) FROM byuser) AS broker_by_user,\n       (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $2 LIMIT 1) e) AS existing,\n       (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) v) AS live;",
+        "query": "-- lead + its broker + idempotent replay + the lead's live booking (one round trip)\nWITH ld AS (\n  SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,\n         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,\n         l.conv_state, l.opted_out_at, l.is_synthetic, l.email_verified,\n         (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code\n    FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)\n), byuser AS (\n  SELECT b.id FROM public.brokers b WHERE $3 <> '' AND b.user_id::text = $3 AND b.brand_id IS NOT NULL LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker, (SELECT to_jsonb(byuser) FROM byuser) AS broker_by_user,\n       (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $2 LIMIT 1) e) AS existing,\n       (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) v) AS live;",
         "options": {
           "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"
         }
@@ -1362,7 +1362,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker && f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.broker && f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));"
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker && f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.client_email) out.push({ kind: 'smc_email', lead_id: j.lead_id, smc_email: f.client_email });\nif (f.broker && f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));"
       }
     },
     {
@@ -1544,6 +1544,27 @@
               },
               "renameOutput": true,
               "outputKey": "alert"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "smc_email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "smc_email"
             }
           ]
         },
@@ -2044,7 +2065,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.email_verified, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id,\n                                        (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code\n                                   FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
         "options": {
           "queryReplacement": "={{ [$json.req.booking_id] }}"
         }
@@ -2068,7 +2089,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst invite = p.action === 'patch' ? L.inviteMail({ lead: x.lead, broker: x.broker }, p.plan, x.booking, {}) : null;\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: invite ? { message: invite.message, saveToSentItems: true } : null, kind: p.action } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];"
       }
     },
     {
@@ -2551,6 +2572,73 @@
       }
     },
     {
+      "id": "n93",
+      "name": "Email client from SortMyCover (smc-client-email)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        2200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/smc-client-email' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.smc_email) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n94",
+      "name": "Client email result (w05.clientEmailResult)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\n// Sent (2xx + Resend id) or dry-run -> nothing; anything else -> one W22 alert per failed email (the booking stands).\nconst out = [];\n$input.all().forEach((it, i) => {\n  let sent = it.json && it.json.smc_email ? it.json : null;\n  if (!sent) { try { sent = ($('Live send? (Email client from SortMyCover (smc-client-email))').itemMatching(i) || {}).json || {}; } catch (e) { sent = {}; } }\n  const alert = L.clientEmailResult(it.json, sent);\n  if (alert) out.push({ json: alert });\n});\nreturn out;"
+      }
+    },
+    {
+      "id": "n95",
+      "name": "Method client email (SortMyCover)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.smc_email ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: p.smc_email } }] : [];"
+      }
+    },
+    {
       "id": "545c4f0b-e64f-22c9-e646-9e2289cbc433",
       "name": "Live send? (Email from howzit@ (Graph sendMail))",
       "type": "n8n-nodes-base.if",
@@ -2591,6 +2679,53 @@
       "position": [
         1680,
         1360
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
+    },
+    {
+      "id": "8fb86461-77e4-b0a5-6af9-280363fce10a",
+      "name": "Live send? (Email client from SortMyCover (smc-client-email))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        760,
+        2200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ba37cf07-804a-3514-ac91-07c6ef8bd57a",
+      "name": "Dry-run stub (Email client from SortMyCover (smc-client-email))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        2360
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -3346,6 +3481,35 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Live send? (Email client from SortMyCover (smc-client-email))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email client from SortMyCover (smc-client-email)": {
+      "main": [
+        [
+          {
+            "node": "Client email result (w05.clientEmailResult)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client email result (w05.clientEmailResult)": {
+      "main": [
+        [
+          {
+            "node": "-> W22 Alerts",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -3505,6 +3669,11 @@
             "node": "Method invite?",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Method client email (SortMyCover)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -3514,6 +3683,17 @@
         [
           {
             "node": "Live send? (Email from howzit@ (Graph sendMail))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method client email (SortMyCover)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (Email client from SortMyCover (smc-client-email))",
             "type": "main",
             "index": 0
           }
@@ -3680,6 +3860,35 @@
     "Dry-run stub (Email from howzit@ (Graph sendMail))": {
       "main": [
         []
+      ]
+    },
+    "Live send? (Email client from SortMyCover (smc-client-email))": {
+      "main": [
+        [
+          {
+            "node": "Email client from SortMyCover (smc-client-email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Email client from SortMyCover (smc-client-email))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Email client from SortMyCover (smc-client-email))": {
+      "main": [
+        [
+          {
+            "node": "Client email result (w05.clientEmailResult)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "SUB input (Send WhatsApp)": {

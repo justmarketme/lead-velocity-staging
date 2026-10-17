@@ -62,3 +62,7 @@ verify_jwt = false
 
 [functions.smc-admin-media-upload]
 verify_jwt = false
+
+# SortMyCover client booking emails (Resend, hello@sortmycover.co.za). n8n W05 calls it with the relay token (x-api-key).
+[functions.smc-client-email]
+verify_jwt = false
