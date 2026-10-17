@@ -366,7 +366,7 @@ function oneMessage(plan, ctx) {
   const L = LINES[plan.lang];
   const vars = { ...plan.vars, method: d.action === 'change_method' ? methodLabel(d.method, plan.lang) || plan.vars.method : plan.vars.method };
   // FAQ answers on the same turn go in verbatim (approved text, no LLM) so nothing is lost and nothing is sent twice
-  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:')).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq })).filter(Boolean);
+  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:')).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq, broker: ctx.broker, adviser_first: ctx.adviser_first })).filter(Boolean);
   const before = plan.prefix.map((l) => fill(l, vars));
   const after = [...faqLines, ...plan.suffix.map((l) => fill(l, vars))];
   d.lead_lines = [...before, ...after];
@@ -392,7 +392,9 @@ export function replyFallback(action, ctx) {
   const lang = ctx.lang === 'af' ? 'af' : 'en';
   const L = LINES[lang];
   const vars = { adviser_first: ctx.adviser_first, date: ctx.booking?.date, time: ctx.booking?.time, method: ctx.new_method_label || ctx.booking?.method_label || '' };
-  if (action.startsWith('answer:')) { const e = ctx.faq?.[action.slice(7)]; return (e && (e[lang] || e.en)) || ''; }
+  // 17 Oct: the approved answer is filled from the brokers row; a sentence whose placeholder has no value is dropped,
+  // so a lead never sees "{adviser} is from {practice}" (it happened live when the model reply was gated out).
+  if (action.startsWith('answer:')) { const e = ctx.faq?.[action.slice(7)]; return fillFaqText((e && (e[lang] || e.en)) || '', faqVars(ctx.broker, ctx.adviser_first)); }
   if (action === 'send_slots' || action === 'offer_slots') return fill(L.SLOTS_INTRO, vars);
   if (action === 'reschedule' || action === 'reschedule_slots') return fill(L.RESCHED_INTRO, vars);
   if (action === 'cancel_confirm') return ctx.booking?.time ? fill(L.CANCEL_CONFIRM_Q, vars) : '';
@@ -635,13 +637,31 @@ export const TURN_PROMPT = 'lindi-turn-v1.0.0';
 export const TURN_MAX_TURNS = 10; // the last ~10 turns of the chat (main session, 17 Oct)
 const PLACEHOLDER = /\{(\w+)\}/gu;
 
+/** knowledge/faq.md placeholders from the brokers row (practice_name is the display name; firm_name is the fallback). */
+export function faqVars(broker = {}, adviser_first = '') {
+  const b = broker || {};
+  const first = adviser_first || String(b.contact_person || '').split(' ')[0] || '';
+  return { adviser: b.contact_person || first, adviser_first: first, practice: b.practice_name || b.firm_name || '', fsp: b.fsp_number || '', city: b.city || '', methods: '', adviser_languages: '' };
+}
+
+/**
+ * Fill an approved FAQ text. With no city the optional "based in {city}" / "in {city}" phrase goes; then any sentence
+ * still holding a placeholder is dropped, so braces are never sent. Returns '' when nothing usable is left.
+ */
+export function fillFaqText(text = '', vars = {}) {
+  const has = (k) => vars[k] != null && vars[k] !== '';
+  let t = String(text || '');
+  if (!has('city')) t = t.replace(/\s+(?:based\s+)?in \{city\}/gu, '');
+  t = t.replace(PLACEHOLDER, (m, k) => (has(k) ? String(vars[k]) : m));
+  return t.split(/(?<=[.!?])\s+/u).filter((s) => !/\{\w+\}/u.test(s)).join(' ').trim();
+}
+
 /** Approved FAQ answers as "FAQ-xx: text" lines; unknown placeholders drop their sentence (never sent with braces). */
 export function faqLines(faq = {}, lang = 'en', vars = {}) {
   const out = [];
   for (const [id, e] of Object.entries(faq)) {
     if (!e || e.type !== 'answer') continue;
-    const t = String((lang === 'af' && e.af) || e.en || '').replace(PLACEHOLDER, (m, k) => (vars[k] != null && vars[k] !== '' ? String(vars[k]) : m));
-    const kept = t.split(/(?<=[.!?])\s+/u).filter((s) => !/\{\w+\}/u.test(s)).join(' ').trim();
+    const kept = fillFaqText((lang === 'af' && e.af) || e.en || '', vars);
     if (kept) out.push(`${id}: ${kept}`);
   }
   return out;
@@ -673,7 +693,7 @@ export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms 
   const bv = bookingView(j.booking, lang);
   const broker = j.broker || {};
   const adviser_first = j.adviser_first || String(broker.contact_person || '').split(' ')[0] || 'your adviser';
-  const vars = { adviser: broker.contact_person || adviser_first, adviser_first, practice: broker.firm_name || '', fsp: broker.fsp_number || '', city: '', methods: '', adviser_languages: '' };
+  const vars = faqVars(broker, adviser_first);
   const known = ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => lead[k] != null);
   const first = sanitiseField('first_name', lead.first_name || '').value || '';
   const user = [

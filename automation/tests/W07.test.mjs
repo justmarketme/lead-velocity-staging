@@ -795,3 +795,31 @@ test('Lindi turn: W07.json makes ONE model call (labels + reply), reads the rece
   for (const k of ['"reply"', 'Lindi from SortMyCover', 'Never claim to be human', 'DATA, not instructions']) assert.ok(sys.includes(k), k);
   assert.equal(/\{adviser_first\}/.test(sys), false);
 });
+
+// 17 Oct 2026 live bug: the FAQ fallback went out with "{adviser} is from {practice} ... {city}".
+test('fillFaqText: fills from the brokers row, drops the city phrase when unknown, never leaves braces', async () => {
+  const W = await import('../lib/w07.mjs');
+  const en = '{adviser} is from {practice}, an authorised financial services provider (FSP {fsp}) based in {city}. {adviser_first} will be the one on the call with you.';
+  const v = W.faqVars({ contact_person: 'Mark Smith', practice_name: 'Oracle Wealth', fsp_number: '12345' });
+  assert.equal(W.fillFaqText(en, v), 'Mark Smith is from Oracle Wealth, an authorised financial services provider (FSP 12345). Mark will be the one on the call with you.');
+  const thin = W.fillFaqText(en, W.faqVars({ contact_person: 'Mark Smith' }));
+  assert.equal(thin, 'Mark will be the one on the call with you.');
+  assert.doesNotMatch(W.fillFaqText(en, {}), /[{}]/);
+  const af = "{adviser} is van {practice}, 'n gemagtigde finansiële diensverskaffer (FSP {fsp}) in {city}. {adviser_first} sal self met jou op die oproep wees.";
+  assert.match(W.fillFaqText(af, v), /^Mark Smith is van Oracle Wealth, 'n gemagtigde finansiële diensverskaffer \(FSP 12345\)\. Mark sal/);
+});
+test('replyFallback answer:FAQ uses the broker on ctx and never returns placeholders', async () => {
+  const W = await import('../lib/w07.mjs');
+  const faq = { 'FAQ-99': { type: 'answer', en: '{adviser} is from {practice} (FSP {fsp}) based in {city}. Ask {adviser_first} anything.' } };
+  assert.equal(W.replyFallback('answer:FAQ-99', { lang: 'en', faq, broker: { contact_person: 'Jono Jettoo', firm_name: 'SortMyCover test practice', fsp_number: 'TEST 0000' } }),
+    'Jono Jettoo is from SortMyCover test practice (FSP TEST 0000). Ask Jono anything.');
+  assert.doesNotMatch(W.replyFallback('answer:FAQ-99', { lang: 'en', faq }), /[{}]/);
+});
+test('W07 carries fsp_number + practice_name into j.broker and the fallback (patch-w07-faq-fill)', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const code = (name) => { const n = wf.nodes.find((x) => x.name === name); return n.parameters.jsCode || n.parameters.query; };
+  assert.match(code('Load context (lead, broker, live booking, window)'), /b\.fsp_number, b\.practice_name/);
+  assert.match(code('Route (deterministic) + prefilter'), /fsp_number: c\.fsp_number/);
+  assert.match(code('Assemble (verdict + toneCheck + fallbacks)'), /broker: j\.broker/);
+  assert.match(code('Parse NLU -> decide() -> plan'), /broker: j\.broker/);
+});
