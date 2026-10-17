@@ -1,5 +1,7 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
+import { WhatsAppCta } from "@/components/ChatWidget";
+import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
 import { APEX, BOOK_COVER, BOOK_LABEL, BOOK_WILLS, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, WILLS_BOOK_LABEL, company, provider, site } from "@/lib/site";
 import { organization, website } from "@/lib/jsonld";
@@ -60,12 +62,12 @@ export default function Home() {
           <div className="hx-hero-copy">
             <p className="eyebrow mb-3">A conversation, not a quote.</p>
             <h1 className="hx-h1">New bond. New baby. New job. <em>One call about cover.</em></h1>
-            <p className="hx-intro">A 30-minute call with a licensed adviser about life cover, disability, severe illness or income protection. Or a will, with {provider.name}.</p>
+            <p className="hx-intro">A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with {provider.name}.</p>
             <div className="hx-actions">
-              <Link to={BOOK_COVER} className="btn btn-lg">{BOOK_LABEL} <span aria-hidden="true">↗</span></Link>
-              <a href="#h-how" className="hx-how-link">See how it works ↓</a>
+              <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
+              <Link to={BOOK_COVER} className="hx-how-link">Or book a call on the website</Link>
             </div>
-            <p className="hx-micro">Two questions · About a minute · {COST_LINE}</p>
+            <p className="hx-micro">{WA_EXPECT} {COST_LINE}</p>
           </div>
           <HeroMosaic />
         </div>
@@ -206,9 +208,10 @@ export default function Home() {
       <div className="wrap">
         <aside className="hx-final on-dark" aria-label="Book a call">
           <h2 className="hx-h2" data-split><Split text="Ready" em="when you are." /></h2>
-          <p>About 30 minutes, at a time you pick. {COST_LINE}</p>
+          <p>About 30 minutes, at a time you pick. {WA_EXPECT} {COST_LINE}</p>
           <div className="flex flex-wrap gap-3">
-            <Link to={BOOK_COVER} className="btn btn-lg">{BOOK_LABEL}</Link>
+            <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
+            <Link to={BOOK_COVER} className="btn btn-secondary">{BOOK_LABEL}</Link>
             <Link to={BOOK_WILLS} className="btn btn-secondary">{WILLS_BOOK_LABEL}</Link>
           </div>
         </aside>

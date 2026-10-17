@@ -9,7 +9,8 @@ import { inView, scroll, stagger } from "motion";
 import { parallax, prefersReducedMotion, revealChildren, springDuration, springEase, springGestures } from "@/lib/motion";
 import { HERO_MOSAIC, SCENES, type SceneImage } from "@/content/imagery";
 import { articlePath } from "@/content";
-import { BOOK_COVER, BOOK_LABEL, BOOK_WILLS, WILLS_BOOK_LABEL } from "@/lib/site";
+import { BOOK_COVER, BOOK_WILLS } from "@/lib/site";
+import { WhatsAppCta } from "./ChatWidget";
 
 const Img = ({ s, eager, className }: { s: SceneImage; eager?: boolean; className?: string }) => (
   <img className={className} src={s.src} alt={s.alt} width={s.w} height={s.h} loading={eager ? "eager" : "lazy"} {...(eager ? { fetchPriority: "high" as const } : {})} />
@@ -56,13 +57,13 @@ export function ValueStack({ items }: { items: { k: string; v: string; d: string
 }
 
 /* ---------- 3. "What changed?" life-moment picker (tabs; every panel is in the HTML) ---------- */
-type Moment = { id: string; tab: string; head: string; em: string; body: string; img: SceneImage; links: { to: string; label: string }[]; book: "cover" | "wills" };
+type Moment = { id: string; topic: string; tab: string; head: string; em: string; body: string; img: SceneImage; links: { to: string; label: string }[]; book: "cover" | "wills" };
 export const MOMENTS: Moment[] = [
-  { id: "bond", tab: "New bond", head: "Bond approved.", em: "One more item for the list.", body: "What keeps the bond paid if an income stops is a common question to take to a licensed adviser.", img: SCENES.momentBond, links: [{ to: articlePath("life-cover"), label: "Life cover, in plain words" }, { to: articlePath("income-protection"), label: "Income protection" }], book: "cover" },
-  { id: "baby", tab: "New baby", head: "New baby.", em: "New questions about cover.", body: "A new dependant often changes what cover is for, and who it is meant to look after.", img: SCENES.momentBaby, links: [{ to: articlePath("life-cover"), label: "What life cover does" }, { to: articlePath("guardians-and-childrens-trusts"), label: "Guardians and trusts" }], book: "cover" },
-  { id: "income", tab: "The salary", head: "Some people insure the car", em: "before the salary.", body: "Disability and income protection are about the monthly income a household runs on. An adviser explains both in 30 minutes.", img: SCENES.momentIncome, links: [{ to: articlePath("disability-cover"), label: "Disability cover" }, { to: articlePath("income-protection"), label: "Income protection" }], book: "cover" },
-  { id: "business", tab: "Own a business", head: "When the business depends", em: "on one person.", body: "Owners and directors often ask an adviser how cover fits around a business and the family behind it.", img: SCENES.momentBusiness, links: [{ to: articlePath("severe-illness-cover"), label: "Severe illness cover" }, { to: articlePath("disability-cover"), label: "Disability cover" }], book: "cover" },
-  { id: "will", tab: "A will", head: "Who looks after", em: "the children?", body: "A will names a guardian and says who inherits. A will consultant takes the details in one appointment.", img: SCENES.momentWill, links: [{ to: articlePath("what-a-will-does"), label: "What a will does" }, { to: articlePath("where-to-keep-a-will"), label: "Where a will is kept" }], book: "wills" },
+  { id: "bond", topic: "cover and my new bond", tab: "New bond", head: "Bond approved.", em: "One more item for the list.", body: "What keeps the bond paid if an income stops is a common question to take to an authorised adviser.", img: SCENES.momentBond, links: [{ to: articlePath("life-cover"), label: "Life cover, in plain words" }, { to: articlePath("income-protection"), label: "Income protection" }], book: "cover" },
+  { id: "baby", topic: "cover for my family", tab: "New baby", head: "New baby.", em: "New questions about cover.", body: "A new dependant often changes what cover is for, and who it is meant to look after.", img: SCENES.momentBaby, links: [{ to: articlePath("life-cover"), label: "What life cover does" }, { to: articlePath("guardians-and-childrens-trusts"), label: "Guardians and trusts" }], book: "cover" },
+  { id: "income", topic: "income protection", tab: "The salary", head: "Some people insure the car", em: "before the salary.", body: "Disability and income protection are about the monthly income a household runs on. An adviser explains both in 30 minutes.", img: SCENES.momentIncome, links: [{ to: articlePath("disability-cover"), label: "Disability cover" }, { to: articlePath("income-protection"), label: "Income protection" }], book: "cover" },
+  { id: "business", topic: "cover as a business owner", tab: "Own a business", head: "When the business depends", em: "on one person.", body: "Owners and directors often ask an adviser how cover fits around a business and the family behind it.", img: SCENES.momentBusiness, links: [{ to: articlePath("severe-illness-cover"), label: "Severe illness cover" }, { to: articlePath("disability-cover"), label: "Disability cover" }], book: "cover" },
+  { id: "will", topic: "a will", tab: "A will", head: "Who looks after", em: "the children?", body: "A will names a guardian and says who inherits. A will consultant takes the details in one appointment.", img: SCENES.momentWill, links: [{ to: articlePath("what-a-will-does"), label: "What a will does" }, { to: articlePath("where-to-keep-a-will"), label: "Where a will is kept" }], book: "wills" },
 ];
 
 export function MomentPicker() {
@@ -115,7 +116,7 @@ export function MomentPicker() {
               <h3 data-in>{m.head} <em>{m.em}</em></h3>
               <p data-in>{m.body}</p>
               <ul data-in>{m.links.map((l) => <li key={l.to}><Link to={l.to}>{l.label} →</Link></li>)}</ul>
-              <p data-in><Link to={m.book === "wills" ? BOOK_WILLS : BOOK_COVER} className="btn">{m.book === "wills" ? WILLS_BOOK_LABEL : BOOK_LABEL} <span aria-hidden="true">→</span></Link></p>
+              <p data-in className="cta-row"><WhatsAppCta ctx={{ topic: m.topic, ref: "w-home-" + m.id, wills: m.book === "wills", book: m.book === "wills" ? BOOK_WILLS : BOOK_COVER }} /><Link to={m.book === "wills" ? BOOK_WILLS : BOOK_COVER} className="hx-how-link">Or book a call</Link></p>
             </div>
           </div>
         ))}

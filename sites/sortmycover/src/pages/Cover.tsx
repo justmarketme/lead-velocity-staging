@@ -1,6 +1,8 @@
 /* /cover/: the cover types hub. Four plain-words explainers (life, disability, severe illness, income protection), sourced from
    ASISA, the FSCA and the Policyholder Protection Rules. Information, not advice: no product, insurer, price or amount. */
 import { Link } from "react-router-dom";
+import { WhatsAppCta } from "@/components/ChatWidget";
+import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import PageFrame from "@/components/PageFrame";
 import { Steps } from "@/components/Interactive";
 import { BOOK_COVER, BOOK_LABEL, COST_LINE, FEE_LINE, NO_COMMISSION } from "@/lib/site";
@@ -28,7 +30,8 @@ export default function Cover() {
 
       <h2>Talk it through with an adviser</h2>
       <p>SortMyCover does not sell cover, give advice or quote premiums. It books a 30-minute call with an adviser from an FSCA-authorised financial services provider, who can talk about cover for your situation.</p>
-      <p className="mt-5"><Link to={BOOK_COVER} className="btn">{BOOK_LABEL} <span aria-hidden="true">→</span></Link></p>
+      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/cover/")} /><Link to={BOOK_COVER} className="btn btn-secondary">{BOOK_LABEL}</Link></p>
+      <p className="text-[15px] text-[#56606a]">{WA_EXPECT}</p>
       <p className="text-[15px]" data-disclosure>{COST_LINE} {FEE_LINE} {NO_COMMISSION}</p>
 
       <h2>What happens when you book</h2>

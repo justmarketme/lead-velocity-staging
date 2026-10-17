@@ -1,44 +1,18 @@
 /* One page, one goal: the campaign landing page for an ad angle (spec C.1). No navigation. Served on <label>.sortmycover.co.za. */
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment } from "react";
 import { Seo } from "@/lib/head";
-import { BOOK_LABEL, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site } from "@/lib/site";
+import { COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site } from "@/lib/site";
 import Quiz from "@/components/Quiz";
+import ChatWidget, { WhatsAppCta } from "@/components/ChatWidget";
+import { WA_EXPECT, campaignContext } from "@/lib/whatsapp";
 import { CampaignFooter } from "@/components/Footer";
 import { Wordmark } from "@/components/Brand";
 import { FaqItem, Steps } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { CAMPAIGN_FAQ, HOW_STEPS, WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { h1Segments, hostLabel, type Angle } from "@/campaigns";
-import { slideIn, watchInView } from "@/lib/motion";
 import { CAMPAIGN_SCENES } from "@/content/imagery";
 import { productForTheme } from "@/lib/quiz";
-
-/** Sticky CTA (spec C.1): shown only after the quiz card has left the viewport upwards, hidden while the card is on screen and at the footer. */
-function CampaignSticky() {
-  const [show, setShow] = useState(false);
-  const bar = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const card = document.getElementById("quiz");
-    const foot = document.querySelector("[data-footer]");
-    if (!card) return;
-    let cardVisible = true, footVisible = false;
-    const update = () => setShow(!cardVisible && !footVisible && card.getBoundingClientRect().bottom < 0);
-    const a = watchInView(card, (v) => { cardVisible = v; update(); });
-    const b = foot ? watchInView(foot, (v) => { footVisible = v; update(); }) : () => {};
-    cardVisible = card.getBoundingClientRect().bottom > 0; // first paint: the card is normally already on screen
-    return () => { a(); b(); };
-  }, []);
-  useEffect(() => { if (show && bar.current) slideIn(bar.current); }, [show]);
-  if (!show) return null;
-  return (
-    <div ref={bar} className="sticky-bar" role="region" aria-label="Book a call">
-      <div className="wrap flex items-center justify-between gap-3">
-        <small className="hidden sm:block">{COST_LINE}</small>
-        <a className="btn btn-sm" href="#quiz">{BOOK_LABEL}</a>
-      </div>
-    </div>
-  );
-}
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** "2025-10" -> "October 2025" (the proof line always shows its source month, rule S15). */
@@ -63,6 +37,8 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
             <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
             <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
+            <div className="hx-actions"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><a href="#quiz" className="hx-how-link">Or book on this page</a></div>
+            <p className="mt-3 text-[14px] text-[#56606a] max-w-[46ch]">{isWills(angle) ? WA_EXPECT.replace("your adviser", "your consultant") : WA_EXPECT}</p>
             {angle.note && <p className="mt-3 text-[15px] text-[#c9c3b8] max-w-[44ch]" data-disclosure>{angle.note}</p>}
             {wills && <p className="mt-3 text-[14px] text-[#c9c3b8] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}
             {angle.proof && (
@@ -91,7 +67,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
         </section>
       </main>
       <CampaignFooter feeLine={!wills} />
-      <CampaignSticky />
+      <ChatWidget base={campaignContext(angle)} />
     </div>
   );
 }
