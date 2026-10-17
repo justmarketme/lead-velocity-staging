@@ -44,7 +44,7 @@ export function Paia() {
     <PageFrame title="PAIA manual | SortMyCover" description="How to request records from Lead Velocity (Pty) Ltd under the Promotion of Access to Information Act." path="/paia/" h1="PAIA manual" robots="noindex,follow" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "PAIA manual", path: "/paia/" }]}>
       <DraftNote>The PAIA manual for {company.legal_name} has not been published yet. This page is a placeholder and states only the contact route.</DraftNote>
       <h2>Requesting a record</h2>
-      <p>To ask for access to a record held by {company.legal_name}, email the Information Officer, {company.information_officer}, at <a href={"mailto:" + company.email}>{company.email}</a>, or write to {company.address_lines.join(", ")}.</p>
+      <p>To ask for access to a record held by {company.legal_name}, email the Information Officer, {company.information_officer} (Information Regulator registration number {company.information_officer_registration}), at <a href={"mailto:" + company.email}>{company.email}</a>, or write to {company.address_lines.join(", ")}.</p>
       <h2>Regulator</h2>
       <p>The Information Regulator: <a href="https://inforegulator.org.za/" rel="noopener noreferrer">inforegulator.org.za</a>.</p>
     </PageFrame>
