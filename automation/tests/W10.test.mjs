@@ -430,3 +430,13 @@ test('W10 email wiring: SMC adviser relay before howzit@, client email gated by 
   assert.ok(outs('Broker notice (cancelled) + rebook once?').includes('SMC client email (cancelled)'));
   assert.ok(outs('Lead + broker messages (moved)').includes('SMC client email (moved)'));
 });
+
+test('cancelDoneWa: a cancel with no rebooking offer is still confirmed (in window, not opted out)', () => {
+  const wa = R.cancelDoneWa({ booking: bk(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP });
+  assert.deepEqual(wa, { messaging_product: 'whatsapp', to: '+27600000003', type: 'text', text: { body: "Done, your call is cancelled. If you'd like another time later, just say." } });
+  assert.equal(R.cancelDoneWa({ booking: bk(), lead: ld({ opted_out_at: '2026-10-13T08:00:00Z' }), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP }), null, 'W15 owns the STOP confirmation');
+  assert.equal(R.cancelDoneWa({ booking: bk(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H }), null, 'never free text outside the window');
+  const C = WF.connections['Offer rebooking once?'].main;
+  assert.deepEqual(C[1].map((t) => t.node), ['Cancel confirmation (no rebook offer)']);
+  assert.deepEqual(WF.connections['Cancel confirmation (no rebook offer)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
+});

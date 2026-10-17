@@ -317,6 +317,16 @@ export function smcClientChangeEmail(j = {}, kind = 'booking_cancelled', nowMs =
   return smcClientEmail({ lead, broker: j.br || {} }, plan, { id: j.bk.id, calendar_provider: j.bk.calendar_provider }, {}, kind, { now: nowMs });
 }
 
+/**
+ * The cancel confirmation when no rebooking is offered (already offered once, or the lead said "no call"): the lead's own
+ * "Yes, cancel" always gets an answer. Null when opted out (W15 sends the one STOP confirmation) or outside the 24-h window.
+ */
+export function cancelDoneWa({ booking = {}, lead = {}, broker = {}, now_ms, last_inbound_ms, delegate = null } = {}) {
+  if (lead.opted_out_at || !lead.phone) return null;
+  if (!(Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H)) return null;
+  return { messaging_product: 'whatsapp', to: lead.phone, type: 'text', text: { body: leadBody('cancel_done', { delegate, lead, booking, broker }) } };
+}
+
 /** The cancel-confirm interactive (typed "cancel" asks first). */
 export function cancelConfirmMessage(booking, lead, broker, delegate = null) {
   return { type: 'buttons', body: leadBody('cancel_confirm', { delegate, lead, booking, broker }), buttons: [[`cancel_yes:${booking.id}`, 'Yes, cancel'], [`keep_it:${booking.id}`, 'Keep it']] };

@@ -146,5 +146,12 @@ did('client wire 3', link(CLIENT_CANCEL, CLIENT_LIVE));
 did('client wire 4', link(CLIENT_MOVE, CLIENT_LIVE));
 did('client wire 5', link(CLIENT_LIVE, CLIENT_SEND, 0));
 
+// 6. no rebooking offer (offered once already, or "no call") -> still confirm the cancel (lib/w10.cancelDoneWa)
+const CANCEL_DONE = 'Cancel confirmation (no rebook offer)';
+did('cancel done', add(code('p10-cancel-done', CANCEL_DONE, at('Offer rebooking once?', 220, 200),
+  "// The lead's own \"Yes, cancel\" always gets an answer; before 17 Oct 2026 a second cancel got silence (W07's fallback answered).\nconst L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nreturn { json: { ...j, to: 'lead', wa: L.cancelDoneWa({ booking: j.bk, lead: j.ld, broker: j.br, now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, delegate: j.delegate || null }) } };")));
+did('cancel done wire 1', link('Offer rebooking once?', CANCEL_DONE, 1));
+did('cancel done wire 2', link(CANCEL_DONE, 'Has WhatsApp payload + live?'));
+
 if (changed.some(([, v]) => v)) writeFileSync(FILE, JSON.stringify(wf, null, 2) + (raw.endsWith('\n') ? '\n' : ''));
 console.log('patch-w10-w04-requests:', changed.map(([k, v]) => `${k}=${v ? 'changed' : 'already'}`).join(' '));

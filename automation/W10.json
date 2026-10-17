@@ -2155,6 +2155,20 @@
           }
         }
       }
+    },
+    {
+      "id": "p10-cancel-done",
+      "name": "Cancel confirmation (no rebook offer)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The lead's own \"Yes, cancel\" always gets an answer; before 17 Oct 2026 a second cancel got silence (W07's fallback answered).\nconst L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nreturn { json: { ...j, to: 'lead', wa: L.cancelDoneWa({ booking: j.bk, lead: j.ld, broker: j.br, now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, delegate: j.delegate || null }) } };"
+      }
     }
   ],
   "connections": {
@@ -2596,6 +2610,13 @@
         [
           {
             "node": "W04 request (list, exclude this booking)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel confirmation (no rebook offer)",
             "type": "main",
             "index": 0
           }
@@ -3048,6 +3069,17 @@
         [
           {
             "node": "Email client from SortMyCover (smc-client-email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel confirmation (no rebook offer)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
             "type": "main",
             "index": 0
           }
