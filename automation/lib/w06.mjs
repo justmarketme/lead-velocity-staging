@@ -78,12 +78,19 @@ export function blockReason(l) {
  * lead creation for page / lead-ad leads). ctx = { booking?: {created_at}, skipAt? }
  */
 export function firstTouchTrigger(l, ctx = {}) {
-  const clock = msOf(l.routed_at);
+  // 18 Oct 2026: a lead given a broker by hand has no routed_at (NaN crashed isoSast, W06 "Invalid time value"), and a
+  // non-page lead whose first touch was never sent got the routed slots card after booking. The booking is then the clock
+  // and the card is broker_intro_booked.
+  const routed = msOf(l.routed_at);
+  const booked = ctx.booking ? msOf(ctx.booking.created_at) : NaN;
+  const clock = Number.isFinite(routed) ? routed : Number.isFinite(booked) ? booked : Date.now();
   let reason; let trigger;
   if (l.origin === 'page') {
-    const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', msOf(ctx.booking.created_at)] : null]
+    const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', booked] : null]
       .filter(Boolean).sort((x, y) => x[1] - y[1]);
     [reason, trigger] = cands[0];
+  } else if (ctx.booking && Number.isFinite(booked)) {
+    [reason, trigger] = ['booking', booked];
   } else {
     [reason, trigger] = ['routed', clock];
   }

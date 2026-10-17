@@ -407,3 +407,17 @@ test('F12: no workflow writes an upper-case template_category literal (communica
     }
   assert.deepEqual(bad, []);
 });
+
+test('planFirstTouch: a lead given a broker by hand (no routed_at) that books gets broker_intro_booked, never a crash (18 Oct 2026)', () => {
+  const l = { id: 'l-manual', broker_id: 'b1', origin: 'manual', routed_at: null, first_name: 'TestyC', mobile: '+27725548057' };
+  const b = { id: 'b1', practice_name: 'Test Practice', fsp_number: 'TEST 0000', adviser_name: 'Jono Jettoo' };
+  const ctx = W06.ctxFromEvent({ op: 'booking', booking: { id: 'bk1', created_at: '2026-10-17T21:58:19.915Z', start: '2026-10-19T13:30:00+00:00', method: 'phone' }, booking_ui: 'list', slots: [] }, Date.parse('2026-10-17T21:58:21Z'));
+  const p = W06.planFirstTouch(l, b, ctx);
+  assert.equal(p.template, 'broker_intro_booked');
+  assert.equal(p.trigger, 'booking');
+  assert.equal(p.clock_start, '2026-10-17T23:58:19+02:00');
+  assert.deepEqual(p.buttons.map((x) => x.payload || x.param), ['bk1', 'reschedule:bk1', 'cancel:bk1']);
+  // a routed WhatsApp lead with no booking still gets the routed card on its routing clock (unchanged)
+  const r = W06.firstTouchTrigger({ origin: 'whatsapp', routed_at: '2026-10-17T10:00:00Z' }, {});
+  assert.equal(r.reason, 'routed'); assert.equal(r.clock_ms, Date.parse('2026-10-17T10:00:00Z'));
+});
