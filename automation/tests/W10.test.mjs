@@ -444,3 +444,12 @@ test('cancelDoneWa: a cancel with no rebooking offer is still confirmed (in wind
   assert.deepEqual(C[1].map((t) => t.node), ['Cancel confirmation (no rebook offer)']);
   assert.deepEqual(WF.connections['Cancel confirmation (no rebook offer)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
 });
+
+test('Build offer passes W10\'s op: a cancel tap (op "cancel") gets the cancel confirmation, not the reschedule intro', () => {
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_L03' } }), 'cancel');
+  const slots = slotsAt(RESCHED_TAP, [bk()]);
+  const o = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'cancel' });
+  assert.match(o.body, /^Done, your call is cancelled\./);
+  assert.doesNotMatch(o.body, /other times|Same as before/);
+  assert.match(WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode, /reason: j\.op/);
+});

@@ -48,7 +48,7 @@ export function offerMessage({ booking, lead, broker, brand = {}, slots = [], no
   const adviser = String(broker.contact_person || '').split(' ')[0];
   // 17 Oct 2026: a lead's cancel is confirmed in words, with or without times to offer. CANCEL_DONE was never sent, so the
   // client heard nothing after "Yes, cancel" and W07's never-silent fallback ("something went wrong") answered instead.
-  const cancelled = reason === 'rebook_after_cancel';
+  const cancelled = reason === 'cancel' || reason === 'rebook_after_cancel'; // W10 passes its op ('cancel', classifyOp)
   // After a cancel the old booking is gone: a pick is a NEW booking (plain slot_ -> W07 routes it to W05). A ":resched:"
   // pick would reach W10's move of a cancelled booking, which rejects it.
   const pickId = (s) => (cancelled ? `slot_${s.start}` : `slot_${s.start}:resched:${booking.id}`);
