@@ -4,7 +4,22 @@ Jono, 17 Oct 2026: desktop visitors can book in a calendar (Cal.com) as well as 
 
 Research sources were read on 17 Oct 2026. The key pages: cal.com/help/bookings/prefill-fields, cal.com/docs/core-features/event-types/booking-questions, cal.com/docs/developing/guides/automation/webhooks, cal.com/help/workflows/workflowsoverview, twilio.com/docs/content/twilio-quick-reply and developers.facebook.com/docs/whatsapp/overview/getting-opt-in.
 
-## The flow
+## SortMyCover branding, never Lead Velocity (Jono, 17 Oct 2026)
+
+The booking page and every confirmation must be SortMyCover's, never Lead Velocity's or Vantage Stack's. Sources, read 17 Oct 2026: [cal.com/pricing](https://cal.com/pricing) and [cal.com/help/event-types/disable-confirmation](https://cal.com/help/event-types/disable-confirmation).
+
+- **Own account.** Create a separate Cal.com account for SortMyCover. Do not add an event to the `vantagestack` account, whose public page shows "Isabel" and Lead Velocity and Vantage Stack events.
+  - Profile name: SortMyCover. Avatar: the SortMyCover mark. Brand colour: `#F5A623`, light theme.
+  - Username, for example `sortmycover`, which gives `calcom_link` = `sortmycover/<event>`.
+  - Event title: "Your SortMyCover call with an authorised adviser".
+  - Custom reply-to: hello@sortmycover.co.za.
+- **Cal.com's own branding.** Removing "powered by Cal.com" from the page and emails needs the **Teams** plan, at $12 per user a month billed yearly. The free plan shows Cal.com's branding next to ours. This is a spend, so Jono decides.
+- **Confirmations come from SortMyCover.** In the event's settings, under Confirmation, turn on "Disable default confirmation emails for attendees". Cal.com only allows this when a workflow sends an email on booking for that event, and a workflow that emails the organiser (the adviser) qualifies.
+  - n8n then sends the attendee's confirmation itself: a SortMyCover-branded email from the sortmycover.co.za domain, with the calendar invite (.ics) and the reschedule/cancel links from the webhook payload.
+  - n8n also sends the WhatsApp utility template from +27 60 015 6480.
+  - Nothing the attendee receives says Lead Velocity.
+
+
 
 1. **Site (built, commit `4bdf540`).** On desktop, "Pick a time" opens Cal.com's booking page in a dialog. The site loads no Cal.com script; the policy only allows Cal.com as a frame. The URL prefills the hidden `ref` question with the page code plus the origin, the same as the WhatsApp opener, and passes `utm_*` through. The buttons stay hidden until `config/site.json` -> `calcom_link` is set.
 2. **Cal.com event (owner setup).**
@@ -23,9 +38,9 @@ Research sources were read on 17 Oct 2026. The key pages: cal.com/help/bookings/
 
 ## Setup only Jono can do
 
-1. **Cal.com event.** Create the SortMyCover event: 30 minutes, the adviser's calendar connected, the booking questions above. Reuse event 7456888 only if the voice agents no longer need it. Then put its link into `config/site.json` -> `calcom_link`, for example `sortmycover/adviser-call`.
-2. **Microsoft sign-in.** Connect the adviser's Microsoft 365 calendar in Cal.com. This needs the adviser's sign-in and a consent screen.
-3. **Webhook.** Create the Cal.com webhook and put its signing secret into n8n.
-4. **Template.** Submit the WhatsApp template in Twilio Content for Meta approval.
-5. **Plan.** The free Cal.com plan is enough unless you want Cal.com branding removed.
+1. **Cal.com account and event.** Create a SortMyCover Cal.com account with its own branding (see above), not inside `vantagestack`. Add the 30-minute event with the adviser's calendar connected and the booking questions above. Then put its link into `config/site.json` -> `calcom_link`, for example `sortmycover/adviser-call`.
+2. **Plan and confirmations.** Decide on Teams ($12 per user a month) to remove Cal.com branding. Turn off the default attendee confirmation, backed by an organiser-notify workflow.
+3. **Microsoft sign-in.** Connect the adviser's Microsoft 365 calendar in Cal.com. This needs the adviser's sign-in and a consent screen.
+4. **Webhook.** Create the Cal.com webhook and put its signing secret into n8n.
+5. **Template.** Submit the WhatsApp template in Twilio Content for Meta approval.
 6. **Go-live.** Approve the deploy. The security policy change is already in the build.
