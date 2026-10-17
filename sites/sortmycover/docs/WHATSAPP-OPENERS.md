@@ -1,6 +1,6 @@
 # WhatsApp openers: the contract between the site and Lindi (W07)
 
-Jono, 17 Oct 2026: WhatsApp is the primary call to action on every SortMyCover page and every campaign landing page. Booking on the website is the secondary path. Source of truth in code: `src/lib/whatsapp.ts`.
+Jono, 17 Oct 2026: WhatsApp is the only way to book. The site has no booking form; every page and every campaign landing page sends people to Lindi on WhatsApp. Source of truth in code: `src/lib/whatsapp.ts`.
 
 ## How a visitor reaches WhatsApp
 
@@ -43,11 +43,12 @@ Parse with:
 |---|---|
 | `w-home` | Home: header, hero, final card, launcher |
 | `w-home-bond`, `w-home-baby`, `w-home-income`, `w-home-business`, `w-home-will` | Home life-moment panels |
+| `w-home-cover`, `w-home-wills` | Home "two calls" cards and the final card (`w-home-wills` names Capital Legacy) |
 | `w-cover` | /cover/ hub and the four cover type pages |
 | `w-wills` | /wills/ hub and every wills guide (opener names Capital Legacy) |
 | `w-learn` | Other /learn/ pages |
 | `w-learn-bond`, `w-learn-income`, `w-learn-owner`, `w-learn-adviser` | The four guides the cycle-1 ads link to |
-| `w-book` | /book/ |
+| `w-book`, `w-book-will` | /book/ (the WhatsApp booking page): cover button, will button |
 | `w-site` | Any other page (About, FAQ, legal) |
 | `a01` to `a06`, `b01` to `b04` | Campaign landing pages, which use the angle's neutral `meta_code` from `config/angles.json` |
 
