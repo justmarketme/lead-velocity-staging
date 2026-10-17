@@ -828,3 +828,13 @@ test('W05 lib: method change to Teams on the broker calendar PATCHes the client 
   assert.deepEqual(r.graph_patch.attendees, [{ emailAddress: { address: 'client@gmail.com', name: 'Sipho' }, type: 'required' }]);
   assert.equal(W5.inviteMail({ lead, broker: own }, r.plan, booking, {}), null);
 });
+
+test('parseSub: a W07 hand-off is recognised by route W05 + msg (W07 never sets source), 17 Oct 2026 live bug', async () => {
+  const L = await import('../lib/w05.mjs');
+  const j = { route: 'W05', reason: 'slot picked from the 10-slot list', msg: { wamid: 'SMabc', from: '+27725548057', type: 'interactive', text: 'Fri 23 Oct 10:00', payload: null, list_id: 'slot_2026-10-23T10:00:00+02:00' }, lead: { id: '57761ccd-c9d1-4008-ac6a-2c0cee877833', broker_id: 'f688380e-fb68-4bfc-a9ee-4bf37ce76dcc' } };
+  const r = L.parseSub(j, {}, Date.parse('2026-10-17T12:00:00Z'));
+  assert.equal(r.op, 'book');
+  assert.equal(r.lead_id, j.lead.id);
+  assert.equal(Date.parse(r.slot_start), Date.parse('2026-10-23T07:00:00Z'));
+  assert.equal(r.booked_via, 'list');
+});

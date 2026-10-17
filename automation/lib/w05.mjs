@@ -231,7 +231,8 @@ export function parseSub(j = {}, env = {}, nowMs = Date.now()) {
     if (!j.recipient && !j.booking_id) return rej('recipient or booking_id missing');
     return { op: 'invite_bounced', recipient: j.recipient ? String(j.recipient).trim().toLowerCase() : null, booking_id: j.booking_id || null, lead_id: j.lead_id || null };
   }
-  if (j.source === 'W07' && j.msg) {
+  // A W07 hand-off carries route 'W05' + the inbound msg (W07 never sets source; same as w04.fromW07, 17 Oct 2026).
+  if ((j.source === 'W07' || j.route === 'W05') && j.msg) {
     const msg = j.msg;
     const leadId = j.lead?.id || null;
     if (!leadId) return rej('lead missing');
