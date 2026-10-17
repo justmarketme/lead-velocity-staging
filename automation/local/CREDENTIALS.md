@@ -108,7 +108,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md ยง7). W01โ€
 | W37 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 30 credentials across 44 workflow files.
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 29 credentials across 44 workflow files.
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
