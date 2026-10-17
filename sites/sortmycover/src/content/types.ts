@@ -30,6 +30,8 @@ export interface ArticleMeta {
   slug: string;
   /** H1. The question or topic, plain words. */
   title: string;
+  /** Optional shorter <title> (search wording); the H1 stays `title`. At most 46 characters so the brand suffix fits in 60. */
+  titleTag?: string;
   /** <meta description>, 120-160 characters. */
   description: string;
   /** 1 life events, 2 reading your cover, 3 the call and trust, 4 myths and definitions (all under /learn/);
@@ -52,6 +54,8 @@ export interface ArticleMeta {
   related: string[];
   /** Estimated read time in minutes (computed in tests, informational). */
   readMinutes?: number;
+  /** Heading of the booking call to action under the article (default "Talk to an adviser"). */
+  cta?: string;
 }
 
 export interface Article {

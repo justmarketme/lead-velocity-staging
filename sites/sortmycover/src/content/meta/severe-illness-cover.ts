@@ -3,7 +3,7 @@ import { sourcesFrom } from "../evidence";
 
 export const meta: ArticleMeta = {
   slug: "severe-illness-cover",
-  title: "Severe illness cover, in plain words",
+  title: "Severe illness cover (critical illness or dread disease), in plain words",
   description:
     "What severe illness (critical illness or dread disease) cover is, how conditions and severity levels work, what it is not, and questions to ask an adviser.",
   hub: 6,

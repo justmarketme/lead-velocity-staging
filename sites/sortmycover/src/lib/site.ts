@@ -16,12 +16,6 @@ export const campaignOrigin = (slug: string) => `https://${slug}${cfg.campaign_h
 /** Absolute apex URL for a path ("/privacy/"). Campaign hosts link to the apex for every legal page (each page lives on one host). */
 export const apex = (path: string) => APEX + path;
 
-export const BOOK_LABEL = "Book my adviser call";
-/** Wills and estate call to action (the call is with the will provider's consultant, not an insurance adviser). */
-export const WILLS_BOOK_LABEL = "Book my will call";
-/** Quiz entry points with the product chosen: the quiz reads ?for= and skips its first question. */
-export const BOOK_COVER = "/book/?for=cover";
-export const BOOK_WILLS = "/book/?for=wills";
 export const COST_LINE = "The call costs you nothing.";
 export const FEE_LINE = "Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything.";
 export const NO_COMMISSION = "SortMyCover takes no commission and no share of any premium.";

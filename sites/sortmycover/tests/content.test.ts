@@ -14,12 +14,13 @@ const words = (s: string) => plainText(s).split(/\s+/).filter(Boolean).length;
 const text = (b: Block[]) => b.flatMap((x) => (x.type === "ul" || x.type === "ol" ? x.items : [x.text])).join(" ");
 const SCOPE = "This is information, not advice.";
 describe("articles", () => {
-  it("has the 9 Wave-1 pieces, the 6 wills and estate guides and the 4 cover type pages", () => {
+  it("has the 9 Wave-1 pieces, the 2 search-led definitions (16 Oct 2026), the 4 cycle-1 ad guides (17 Oct 2026), the 6 wills and estate guides and the 4 cover type pages", () => {
     expect(articleMetas.map((a) => a.slug).sort()).toEqual([
-      "disability-cover", "estate-administration", "estate-costs-and-a-will", "guardians-and-childrens-trusts",
-      "how-sortmycover-works", "how-to-check-an-adviser", "how-to-complain", "how-to-read-your-payslips-cover-line", "income-protection", "life-cover", "life-events",
+      "cover-for-business-owners-and-directors", "disability-cover", "estate-administration", "estate-costs-and-a-will", "estate-duty-south-africa", "guardians-and-childrens-trusts",
+      "how-sortmycover-works", "how-to-check-an-adviser", "how-to-complain", "how-to-read-your-payslips-cover-line", "income-protection", "income-protection-vs-disability-cover", "life-cover", "life-cover-and-a-home-loan", "life-events",
+      "questions-to-ask-a-financial-adviser",
       "severe-illness-cover", "the-will-appointment",
-      "what-a-will-does", "what-happens-on-a-30-minute-call", "what-happens-to-your-details", "what-is-a-life-cover-gap", "what-to-bring-to-your-call", "where-to-keep-a-will",
+      "what-a-will-does", "what-happens-on-a-30-minute-call", "what-happens-to-your-details", "what-is-a-life-cover-gap", "what-is-credit-life-insurance", "what-to-bring-to-your-call", "where-to-keep-a-will",
     ]);
   });
   for (const m of articleMetas) {
@@ -184,10 +185,6 @@ describe("campaign hosts (spec C.3)", () => {
 describe("quiz copy", () => {
   it("no angle carries budget wording (no budget question on the page since 2026-10-13)", () => {
     expect(JSON.stringify(anglesRaw)).not.toMatch(/budget_topic/);
-  });
-  it("the first-question labels pass the wording scan", async () => {
-    const { HELP_OPTIONS } = await import("../src/lib/quiz");
-    for (const o of HELP_OPTIONS) for (const [re, label] of BANNED) expect(o.label, `${o.value}: ${label}`).not.toMatch(re);
   });
 });
 

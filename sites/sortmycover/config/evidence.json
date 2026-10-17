@@ -391,5 +391,146 @@
     "checked": "2026-10-11",
     "status": "verified",
     "note": "Read at source on 11 Oct 2026 (desk research). 31 days, not the 30 days of the superseded 2004 rules. Re-check if COFI or a later PPR amendment changes rule 4."
+  },
+  {
+    "id": "sars-estate-duty",
+    "claim": "SARS Estate Duty page: estate duty is levied at 20% on the first R30 million of the dutiable value of an estate and 25% above R30 million; an abatement of R3.5 million is allowed against the net value of the estate; it is normally the executor who pays the duty; where a life policy is paid directly to a beneficiary, the estate duty attributable to that policy is payable by the beneficiary.",
+    "title": "Estate Duty",
+    "publisher": "South African Revenue Service (SARS)",
+    "url": "https://www.sars.gov.za/types-of-tax/estate-duty/",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Read at source on 16 Oct 2026 (page last updated 19 Aug 2026). The page does not describe the surviving-spouse deduction, so the site does not state it."
+  },
+  {
+    "id": "sanews-credit-life-regs",
+    "claim": "Government news agency (SAnews), 15 Feb 2017: the Credit Life Insurance Regulations cap the cost of credit life at R2 per R1,000 of the deferred amount on mortgage agreements and R4.50 per R1,000 on other credit agreements; cover must pay the outstanding debt on death or permanent disability, and pay instalments for up to 12 months on job loss; consumers who are not employed cannot be sold retrenchment cover.",
+    "title": "Credit life insurance regulations published",
+    "publisher": "SAnews (South African Government News Agency)",
+    "url": "https://www.sanews.gov.za/node/33855",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Read at source on 16 Oct 2026. The NCR has been reviewing the 2017 regulations; recheck before quoting the caps in any ad."
+  },
+  {
+    "id": "ncr-credit-life-substitution",
+    "claim": "National Credit Act 34 of 2005, section 106(4): a consumer may waive the credit insurance policy a credit provider proposes and substitute a policy of the consumer's own choice; the National Credit Regulator's guideline on the Credit Life Insurance Regulations restates that consumers must be told of this right.",
+    "title": "Guideline on the application of the Credit Life Insurance Regulations",
+    "publisher": "National Credit Regulator (NCR)",
+    "url": "https://www.ncr.org.za/documents/GUIDELINE%20ON%20THE%20APPLICATION%20OF%20THE%20CREDIT%20LIFE%20INSURANCE%20REGULATIONS.pdf",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Section text checked on Acts Online (acts.co.za/national-credit-act-2005/106__credit_insurance) on 16 Oct 2026."
+  },
+  {
+    "id": "nca-s106",
+    "claim": "National Credit Act 34 of 2005, section 106: a credit provider may require the consumer to maintain credit life insurance not exceeding, at any time, the outstanding obligations under the agreement (s106(1)(a)); may not demand insurance that is unreasonable or at an unreasonable cost (s106(2)); and must, where it proposes a particular policy, give the consumer the right to waive it and substitute a policy of the consumer's own choice, and tell the consumer of that right (s106(4)).",
+    "title": "National Credit Act 34 of 2005, section 106 (Credit insurance)",
+    "publisher": "Acts Online",
+    "url": "https://www.acts.co.za/national-credit-act-2005/106__credit_insurance",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Section text read at source on 16 Oct 2026 for the cycle-1 learn articles (Desktop\\EMMA\\checklist\\creative\\blog). Used in general terms only; no product named."
+  },
+  {
+    "id": "ncr-guideline-002-2026",
+    "claim": "NCR interpretation guideline 002/2026 (March 2026) on Regulation 3(1) of the Credit Life Insurance Regulations: credit life cover may not materially exceed the outstanding balance at any point during the credit agreement (para 5.1.1).",
+    "title": "Interpretation guideline: application of Regulation 3(1) of the Final Credit Life Insurance Regulations, 2017 (002/2026)",
+    "publisher": "National Credit Regulator (NCR)",
+    "url": "https://ncr.org.za/documents/Guidelines/Guideline%202%20March%202026.pdf",
+    "month": "2026-03",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "PDF read at source on 16 Oct 2026."
+  },
+  {
+    "id": "cdh-2017",
+    "claim": "Law firm summary (20 Feb 2017) of the Credit Life Insurance Regulations: a credit life policy must cover at least death, permanent disability, temporary disability and, in certain circumstances, unemployment.",
+    "title": "Finance and Banking Alert, 20 February 2017: New limits for credit life insurance premiums",
+    "publisher": "Cliffe Dekker Hofmeyr",
+    "url": "https://www.cliffedekkerhofmeyr.com/news/publications/2017/Finance/finance-banking-alert-20-february-2017-new-limits-for-credit-life-insurance-premiums.html",
+    "month": "2017-02",
+    "status": "usable",
+    "note": "Secondary source (law firm summary); the gazetted regulation text was not read. Used only for the list of minimum benefits, attributed as a law firm summary. The premium caps are taken from sanews-credit-life-regs instead."
+  },
+  {
+    "id": "fnb-home-loan",
+    "claim": "FNB's home loan page says it requires life cover as a condition of new and further loans (with exceptions set out in the loan conditions), that a borrower may provide their own policy to be ceded to the bank with enough cover to pay the outstanding balance or registered bond amount at the time of cession, that FNB can reject proposed credit insurance that is not suitable, that a ceded policy's cessionary is paid before nominated beneficiaries, and lists homeowner's cover on the building as a separate requirement.",
+    "title": "Home loans (conditions: life cover and cession)",
+    "publisher": "FNB",
+    "url": "https://www.fnb.co.za/home-loans/home-loan.html",
+    "month": "2026-10",
+    "checked": "2026-10-16",
+    "status": "verified",
+    "note": "Undated page, read at source on 16 Oct 2026. Quoted only as one bank's published conditions, never as a product recommendation; other banks' requirements were not found in current primary sources and are not described."
+  },
+  {
+    "id": "sam-what-is-group-life",
+    "claim": "An employer may offer life and disability cover, and possibly severe illness cover, as part of a group scheme, often alongside retirement fund membership; some employers offer income protection instead of a lump-sum disability benefit; the cover belongs to the employer's scheme.",
+    "title": "What is group life cover?",
+    "publisher": "ASISA (Smart About Money)",
+    "url": "https://www.smartaboutmoney.co.za/insurance/group-life-cover/what-is-group-life-cover/",
+    "month": "2026-10",
+    "checked": "2026-10-17",
+    "status": "verified",
+    "note": "Raw page text read at source on 17 Oct 2026."
+  },
+  {
+    "id": "sam-conversion-benefit",
+    "claim": "Someone who is retrenched, changes jobs or starts working for themselves may face lesser or no group life benefits. Some group policies have a conversion (continuation) option to an individual policy on leaving: usually up to 60 days to take it up, the trustees or employer have to agree, the new policy is priced for the member's age at conversion, and ASISA says it can be valuable for someone leaving to start a business.",
+    "title": "What does it mean if there is a conversion benefit?",
+    "publisher": "ASISA (Smart About Money)",
+    "url": "https://www.smartaboutmoney.co.za/insurance/group-life-cover/what-does-it-mean-if-there-is-a-conversion-benefit/",
+    "month": "2026-10",
+    "checked": "2026-10-17",
+    "status": "verified",
+    "note": "Raw page text read at source on 17 Oct 2026."
+  },
+  {
+    "id": "govza-uif-illness",
+    "claim": "UIF illness benefits are for employed contributors who cannot work because of illness.",
+    "title": "Illness benefits at UIF",
+    "publisher": "South African Government (gov.za)",
+    "url": "https://www.gov.za/services/services-residents/world-work/uif/illness-benefits-uif",
+    "month": "2026-10",
+    "checked": "2026-10-17",
+    "status": "verified",
+    "note": "Read at source on 17 Oct 2026."
+  },
+  {
+    "id": "vuk-uif-2019",
+    "claim": "A government guide (Vuk'uzenzele, May 2019) lists sole owners of a business among the workers who do not have to pay UIF.",
+    "title": "Vuk'uzenzele guide to the UIF (May 2019)",
+    "publisher": "Government Communication and Information System (GCIS), Vuk'uzenzele",
+    "url": "https://www.vukuzenzele.gov.za/all-you-need-know-about-uif",
+    "month": "2019-05",
+    "status": "usable",
+    "note": "Government newspaper, not the Act. FLAG: re-confirm against the Unemployment Insurance Act / Department of Employment and Labour before any ad quotes it. The position of directors paid through payroll was not verified and is phrased only as a question on the page."
+  },
+  {
+    "id": "fais-gcoc",
+    "claim": "FAIS General Code of Conduct (BN 80 of 2003, consolidated June 2020): s5 lists what a provider must tell a client at the earliest reasonable opportunity (names and contact details, legal status and who takes responsibility, compliance contacts, authorised financial services and conditions, professional indemnity or fidelity insurance, supervision, exemptions; oral information confirmed in writing within 30 days); s3 requires conflicts of interest to be avoided or mitigated and disclosed; s8 sets the order of advice (gather needs, financial situation, risk profile and product knowledge; analyse; identify appropriate products) and s8(4) requires the client to be told of limits when information is withheld or a different product chosen; s9 requires a record of advice, given to the client in writing, where a product is taken up as a result of the advice.",
+    "title": "FAIS General Code of Conduct for Authorised Financial Services Providers and Representatives (BN 80 of 2003, consolidated June 2020)",
+    "publisher": "Masthead (published consolidated copy)",
+    "url": "https://www.masthead.co.za/wp-content/uploads/2022/10/BN-80-of-2003-FAIS-GCOC-June-2020.pdf",
+    "month": "2026-10",
+    "checked": "2026-10-17",
+    "status": "verified",
+    "note": "Consolidated to June 2020 (BN 706); not the FSCA's own copy. Sections 3, 5, 8 and 9 read at source on 17 Oct 2026. Re-check against the FSCA if a later amendment exists."
+  },
+  {
+    "id": "fsca-fais-register",
+    "claim": "The FSCA keeps a public register of authorised financial services providers and their representatives, which anyone can search by name or FSP number.",
+    "title": "FAIS register: search for a financial services provider",
+    "publisher": "Financial Sector Conduct Authority (FSCA)",
+    "url": "https://www2.fsca.co.za/Fais/Search_FSP.htm",
+    "month": "2026-10",
+    "checked": "2026-10-17",
+    "status": "verified",
+    "note": "URL live (HTTP 200) on 17 Oct 2026. Same page as fsca-capital-legacy-fsp, which records one specific search result; this entry is the register itself."
   }
 ]

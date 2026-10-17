@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 
 export default function HowItWorks() {
   return (
-    <PageFrame title="How it works | SortMyCover" description="Three steps: answer two quick questions, get your adviser’s details on WhatsApp, have a 30-minute call. The call costs you nothing." path="/how-it-works/" h1="How it works" lede="Three steps. No surprises." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "How it works", path: "/how-it-works/" }]}>
+    <PageFrame title="How it works | SortMyCover" description="Three steps: say hi to Lindi on WhatsApp, meet your adviser and pick a time, have a 30-minute call. The call costs you nothing." path="/how-it-works/" h1="How it works" accent="works" lede="Three steps. No surprises." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "How it works", path: "/how-it-works/" }]}>
       <div className="my-6"><Steps items={HOW_STEPS} /></div>
       <h2>What SortMyCover does</h2>
       <p>SortMyCover introduces you to one adviser from an authorised financial services provider and helps book the call. That is all.</p>

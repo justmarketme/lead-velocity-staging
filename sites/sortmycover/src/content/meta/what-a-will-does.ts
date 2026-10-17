@@ -4,7 +4,7 @@ import { sourcesFrom } from "../evidence";
 /* Wills and estate (hub 5). Every fact is a statement the will provider publishes (config/evidence.json, cl-*). */
 export const meta: ArticleMeta = {
   slug: "what-a-will-does",
-  title: "What a will does, and what it does not do",
+  title: "What a will does, and what happens without one",
   description:
     "What a will can record, what happens to an estate without one, and the jobs a will cannot do on its own, such as paying estate costs. Information, not advice.",
   hub: 5,

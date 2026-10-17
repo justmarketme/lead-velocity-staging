@@ -18,8 +18,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (62 files) with real content", () => {
-    expect(pages.length).toBe(62);
+  it("renders every route (67 files) with real content", () => {
+    expect(pages.length).toBe(67); // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -83,7 +83,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
   });
   it("every article: answer block 40-60 words with the scope sentence, dateModified equals the visible last-reviewed date", () => {
     const arts = pages.filter((p) => /^(learn|wills|cover)\//.test(p.rel) && /data-answer/.test(p.html));
-    expect(arts.length).toBe(19);
+    expect(arts.length).toBe(25);
     for (const p of arts) {
       const ans = /<div class="answer-block" data-answer[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/.exec(p.html)![1].replace(/<[^>]+>/g, "");
       const n = ans.split(/\s+/).filter(Boolean).length;
@@ -154,9 +154,10 @@ describe.skipIf(!have)("pre-rendered output", () => {
       expect(v, p.rel).not.toMatch(/Check my cover|Pick a time for a free/);
     }
   });
-  it("the primary CTA is 'Book my adviser call' and the cost line is the approved one", () => {
+  it("the primary CTA is 'Chat on WhatsApp' (WhatsApp-only booking, 17 Oct 2026) and the cost line is the approved one", () => {
     const home = visible(pages.find((p) => p.rel === "index.html")!.html);
-    expect(home).toContain("Book my adviser call");
+    expect(home).toContain("Chat on WhatsApp");
+    expect(home).not.toMatch(/Book my adviser call|Book my will call/);
     expect(home).toContain("The call costs you nothing.");
   });
   it("no placeholder tokens leak into the HTML", () => {
@@ -192,31 +193,28 @@ describe.skipIf(!have)("pre-rendered output", () => {
   it("no page states the fee as flat, monthly or the same (spec C.1 item 5), and none says 30-day cycle", () => {
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/flat|30-day cycle|the same whether|flat monthly/i);
   });
-  it("the home page has no sticky bar markup; /book/ asks what you want help with, then the age band, details and consent (no budget)", () => {
+  it("booking is on WhatsApp only (Jono, 17 Oct 2026): no booking form on any page; /book/ opens WhatsApp for cover and for a will", () => {
     const home = pages.find((p) => p.rel === "index.html")!.html;
     expect(home).not.toMatch(/sticky-bar/);
-    const bookHtml = pages.find((p) => p.rel === "book/index.html")!.html;
-    const book = visible(bookHtml);
-    expect(book).toContain("What would you like help with?");
-    expect(book).toContain("Step 1 of 4");
-    expect(book).toContain("Review my existing cover");
-    for (const v of ["review", "life", "disability_income", "severe_illness", "wills"]) expect(bookHtml).toMatch(new RegExp(`name="help_with"[^>]*value="${v}"`));
-    // quiz v2 (2026-10-13): no page carries a budget question or field, the no-JS form included
-    for (const p of pages) expect(p.html, p.rel).not.toMatch(/name="budget_band"|monthly budget could you/);
-    for (const a of ANGLES) {
-      const land = pages.find((p) => p.rel === `_c/${a.slug}/index.html`)!.html;
-      if (a.theme === "B") { expect(visible(land), a.slug).not.toContain("What would you like help with?"); expect(visible(land), a.slug).toContain("Step 1 of 3"); }
-      else { expect(visible(land), a.slug).toContain("What would you like help with?"); expect(land, a.slug).not.toMatch(/name="help_with"[^>]*value="wills"/); }
-    }
-    // the no-JS fallback keeps the whole quiz, age question and 18+ line included
-    expect(bookHtml).toMatch(/<noscript>[\s\S]*How old are you\?[\s\S]*<\/noscript>/);
-    expect(book).toContain("You must be 18 or older");
+    for (const p of pages) expect(p.html, p.rel).not.toMatch(/name="mobile"|name="help_with"|name="budget_band"|monthly budget could you/);
+    const book = pages.find((p) => p.rel === "book/index.html")!.html;
+    expect(visible(book)).toContain("Book your call on WhatsApp");
+    expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Ref%20w-book"/);
+    expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Capital%20Legacy[^"]*Ref%20w-book-will"/);
+    expect(pages.some((p) => p.rel === "book/thanks/index.html")).toBe(false);
   });
-  it("legal drafts keep their DRAFT mark and noindex", () => {
-    for (const r of ["privacy", "terms", "paia"]) {
+  it("privacy and terms are signed off (17 Oct 2026): no DRAFT mark, indexable; the PAIA placeholder stays DRAFT and noindex", () => {
+    for (const r of ["privacy", "terms"]) {
       const h = pages.find((p) => p.rel === `${r}/index.html`)!.html;
-      expect(h).toMatch(/DRAFT/);
-      expect(h).toMatch(/noindex/);
+      expect(h, r).not.toMatch(/DRAFT/);
+      expect(h, r).not.toMatch(/<meta name="robots" content="noindex/);
     }
+    const paia = pages.find((p) => p.rel === "paia/index.html")!.html;
+    expect(paia).toMatch(/DRAFT/);
+    expect(paia).toMatch(/noindex/);
+  });
+  it("the privacy notice covers call recording (POPIA): automated voice assistant, recorded, 365 days, ElevenLabs, s72, the Information Officer", () => {
+    const v = visible(pages.find((p) => p.rel === "privacy/index.html")!.html);
+    for (const t of ["Phone calls and recordings", "+27 60 015 6480", "automated voice assistant", "the call is recorded", "365 days", "ElevenLabs", "section 72 of POPIA", "Kgomotso Pule", "2026-069309"]) expect(v, t).toContain(t);
   });
 });

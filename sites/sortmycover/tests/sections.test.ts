@@ -12,7 +12,6 @@ import { plainText } from "../src/lib/inline";
 import { BANNED } from "../src/build/wording";
 import { apexRoutes } from "../src/routes";
 import { HOME_FAQ, SITE_FAQ } from "../src/content/shared";
-import { productForTheme, productFromParam, progressOf } from "../src/lib/quiz";
 import { PROVIDER_SERVICE_LINE } from "../src/lib/site";
 import evidence from "../config/evidence.json";
 import site from "../config/site.json";
@@ -61,8 +60,15 @@ describe("evidence linkage", () => {
       for (const s of m.sources) expect(m.evidence!.some((id) => ev.find((x) => x.id === id)!.url === s.url), `${m.slug}: source ${s.url} has no evidence id`).toBe(true);
     });
   }
-  it("wills guides rest only on the will provider's own verified statements (cl-*)", () => {
-    for (const m of wills) for (const id of m.evidence!) expect(id, m.slug).toMatch(/^cl-/);
+  /* Jono, 16 Oct 2026: wills guides may cite other trustworthy players, not only the will provider. Allowed: the provider's own
+     statements (cl-*) and VERIFIED entries from regulators, government and industry bodies (SARS, the Master/Justice, FSCA, NCR,
+     SAnews, ASISA, the FPI, the Policyholder Protection Rules). Nothing unverified, nothing from a competing will provider. */
+  const TRUSTED = /^(cl|sars|master|justice|fsca|ncr|sanews|asisa|sam|fpi|ppr)-/;
+  it("wills guides rest on the will provider's statements or verified statements from a trusted public or industry source", () => {
+    for (const m of wills) for (const id of m.evidence!) {
+      expect(id, m.slug).toMatch(TRUSTED);
+      if (!id.startsWith("cl-")) expect(ev.find((x) => x.id === id)!.status, `${m.slug}: ${id}`).toBe("verified");
+    }
   });
   it("cover pages never rest on a will provider statement or a HOLD entry", () => {
     for (const m of cover) for (const id of m.evidence!) { expect(id, m.slug).not.toMatch(/^cl-/); expect(ev.find((x) => x.id === id)!.status).not.toBe("hold"); }
@@ -114,32 +120,3 @@ describe("wording", () => {
   });
 });
 
-describe("quiz: what the call is about", () => {
-  it("maps ?for= values to a product, anything else asks", () => {
-    expect(productFromParam("wills")).toBe("wills");
-    expect(productFromParam("cover")).toBe("life_cover");
-    expect(productFromParam("life_cover")).toBe("life_cover");
-    expect(productFromParam("funeral")).toBeNull();
-    expect(productFromParam(null)).toBeNull();
-    expect(productFromParam("")).toBeNull();
-  });
-  it("campaign theme B sends wills, theme A and the generic page send life_cover", () => {
-    expect(productForTheme("B")).toBe("wills");
-    expect(productForTheme("A")).toBe("life_cover");
-    expect(productForTheme(undefined)).toBe("life_cover");
-  });
-  it("progress is step over total, clamped", () => {
-    expect(progressOf(1, 5)).toBe(0.2);
-    expect(progressOf(4, 4)).toBe(1);
-    expect(progressOf(9, 4)).toBe(1);
-  });
-  it("the quiz sends product_interest and help_with, no budget_band, and keeps the rest of the /lead body unchanged", () => {
-    const quiz = fs.readFileSync(path.resolve(__dirname, "../src/components/Quiz.tsx"), "utf8");
-    const api = fs.readFileSync(path.resolve(__dirname, "../src/lib/api.ts"), "utf8");
-    expect(quiz).toMatch(/product_interest: product \?\? "life_cover"/);
-    expect(api).toMatch(/product_interest: "life_cover" \| "wills"/);
-    expect(api).not.toContain("budget_band");
-    for (const f of ["first_name", "mobile", "consent_text", "consent_version", "consent_mode", "consent_ads", "age_band", "budget_pending", "help_with", "angle", "lang", "started_at", "request_id", "page_url", "company_website", "turnstile_token", "context"]) expect(api, f).toContain(f + ":");
-    for (const p of ['"/lead"', '"/slots?days=5"', '"/book"', '"/lead/skip"']) expect(api, p).toContain(p);
-  });
-});

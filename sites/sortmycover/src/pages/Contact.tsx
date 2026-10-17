@@ -4,7 +4,7 @@ import { company } from "@/lib/site";
 
 export default function Contact() {
   return (
-    <PageFrame title="Contact SortMyCover | SortMyCover" description="Email, phone or Facebook Messenger. A person reads every message. For a complaint, see the complaints page." path="/contact/" h1="Contact" lede="A person reads every message." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Contact", path: "/contact/" }]}>
+    <PageFrame title="Contact SortMyCover | SortMyCover" description="Email, phone or Facebook Messenger. A person reads every message. For a complaint, see the complaints page." path="/contact/" h1="Contact us" accent="us" lede="A person reads every message." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Contact", path: "/contact/" }]}>
       <h2>Ways to reach us</h2>
       <ul>
         <li>Email: <a href={"mailto:" + company.email}>{company.email}</a></li>

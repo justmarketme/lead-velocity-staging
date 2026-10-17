@@ -21,7 +21,7 @@ export function csp(): string {
     "img-src 'self' https://www.facebook.com",
     "font-src 'self'",
     `connect-src 'self' ${N8N} https://www.facebook.com https://connect.facebook.net`,
-    "frame-src https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com https://app.cal.com",
     `form-action 'self' ${N8N}`,
     "base-uri 'none'",
     "object-src 'none'",
@@ -57,7 +57,7 @@ export function vercelConfig() {
   routes.push({ src: "/(.*)", has: [{ type: "host", value: ".*\\.vercel\\.app" }], headers: { "X-Robots-Tag": "noindex, nofollow, noarchive" }, continue: true });
   routes.push({ src: "/assets/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
   routes.push({ src: "/fonts/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
-  routes.push({ src: "/(.*)\\.(png|ico|svg|webmanifest)", headers: { "Cache-Control": "public, max-age=86400" }, continue: true });
+  routes.push({ src: "/(.*)\\.(png|webp|avif|jpg|ico|svg|webmanifest)", headers: { "Cache-Control": "public, max-age=86400" }, continue: true });
   // /sitemap.xml exists on the apex only (spec C.5): a campaign host answers 404
   routes.push({ src: "^/sitemap\\.xml$", has: [{ type: "host", value: ".+" + esc(CAMPAIGN_SUFFIX) }], status: 404, dest: "/404.html" });
   // 5. campaign hosts: "/" and "/thanks/" are the only pages; shared files pass through; everything else goes to the apex
@@ -126,7 +126,8 @@ export function htaccess(): string {
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
   p("RewriteRule ^sitemap\\.xml$ - [R=404,L]");
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
-  p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/)");
+  // top-level images stay on the campaign host: a redirect to the apex would be blocked by the CSP (img-src 'self')
+  p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\\.(webp|avif|jpg|png)$)");
   p(`RewriteRule ^(.+)$ ${site.site_url}/$1 [L,R=307]`);
   p("</IfModule>");
   p("");
@@ -140,7 +141,7 @@ export function htaccess(): string {
   p("<FilesMatch \"\\.(js|css|woff2)$\">");
   p('  Header set Cache-Control "public, max-age=31536000, immutable"');
   p("</FilesMatch>");
-  p("<FilesMatch \"\\.(png|ico|svg|webmanifest)$\">");
+  p("<FilesMatch \"\\.(png|webp|avif|jpg|ico|svg|webmanifest)$\">");
   p('  Header set Cache-Control "public, max-age=86400"');
   p("</FilesMatch>");
   p("</IfModule>");
