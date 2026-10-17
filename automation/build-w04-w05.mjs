@@ -74,9 +74,15 @@ SELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS b
   n.push(node('Called by W05/W06/W07/W10/W28', 'executeWorkflowTrigger', 1.1, { inputSource: 'passthrough' }));
   n.push(code('Normalise sub-call (w04.subcallInput)', 'w04.mjs', `return $input.all().map((it) => ({ json: { lane: 'sub', req: L.subcallInput(it.json || {}), raw_delegate: (it.json && it.json.delegate) || null } }));`));
   n.push(sw('Sub op?', "={{ ['list','is_free','graph_token'].includes($json.req.op) ? 'work' : $json.req.op }}", ['work', 'send_list', 'reject']));
-  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)
-VALUES (NULLIF($1, '')::uuid, 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now())
-RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown'] }}"));
+  // brand_id is required by the n8n_app RLS policy on lead_activities (17 Oct: every rejection log failed without it).
+  // Taken from the lead, else the broker; with neither the log is skipped rather than the whole run failing.
+  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)
+SELECT l.id, COALESCE(l.brand_id, b.brand_id), COALESCE(l.broker_id, b.id), 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now()
+  FROM (SELECT 1) one
+  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid
+  LEFT JOIN public.brokers b ON b.id = NULLIF($3, '')::uuid
+ WHERE COALESCE(l.brand_id, b.brand_id) IS NOT NULL
+RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.broker_id || ''] }}", { onError: 'continueRegularOutput' }));
   n.push(code('Return (rejected)', 'w04.mjs', `return [{ json: { slots: [], fallback: 'whatsapp', free: false, next_slots: [], error: 'subcall_rejected' } }];`));
   n.push(code('W28 send_list input', 'w04.mjs', `return $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json.req.lead_id, reason: it.json.req.reason, delegate: it.json.raw_delegate } }));`));
   n.push(sub('-> W28 send_list (10-slot list)', 'W28 Booking Flow endpoint'));
@@ -177,8 +183,14 @@ SELECT (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' A
                                  ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,
        (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;`, "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"));
   n.push(code('Finalize request (w05.finalizeRequest)', 'w05.mjs', `const x = $input.first().json;\nconst req = L.finalizeRequest(x.hold, x.lead, Date.now());\nreturn req ? [{ json: { lane: 'sub', ok: true, req, hdr: {} } }] : [];`));
-  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)
-VALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()) RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected'] }}"));
+  // brand_id required by the n8n_app RLS policy (see W04); skipped, not fatal, when no brand can be found.
+  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)
+SELECT l.id, COALESCE(l.brand_id, b.brand_id), COALESCE(l.broker_id, b.id), 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()
+  FROM (SELECT 1) one
+  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid
+  LEFT JOIN public.brokers b ON b.id = NULLIF($4, '')::uuid
+ WHERE COALESCE(l.brand_id, b.brand_id) IS NOT NULL
+RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected', $json.req.broker_id || ''] }}", { onError: 'continueRegularOutput' }));
   n.push(code('W10 pick payload', 'w05.mjs', `return $input.all().map((it) => ({ json: it.json.req ? (it.json.req.w10 || it.json.w10) : it.json.w10 }));`));
   n.push(sub('-> W10 reschedule pick', 'W10 Reschedule / cancel'));
   n.push(pg('Load lead, broker, replay, live booking', LOAD, "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"));

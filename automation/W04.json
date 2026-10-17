@@ -253,9 +253,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)\nVALUES (NULLIF($1, '')::uuid, 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now())\nRETURNING id;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)\nSELECT l.id, COALESCE(l.brand_id, b.brand_id), COALESCE(l.broker_id, b.id), 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now()\n  FROM (SELECT 1) one\n  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid\n  LEFT JOIN public.brokers b ON b.id = NULLIF($3, '')::uuid\n WHERE COALESCE(l.brand_id, b.brand_id) IS NOT NULL\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown'] }}"
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.broker_id || ''] }}"
         }
       },
       "credentials": {
@@ -264,7 +264,8 @@
           "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "id": "n12",
