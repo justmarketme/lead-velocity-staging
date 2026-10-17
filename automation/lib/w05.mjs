@@ -748,6 +748,12 @@ export function inviteMail(ctx, p, booking, ev = {}) {
 // 'attached' (the function attaches the .ics with the booking's UID, as /c/{booking_id} serves it).
 export const SMC_BRAND_CODE = 'SMC';
 export const isSmcLead = (lead) => String((lead && lead.brand_code) || '').trim().toUpperCase() === SMC_BRAND_CODE;
+
+/** A plain-text email ({ to, subject, body }) as the smc-email-send body (SortMyCover sender, Reply-To hello@), plus its idempotency key. */
+export function smcRelayEmail(email, key) {
+  if (!email || !email.to) return null;
+  return { body: { from: 'SortMyCover <hello@sortmycover.co.za>', to: [String(email.to)], reply_to: 'hello@sortmycover.co.za', subject: String(email.subject || '').slice(0, 200), text: String(email.body || ''), tags: [{ name: 'kind', value: 'broker_new_booking' }] }, idempotency_key: key || null };
+}
 export const SMC_CLIENT_EMAIL_KINDS = ['booking_confirmed', 'booking_updated', 'booking_cancelled'];
 
 /**
@@ -880,13 +886,19 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const outlookInvite = invitedByOutlook(ctx, p, bk, ev); // Exchange sent the meeting request from the broker's mailbox
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;
+  // 17 Oct 2026: for SortMyCover bookings the adviser's email notice also goes out from SortMyCover through Resend
+  // (smc-email-send), not howzit@ Graph: the howzit@ credential failing stopped the whole fan-out (no W06/W09 for the client).
+  const broker = brokerNotice(ctx, p);
+  const brokerRelay = smc && broker.email ? smcRelayEmail(broker.email, `w05:broker:${booking.id}`) : null;
+  if (smc) broker.email = null;
   return {
     response: { status: 201, body: publicBody(bk) },
     appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite || outlookInvite || clientEmail ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
     lead_update: leadUpdate(ctx, p),
     invite,
     client_email: clientEmail,
-    broker: brokerNotice(ctx, p),
+    broker,
+    broker_relay: brokerRelay,
     // W06 owns the first lead-facing confirmation (I-45f): W05 calls W06 op 'booking' for every first booking (page
     // inside the 45-s hold, page after it, chat, Flow); W06 sends broker_intro_booked if this booking wins its
     // first-touch claim, else booking_confirmed (lib/w06.mjs lateBookingConfirmed). A rebooking gets it from here.

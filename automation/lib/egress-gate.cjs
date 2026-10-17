@@ -30,6 +30,7 @@ function senderKind(n) {
   if (/graph\.facebook\.com/i.test(url) && /private_replies/.test(url)) return 'messenger';
   if (/graph\.microsoft\.com/i.test(url) && /sendMail/i.test(url)) return 'email';
   if (/\/smc-client-email\b/.test(url)) return 'email'; // Supabase edge function -> Resend (SortMyCover client booking email, W05)
+  if (/\/smc-email-send\b/.test(url)) return 'email'; // Supabase edge function -> Resend (prebuilt SortMyCover email: adviser booking notice, W05)
   if (/graph_url/.test(url) || /graph_url/.test(s)) return 'email'; // W20: URL built in a Code node (sendMail)
   return null;
 }

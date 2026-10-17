@@ -992,3 +992,26 @@ test('W05.json (SMC email): function call behind DRY_RUN_SENDS, relay token from
   assert.deepEqual(fwd, [{ kind: 'smc_email', lead_id: 'lead_test_L02', smc_email: plan.smc_email }]);
   assert.deepEqual(await run(WF5, 'Method client email (SortMyCover)', { refs: { 'Plan method change (w05.planUpdateMethod)': { ...plan, smc_email: null } } }), []);
 });
+
+// 17 Oct 2026 live: the howzit@ Graph credential failed on the adviser's notice email and stopped the whole fan-out, so
+// the client got no W06 confirmation and no W09 reminders. SortMyCover bookings now send that notice through
+// smc-email-send (Resend, SortMyCover sender); every email node continues on error.
+test('W05 lib (SMC): the adviser notice goes through smc-email-send, never howzit@; other brands unchanged', () => {
+  const c = ctx5({ broker: { ...ownCal(), email: 'adviser.test@example.com' }, lead: smcLead() });
+  const f = W5.finish(c, pTeams, bkOf('bk-smc-9'), { ok: true, graph_event_id: 'AAMk9' });
+  assert.equal(f.broker.email, null, 'no howzit@ email for a SortMyCover booking');
+  assert.equal(f.broker_relay.body.from, 'SortMyCover <hello@sortmycover.co.za>');
+  assert.deepEqual(f.broker_relay.body.to, ['adviser.test@example.com']);
+  assert.match(f.broker_relay.body.subject, /^New booking: /);
+  assert.equal(f.broker_relay.idempotency_key, 'w05:broker:bk-smc-9');
+  const other = W5.finish(ctx5({ broker: { ...ownCal(), email: 'adviser.test@example.com' } }), pTeams, bkOf('bk-lv-9'), { ok: true, graph_event_id: 'AAMk9' });
+  assert.equal(other.broker_relay, null);
+  assert.equal(other.broker.email.to, 'adviser.test@example.com');
+});
+test('W05 workflow: email nodes never stop the fan-out; the adviser relay is gated by DRY_RUN_SENDS', () => {
+  const byName = (n) => WF5.nodes.find((x) => x.name === n);
+  assert.equal(byName('Email from howzit@ (Graph sendMail)').onError, 'continueRegularOutput');
+  assert.equal(byName('Email adviser from SortMyCover (smc-email-send)').onError, 'continueRegularOutput');
+  assert.ok(byName('Live send? (Email adviser from SortMyCover (smc-email-send))'));
+  assert.match(byName('Fan out effects').parameters.jsCode, /kind: 'smc_relay'/);
+});
