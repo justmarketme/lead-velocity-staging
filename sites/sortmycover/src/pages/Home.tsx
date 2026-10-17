@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { WhatsAppCta } from "@/components/ChatWidget";
+import { CalendarCta, WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
 import { APEX, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, company, provider, site } from "@/lib/site";
@@ -65,6 +65,7 @@ export default function Home() {
             <p className="hx-intro">A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with {provider.name}.</p>
             <div className="hx-actions">
               <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
+              <CalendarCta ctx={contextFor("/")} className="btn btn-lg btn-secondary">Pick a time</CalendarCta>
               <a href="#h-how" className="hx-how-link">See how it works ↓</a>
             </div>
             <p className="hx-micro">{WA_EXPECT} {COST_LINE}</p>
@@ -211,6 +212,7 @@ export default function Home() {
           <p>About 30 minutes, at a time you pick. {WA_EXPECT} {COST_LINE}</p>
           <div className="flex flex-wrap gap-3">
             <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
+            <CalendarCta ctx={contextFor("/")} className="btn btn-lg btn-ghost">Pick a time</CalendarCta>
             <WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn btn-secondary">Chat about a will</WhatsAppCta>
           </div>
         </aside>

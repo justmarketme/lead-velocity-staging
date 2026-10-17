@@ -5,7 +5,7 @@ import { API_BASE } from "./site";
 /* First-party visit beacon (I-32b): page views and quiz steps reached, per angle. No cookie, no IP, no fingerprint: an anonymous
    random id in sessionStorage only. Off with DNT / Global Privacy Control / the opt-out cookie. Never sends answers, name, phone or email. */
 const sent: Record<string, 1> = {};
-export function beacon(angle: string, ev: "view" | "step" | "wa", step?: number, off: () => boolean = () => false) {
+export function beacon(angle: string, ev: "view" | "step" | "wa" | "cal", step?: number, off: () => boolean = () => false) {
   try {
     const key = ev + (step ?? "");
     if (!angle || sent[key] || off() || !navigator.sendBeacon) return;

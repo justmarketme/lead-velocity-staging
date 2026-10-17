@@ -47,3 +47,27 @@ describe("source tag (where an opt-in came from)", () => {
     expect(sourceTag({}, "https://new-bond.sortmycover.co.za/")).toBe("");
   });
 });
+
+describe("desktop calendar (Cal.com)", () => {
+  it("is inert until config/site.json calcom_link is set", async () => {
+    const site = (await import("../config/site.json")).default as { calcom_link?: string };
+    const cal = await import("../src/lib/calendar");
+    expect(cal.CAL_ENABLED).toBe(!!site.calcom_link);
+  });
+  it("embeds Cal.com's own page with the ref and allowed utm fields only", async () => {
+    const { calSrc, CAL_ORIGIN } = await import("../src/lib/calendar");
+    const u = new URL(calSrc("w-cover via ig/cycle1", { utm_source: "ig", utm_campaign: "cycle1", fbclid: "x", other: "y" }));
+    expect(u.origin).toBe(CAL_ORIGIN);
+    expect(u.pathname.endsWith("/embed")).toBe(false); // the plain booking page renders in an iframe; /embed needs Cal.com's script
+    expect(u.searchParams.get("ref")).toBe("w-cover via ig/cycle1");
+    expect(u.searchParams.get("utm_source")).toBe("ig");
+    expect(u.searchParams.get("fbclid")).toBeNull();
+    expect(u.searchParams.get("other")).toBeNull();
+  });
+  it("the CSP allows Cal.com only as a frame, never as a script", async () => {
+    const { csp } = await import("../src/build/hosts");
+    const c = csp();
+    expect(c).toMatch(/frame-src [^;]*https:\/\/app\.cal\.com/);
+    expect(c).not.toMatch(/script-src [^;]*cal\.com/);
+  });
+});

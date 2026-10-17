@@ -21,7 +21,7 @@ export function csp(): string {
     "img-src 'self' https://www.facebook.com",
     "font-src 'self'",
     `connect-src 'self' ${N8N} https://www.facebook.com https://connect.facebook.net`,
-    "frame-src https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com https://app.cal.com",
     `form-action 'self' ${N8N}`,
     "base-uri 'none'",
     "object-src 'none'",
