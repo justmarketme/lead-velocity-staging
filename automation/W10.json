@@ -756,7 +756,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: L.leadBody('slots', { lead: j.ld, booking: j.bk, broker: j.br }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\n// x14 (17 Oct): with no offer slots this used to return wa:null (silence); slotTakenWa now sends a 'See open times' button.\nreturn { json: { to: 'lead', wa: L.slotTakenWa({ phone: j.ld.phone, offer: (j.d && j.d.offer) || [], booking: j.bk, lead: j.ld, broker: j.br, delegate: j.delegate || null }) } };"
       }
     },
     {

@@ -309,6 +309,21 @@ export function methodMessage(d, booking, lead, broker, delegate = null, method 
   return { type: 'buttons', body, buttons: [[`keep_it:${booking.id}`, (lang === 'af' ? 'Ja, dieselfde' : 'Yes, same')], ...buttons] };
 }
 
+/**
+ * slotTakenWa({ phone, offer, booking, lead, broker, delegate }) -> the WhatsApp payload for a 'slot_taken' move.
+ * With offer slots: the open-times list (as before). Without any (17 Oct, x14: W04's re-check was rejected, so the lead
+ * got silence): SLOT_TAKEN_TAP with one "See open times" button (payload see_open_times -> W07 -> W04 list).
+ */
+export function slotTakenWa({ phone, offer = [], booking = {}, lead = {}, broker = {}, delegate = null } = {}) {
+  const rows = (offer || []).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
+  if (rows.length) {
+    return { messaging_product: 'whatsapp', to: phone, type: 'interactive', interactive: { type: 'list', body: { text: leadBody('slots', { lead, booking, broker }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } };
+  }
+  const lang = langOf(delegate, lead); const L = LINES[lang];
+  const body = fill(L.SLOT_TAKEN_TAP, { adviser_first: String(broker.contact_person || '').split(' ')[0] || (lang === 'af' ? 'jou adviseur' : 'your adviser') });
+  return toWa(phone, { type: 'buttons', body, buttons: [['see_open_times', L.SEE_TIMES_BTN]] });
+}
+
 /** WhatsApp interactive/text payload from a {type, body, buttons} message. */
 export function toWa(to, m) {
   if (!m) return null;

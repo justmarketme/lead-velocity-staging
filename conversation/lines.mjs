@@ -64,6 +64,10 @@ export const LINES = {
     CANCEL_DONE: "Done, your call is cancelled. If you'd like another time later, just say.",
     // I-39k: W05/W10 slot re-check failed (getSchedule) -> list of the next open times follows in the same message.
     SLOT_TAKEN: "Sorry, that time was just taken. Here are the next open times with {adviser_first}.",
+    // 17 Oct (x14): the re-check found no alternative times to list (e.g. the calendar look-up was rejected), so the
+    // lead gets one "See open times" button instead of silence. Never mentions a calendar problem.
+    SLOT_TAKEN_TAP: "Sorry, that time was just taken. Tap below to see the open times with {adviser_first}.",
+    SEE_TIMES_BTN: "See open times",
     // I-40d: moved from automation/flows/w28-endpoint.js. EMAIL_Q only for Teams/Zoom/Meet (0.1 Email rule).
     EMAIL_Q: "Where should we send the {method} invite? Reply with your email address.",
     TZ: "Times are South African time.",
@@ -138,6 +142,8 @@ export const LINES = {
     CANCEL_CONFIRM_Q: "Wil jy hê ek moet jou oproep op {date} om {time} kanselleer?",
     CANCEL_DONE: "Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net.",
     SLOT_TAKEN: "Jammer, daardie tyd is pas gevat. Hier is die volgende oop tye met {adviser_first}.",
+    SLOT_TAKEN_TAP: "Jammer, daardie tyd is pas gevat. Tik hieronder om die oop tye met {adviser_first} te sien.",
+    SEE_TIMES_BTN: "Sien oop tye",
     EMAIL_Q: "Waarheen moet ons die {method}-uitnodiging stuur? Antwoord met jou e-posadres.",
     TZ: "Die tye is in Suid-Afrikaanse tyd.",
     METHOD_NOT_OFFERED: "{adviser_first} bied nie daardie manier van vergader aan nie. Jy kan by {method} bly of 'n ander opsie kies.",

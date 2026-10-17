@@ -327,3 +327,26 @@ test('W10 held slot: move in place, stays held, verify_by = min(booked_at + 24 h
   const out = await runCode(WF, 'Held move reply (lead only)', { items: [{ lead_id: 'l1' }], refs: { 'Decide move (w10.applyReschedule)': { d: far, new_start: '2026-10-16T11:00:00+02:00', ld: { phone: '+27600000310' } } } });
   assert.equal(out.length, 1); assert.equal(out[0].json.to, 'lead'); assert.match(out[0].json.wa.text.body, /holding .* confirm your email/);
 });
+
+// x14 (17 Oct 2026): a second slot tap whose re-check finds no alternatives must still get a reply.
+test('slotTakenWa: with offer slots it sends the open-times list (unchanged)', () => {
+  const offer = [{ start: '2026-10-20T07:00:00.000Z' }, { start: '2026-10-20T08:00:00.000Z' }];
+  const wa = R.slotTakenWa({ phone: '+27600000003', offer, booking: bk(), lead: ld(), broker: BR });
+  assert.equal(wa.interactive.type, 'list');
+  assert.equal(wa.interactive.action.sections[0].rows.length, 2);
+  assert.match(wa.interactive.action.sections[0].rows[0].id, /^slot_2026-10-20T07:00:00.000Z:resched:bk_L03$/);
+});
+test('slotTakenWa: with no offer slots it sends one "See open times" button, never silence or a calendar error', () => {
+  const wa = R.slotTakenWa({ phone: '+27600000003', offer: [], booking: bk(), lead: ld(), broker: BR });
+  assert.ok(wa, 'a payload is always returned');
+  assert.equal(wa.interactive.type, 'button');
+  assert.deepEqual(wa.interactive.action.buttons.map((b) => b.reply.id), ['see_open_times']);
+  assert.match(wa.interactive.body.text, /^Sorry, that time was just taken\. Tap below/);
+  assert.doesNotMatch(wa.interactive.body.text, /calendar|error|system|problem/i);
+  const af = R.slotTakenWa({ phone: '+27600000003', offer: null, booking: bk(), lead: ld({ language: 'af' }), broker: BR });
+  assert.equal(af.interactive.action.buttons[0].reply.title, 'Sien oop tye');
+});
+test('W10 "Slot taken: next 3" node uses slotTakenWa', () => {
+  const n = WF.nodes.find((x) => x.name === 'Slot taken: next 3');
+  assert.match(n.parameters.jsCode, /L\.slotTakenWa\(/);
+});
