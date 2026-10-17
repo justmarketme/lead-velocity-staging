@@ -4,11 +4,12 @@
 // (NEVER_SILENT_*, neverSilentSend), tested by automation/tests/W07.test.mjs.
 // Run: node automation/patch-w07-never-silent.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
+import { NEVER_SILENT_WAIT_S } from './lib/w07.mjs';
 
 const FILE = new URL('./W07.json', import.meta.url);
 const wf = JSON.parse(readFileSync(FILE, 'utf8'));
 const P = 'Never silent: ';
-const WAIT = `${P}wait 25 s`, CHECK = `${P}anything sent since the inbound?`, IFN = `${P}nothing went out?`;
+const WAIT = `${P}wait 25 s` /* node name kept; the amount comes from lib/w07.mjs */, CHECK = `${P}anything sent since the inbound?`, IFN = `${P}nothing went out?`;
 const BUILD = `${P}fallback (lib w07.neverSilentSend)`, SEND = `${P}send fallback`, ESC = `${P}escalation`;
 const OWN = [WAIT, CHECK, IFN, BUILD, SEND, ESC];
 
@@ -25,7 +26,7 @@ const at = (x, y) => [x, y];
 const X = 2600, Y = 2200;
 wf.nodes.push(
   { id: 'ns-wait', name: WAIT, type: 'n8n-nodes-base.wait', typeVersion: 1.1, position: at(X, Y),
-    parameters: { resume: 'timeInterval', amount: 25, unit: 'seconds' },
+    parameters: { resume: 'timeInterval', amount: NEVER_SILENT_WAIT_S, unit: 'seconds' },
     notes: 'WHATSAPP-OPENERS.md rule 4 (17 Oct 2026): runs in parallel with every hand-off to W03/W04/W05/W10, which send the reply themselves. lib/w07.mjs NEVER_SILENT_WAIT_S.' },
   { id: 'ns-check', name: CHECK, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: at(X + 220, Y), credentials: pgCred,
     parameters: { operation: 'executeQuery', options: { queryReplacement: "={{ [ ($json.msg && $json.msg.from) || '', ($json.lead && $json.lead.id) || '', String(($json.msg && $json.msg.at_ms) || Date.now()), ($json.msg && $json.msg.wamid) || '', $json.brand_id || '' ] }}" },

@@ -2819,7 +2819,7 @@
       ],
       "parameters": {
         "resume": "timeInterval",
-        "amount": 25,
+        "amount": 45,
         "unit": "seconds"
       },
       "notes": "WHATSAPP-OPENERS.md rule 4 (17 Oct 2026): runs in parallel with every hand-off to W03/W04/W05/W10, which send the reply themselves. lib/w07.mjs NEVER_SILENT_WAIT_S."
