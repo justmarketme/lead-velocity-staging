@@ -19,7 +19,7 @@ The booking page and every confirmation must be SortMyCover's, never Lead Veloci
   - n8n also sends the WhatsApp utility template from +27 60 015 6480.
   - Nothing the attendee receives says Lead Velocity.
 
-
+## The flow
 
 1. **Site (built, commit `4bdf540`).** On desktop, "Pick a time" opens Cal.com's booking page in a dialog. The site loads no Cal.com script; the policy only allows Cal.com as a frame. The URL prefills the hidden `ref` question with the page code plus the origin, the same as the WhatsApp opener, and passes `utm_*` through. The buttons stay hidden until `config/site.json` -> `calcom_link` is set.
 2. **Cal.com event (owner setup).**
