@@ -38,6 +38,8 @@ export const STATES = [
   'closed_unbooked', 'closed_oob', 'closed_no_consent', 'closed_attended', 'opted_out', 'handoff'
 ];
 const BOOKED = new Set(['booked_await_commit', 'contact_confirm', 'booked', 'confirmed', 'rescheduling', 'meeting_due']);
+const LIVE_BOOKING = new Set(['booked', 'confirmed']); // appointments.status of a call that is in the adviser's diary
+const STALE_WITH_BOOKING = new Set(['unbooked', 'booking', 'closed_unbooked']);
 const PRE_BOOKING = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'unbooked', 'booking', 'closed_unbooked', 'no_show', 'broker_no_show']);
 // 4.6 step 3 order (NH-59 default): age -> budget -> bond/dependants (one question) -> method. q_dependants kept for old rows.
 const QUAL = { q_age: ['age_band', 'q_budget'], q_budget: ['budget_band', 'q_bond'], q_budget_clarify: ['budget_band', 'q_bond'], q_bond: ['bond', 'q_method'], q_dependants: ['dependants', 'q_method'], q_method: ['method', 'unbooked'] };
@@ -59,6 +61,10 @@ function sameBooking(slots = {}, booking = {}) {
  * pre = prefilter() output. ctx = { booking: {day,date,time,time_band,method}, unanswered: n }
  */
 export function decide(state, nlu = {}, pre = {}, ctx = {}) {
+  // 17 Oct 2026 live: a lead with a booked call still had conv_state 'booking' (the step that moves it never ran), so
+  // "Please cancel my call" became close_unbooked ("we won't message you again") and the booking stayed in the diary.
+  // A live booking wins over a stale pre-booking state.
+  if (ctx.booking && LIVE_BOOKING.has(ctx.booking.status) && STALE_WITH_BOOKING.has(state)) state = 'booked';
   const intents = [nlu.intent, ...(nlu.secondary_intents || [])].filter(Boolean);
   const topics = nlu.topics || [];
   const slots = nlu.slots || {};

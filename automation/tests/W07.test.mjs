@@ -823,3 +823,16 @@ test('W07 carries fsp_number + practice_name into j.broker and the fallback (pat
   assert.match(code('Assemble (verdict + toneCheck + fallbacks)'), /broker: j\.broker/);
   assert.match(code('Parse NLU -> decide() -> plan'), /broker: j\.broker/);
 });
+
+// 17 Oct 2026 live: conv_state still 'booking' while the call was booked -> "Please cancel my call" closed the lead.
+test('decide: a live booking wins over a stale pre-booking state (cancel -> cancel_confirm, never close_unbooked)', () => {
+  const nlu = { intent: 'cancel', topics: ['cancel_move'], slots: {} };
+  for (const st of ['booking', 'unbooked', 'closed_unbooked']) {
+    const d = decide(st, nlu, {}, { booking: { id: 'bk1', status: 'booked', appointment_date: '2026-10-22T07:00:00Z' } });
+    assert.ok(d.actions.includes('cancel_confirm'), `${st}: ${JSON.stringify(d)}`);
+    assert.ok(!d.actions.includes('close_unbooked'));
+  }
+  // no live booking: unchanged behaviour
+  assert.ok(decide('booking', nlu, {}, {}).actions.includes('close_unbooked'));
+  assert.ok(decide('booking', nlu, {}, { booking: { id: 'bk2', status: 'cancelled' } }).actions.includes('close_unbooked'));
+});
