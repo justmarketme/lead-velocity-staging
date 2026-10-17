@@ -84,7 +84,10 @@ test('I-54h W10: move (PATCH) and cancel (DELETE) branch on the booking route; s
     assert.equal(own.gt.route, 'broker'); assert.match(own.gt.url, /\/users\/mark%40broker\.example\/events\/EV9$/);
     assert.equal((await run('shared_lv', { ...OWN_BROKER, calendar_email: null }).then((r) => r.gt.route)), 'shared');
     assert.equal(out(W10, tname)[0], sname);
-    assert.deepEqual([out(W10, sname, 0), out(W10, sname, 1), out(W10, sname, 2)], [[shName], [tokName], [next]]);
+    // 17 Oct 2026: a request node builds W04's { op: 'graph_token', broker_id } in front of the token call
+    const reqName = `W04 request (graph_token, ${tname.includes('cancel') ? 'cancel' : 'move'})`;
+    assert.deepEqual([out(W10, sname, 0), out(W10, sname, 1), out(W10, sname, 2)], [[shName], [reqName], [next]]);
+    assert.deepEqual(out(W10, reqName), [tokName]);
     assert.deepEqual(out(W10, shName), [next]);
     assert.equal(node(W10, shName).credentials.oAuth2Api.name, HOWZIT_CRED);
     assert.equal(node(W10, ownName).credentials, undefined);

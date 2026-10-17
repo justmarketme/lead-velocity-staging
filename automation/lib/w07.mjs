@@ -366,7 +366,10 @@ function oneMessage(plan, ctx) {
   const L = LINES[plan.lang];
   const vars = { ...plan.vars, method: d.action === 'change_method' ? methodLabel(d.method, plan.lang) || plan.vars.method : plan.vars.method };
   // FAQ answers on the same turn go in verbatim (approved text, no LLM) so nothing is lost and nothing is sent twice
-  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:')).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq, broker: ctx.broker, adviser_first: ctx.adviser_first })).filter(Boolean);
+  // ...except "can I cancel or move?" on a W10 turn: the action answers it, and FAQ-06's "Tap Reschedule or Cancel" sat
+  // next to the Yes, cancel / Keep it buttons (live 17 Oct 2026).
+  const answeredByAction = (a) => d.to === 'W10' && ctx.faq?.[a.slice(7)]?.topic === 'cancel_move';
+  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:') && !answeredByAction(a)).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq, broker: ctx.broker, adviser_first: ctx.adviser_first })).filter(Boolean);
   const before = plan.prefix.map((l) => fill(l, vars));
   const after = [...faqLines, ...plan.suffix.map((l) => fill(l, vars))];
   d.lead_lines = [...before, ...after];

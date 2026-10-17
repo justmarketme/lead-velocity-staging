@@ -62,6 +62,7 @@ export const LINES = {
     RESCHED_INTRO: "No problem, here are some other times.",
     CANCEL_CONFIRM_Q: "Do you want me to cancel your call on {date} at {time}?",
     CANCEL_DONE: "Done, your call is cancelled. If you'd like another time later, just say.",
+    CANCEL_DONE_TIMES: "Done, your call is cancelled. If you'd like another time, pick one below or just tell me.",
     // I-39k: W05/W10 slot re-check failed (getSchedule) -> list of the next open times follows in the same message.
     SLOT_TAKEN: "Sorry, that time was just taken. Here are the next open times with {adviser_first}.",
     // 17 Oct (x14): the re-check found no alternative times to list (e.g. the calendar look-up was rejected), so the
@@ -141,6 +142,7 @@ export const LINES = {
     RESCHED_INTRO: "Geen probleem nie, hier is 'n paar ander tye.",
     CANCEL_CONFIRM_Q: "Wil jy hê ek moet jou oproep op {date} om {time} kanselleer?",
     CANCEL_DONE: "Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net.",
+    CANCEL_DONE_TIMES: "Klaar, jou oproep is gekanselleer. As jy 'n ander tyd wil hê, kies een hieronder of sê net vir my.",
     SLOT_TAKEN: "Jammer, daardie tyd is pas gevat. Hier is die volgende oop tye met {adviser_first}.",
     SLOT_TAKEN_TAP: "Jammer, daardie tyd is pas gevat. Tik hieronder om die oop tye met {adviser_first} te sien.",
     SEE_TIMES_BTN: "Sien oop tye",

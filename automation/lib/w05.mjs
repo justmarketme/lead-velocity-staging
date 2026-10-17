@@ -750,9 +750,9 @@ export const SMC_BRAND_CODE = 'SMC';
 export const isSmcLead = (lead) => String((lead && lead.brand_code) || '').trim().toUpperCase() === SMC_BRAND_CODE;
 
 /** A plain-text email ({ to, subject, body }) as the smc-email-send body (SortMyCover sender, Reply-To hello@), plus its idempotency key. */
-export function smcRelayEmail(email, key) {
+export function smcRelayEmail(email, key, kind = 'broker_new_booking') {
   if (!email || !email.to) return null;
-  return { body: { from: 'SortMyCover <hello@sortmycover.co.za>', to: [String(email.to)], reply_to: 'hello@sortmycover.co.za', subject: String(email.subject || '').slice(0, 200), text: String(email.body || ''), tags: [{ name: 'kind', value: 'broker_new_booking' }] }, idempotency_key: key || null };
+  return { body: { from: 'SortMyCover <hello@sortmycover.co.za>', to: [String(email.to)], reply_to: 'hello@sortmycover.co.za', subject: String(email.subject || '').slice(0, 200), text: String(email.body || ''), tags: [{ name: 'kind', value: kind }] }, idempotency_key: key || null };
 }
 export const SMC_CLIENT_EMAIL_KINDS = ['booking_confirmed', 'booking_updated', 'booking_cancelled'];
 

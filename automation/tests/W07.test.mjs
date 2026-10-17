@@ -844,3 +844,16 @@ test('applyModelReply: a cancel_confirm turn keeps the approved question (the mo
   assert.equal(r.reason, 'fixed_turn');
   assert.equal(plan.delegate[0].body, 'Do you want me to cancel your call on 22 October at 09:00?');
 });
+
+test('a cancel turn never adds FAQ-06 ("Tap Reschedule or Cancel") next to the Yes, cancel / Keep it buttons', () => {
+  const ld = mkLead(L01);
+  const msg = { text: 'Please cancel my call on Thursday', wamid: 'wamid.X', from: ld.phone };
+  const p = W.preStep(msg, ld, BROKER_ROW);
+  const n = { intent: 'cancel', topics: ['cancel_move'], slots: {}, confidence: 0.9 };
+  const d = decide('booked', n, p.pre, { booking, unanswered: 0 });
+  const plan = W.planActions(d, { lead: ld, booking, pre: p.pre, nlu: n, now_ms: NOON, lang: 'en', state: 'booked', wamid: 'wamid.X', disclosed: true, adviser_first: p.adviser_first, unanswered: 0, text_store: p.text_store, faq: FAQ_MAP });
+  const dl = plan.delegate.find((x) => x.to === 'W10');
+  assert.equal(dl.action, 'cancel_confirm');
+  assert.doesNotMatch(dl.body, /Tap Reschedule or Cancel/);
+  assert.match(dl.body, /^Do you want me to cancel your call on /);
+});
