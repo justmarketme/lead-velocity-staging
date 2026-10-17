@@ -33,7 +33,6 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md Â§7). W01â€
 | W02 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W03 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W04 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W04 | Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` |
 | W05 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W05 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
 | W05 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
@@ -127,7 +126,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md Â§7). W01â€
 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W05, W14, W15, W17, W19, W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |
 | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` | W20 | OAuth2 client credentials | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` | W32 | Microsoft Outlook OAuth2 | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
-| Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token, W04 | Custom auth JSON adding `client_id` + `client_secret` to the token request body | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (broker refresh tokens stay in the Vault and never go in a credential) |
+| Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token | Custom auth JSON adding `client_id` + `client_secret` to the token request body | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (broker refresh tokens stay in the Vault and never go in a credential) |
 | MinIO intro media | `s3` | W23 | S3 endpoint, access key, secret | Supabase Storage S3 endpoint, bucket `broker-media`: `SUPABASE_S3_ENDPOINT`, `SUPABASE_S3_REGION`, `SUPABASE_S3_ACCESS_KEY`, `SUPABASE_S3_SECRET_KEY` (C4, awaiting key pair) |
 | NCC registry API | `httpHeaderAuth` | W24 | Header per the registry (placeholder) | Unknown until GATE-NCC. W24 runs in csv mode until then (`NCC_REGISTRY_MODE=csv`). Create a placeholder credential so W24 activates |
 | Paystack secret key (Authorization: Bearer) | `httpHeaderAuth` | W16, W19, W25 | `Authorization: Bearer â€¦` | `PAYSTACK_SECRET_KEY` (test key until KYC, 0.3 #5) |

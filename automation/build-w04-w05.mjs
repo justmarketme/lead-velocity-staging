@@ -95,7 +95,10 @@ RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $j
   n.push(ifTrue('Cached?', '$json.cached === true'));
   n.push(pg('Vault: Microsoft refresh token', `-- Returns the refresh token only while brokers.calendar_status = 'ok' (migration 13). Never logged: this workflow does not save successful executions.
 SELECT public.smc_vault_ms_refresh($1::uuid) AS rt;`, '={{ [$json.plan && $json.broker ? $json.broker.id : null] }}'));
-  n.push(http('Microsoft token refresh', 'POST', "={{ $('Plan (w04.planRequest)').first().json.tk.url }}", { cred: MS_SECRET, timeout: 10000, params: { authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth', sendBody: true, contentType: 'form-urlencoded', bodyParameters: { parameters: [{ name: 'client_id', value: '={{ $env.MS_GRAPH_CLIENT_ID }}' }, { name: 'grant_type', value: 'refresh_token' }, { name: 'refresh_token', value: '={{ $json.rt || "" }}' }, { name: 'scope', value: GRAPH_SCOPE }] } } }));
+  // 17 Oct 2026: the refresh runs inside the ms-oauth edge function (it holds MS_CLIENT_SECRET and the Vault); the n8n
+  // credential "Microsoft Graph broker-connect client secret (W20)" is no longer needed. n8n still reads the Vault token (smc_vault_ms_refresh,
+  // role n8n_app) and passes it; the function never reads a token back. Same response shape as Microsoft's.
+  n.push(http('Microsoft token refresh', 'POST', "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/ms-oauth' }}", { timeout: 15000, params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'x-api-key', value: '={{ $env.LINDI_RELAY_TOKEN }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify({ action: 'refresh', broker_id: $('Plan (w04.planRequest)').first().json.broker.id, refresh_token: $json.rt || '' }) }}" } }));
   n.push(code('Token plan (w04.planToken)', 'w04.mjs', `const x = $('Plan (w04.planRequest)').first().json;\nconst tok = L.planToken($input.first().json, x.now);\nreturn [{ json: { ...x, tok } }];`));
   n.push(ifTrue('Token ok?', '$json.tok.ok === true'));
   n.push(pg('calendar.refresh_failed (+ status)', `WITH s AS (SELECT CASE WHEN $3 <> '' THEN public.smc_set_calendar_status($1::uuid, $3, jsonb_build_object('reason', $2::text)) END AS st)
