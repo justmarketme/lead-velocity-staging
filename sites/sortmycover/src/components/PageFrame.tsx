@@ -21,6 +21,8 @@ interface Props {
   cta?: boolean;
   /** Which call the quiet CTA books: an adviser about cover (default) or the will provider's consultant. */
   ctaKind?: CtaKind;
+  /** Heading of the quiet CTA (defaults per kind). */
+  ctaHeading?: string;
   children?: ReactNode;
 }
 
@@ -57,7 +59,7 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
   );
 }
 
-export default function PageFrame({ title, description, path, h1, lede, robots, crumbs, jsonld = [], ogType, cta = true, ctaKind, children }: Props) {
+export default function PageFrame({ title, description, path, h1, lede, robots, crumbs, jsonld = [], ogType, cta = true, ctaKind, ctaHeading, children }: Props) {
   const ld = [...jsonld];
   if (crumbs && crumbs.length > 1) ld.push(breadcrumbs(crumbs));
   return (
@@ -69,7 +71,7 @@ export default function PageFrame({ title, description, path, h1, lede, robots, 
           {h1 && <h1>{h1}</h1>}
           {lede && <p className="lede">{lede}</p>}
           {children}
-          {cta && <Cta kind={ctaKind} />}
+          {cta && <Cta kind={ctaKind} heading={ctaHeading} />}
         </div>
       </div>
     </>

@@ -190,6 +190,9 @@ export default function Home() {
             <li><Link className="underline" to="/learn/what-happens-on-a-30-minute-call/">What happens on the call</Link></li>
             <li><Link className="underline" to="/learn/how-to-check-an-adviser/">How to check an adviser</Link></li>
             <li><Link className="underline" to="/learn/what-happens-to-your-details/">What happens to your details</Link></li>
+            <li><Link className="underline" to={articlePath("life-cover-and-a-home-loan")}>Life cover and a home loan: what the paperwork says</Link></li>
+            <li><Link className="underline" to={articlePath("income-protection-vs-disability-cover")}>Income protection vs disability cover</Link></li>
+            <li><Link className="underline" to={articlePath("questions-to-ask-a-financial-adviser")}>Questions to ask a financial adviser</Link></li>
             <li><Link className="underline" to={articlePath("what-is-credit-life-insurance")}>Credit life insurance on a bond, explained</Link></li>
             <li><Link className="underline" to={articlePath("estate-duty-south-africa")}>Estate duty in South Africa (and why there is no inheritance tax)</Link></li>
           </ul>

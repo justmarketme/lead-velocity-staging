@@ -25,5 +25,5 @@ export const meta: ArticleMeta = {
     ["fsca-life-insurance-booklet", "Consumer rights before signing"],
     ["ppr-ltia-cooling-off", "The 31-day cooling-off period"],
   ]),
-  related: ["income-protection", "severe-illness-cover"],
+  related: ["income-protection", "income-protection-vs-disability-cover"],
 };

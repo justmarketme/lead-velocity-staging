@@ -56,3 +56,8 @@ export const CAMPAIGN_SCENES: Record<string, SceneImage> = {
   "will-and-cover": SCENES.cWillCover,
   "where-is-the-will": SCENES.cWhereWill,
 };
+
+/** Article slug -> its own scene (only the guides the paid ads link to carry a photo; the rest keep the text layout). */
+export const ARTICLE_SCENES: Record<string, SceneImage> = {
+  /* The four cycle-1 ad guides get one scene each once Jono approves the Higgsfield credits (deliverables/website/DEPLOY-2026-10-17.md). */
+};

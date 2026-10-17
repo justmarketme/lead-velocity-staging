@@ -21,7 +21,7 @@ export function Footer() {
   const wills = useLocation().pathname.startsWith("/wills/");
   return (
     <footer className="site-footer py-8 mt-12" data-footer>
-      <div className="wrap grid gap-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
+      <div className="wrap grid gap-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]">
         <div className="grid gap-3 content-start">
           <Wordmark plain />
           <IdentityBlock />
@@ -42,6 +42,15 @@ export function Footer() {
             <li><Link to="/how-it-works/">How it works</Link></li><li><Link to="/how-we-make-money/">How we make money</Link></li>
             <li><Link to="/advisers/">Advisers</Link></li><li><Link to="/learn/">Learn</Link></li>
             <li><Link to="/learn/glossary/">Glossary</Link></li><li><Link to="/faq/">FAQ</Link></li>
+          </ul>
+        </nav>
+        <nav aria-labelledby="f-guides"><h2 id="f-guides">Learn</h2>
+          <ul>
+            <li><Link to="/learn/life-cover-and-a-home-loan/">Life cover and a home loan</Link></li>
+            <li><Link to="/learn/income-protection-vs-disability-cover/">Income protection vs disability cover</Link></li>
+            <li><Link to="/learn/cover-for-business-owners-and-directors/">Cover for business owners</Link></li>
+            <li><Link to="/learn/questions-to-ask-a-financial-adviser/">Questions to ask an adviser</Link></li>
+            <li><Link to="/learn/life-events/">Life events</Link></li>
           </ul>
         </nav>
         <nav aria-labelledby="f-trust"><h2 id="f-trust">Trust</h2>

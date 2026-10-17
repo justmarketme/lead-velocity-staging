@@ -17,7 +17,7 @@ export const body: Block[] = [
   },
   {
     type: "p",
-    text: "Some bond paperwork mentions credit life, which is cover linked to a loan. That is a different product from life cover. The terms are in each document.",
+    text: "Some bond paperwork mentions credit life, which is cover linked to a loan. That is a different product from life cover. The terms are in each document. [Life cover and a home loan](/learn/life-cover-and-a-home-loan/) sets out what the National Credit Act and one bank's loan conditions say.",
   },
   { type: "h2", text: "What happens to paperwork when a baby is born?" },
   {
@@ -45,7 +45,7 @@ export const body: Block[] = [
   { type: "h2", text: "What happens to work cover when someone starts a business?" },
   {
     type: "p",
-    text: "Someone who leaves a job to work for themselves is no longer a member of that employer's scheme. Group cover from the old job is tied to the employer, so it normally ends with the job. A business owner does not belong to a group scheme unless they set one up.",
+    text: "Someone who leaves a job to work for themselves is no longer a member of that employer's scheme. Group cover from the old job is tied to the employer, so it normally ends with the job. A business owner does not belong to a group scheme unless they set one up. [Cover for business owners and directors](/learn/cover-for-business-owners-and-directors/) explains the conversion option and what changes without an employer.",
   },
   { type: "h2", text: "How can someone find out what their documents say?" },
   {
