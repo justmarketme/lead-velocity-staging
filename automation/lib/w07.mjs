@@ -31,7 +31,8 @@ export function normaliseInbound(body = {}) {
   for (const e of body.entry || []) for (const ch of e.changes || []) {
     const v = ch.value || {};
     for (const m of v.messages || []) {
-      const msg = { wamid: m.id, from: '+' + String(m.from || '').replace(/^\+/, ''), at_ms: Number(m.timestamp || 0) * 1000, type: m.type, text: '', payload: null, list_id: null, media: null, media_id: null, referral: m.referral || null, phone_number_id: v.metadata?.phone_number_id || null };
+      const msg = { wamid: m.id, from: '+' + String(m.from || '').replace(/^\+/, ''), at_ms: Number(m.timestamp || 0) * 1000, type: m.type, text: '', payload: null, list_id: null, media: null, media_id: null, referral: m.referral || null, phone_number_id: v.metadata?.phone_number_id || null,
+        profile_name: (v.contacts || []).find((c) => String(c.wa_id || '') === String(m.from || '').replace(/^\+/, ''))?.profile?.name || null };
       if (m.type === 'text') msg.text = m.text?.body || '';
       else if (m.type === 'button') { msg.payload = m.button?.payload ?? null; msg.text = m.button?.text || ''; }
       else if (m.type === 'interactive') {

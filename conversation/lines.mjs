@@ -20,9 +20,9 @@ export const LINES = {
     // A photo, file or video was sent. It is never downloaded, opened or sent to an LLM.
     MEDIA_NOT_OPENED: "I can't open photos or files in this chat, so please keep it for your call with {adviser_first}.",
     // 4.11 disclosure on first free-text contact (approved chat replay, 21:15).
-    DISCLOSE: "Hi {first_name}, I'm Thandi, Lead Velocity's booking assistant for {adviser_first}. I'm an AI assistant, and you can ask for a person at any time.",
+    DISCLOSE: "Hi {first_name}, I'm Thandi, SortMyCover's booking assistant for {adviser_first}. I'm an AI assistant, and you can ask for a person at any time.",
     // Disclosure before an adviser is routed (CTWA consent step, no adviser named yet).
-    DISCLOSE_PRE_ROUTE: "Hi, I'm Thandi, the SortMyCover booking assistant run by Lead Velocity. I'm an AI assistant, and you can ask for a person at any time.",
+    DISCLOSE_PRE_ROUTE: "Hi, I'm Thandi, SortMyCover's booking assistant. I'm an AI assistant, and you can ask for a person at any time.",
     // 4.12 commitment ask (NHS: writing the details down yourself -> 18% fewer missed appointments).
     COMMIT_ASK: "Could you reply with the date and time of your call so I know it's in your diary?",
     COMMIT_OK: "Perfect, it's in {adviser_first}'s diary too.",
@@ -111,8 +111,8 @@ export const LINES = {
     ID_WARNING: "Vir jou veiligheid, moet asseblief nie ID-nommers in hierdie klets stuur nie.",
     BANK_WARNING: "Vir jou veiligheid, moet asseblief nie bank- of kaartbesonderhede in hierdie klets stuur nie.",
     MEDIA_NOT_OPENED: "Ek kan nie foto's of lêers in hierdie klets oopmaak nie, so hou dit asseblief vir jou oproep met {adviser_first}.",
-    DISCLOSE: "Hallo {first_name}, ek is Thandi, Lead Velocity se besprekingsassistent vir {adviser_first}. Ek is 'n KI-assistent, en jy kan enige tyd vra om met 'n mens te praat.",
-    DISCLOSE_PRE_ROUTE: "Hallo, ek is Thandi, die SortMyCover-besprekingsassistent van Lead Velocity. Ek is 'n KI-assistent, en jy kan enige tyd vra om met 'n mens te praat.",
+    DISCLOSE: "Hallo {first_name}, ek is Thandi, SortMyCover se besprekingsassistent vir {adviser_first}. Ek is 'n KI-assistent, en jy kan enige tyd vra om met 'n mens te praat.",
+    DISCLOSE_PRE_ROUTE: "Hallo, ek is Thandi, SortMyCover se besprekingsassistent. Ek is 'n KI-assistent, en jy kan enige tyd vra om met 'n mens te praat.",
     COMMIT_ASK: "Kan jy asseblief die datum en tyd van jou oproep terugstuur sodat ek weet dit is in jou dagboek?",
     COMMIT_OK: "Perfek, dit is ook in {adviser_first} se dagboek.",
     COMMIT_CHECK: "Net om seker te maak: jou oproep is op {date} om {time}. Pas dit jou nog?",
