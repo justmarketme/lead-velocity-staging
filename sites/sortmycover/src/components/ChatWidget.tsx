@@ -1,13 +1,13 @@
-/* Floating WhatsApp chat widget (Jono, 17 Oct 2026): the launcher sits bottom right on every page; any WhatsApp CTA opens it with
-   that CTA's context. The panel introduces Lindi (AI booking assistant, a person on request), asks for the approved consent tick
-   (spec: consent before WhatsApp) and offers the separate optional ad-measurement choice (CONSENT-ADS-v2web, neither option
-   preselected; the Pixel loads only on "I give"), then opens WhatsApp with the prefilled opener. WhatsApp is the
-   only way to book (no booking on the site). Rendered closed on the server; nothing here hides content or a disclosure. */
+/* WhatsApp chat widget (Jono, 17 Oct 2026). The launcher sits bottom right on every page; any WhatsApp CTA opens it with that
+   CTA's context. Deliberately plain (Jono: "a typical thing where they click to accept", nothing to read): one required consent
+   checkbox with a one-line summary and the full approved wording one click away (CONSENT-GENERIC-v5web), one optional unticked
+   ad-measurement checkbox (CONSENT-ADS-v2web, the Pixel loads only when ticked), and the button. Rendered closed on the server;
+   nothing here hides content or a disclosure. */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, WA_STEPS, openChat, sourceTag, waHref, type ChatContext } from "@/lib/whatsapp";
+import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, waHref, type ChatContext } from "@/lib/whatsapp";
 import { consentCfg, provider } from "@/lib/site";
 import { beacon } from "@/lib/api";
-import { adsOff, attribution, beaconOff, grantAds, hasConsent, track } from "@/lib/pixel";
+import { attribution, beaconOff, grantAds, hasConsent, track } from "@/lib/pixel";
 
 /** WhatsApp glyph (Simple Icons, CC0). */
 export function WaIcon({ size = 20 }: { size?: number }) {
@@ -32,10 +32,9 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const [open, setOpen] = useState(false);
   const [ctx, setCtx] = useState<ChatContext | null>(null);
   const [agreed, setAgreed] = useState(false);
-  const [nudge, setNudge] = useState(false);
-  /** Optional ad measurement: null = no choice made (the default, nothing loads), "1" = I give, "0" = I do not give. */
-  const [ads, setAds] = useState<"1" | "0" | null>(null);
+  const [ads, setAds] = useState(false);
   const [adsBefore, setAdsBefore] = useState(false);
+  const [nudge, setNudge] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -68,58 +67,43 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     if (!agreed) { e.preventDefault(); setNudge(true); return; }
     // the opener names where the visitor came from (ad, post, search); set at tap time so server and client render the same HTML
     try { e.currentTarget.href = waHref(c, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain opener */ }
-    if (ads === "1") grantAds(); // loads the Pixel (only when site.pixel_id is set) and sends PageView
-    else if (ads === "0" && hasConsent()) adsOff(); // withdrawing an earlier yes
+    if (ads) grantAds(); // loads the Pixel (only when site.pixel_id is set) and sends PageView
     track("Contact", { content_name: c.ref }); // no-op unless the Pixel is loaded, i.e. only with the optional consent
     beacon(c.ref, "wa", undefined, beaconOff);
   };
 
-  const with_ = c.wills ? `a ${provider.name} consultant` : "an authorised adviser";
+  const who = c.wills ? provider.name : "one authorised adviser";
   return (
     <div className="chat" data-chat>
       {open && (
         <div ref={panel} id="chat-panel" className="chat-panel" role="dialog" aria-modal="false" aria-labelledby={hid}>
-          <div className="chat-head">
-            <span className="chat-avatar" aria-hidden="true">L</span>
-            <div className="chat-who">
-              <p id={hid} className="chat-name">Lindi from SortMyCover</p>
-              <p className="chat-sub">Books your 30-minute call on WhatsApp</p>
-            </div>
-            <button ref={close} type="button" className="chat-x" aria-label="Close the chat panel" onClick={hide}>×</button>
+          <div className="chat-top">
+            <p id={hid} className="chat-title">Continue on WhatsApp</p>
+            <button ref={close} type="button" className="chat-x" aria-label="Close" onClick={hide}>×</button>
           </div>
-          <div className="chat-body">
-            <p className="chat-bubble">Hi, I'm Lindi. Tell me what you need help with, and I'll find a time for a 30-minute call with {with_}.</p>
-            <div className="chat-expect">
-              <p className="chat-expect-h">What happens on WhatsApp</p>
-              <ol>{WA_STEPS(c.wills).map((s) => <li key={s}>{s}</li>)}</ol>
-            </div>
-            <p className="chat-ai">Lindi is SortMyCover's AI booking assistant. You can ask for a person at any time, or reply STOP to stop.</p>
-            <label className={"chat-consent" + (nudge && !agreed ? " is-missing" : "")}>
-              <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setNudge(false); }} />
-              <span>{CONSENT_TEXT} <a href="/privacy/">Privacy notice</a></span>
-            </label>
-            {nudge && !agreed && <p className="chat-err" role="alert">Please tick the box to continue on WhatsApp.</p>}
-            {adsBefore ? (
-              <p className="chat-ads-note">Ad measurement: on, because you said yes before. You can turn it off on the <a href="/privacy/#opt-out">privacy page</a>.</p>
-            ) : (
-              <fieldset className="chat-ads">
-                <legend>Optional: ad measurement</legend>
-                <p>{consentCfg.ads.text}</p>
-                <div className="chat-ads-pair">
-                  <label><input type="radio" name={hid + "-ads"} value="1" checked={ads === "1"} onChange={() => setAds("1")} />{consentCfg.ads.label}</label>
-                  <label><input type="radio" name={hid + "-ads"} value="0" checked={ads === "0"} onChange={() => setAds("0")} />{consentCfg.ads.decline}</label>
-                </div>
-              </fieldset>
-            )}
-            <a className="btn btn-wa chat-go" href={waHref(c)} target="_blank" rel="noopener noreferrer" aria-disabled={!agreed} onClick={go}>
-              <WaIcon size={18} />Open WhatsApp
-            </a>
-            <p className="chat-fine">Please do not send ID numbers, bank details or health details in a message.</p>
-          </div>
+          <label className={"chat-check" + (nudge && !agreed ? " is-missing" : "")}>
+            <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setNudge(false); }} />
+            <span>I agree that SortMyCover may message me on WhatsApp about my call and share my details with {who}. I am 18 or older.</span>
+          </label>
+          <details className="chat-more"><summary>Full wording</summary><p>{CONSENT_TEXT} <a href="/privacy/">Privacy notice</a></p></details>
+          {!adsBefore && (
+            <>
+              <label className="chat-check chat-check-opt">
+                <input type="checkbox" checked={ads} onChange={(e) => setAds(e.target.checked)} />
+                <span>Optional: let SortMyCover measure its Facebook and Instagram ads with my details in coded form.</span>
+              </label>
+              <details className="chat-more"><summary>Full wording</summary><p>{consentCfg.ads.text}</p></details>
+            </>
+          )}
+          {nudge && !agreed && <p className="chat-err" role="alert">Tick the first box to continue.</p>}
+          <a className="btn btn-wa chat-go" href={waHref(c)} target="_blank" rel="noopener noreferrer" aria-disabled={!agreed} onClick={go}>
+            <WaIcon size={18} />Open WhatsApp
+          </a>
+          <p className="chat-fine">Lindi, our AI assistant, replies. Ask for a person any time, or reply STOP to stop.</p>
         </div>
       )}
       <button ref={launcher} type="button" className="chat-launch" aria-expanded={open} aria-controls="chat-panel" onClick={() => (open ? hide() : show(null))}>
-        <WaIcon size={26} /><span className="chat-launch-label">Chat to Lindi</span>
+        <WaIcon size={26} /><span className="chat-launch-label">Chat on WhatsApp</span>
       </button>
     </div>
   );
