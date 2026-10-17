@@ -60,7 +60,7 @@ const PILL = { done: ['Drafted & tested', 'p-ok'], run: ['In progress', 'p-run']
 const LIVE = [
   '<b>sortmycover.co.za</b> is bought and the holding site is live (Vercel, TLS, www redirects to the apex).',
   '<b>n8n</b> is live at n8n.sortmycover.co.za on the EMMA VPS, in dry-run.',
-  '<b>Mark\'s contract</b> is signed.',
+  '<b>Mark</b>: contract signed; Bronze (20 leads, R16,500) <b>paid 11 Oct</b>; FSP verified; Outlook calendar connected 15 Oct; hours, call methods and intro card set (live CRM). Left: approve him live in the console and switch lead routing on.',
   '<b>Meta Business Verification</b> is done (KG). We are working in Ads Manager and the first ads are about to go up.',
   '<b>Facebook Page</b> "Sort My Cover" is live with posts. The <b>WhatsApp number</b> is linked to Twilio.',
   '<b>hello@sortmycover.co.za</b> is a working mailbox.',
@@ -199,7 +199,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
 
   <section class="todo">
     <b>What unblocks the most now</b>
-    <p><b>1. GATE-TEST</b>: approve the 8 drafted acceptance tests (<code>build/gate-test-summaries.md</code>) so the core workflows can leave dry-run. <b>2. WhatsApp templates</b> approved, so first touch and reminders can send. <b>3. Pixel + CAPI</b> on the site, so the ads optimise on real leads.</p>
+    <p><b>0. Mark is paid and set up but not switched on</b>: approve him live in the console and turn routing on when the ads start. <b>1. GATE-TEST</b>: approve the 8 drafted acceptance tests (<code>build/gate-test-summaries.md</code>) so the core workflows can leave dry-run. <b>2. WhatsApp templates</b> approved, so first touch and reminders can send. <b>3. Pixel + CAPI</b> on the site, so the ads optimise on real leads.</p>
   </section>
 
   <section class="card">

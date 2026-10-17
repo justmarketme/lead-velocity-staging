@@ -1283,8 +1283,10 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "4.6"
+      "status": "green",
+      "section": "4.6",
+      "note": "Done: Mark's Outlook calendar connected and healthy since 15 Oct, so the Microsoft app registration is working (live CRM check 17 Oct).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-HIDE-WORDS",
@@ -1711,9 +1713,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "7 / Conversation & booking",
-      "note": "`GET /slots` returns Mark's real Outlook availability via Graph `getSchedule`; `POST /book` creates the Outlook event (Teams link when method = Teams) and stores the Graph `event.id` on the booking; `.ics` works on iOS and Android."
+      "note": "Calendar connected (live CRM check 17 Oct); a real slots + booking test on Mark's calendar is still to run.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-19",
@@ -1734,8 +1737,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
-      "section": "7 / Broker"
+      "status": "in_progress",
+      "section": "7 / Broker",
+      "note": "Mark's row: FSP verified, Outlook calendar connected 15 Oct, hours, methods and intro card set (live CRM check 17 Oct). Left: onboarding not marked complete, not yet approved live, lead routing off.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-21",
@@ -1745,9 +1750,9 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "in_progress",
+      "status": "green",
       "section": "7 / Broker",
-      "note": "Agreement signed (Jonathan confirmed 17 Oct). Still to tick: authorisation letter, tier and EFT reference recorded.",
+      "note": "Done: agreement signed (Jonathan); Bronze order (20 leads, R16,500) marked paid 11 Oct (live CRM check 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1949,9 +1954,9 @@
       "depends_on": [],
       "acceptance_test": "decision recorded in build/decisions.md",
       "human_gate": true,
-      "status": "needs_human",
+      "status": "green",
       "section": "build/crm-gap.md §E",
-      "note": "Looks largely overtaken: commit 1f52048 (11 Oct) says smc_08 was applied live, and the marketing-media bucket (smc_20) exists. Confirm the full smc chain is live, then close.",
+      "note": "Done: live database has smc_00–smc_08 plus the broker go-live, compliance and documents migrations (to 17 Oct) (live CRM check 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1997,7 +2002,7 @@
       "human_gate": true,
       "status": "needs_human",
       "section": "build/inventory.md §11",
-      "note": "May be closed by the live smc chain (smc_24 security sweep) — confirm whether smc_24 was applied live.",
+      "note": "Partly: the live database has the smc_07 security sweep applied; the later smc_24 sweep is not applied (live CRM check 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
