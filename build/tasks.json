@@ -1078,7 +1078,7 @@
       "human_gate": true,
       "status": "green",
       "section": "0.1 / 4D.4",
-      "note": "Done: sortmycover.co.za bought at Hostinger 5 Oct; holding site live on Vercel (apex 200, www 301, TLS). Not bought: sortmycover.com and coverklaar (optional defensive buys). hello@ mailbox not confirmed (no MX recorded).",
+      "note": "Done: sortmycover.co.za bought 5 Oct, holding site live on Vercel; hello@sortmycover.co.za is a working mailbox (Jonathan confirmed 17 Oct). Not bought: sortmycover.com and coverklaar (optional).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1089,9 +1089,9 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
+      "status": "green",
       "section": "5 Phase 0",
-      "note": "Not needed: the full agreement (LGSA) replaced the term sheet. Closes when GATE-AGREEMENT is signed.",
+      "note": "Not needed: replaced by the signed agreement (Jonathan confirmed 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1102,9 +1102,9 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.7 ★1",
-      "note": "Portfolio \"Lead Velocity\" exists (KG invited, verification details entered). Business Verification not submitted yet — with KG (docs/KG-HANDOFF-META-VERIFICATION.md).",
+      "note": "Done: KG completed Meta Business Verification (Jonathan confirmed 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1132,9 +1132,9 @@
       ],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "in_progress",
+      "status": "green",
       "section": "4.7 ★4",
-      "note": "WhatsApp account SortMyCover with its own number, linked to Twilio. Waiting only on Meta Business Verification.",
+      "note": "Done: WhatsApp account + number linked to Twilio; verification was the last blocker and KG finished it (Jonathan confirmed 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1147,8 +1147,10 @@
       ],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "4.7 ★5"
+      "status": "green",
+      "section": "4.7 ★5",
+      "note": "Done: working in Meta Ads Manager, ads about to go live (Jonathan confirmed 17 Oct).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-PIXEL",
@@ -1341,9 +1343,9 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
+      "status": "green",
       "section": "4.10 / 4.13",
-      "note": "v0.1 went to Mark ~5 Oct; he asked for changes. v0.3 drafted 10 Oct, waiting on your approval (NH-67).",
+      "note": "Done: Mark's contract is signed (Jonathan confirmed 17 Oct).",
       "reconciled": "2026-10-17"
     },
     {
@@ -1687,7 +1689,7 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "7 / Conversation & booking",
-      "note": "WhatsApp account + number exist and are linked to Twilio; waiting on Business Verification; templates not submitted. [2026-10-17] — earlier: WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, missed-you; the rest submitted and tracked; standby number registered on the same WABA; quality-rating alert in W22; display name approved.",
+      "note": "Number live and verified (Jonathan confirmed 17 Oct). Still to tick: the 6 core templates approved.",
       "reconciled": "2026-10-17"
     },
     {
@@ -1743,8 +1745,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
-      "section": "7 / Broker"
+      "status": "in_progress",
+      "section": "7 / Broker",
+      "note": "Agreement signed (Jonathan confirmed 17 Oct). Still to tick: authorisation letter, tier and EFT reference recorded.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-22",
@@ -2708,9 +2712,9 @@
       "depends_on": [],
       "acceptance_test": "decision recorded in build/decisions.md; seed + agreement agree",
       "human_gate": true,
-      "status": "needs_human",
+      "status": "green",
       "section": "0.1 Replacement cap / 3.3 / 4.13",
-      "note": "Now LGSA v0.3 (10 Oct), not v0.2. Approve, then the Mark copy is rebuilt and sent.",
+      "note": "Done: Mark's contract is finalised and signed (Jonathan confirmed 17 Oct).",
       "reconciled": "2026-10-17"
     }
   ]

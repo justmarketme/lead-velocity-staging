@@ -43,7 +43,7 @@ const now = new Date().toUTCString().replace(/:\d\d GMT$/, ' UTC');
 const BUILT = [
   ['Database schema', 'done', 'The CRM nurture migrations look applied to the live Supabase project (11 Oct: smc_08 applied live; the marketing-media bucket exists). Still to confirm: the whole chain, including the smc_24 security sweep (NH-11 / NH-15).'],
   ['Automation (n8n)', 'run', '<b>Live on the VPS</b> at n8n.sortmycover.co.za since 11 Oct (laptop n8n retired). Every workflow runs in dry-run, so nothing is sent to a real person until go-live. The 8 core-path flows still need your approval of their acceptance tests.'],
-  ['Meta + WhatsApp', 'run', 'The Lead Velocity business portfolio exists. The Sort My Cover Facebook Page is live with posts. The SortMyCover WhatsApp account and number are linked to Twilio. All of it is waiting on Business Verification (with KG). No ad account, Pixel or Instagram link yet.'],
+  ['Meta + WhatsApp', 'run', 'Business Verification is done (KG). The Facebook Page is live, the WhatsApp number is linked to Twilio, and we are working in Ads Manager with the first ads about to go up. Still to confirm on the tracker: Pixel, Instagram and template approvals.'],
   ['WhatsApp templates', 'wait', '56 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted yet. Submission is your click (GATE-TEMPLATES).'],
   ['Broker portal + admin console', 'done', 'Built in the existing CRM behind a feature flag (off by default): onboarding wizard, calendar connect, billing, weekly report, intro recorder, pulse screen, console on admin-only RPCs.'],
   ['Domain + website', 'done', '<b>sortmycover.co.za is bought</b> (Hostinger, 5 Oct) and the holding site is <b>live on Vercel</b> with privacy and terms pages. The 10 quiz pages are built but not public yet. Not bought: sortmycover.com and coverklaar (optional).'],
@@ -60,8 +60,10 @@ const PILL = { done: ['Drafted & tested', 'p-ok'], run: ['In progress', 'p-run']
 const LIVE = [
   '<b>sortmycover.co.za</b> is bought and the holding site is live (Vercel, TLS, www redirects to the apex).',
   '<b>n8n</b> is live at n8n.sortmycover.co.za on the EMMA VPS, in dry-run.',
-  '<b>Facebook Page</b> "Sort My Cover" is live with posts.',
-  '<b>WhatsApp account + number</b> exist and are linked to Twilio. Waiting on Meta Business Verification (KG).',
+  '<b>Mark\'s contract</b> is signed.',
+  '<b>Meta Business Verification</b> is done (KG). We are working in Ads Manager and the first ads are about to go up.',
+  '<b>Facebook Page</b> "Sort My Cover" is live with posts. The <b>WhatsApp number</b> is linked to Twilio.',
+  '<b>hello@sortmycover.co.za</b> is a working mailbox.',
   '<b>Live CRM database</b> has the nurture migrations (applied 11 Oct). The full chain still needs confirming.',
   '<b>When a lead counts</b> is decided (yours, 11 Oct): the broker marks the meeting attended and the lead\'s email is verified. The agreement text still has to be brought in line.',
 ];
@@ -197,13 +199,13 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
 
   <section class="todo">
     <b>What unblocks the most now</b>
-    <p><b>1. Meta Business Verification</b> (with KG). It unlocks the WhatsApp number, templates, the ad account and the Pixel. <b>2. NH-67</b>: approve agreement v0.3 so Mark's copy can be rebuilt and sent. <b>3. GATE-TEST</b>: approve the 8 drafted acceptance tests (<code>build/gate-test-summaries.md</code>) so the core workflows can turn green.</p>
+    <p><b>1. GATE-TEST</b>: approve the 8 drafted acceptance tests (<code>build/gate-test-summaries.md</code>) so the core workflows can leave dry-run. <b>2. WhatsApp templates</b> approved, so first touch and reminders can send. <b>3. Pixel + CAPI</b> on the site, so the ads optimise on real leads.</p>
   </section>
 
   <section class="card">
     <h2>Already live / done outside the build</h2>
     <ul>${LIVE.map((x) => `<li>${x}</li>`).join('')}</ul>
-    <p class="foot" style="margin:8px 0 0">Re-checked against the repo on 17 Oct. Items marked <i>reconciled</i> below carry a note saying what is done and what is left.</p>
+    <p class="foot" style="margin:8px 0 0">Re-checked against the repo and Jonathan's update on 17 Oct. Items marked <i>reconciled</i> below carry a note saying what is done and what is left.</p>
   </section>
 
   <section class="card">
@@ -242,7 +244,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
 
   <section class="card"><details><summary><h2>Latest commits</h2></summary>
     <div class="tw" style="margin-top:8px"><table>${commits.map(([d, h, s]) => `<tr><td class="num">${esc(d)}</td><td><code>${esc(h)}</code></td><td>${esc(s.slice(0, 120))}</td></tr>`).join('')}</table></div>
-    <p class="foot">${esc(stat)} across ${esc(nCommits)} commits since the branch started. Live outside the build: the domain and holding site, n8n on the VPS (dry-run), the Facebook Page, the WhatsApp account and the CRM nurture migrations. Nothing submitted to Paystack or NCC, no ads running, and nothing sent to a real lead.</p></details>
+    <p class="foot">${esc(stat)} across ${esc(nCommits)} commits since the branch started. Live outside the build: the domain, holding site and hello@ mailbox; n8n on the VPS (dry-run); Meta verified with ads being set up; the WhatsApp number; Mark's signed contract; and the CRM nurture migrations.</p></details>
   </section>
 </div>
 `;

@@ -1,3 +1,9 @@
 {"id":"GATE-DOMAINS","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed in chat 17 Oct: domain already bought (deploy.md: bought 5 Oct, live on Vercel)"}
 {"id":"GATE-DNS","status":"green","at":"2026-10-17","by":"orchestrator (evidence)","why":"superseded: Vercel + Hostinger DNS (landing/holding/deploy.md)"}
 {"id":"GATE-VPS","status":"green","at":"2026-10-17","by":"orchestrator (evidence)","why":"superseded: n8n on the EMMA VPS (commit e69991e)"}
+{"id":"GATE-AGREEMENT","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed 17 Oct in chat"}
+{"id":"NH-67","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed 17 Oct in chat"}
+{"id":"GATE-TERM-SHEET","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed 17 Oct in chat"}
+{"id":"GATE-META-PORTFOLIO","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed 17 Oct in chat"}
+{"id":"GATE-WABA","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed 17 Oct in chat"}
+{"id":"GATE-AD-ACCOUNT","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed 17 Oct in chat"}
