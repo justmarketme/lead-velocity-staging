@@ -103,7 +103,8 @@ function parseOpener(text) {
 function openerGreeting(op, profileName) {
   const first = String(profileName || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
   const hi = first ? `Hi ${first}, I'm Lindi` : "Hi, I'm Lindi";
-  return `${hi}, SortMyCover's booking assistant. I'm an AI assistant, and you can ask for a person at any time. Thanks for getting in touch about ${op.topic}. If it's something else, just tell me.`;
+  // Jono, 17 Oct 2026: no "AI assistant" wording; Lindi introduces herself as SortMyCover's (same as the W07 fallbacks)
+  return `${hi} from SortMyCover. Thanks for getting in touch about ${op.topic}. If it's something else, just tell me.`;
 }
 
 /**

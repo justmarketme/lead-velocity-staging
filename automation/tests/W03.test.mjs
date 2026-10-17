@@ -412,7 +412,8 @@ test('opener from an unknown number: lead stored at once with the opener consent
   const s = sends(r.actions);
   assert.equal(s.length, 1, 'one message');
   assert.equal(s[0].message.type, 'list');
-  assert.match(s[0].message.body, /^Hi Thabo, I'm Lindi, SortMyCover's booking assistant\. I'm an AI assistant/);
+  assert.match(s[0].message.body, /^Hi Thabo, I'm Lindi from SortMyCover\. /);
+  assert.equal(/AI/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
   assert.match(s[0].message.body, /Thanks for getting in touch about cover for my family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
   assert.equal(r.thread.stage, 'q_age');
   assert.equal(r.thread.lead_id, 'lead_opener_1');

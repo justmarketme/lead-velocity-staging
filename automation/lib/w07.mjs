@@ -607,7 +607,7 @@ export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
   const first = sanitiseField('first_name', first_name || '').value;
   const slots = route === 'W04' || route === 'W04_list';
   if (lang === 'af') {
-    return `Dankie vir jou boodskap${first ? ` ${first}` : ''}! Ek is Lindi, SortMyCover se KI-besprekingsassistent. ${slots ? 'Ek kon nie nou die adviseur se oop tye kry nie' : 'Iets het nou aan my kant skeefgeloop'}, so iemand van ons span sal jou kort-kort hier ’n boodskap stuur.`;
+    return `Dankie vir jou boodskap${first ? ` ${first}` : ''}! Ek is Lindi van SortMyCover. ${slots ? 'Ek kon nie nou die adviseur se oop tye kry nie' : 'Iets het nou aan my kant skeefgeloop'}, so iemand van ons span sal jou kort-kort hier ’n boodskap stuur.`;
   }
   return `Thanks for your message${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. ${slots ? "I couldn't pull up the adviser's open times just now" : 'Something went wrong on my side just now'}, so a person from our team will message you here shortly.`;
 }
