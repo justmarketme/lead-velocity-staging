@@ -2,7 +2,6 @@
 import { Fragment } from "react";
 import { Seo } from "@/lib/head";
 import { COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site } from "@/lib/site";
-import Quiz from "@/components/Quiz";
 import ChatWidget, { WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, campaignContext } from "@/lib/whatsapp";
 import { CampaignFooter } from "@/components/Footer";
@@ -12,7 +11,6 @@ import { Inline } from "@/lib/inline";
 import { CAMPAIGN_FAQ, HOW_STEPS, WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { h1Segments, hostLabel, type Angle } from "@/campaigns";
 import { CAMPAIGN_SCENES } from "@/content/imagery";
-import { productForTheme } from "@/lib/quiz";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** "2025-10" -> "October 2025" (the proof line always shows its source month, rule S15). */
@@ -28,7 +26,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
   return (
     <div className="smc-campaign">
       <Seo title={angle.title} description={angle.description} canonical={origin + "/"} robots="noindex,follow" />
-      <a className="skip" href="#quiz">Skip to the booking</a>
+      <a className="skip" href="#h-how">Skip to what happens next</a>
       <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c9c3b8]">{COST_LINE}</small></div></header>
       <main id="main">
         <section className="hero-band on-dark">
@@ -37,7 +35,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
             <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
             <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
-            <div className="hx-actions"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><a href="#quiz" className="hx-how-link">Or book on this page</a></div>
+            <div className="hx-actions" id="chat"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><a href="#h-how" className="hx-how-link">What happens next ↓</a></div>
             <p className="mt-3 text-[14px] text-[#56606a] max-w-[46ch]">{isWills(angle) ? WA_EXPECT.replace("your adviser", "your consultant") : WA_EXPECT}</p>
             {angle.note && <p className="mt-3 text-[15px] text-[#c9c3b8] max-w-[44ch]" data-disclosure>{angle.note}</p>}
             {wills && <p className="mt-3 text-[14px] text-[#c9c3b8] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}
@@ -51,10 +49,6 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
               <img src={campaignImage(angle).src} alt={campaignImage(angle).alt} width={campaignImage(angle).w} height={campaignImage(angle).h} fetchPriority="high" />
             </figure>
           </div>
-        </section>
-        <section className="wrap-narrow py-6" id="quiz" aria-label="Book my adviser call">
-          <Quiz angle={angle.slug} metaCode={angle.meta_code} product={productForTheme(angle.theme)} />
-          <p className="fine mt-3" data-disclosure>Run by Lead Velocity (Pty) Ltd. Not a financial services provider. {COST_LINE}</p>
         </section>
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={wills ? WILLS_STEPS : HOW_STEPS} /></section>
         <section className="wrap-narrow py-6" aria-labelledby="h-cost" data-disclosure>

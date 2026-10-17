@@ -1,10 +1,10 @@
 /* WhatsApp-first calls to action (Jono, 17 Oct 2026). Every primary CTA opens the chat widget: Lindi's intro, the approved
-   consent tick (consent.json generic, the same text as the booking form), then WhatsApp with a prefilled opener. Booking a call
-   on the site is the secondary path everywhere.
+   consent tick (consent.json generic, the same text as the booking form), then WhatsApp with a prefilled opener. There is no
+   booking on the site (Jono, 17 Oct 2026): WhatsApp is the only way to book.
    The opener is the contract with W07 (Lindi), documented in docs/WHATSAPP-OPENERS.md: it names the topic, carries the consent
    statement in the person's own words (so the WhatsApp chat itself records consent, even without JavaScript) and ends with
    "Ref <code>", the page or ad the chat came from. */
-import { BOOK_COVER, BOOK_WILLS, consentCfg, provider, site } from "./site";
+import { consentCfg, provider, site } from "./site";
 
 export const WA_DIGITS: string = String(site.whatsapp_number || "").replace(/\D/g, "");
 export const WA_LABEL = "Chat on WhatsApp";
@@ -18,14 +18,12 @@ export interface ChatContext {
   ref: string;
   /** Wills and estate: the opener names the will provider instead of an adviser. */
   wills?: boolean;
-  /** Where "book a call instead" goes. */
-  book: string;
 }
 
-const COVER = (topic: string, ref: string): ChatContext => ({ topic, ref, book: BOOK_COVER });
-const WILL = (topic: string, ref: string): ChatContext => ({ topic, ref, wills: true, book: BOOK_WILLS });
+const COVER = (topic: string, ref: string): ChatContext => ({ topic, ref });
+const WILL = (topic: string, ref: string): ChatContext => ({ topic, ref, wills: true });
 
-export const DEFAULT_CHAT: ChatContext = { topic: "cover for my family", ref: "w-site", book: "/book/" };
+export const DEFAULT_CHAT: ChatContext = { topic: "cover for my family", ref: "w-site" };
 
 const LEARN: Record<string, ChatContext> = {
   "life-cover-and-a-home-loan": COVER("life cover and my home loan", "w-learn-bond"),
@@ -64,7 +62,7 @@ const ANGLE_TOPICS: Record<string, string> = {
 };
 export function campaignContext(a: { slug: string; meta_code: string; theme?: string }): ChatContext {
   const topic = ANGLE_TOPICS[a.slug] ?? (a.theme === "B" ? "a will" : "cover for my family");
-  return { ...(a.theme === "B" ? WILL(topic, a.meta_code) : COVER(topic, a.meta_code)), book: "#quiz" };
+  return a.theme === "B" ? WILL(topic, a.meta_code) : COVER(topic, a.meta_code);
 }
 
 /** The prefilled first message. Plain words; the last line is machine-readable for Lindi (docs/WHATSAPP-OPENERS.md). */

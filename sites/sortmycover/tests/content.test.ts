@@ -186,10 +186,6 @@ describe("quiz copy", () => {
   it("no angle carries budget wording (no budget question on the page since 2026-10-13)", () => {
     expect(JSON.stringify(anglesRaw)).not.toMatch(/budget_topic/);
   });
-  it("the first-question labels pass the wording scan", async () => {
-    const { HELP_OPTIONS } = await import("../src/lib/quiz");
-    for (const o of HELP_OPTIONS) for (const [re, label] of BANNED) expect(o.label, `${o.value}: ${label}`).not.toMatch(re);
-  });
 });
 
 describe("FAQ", () => {

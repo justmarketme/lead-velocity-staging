@@ -8,7 +8,7 @@ import PageFrame from "@/components/PageFrame";
 import { FaqItem, Steps } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { SCENES } from "@/content/imagery";
-import { BOOK_WILLS, COST_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, WILLS_BOOK_LABEL, provider, site } from "@/lib/site";
+import { COST_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, provider, site } from "@/lib/site";
 import { WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { articlesForHub, hubFor, WILLS_HUB } from "@/content";
 import { ArticleList } from "./Learn";
@@ -30,7 +30,7 @@ export default function Wills() {
       <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>
         {PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE} <a href={site.fsca_register_url} rel="noopener noreferrer">Look the firm up on the FSCA register</a>.
       </p>
-      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/wills/")} /><Link to={BOOK_WILLS} className="btn btn-secondary">{WILLS_BOOK_LABEL}</Link></p>
+      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/wills/")} /></p>
       <p className="text-[15px] text-[#56606a]">{WA_EXPECT}</p>
       <p className="text-[15px]" data-disclosure>{COST_LINE} {PROVIDER_COST_LINE}</p>
 

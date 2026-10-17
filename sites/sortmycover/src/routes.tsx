@@ -50,7 +50,6 @@ const campaignRoutes = (a: Angle): RouteDef[] => [
 export const apexRoutes: RouteDef[] = [
   page("/", () => import("./pages/Home")),
   page("/book/", () => import("./pages/Book")),
-  page("/book/thanks/", () => import("./pages/BookThanks"), { indexable: false }),
   page("/how-it-works/", () => import("./pages/HowItWorks")),
   page("/how-we-make-money/", () => import("./pages/HowWeMakeMoney")),
   page("/advisers/", () => import("./pages/Advisers")),

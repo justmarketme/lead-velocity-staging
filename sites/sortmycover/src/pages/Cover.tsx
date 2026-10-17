@@ -5,7 +5,7 @@ import { WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import PageFrame from "@/components/PageFrame";
 import { Steps } from "@/components/Interactive";
-import { BOOK_COVER, BOOK_LABEL, COST_LINE, FEE_LINE, NO_COMMISSION } from "@/lib/site";
+import { COST_LINE, FEE_LINE, NO_COMMISSION } from "@/lib/site";
 import { HOW_STEPS } from "@/content/shared";
 import { SCENES } from "@/content/imagery";
 import { articlesForHub, COVER_HUB, hubFor } from "@/content";
@@ -30,7 +30,7 @@ export default function Cover() {
 
       <h2>Talk it through with an adviser</h2>
       <p>SortMyCover does not sell cover, give advice or quote premiums. It books a 30-minute call with an adviser from an FSCA-authorised financial services provider, who can talk about cover for your situation.</p>
-      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/cover/")} /><Link to={BOOK_COVER} className="btn btn-secondary">{BOOK_LABEL}</Link></p>
+      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/cover/")} /></p>
       <p className="text-[15px] text-[#56606a]">{WA_EXPECT}</p>
       <p className="text-[15px]" data-disclosure>{COST_LINE} {FEE_LINE} {NO_COMMISSION}</p>
 

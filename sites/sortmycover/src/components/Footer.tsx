@@ -34,7 +34,7 @@ export function Footer() {
             <li><Link to="/cover/">Cover types</Link></li><li><Link to="/cover/life-cover/">Life cover</Link></li>
             <li><Link to="/cover/disability-cover/">Disability cover</Link></li><li><Link to="/cover/severe-illness-cover/">Severe illness cover</Link></li>
             <li><Link to="/cover/income-protection/">Income protection</Link></li><li><Link to="/wills/">Wills &amp; estate</Link></li>
-            <li><Link to="/book/">Book a call</Link></li>
+            <li><Link to="/book/">Book on WhatsApp</Link></li>
           </ul>
         </nav>
         <nav aria-labelledby="f-understand"><h2 id="f-understand">Understand</h2>

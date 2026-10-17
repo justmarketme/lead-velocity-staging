@@ -2,8 +2,8 @@ import type { FaqItem } from "./types";
 import { COST_LINE, FEE_LINE, NO_COMMISSION, NOT_FSP_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, provider, site } from "@/lib/site";
 
 export const HOW_STEPS = [
-  { title: "Answer two quick questions", body: "What you would like help with, and your age band. Then your first name and mobile number." },
-  { title: "Pick a time", body: "You get your adviser’s name, practice and FSP number on WhatsApp, and choose a time that suits you." },
+  { title: "Say hi to Lindi on WhatsApp", body: "Lindi, SortMyCover’s booking assistant, asks what you would like help with and a few short questions." },
+  { title: "Meet your adviser and pick a time", body: "Lindi sends your adviser’s name, practice and FSP number, with times to choose from. Pick one." },
   { title: "Talk to the adviser for 30 minutes", body: "By video, WhatsApp or phone. The adviser tells you how they are paid. You decide afterwards. " + COST_LINE },
 ];
 
@@ -48,8 +48,8 @@ export const HOME_FAQ: FaqItem[] = [
 export const SITE_FAQ: FaqItem[] = [
   ...HOME_FAQ,
   { id: "scam", q: "Is this a scam?", a: "Fair question. SortMyCover is a trading name of Lead Velocity (Pty) Ltd, registration 2025/637858/07. The address, phone and email are in the footer of every page, and the adviser’s FSP number can be checked on the FSCA register before you speak to them. Nobody is asked for ID numbers, bank details or payment." },
-  { id: "why-number", q: "Why do you need my mobile number?", a: "The adviser’s details and the times to choose from arrive on WhatsApp, and the call may be by WhatsApp or phone." },
-  { id: "how-long", q: "How long is the call?", a: "About 30 minutes, at a time you pick. The quiz takes about a minute." },
+  { id: "why-number", q: "Why WhatsApp?", a: "Lindi books the call there: she sends the adviser’s details and the times to choose from, and reminds you before the call. The call itself can be by video, WhatsApp or phone." },
+  { id: "how-long", q: "How long is the call?", a: "About 30 minutes, at a time you pick. Booking it with Lindi on WhatsApp takes a few messages." },
   { id: "choose", q: "Can I choose my adviser?", a: "You are introduced to one adviser. You can check them on the FSCA register, and you decide after the call whether to go further." },
   { id: "insurer", q: "Is SortMyCover an insurer?", a: "No. SortMyCover is not a financial services provider. It does not sell cover, give advice, compare products or quote premiums. It introduces you to an adviser, who can." },
 ];

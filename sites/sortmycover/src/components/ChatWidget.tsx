@@ -1,7 +1,7 @@
 /* Floating WhatsApp chat widget (Jono, 17 Oct 2026): the launcher sits bottom right on every page; any WhatsApp CTA opens it with
    that CTA's context. The panel introduces Lindi (AI booking assistant, a person on request), asks for the approved consent tick
-   (spec: consent before WhatsApp), then opens WhatsApp with the prefilled opener. Booking on the site is offered as the
-   alternative. Rendered closed on the server; nothing here hides content or a disclosure. */
+   (spec: consent before WhatsApp), then opens WhatsApp with the prefilled opener. WhatsApp is the
+   only way to book (no booking on the site). Rendered closed on the server; nothing here hides content or a disclosure. */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, WA_STEPS, openChat, waHref, type ChatContext } from "@/lib/whatsapp";
 import { provider } from "@/lib/site";
@@ -93,7 +93,6 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
             <a className="btn btn-wa chat-go" href={waHref(c)} target="_blank" rel="noopener noreferrer" aria-disabled={!agreed} onClick={go}>
               <WaIcon size={18} />Open WhatsApp
             </a>
-            <p className="chat-alt">Prefer the website? <a href={c.book} onClick={() => setOpen(false)}>Book a 30-minute call</a>.</p>
             <p className="chat-fine">Please do not send ID numbers, bank details or health details in a message.</p>
           </div>
         </div>

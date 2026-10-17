@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { WhatsAppCta } from "./ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
-import { APEX, BOOK_COVER, BOOK_WILLS, COST_LINE, PROVIDER_COST_LINE, provider } from "@/lib/site";
+import { APEX, COST_LINE, PROVIDER_COST_LINE, provider } from "@/lib/site";
 import { breadcrumbs } from "@/lib/jsonld";
 
 export interface Crumb { name: string; path: string }
@@ -73,9 +73,8 @@ export function PageHead({ crumbs, h1, accent, lede, meta }: { crumbs?: Crumb[];
 
 export type CtaKind = "adviser" | "cover" | "wills";
 
-/** Booking call to action, set as the dark card that closes the home page. WhatsApp first (Lindi books the call), booking on the
-    site second. "cover" and "wills" book with the product already chosen (/book/?for=...). The wills version names the will
-    provider and makes no fee statement (the provider's fee arrangement with SortMyCover is not settled). */
+/** Booking call to action, set as the dark card that closes the home page. Booking is on WhatsApp only (Lindi books the call).
+    The wills version names the will provider and makes no fee statement (the provider's fee arrangement is not settled). */
 export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: CtaKind }) {
   const ctx = contextFor(useLocation().pathname);
   if (kind === "wills") {
@@ -84,21 +83,18 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
         <h2>{heading ?? "Talk to a " + provider.name + " consultant"}</h2>
         <p data-disclosure>Lindi books a call about your will on WhatsApp, at a time that suits. {COST_LINE} {PROVIDER_COST_LINE}</p>
         <div className="cta-actions">
-          <WhatsAppCta ctx={{ ...ctx, wills: true, book: BOOK_WILLS }} />
-          <Link to={BOOK_WILLS} className="btn btn-ghost">Or book on the website</Link>
+          <WhatsAppCta ctx={{ ...ctx, wills: true }} />
         </div>
         <p className="cta-expect">{WA_EXPECT.replace("your adviser", "your consultant")}</p>
       </aside>
     );
   }
-  const book = kind === "cover" ? BOOK_COVER : "/book/";
   return (
     <aside className="cta-quiet" aria-label="Book a call">
       <h2>{heading ?? "Talk to an adviser"}</h2>
       <p>Lindi books a 30-minute call with an authorised adviser on WhatsApp, at a time that suits. {COST_LINE}</p>
       <div className="cta-actions">
-        <WhatsAppCta ctx={{ ...ctx, book }} />
-        <Link to={book} className="btn btn-ghost">Or book on the website</Link>
+        <WhatsAppCta ctx={ctx} />
       </div>
       <p className="cta-expect">{WA_EXPECT}</p>
     </aside>

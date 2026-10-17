@@ -9,7 +9,6 @@ import { inView, scroll, stagger } from "motion";
 import { parallax, prefersReducedMotion, revealChildren, springDuration, springEase, springGestures } from "@/lib/motion";
 import { HERO_MOSAIC, SCENES, type SceneImage } from "@/content/imagery";
 import { articlePath } from "@/content";
-import { BOOK_COVER, BOOK_WILLS } from "@/lib/site";
 import { WhatsAppCta } from "./ChatWidget";
 
 const Img = ({ s, eager, className }: { s: SceneImage; eager?: boolean; className?: string }) => (
@@ -116,7 +115,7 @@ export function MomentPicker() {
               <h3 data-in>{m.head} <em>{m.em}</em></h3>
               <p data-in>{m.body}</p>
               <ul data-in>{m.links.map((l) => <li key={l.to}><Link to={l.to}>{l.label} →</Link></li>)}</ul>
-              <p data-in className="cta-row"><WhatsAppCta ctx={{ topic: m.topic, ref: "w-home-" + m.id, wills: m.book === "wills", book: m.book === "wills" ? BOOK_WILLS : BOOK_COVER }} /><Link to={m.book === "wills" ? BOOK_WILLS : BOOK_COVER} className="hx-how-link">Or book a call</Link></p>
+              <p data-in className="cta-row"><WhatsAppCta ctx={{ topic: m.topic, ref: "w-home-" + m.id, wills: m.book === "wills" }} /></p>
             </div>
           </div>
         ))}
@@ -129,9 +128,9 @@ export function MomentPicker() {
 type Step = { n: string; title: string; body: string };
 const Screen = ({ i }: { i: number }) => {
   if (i === 0) return (
-    <div className="ph-screen ph-quiz"><p className="ph-q">What would you like help with?</p>
-      {["Life cover", "Disability cover", "Income protection", "A will"].map((o, k) => <span key={o} className={"ph-opt" + (k === 0 ? " is-on" : "")}>{o}</span>)}
-      <span className="ph-bar"><i /></span></div>
+    <div className="ph-screen ph-wa"><p className="ph-head"><b>Lindi · SortMyCover</b><small>WhatsApp</small></p>
+      <p className="ph-msg">Hi, I'm Lindi. What would you like help with?</p>
+      {["Life cover", "Disability or income", "Review my cover", "A will"].map((o, k) => <span key={o} className={"ph-opt" + (k === 0 ? " is-on" : "")}>{o}</span>)}</div>
   );
   if (i === 1) return (
     <div className="ph-screen ph-wa"><p className="ph-head"><b>SortMyCover</b><small>WhatsApp</small></p>

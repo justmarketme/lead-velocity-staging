@@ -21,6 +21,8 @@ Campaign pages locally: `http://new-bond.localhost:4173/` (the preview server ma
 
 ## How a lead reaches the CRM
 
+**Since 17 Oct 2026 (Jono): there is no booking form on the site.** Every call is booked on WhatsApp by Lindi (W07). Each WhatsApp button opens the chat widget (`src/components/ChatWidget.tsx`): consent tick, then `wa.me` with a prefilled opener whose contract is `docs/WHATSAPP-OPENERS.md`. The site now calls n8n only for `POST /beacon`. The endpoint table below describes the retired quiz flow and is kept for the n8n side.
+
 ```
 visitor browser (sortmycover.co.za or <slug>.sortmycover.co.za)
    |  POST /lead  (+ GET /slots, POST /book, POST /lead/skip, POST /beacon)      config/site.json: n8n_base + api_prefix

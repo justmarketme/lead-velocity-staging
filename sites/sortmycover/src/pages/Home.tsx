@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
-import { APEX, BOOK_COVER, BOOK_LABEL, BOOK_WILLS, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, WILLS_BOOK_LABEL, company, provider, site } from "@/lib/site";
+import { APEX, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, company, provider, site } from "@/lib/site";
 import { organization, website } from "@/lib/jsonld";
 import { FaqItem, Reveal } from "@/components/Interactive";
 import { HeroMosaic, JourneyScroll, MomentPicker, Split, ValueStack, useHomeGestures } from "@/components/HomeMotion";
@@ -31,14 +31,14 @@ const WILL_ORDER = ["what-a-will-does", "guardians-and-childrens-trusts", "estat
 const ordered = <T extends { slug: string }>(items: T[], order: string[]) => [...items].sort((a, b) => order.indexOf(a.slug) - order.indexOf(b.slug));
 
 const VALUES = [
-  { k: "Who", v: "A licensed adviser", d: "Name, practice and FSP number arrive on WhatsApp before the call." },
+  { k: "Who", v: "An authorised adviser", d: "Name, practice and FSP number arrive on WhatsApp before the call." },
   { k: "How long", v: "About 30 minutes", d: "At a time picked from the WhatsApp message. Video, WhatsApp or phone." },
-  { k: "Effort", v: "About a minute", d: "Two quick questions, then a first name and mobile number." },
+  { k: "Effort", v: "A few messages", d: "Say hi to Lindi on WhatsApp. She asks what you need and a few short questions." },
   { k: "Cost", v: "Nothing to pay", d: COST_LINE + " The decision comes afterwards." },
 ];
 
 const JOURNEY = [
-  { n: "01", title: "Two quick questions", body: "What the call is about, and an age band. Then a first name and mobile number. About a minute." },
+  { n: "01", title: "Say hi to Lindi on WhatsApp", body: "Tap Chat on WhatsApp and send the message. Lindi asks what the call is about and a few short questions." },
   { n: "02", title: "The adviser’s details on WhatsApp", body: "Name, practice and FSP number, to check on the FSCA register, with times to choose from." },
   { n: "03", title: "A time that suits", body: "Pick a slot from the message. Move or cancel it the same way, at no cost." },
   { n: "04", title: "A 30-minute conversation", body: "By video, WhatsApp or phone. The adviser explains how they are paid. Nothing is decided on the call." },
@@ -65,7 +65,7 @@ export default function Home() {
             <p className="hx-intro">A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with {provider.name}.</p>
             <div className="hx-actions">
               <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
-              <Link to={BOOK_COVER} className="hx-how-link">Or book a call on the website</Link>
+              <a href="#h-how" className="hx-how-link">See how it works ↓</a>
             </div>
             <p className="hx-micro">{WA_EXPECT} {COST_LINE}</p>
           </div>
@@ -103,7 +103,7 @@ export default function Home() {
               <ul className="svc-list">
                 {COVER_ORDER.map((slug) => { const m = cover.find((c) => c.slug === slug); return m ? <li key={slug}><Link to={articlePath(slug)}>{COVER_NAMES[slug]}</Link></li> : null; })}
               </ul>
-              <p className="mt-auto pt-2"><Link to={BOOK_COVER} className="btn w-full sm:w-auto">{BOOK_LABEL} <span aria-hidden="true">→</span></Link></p>
+              <p className="mt-auto pt-2"><WhatsAppCta ctx={{ topic: "cover for my family", ref: "w-home-cover" }} className="btn w-full sm:w-auto" /></p>
               <p className="svc-fine" data-disclosure>{COST_LINE} {FEE_LINE}</p>
             </article>
 
@@ -118,7 +118,7 @@ export default function Home() {
                 <li><Link to={articlePath("where-to-keep-a-will")}>Where the signed will is kept</Link></li>
                 <li><Link to={articlePath("estate-administration")}>What estate administration involves</Link></li>
               </ul>
-              <p className="mt-auto pt-2"><Link to={BOOK_WILLS} className="btn w-full sm:w-auto">{WILLS_BOOK_LABEL} <span aria-hidden="true">→</span></Link></p>
+              <p className="mt-auto pt-2"><WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn w-full sm:w-auto">Chat about a will</WhatsAppCta></p>
               <p className="svc-fine" data-disclosure>{COST_LINE} {PROVIDER_COST_LINE}</p>
             </article>
           </div>
@@ -211,8 +211,7 @@ export default function Home() {
           <p>About 30 minutes, at a time you pick. {WA_EXPECT} {COST_LINE}</p>
           <div className="flex flex-wrap gap-3">
             <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
-            <Link to={BOOK_COVER} className="btn btn-secondary">{BOOK_LABEL}</Link>
-            <Link to={BOOK_WILLS} className="btn btn-secondary">{WILLS_BOOK_LABEL}</Link>
+            <WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn btn-secondary">Chat about a will</WhatsAppCta>
           </div>
         </aside>
       </div>
