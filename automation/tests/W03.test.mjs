@@ -488,3 +488,30 @@ test('W03.json: lead insert writes the opener extras + provenance ($16), escalat
   assert.equal(WF.connections['Action?'].main[idx][0].node, 'Escalate to a person (opener)');
   assert.ok(WF.nodes.find((n) => n.name === 'W03 step').parameters.jsCode.includes('parseOpener'), 'step node inlines the tested logic');
 });
+
+test('lead_optins row (contract 17 Oct): opener and CTWA-ad consent map to the contract columns; channel left to the trigger', () => {
+  const op = opStep(OPENER('cover and my new bond', 'an authorised adviser', 'w-learn-bond', 'fb/cycle1/carousel-3')).actions.find((a) => a.kind === 'insert_lead').row.optin;
+  assert.deepEqual(op, {
+    lead_id: 'lead_opener_1', brand_id: 'smc', ref_code: 'w-learn-bond', via_source: 'fb', via_campaign: 'cycle1', via_content: 'carousel-3',
+    referral_source_type: null, referral_source_id: null, referral_source_url: null, referral_headline: null, ctwa_clid: null,
+    consent_version: 'CONSENT-GENERIC-v5web', consent_text: 'I agree that SortMyCover may message me on WhatsApp about this and share my details with an authorised adviser.',
+    opener_text: OPENER('cover and my new bond', 'an authorised adviser', 'w-learn-bond', 'fb/cycle1/carousel-3'), message_sid: 'SMopener1',
+    received_at: '2026-10-17T14:50:00+02:00', recorded_by: 'W03',
+  });
+  assert.equal('channel' in op, false);
+  const ctx = (id) => ({ at: '2026-10-17T15:00:00+02:00', mobile: '+27600000559', profile_name: 'Ann', lead_id: 'lead_tap_2', broker: MARK, brand: BRAND, existing_open_lead_id: null, suppressed: false, wamid: id, is_synthetic: true });
+  const referral = { source_type: 'ad', source_id: '1202', source_url: 'https://www.instagram.com/p/x', headline: 'H', ctwa_clid: 'clid_9' };
+  const first = W3.step(null, { from: '27600000559', id: 'SMg', timestamp: '1', type: 'text', text: { body: 'hi' }, referral }, ctx('SMg'));
+  const tap = W3.step(first.thread, { id: 'SMh', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx('SMh'));
+  const o = tap.actions.find((a) => a.kind === 'insert_lead').row.optin;
+  assert.deepEqual([o.referral_source_type, o.referral_source_id, o.referral_source_url, o.ctwa_clid, o.message_sid, o.ref_code, o.via_source, o.consent_version], ['ad', '1202', 'https://www.instagram.com/p/x', 'clid_9', 'SMh', null, null, 'ctwa-named-v3']);
+});
+
+test('W03.json: lead_optins insert runs after the lead insert, idempotent on message_sid, never blocks the run', () => {
+  const n = WF.nodes.find((x) => x.name === 'Opt-in record (lead_optins)');
+  assert.match(n.parameters.query, /^INSERT INTO public\.lead_optins \(lead_id, brand_id, ref_code,/);
+  assert.match(n.parameters.query, /ON CONFLICT \(message_sid\) DO NOTHING/);
+  assert.equal(/\bchannel\b/.test(n.parameters.query), false, 'channel is derived by the trigger');
+  assert.equal(n.onError, 'continueRegularOutput');
+  assert.ok(WF.connections['Insert lead (consent at the tap)'].main[0].some((x) => x.node === 'Opt-in record (lead_optins)'));
+});

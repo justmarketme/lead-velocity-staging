@@ -124,6 +124,24 @@ function provenanceFor({ op = null, origin = {}, referral = null, wamid = null, 
   };
 }
 
+/**
+ * One public.lead_optins row (append-only, migration 20261017150000_lead_optins.sql on feat/optin-provenance; contract in
+ * side-session-notes OPTIN-PROVENANCE-CONTRACT-2026-10-17.md). channel is left null: a trigger derives it.
+ */
+function optinRecord(row) {
+  const pv = row.provenance || {};
+  const r = pv.referral || {};
+  const v = pv.via || {};
+  return {
+    lead_id: row.id, brand_id: row.brand_id, ref_code: pv.page_ref || null,
+    via_source: v.source || null, via_campaign: v.campaign || null, via_content: v.content || null,
+    referral_source_type: r.source_type || null, referral_source_id: r.source_id || null, referral_source_url: r.source_url || null,
+    referral_headline: r.headline || null, ctwa_clid: r.ctwa_clid || null,
+    consent_version: row.consent_text_version, consent_text: row.consent_text || null, opener_text: pv.opener_text || null,
+    message_sid: pv.inbound_sid || null, received_at: pv.received_at || row.consent_at, recorded_by: 'W03',
+  };
+}
+
 // ---------------------------------------------------------------- tap-only questions (4.6 step 3)
 const AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];
 const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_1499', 'R1,250 to R1,499'], ['budget_1500_plus', 'R1,500 or more']];
@@ -274,6 +292,7 @@ function step(thread, msg, ctx) {
       row.provenance = provenanceFor({ origin: o, referral: t.first_referral || null, wamid: ctx.wamid, at: ctx.at, text: '', version: t.consent.version });
       row.provenance.first_inbound_sid = t.first_wamid || null;
       row.consent_source = row.provenance.door;
+      row.optin = optinRecord(row);
       actions.push({ kind: 'insert_lead', row });
       // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)
       if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });
@@ -321,6 +340,7 @@ function openerIntake(op, origin, ctx, actions) {
     provenance: provenanceFor({ op, origin, referral: ctx.referral, wamid: ctx.wamid, at: ctx.at, text: ctx.text, version: OPENER_CONSENT_VERSION }),
     is_synthetic: !!ctx.is_synthetic,
   };
+  row.optin = optinRecord(row);
   actions.push({ kind: 'insert_lead', row });
   const greet = openerGreeting(op, ctx.profile_name);
   if (op.wills) {
@@ -473,4 +493,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { parseOpener, openerGreeting, provenanceFor, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

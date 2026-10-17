@@ -211,6 +211,21 @@ SELECT id, brand_id, 'W03', 'lead', 'ctwa_consent', jsonb_build_object('consent_
 ON CONFLICT DO NOTHING
 RETURNING lead_id;`,
     '={{ [ $json.row.id, $json.row.brand_id, $json.row.origin, $json.row.ref, $json.row.ad_id, $json.row.ctwa_clid, $json.row.phone, $json.row.first_name, $json.row.consent_text, $json.row.consent_text_version, $json.row.consent_mode, $json.row.consent_at, $json.row.wa_delivered_at, $json.row.is_synthetic, $json._wamid, JSON.stringify({ consent_source: $json.row.consent_source || "ctwa", source: $json.row.source || null, product_interest: $json.row.product_interest || null, reasons: $json.row.reasons || null, utm_source: $json.row.utm_source || null, utm_campaign: $json.row.utm_campaign || null, utm_content: $json.row.utm_content || null, conv_state: $json.row.conv_state || null, provenance: $json.row.provenance || null }) ] }}'));
+  // 17 Oct 2026: one append-only public.lead_optins row per consent (where the opt-in came from). Runs only after the lead
+  // row was inserted (0 rows on a retry -> nothing here). The table comes with migration 20261017150000 (feat/optin-provenance):
+  // until it is applied this node errors and the run carries on (continueRegularOutput), so the lead and the reply never wait.
+  n.push({ ...pg('Opt-in record (lead_optins)', [2460, 20],
+`INSERT INTO public.lead_optins (lead_id, brand_id, ref_code, via_source, via_campaign, via_content, referral_source_type,
+                                referral_source_id, referral_source_url, referral_headline, ctwa_clid, consent_version,
+                                consent_text, opener_text, message_sid, received_at, recorded_by)
+SELECT $1::uuid, $2::uuid, o->>'ref_code', o->>'via_source', o->>'via_campaign', o->>'via_content', o->>'referral_source_type',
+       o->>'referral_source_id', o->>'referral_source_url', o->>'referral_headline', o->>'ctwa_clid', o->>'consent_version',
+       o->>'consent_text', o->>'opener_text', o->>'message_sid', (o->>'received_at')::timestamptz, o->>'recorded_by'
+  FROM (SELECT $3::jsonb AS o) x
+ WHERE o->>'consent_version' IS NOT NULL
+ON CONFLICT (message_sid) DO NOTHING
+RETURNING id;`,
+    "={{ (() => { const r = $('Action?').item.json.row || {}; return [ $json.lead_id, r.brand_id, JSON.stringify(r.optin || {}) ]; })() }}"), onError: 'continueRegularOutput' });
   n.push(code('Mint lead_token', [2460, 140], LT +
     "// CONTRACTS.md lead_token: minted on insert, never stored; travels to W01 core / W06 so any web link (page booking fallback) carries it.\nreturn $input.all().map((it) => ({ json: { lead_id: it.json.lead_id, lead_token: LT.mintLeadToken(it.json.lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token } }));"));
   n.push(pg('Update lead (answers / out-of-band)', [2240, 280],
@@ -298,6 +313,7 @@ RETURNING id;`,
   link(c, 'Live send? (W03)', 'Store outbound (W03)', 1);
   link(c, 'WhatsApp send (session)', 'Store outbound (W03)');
   link(c, 'Insert lead (consent at the tap)', 'Mint lead_token');
+  link(c, 'Insert lead (consent at the tap)', 'Opt-in record (lead_optins)');
   link(c, 'CTWA redirect (GET /wa/:ref)', 'Build redirect');
   link(c, 'Build redirect', 'Respond 302 to wa.me');
   link(c, 'Meta webhook verify (GET)', 'Check hub.verify_token');
