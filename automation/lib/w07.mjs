@@ -632,7 +632,7 @@ export function neverSilentSend(j = {}) {
 // every action from the labels; applyModelReply() swaps the conversational fixed lines for the reply when it passes the
 // deterministic gates. STOP, distress, a person taking over, consent and the qualifying taps stay fixed.
 export const TURN_PROMPT = 'lindi-turn-v1.0.0';
-export const TURN_MAX_TURNS = 8;
+export const TURN_MAX_TURNS = 10; // the last ~10 turns of the chat (main session, 17 Oct)
 const PLACEHOLDER = /\{(\w+)\}/gu;
 
 /** Approved FAQ answers as "FAQ-xx: text" lines; unknown placeholders drop their sentence (never sent with braces). */
