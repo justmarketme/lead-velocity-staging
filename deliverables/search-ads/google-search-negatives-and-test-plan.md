@@ -18,7 +18,7 @@ Marshall's question for every rand: **are we spending on the most relevant searc
 
    Ads pay for every raw lead, not only delivered ones (under-R750 band held, no-replies, no-shows). At an assumed 60% delivery rate, max ad spend per **raw** lead is about **R267** (40% profit) or **R217** (50% profit).
 
-   **Working target (17 Oct 2026, pending Jono):** R350 ad spend per delivered lead, hard stop at R450; watch R210–R270 per raw lead in Ads Manager. Two inputs to confirm: whether R16,500 included VAT (if so, revenue is R717 and every figure drops by about R100), and Jono's profit target. Replace the 60% delivery rate with the real rate once the CRM has 30–50 leads.
+   **Working target (17 Oct 2026, pending Jono):** R350 ad spend per delivered lead, hard stop at R450; watch R210–R270 per raw lead in Ads Manager. Jono confirmed on 17 Oct 2026 that the R16,500 had **no VAT** in it, so revenue is R825 per lead and these figures stand. Still to confirm: Jono's profit target (40% or 50%). Replace the 60% delivery rate with the real rate once the CRM has 30–50 leads.
 4. **Google financial services verification.** Check whether Google requires advertiser verification for financial services in South Africa before ads can run (not verified here).
 
 ## 2. Negative keywords (paste-ready)
