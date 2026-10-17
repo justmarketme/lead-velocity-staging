@@ -17,8 +17,11 @@ const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const MS_SECRET = { httpCustomAuth: { id: '', name: 'Microsoft Graph broker-connect client secret (W20)' } };
-const HOWZIT_MAIL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
-const HOWZIT_CAL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)' } };
+const HOWZIT_MAIL = { oAuth2Api: { id: '', name: 'MS Graph app-only - howzit@ Mail.Send' } };
+// 17 Oct 2026: the delegated howzit@ credentials do not exist on the VPS n8n, and a missing credential stops the whole
+// workflow before its first node. Both howzit@ roles use the app-only Graph credential that W22/W36 already run on
+// (Mail.Send works app-only; the shared-calendar fallback needs Calendars.ReadWrite application permission to be granted).
+const HOWZIT_CAL = { oAuth2Api: { id: '', name: 'MS Graph app-only - howzit@ Mail.Send' } };
 const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: false, saveDataSuccessExecution: 'none', errorWorkflow: 'smc-w22' };
 const PRE = (lib) => `const L = require('lv-automation').${lib.replace(/\.mjs$/, '')};\n`;
 const HOL = `const HOL = new Set(require('lv-automation').holidays.holidays.map((h) => h.date));\n`;
@@ -259,7 +262,7 @@ RETURNING id;`, "={{ [($('Decide (w05.decide + MX)').first().json.dec.plan || {}
   // fail-closed error item (no Graph call, booking kept, W22 alert shared_calendar_id_missing), never calendars//events.
   n.push(code('Event body (shared)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: L.sharedEventItem(d.ctx, d.dec.plan, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID }, { portalUrl: $env.PORTAL_URL }) }];`));
   n.push(ifTrue('Shared calendar id?', '!$json.error && !!$json.url'));
-  n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
+  n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
   n.push(code('After event (w05.finish)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL, ics_secret: $env.LEAD_TOKEN_SECRET });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];`));
   n.push(pg('Save event ids + lead (stage, broker, invite email)', `WITH a AS (
   UPDATE public.appointments
@@ -291,7 +294,7 @@ ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d =
   n.push(http('Send WhatsApp', 'POST', '=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages', { params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.wa) }}' } }));
   n.push(pg('Touch leads.last_contact_at (lead sends)', `-- I-38d: every lead-facing send Meta accepted (wamid) updates last_contact_at; broker sends never.
 UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> '' RETURNING id;`, "={{ [$('Live send?').item.json.lead_id, $('Live send?').item.json.to, (($json.body || {}).messages || [{}])[0].id || ''] }}"));
-  n.push(http('Email from howzit@ (Graph sendMail)', 'POST', '=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail', { cred: HOWZIT_MAIL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.mail) }}' } }));
+  n.push(http('Email from howzit@ (Graph sendMail)', 'POST', '=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail', { cred: HOWZIT_MAIL, params: { authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.mail) }}' } }));
   n.push(sub('-> W06 First touch (booking event)', 'W06 First touch'));
   n.push(sub('-> W09 Reminder sequence (schedule / rebuild)', 'W09 Reminder sequence'));
   n.push(sub('-> W07 post-booking contact confirm', 'W07 Conversation agent (Lindi)'));
@@ -325,7 +328,7 @@ SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a
   // calendar with the howzit@ Calendars credential; otherwise the broker's own calendar with the W04 graph_token.
   n.push(code('Method calendar target (w05.graphEventTarget)', 'w05.mjs', `const x = $('Plan method change (w05.planUpdateMethod)').first().json;\nconst t = L.graphEventTarget(x.booking, x.broker, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn [{ json: { target: t, route: t.error || t.route === 'none' ? 'skip' : t.route, broker_id: x.booking.broker_id } }];`));
   n.push(sw('Method event calendar?', '={{ $json.route }}', ['shared', 'broker', 'skip']));
-  n.push(http('Graph PATCH event (method, howzit@ shared calendar)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));
+  n.push(http('Graph PATCH event (method, howzit@ shared calendar)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { cred: HOWZIT_CAL, params: { authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));
   n.push(code('graph_token input (method)', 'w05.mjs', `return [{ json: { op: 'graph_token', broker_id: $json.broker_id } }];`));
   n.push(sub('W04 graph_token (method, waits)', 'W04 Slots API', true));
   n.push(http('Graph PATCH event (method, ASSUMPTION)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));

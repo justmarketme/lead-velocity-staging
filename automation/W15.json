@@ -631,8 +631,8 @@
       "parameters": {
         "method": "DELETE",
         "url": "={{ $json.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
         "options": {
           "timeout": 10000,
           "response": {
@@ -643,9 +643,9 @@
         }
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
@@ -795,8 +795,8 @@
       "parameters": {
         "method": "POST",
         "url": "https://graph.microsoft.com/v1.0/me/sendMail",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ message: { subject: $json.subject, body: { contentType: 'Text', content: $json.text }, toRecipients: [{ emailAddress: { address: $json.to } }] }, saveToSentItems: true }) }}",
@@ -810,9 +810,9 @@
         }
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,

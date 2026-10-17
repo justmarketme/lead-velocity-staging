@@ -16,8 +16,11 @@ const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const TWILIO = { httpBasicAuth: { id: '', name: 'Twilio API key (Basic)' } };
-const HOWZIT_CAL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)' } };
-const HOWZIT = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
+// 17 Oct 2026: the delegated howzit@ credentials do not exist on the VPS n8n, and a missing credential stops the whole
+// workflow before its first node. Both howzit@ roles use the app-only Graph credential that W22/W36 already run on
+// (Mail.Send works app-only; the shared-calendar fallback needs Calendars.ReadWrite application permission to be granted).
+const HOWZIT_CAL = { oAuth2Api: { id: '', name: 'MS Graph app-only - howzit@ Mail.Send' } };
+const HOWZIT = { oAuth2Api: { id: '', name: 'MS Graph app-only - howzit@ Mail.Send' } };
 const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: true, errorWorkflow: 'smc-w22' };
 const RETRY = { retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 };
 
@@ -810,7 +813,7 @@ return out;`));
   n.push(sub('W04 graph_token', pos(9, -1), 'W04 Slots API', true, "Called with { op: 'graph_token', broker_id }; waits -> { access_token } (W04 is the only refresher)."));
   n.push(switchOn('Graph calendar? (shared howzit@ vs broker)', pos(9, -1.5), '={{ $json.graph_route }}', ['shared', 'broker', 'skip']));
   n.push(node('Graph DELETE event (howzit@ shared calendar)', 'httpRequest', 4.2, pos(10, -2), {
-    method: 'DELETE', url: '={{ $json.url }}', authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api',
+    method: 'DELETE', url: '={{ $json.url }}', authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api',
     options: { timeout: 10000, response: { response: { neverError: true } } },
   }, { credentials: HOWZIT_CAL, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
   n.push(noop('Graph delete skipped (no shared calendar id; W22 shared_calendar_id_missing)', pos(10, -0.5)));
@@ -822,7 +825,7 @@ return out;`));
   n.push(waSend('Send WhatsApp (broker notice)', pos(10, 0)));
   n.push(ifTrue('Live send? (broker email)', pos(9, 1), "$env.DRY_RUN_SENDS !== 'true'"));
   n.push(node('Email broker from howzit@ (Graph sendMail)', 'httpRequest', 4.2, pos(10, 1), {
-    method: 'POST', url: 'https://graph.microsoft.com/v1.0/me/sendMail', authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api',
+    method: 'POST', url: 'https://graph.microsoft.com/v1.0/me/sendMail', authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api',
     sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify({ message: { subject: $json.subject, body: { contentType: 'Text', content: $json.text }, toRecipients: [{ emailAddress: { address: $json.to } }] }, saveToSentItems: true }) }}",
     options: { timeout: 10000, response: { response: { neverError: true } } },
   }, { credentials: HOWZIT, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));

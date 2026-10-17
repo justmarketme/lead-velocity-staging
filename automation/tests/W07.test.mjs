@@ -632,7 +632,7 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
 });
 
 test('never silent: fallback text per route and language, one prebuilt recorded send keyed to the inbound', () => {
-  assert.equal(W.neverSilentText('W04', { first_name: 'Jono' }), "Thanks for your message, Jono! I'm Lindi, SortMyCover's AI booking assistant. I couldn't pull up the adviser's open times just now, so a person from our team will message you here shortly.");
+  assert.equal(W.neverSilentText('W04', { first_name: 'Jono' }), "Thanks for your message, Jono! I'm Lindi from SortMyCover. I couldn't pull up the adviser's open times just now, so a person from our team will message you here shortly.");
   assert.match(W.neverSilentText('W03', {}), /^Thanks for your message! .*Something went wrong on my side just now/);
   assert.match(W.neverSilentText('W04_list', { lang: 'af' }), /^Dankie vir jou boodskap!.*oop tye/);
   const s = W.neverSilentSend({ route: 'W04', msg: { from: '+27725548057', wamid: 'SMx', profile_name: 'Jono' }, lead: { id: 'lead_1', first_name: 'TestyC', language: 'en' } });
@@ -672,7 +672,7 @@ test('Cal.com booking_confirm_chat tap: routes to the contact step, which asks t
   assert.equal(s.conv_state.contact_step, 'call_number');
   assert.equal(s.conv_state.via, 'calcom');
   assert.equal(s.reply.type, 'buttons');
-  assert.match(s.reply.body, /^Thanks, Lerato! I'm Lindi, SortMyCover's AI booking assistant\. A few quick things before your call: is this WhatsApp number the best one to reach you on\?$/);
+  assert.match(s.reply.body, /^Thanks, Lerato! I'm Lindi from SortMyCover\. A few quick things before your call: is this WhatsApp number the best one to reach you on\?$/);
   assert.deepEqual(s.reply.buttons.map(([id]) => id), ['call_number_yes', 'call_number_other']);
   assert.equal(W.contactStep({ ...ld, conv_state: s.conv_state }, { payload: 'call_number_yes' }).conv_state.contact_step, 'alt', 'then the existing sequence');
 });

@@ -34,15 +34,14 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W03 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W04 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W05 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W05 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
-| W05 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
+| W05 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
 | W06 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W06 | Twilio API key (Basic) | `httpBasicAuth` |
 | W07 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W08 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W09 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W10 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W10 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
+| W10 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
 | W11 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W12 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W13 | LV Supabase - n8n_app (least privilege) | `postgres` |
@@ -50,8 +49,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W14 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
 | W14 | WhatsApp Cloud API (SortMyCover) | `httpHeaderAuth` |
 | W15 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W15 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
-| W15 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
+| W15 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
 | W15 | Twilio API key (Basic) | `httpBasicAuth` |
 | W16 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W16 | Paystack secret key (Authorization: Bearer) | `httpHeaderAuth` |
@@ -120,11 +118,10 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | Console -> n8n shared secret | `httpHeaderAuth` | W25 | Webhook header auth on `POST /billing/pricing/publish` | No `.env` name. Same value configured in the console's server-side caller |
 | Hostinger SFTP (static sites) | `sftp` | W25 | Host, port, user, password or key | Hostinger hPanel SFTP account for the static sites (password manager). No `.env` name |
 | LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35, W37 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
-| MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W22, W36 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
+| MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W05, W10, W15, W22, W36 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Meta Page Token | `httpHeaderAuth` | W30, W31 | `Authorization: Bearer …` | `PAGE_ACCESS_TOKEN` |
 | Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20, W22 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
-| Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` | W05, W10, W15 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ in the n8n UI (C2) |
-| Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W05, W14, W15, W17, W19, W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |
+| Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W14, W17, W19, W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |
 | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` | W20 | OAuth2 client credentials | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` | W32 | Microsoft Outlook OAuth2 | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token | Custom auth JSON adding `client_id` + `client_secret` to the token request body | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (broker refresh tokens stay in the Vault and never go in a credential) |

@@ -1702,8 +1702,7 @@
       "parameters": {
         "method": "PATCH",
         "url": "={{ $('Graph target (move)').item.json.gt.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1723,12 +1722,13 @@
               "neverError": true
             }
           }
-        }
+        },
+        "genericAuthType": "oAuth2Api"
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
@@ -1844,8 +1844,7 @@
       "parameters": {
         "method": "DELETE",
         "url": "={{ $('Graph target (cancel)').item.json.gt.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
         "options": {
           "timeout": 10000,
           "response": {
@@ -1853,12 +1852,13 @@
               "neverError": true
             }
           }
-        }
+        },
+        "genericAuthType": "oAuth2Api"
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,

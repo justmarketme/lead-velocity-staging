@@ -522,7 +522,7 @@ export function contactStep(lead, msg, lookup = null) {
     // W37 booking_confirm_chat tap (Cal.com booking): opens the 24-h window; same contact sequence as a WhatsApp booking
     const first = sanitiseField('first_name', lead.first_name || '').value;
     out.conv_state.contact_step = 'call_number'; out.conv_state.attempts = 0; out.conv_state.via = 'calcom';
-    out.reply = { type: 'buttons', body: `Thanks${first ? `, ${first}` : ''}! I'm Lindi, SortMyCover's AI booking assistant. A few quick things before your call: is this WhatsApp number the best one to reach you on?`,
+    out.reply = { type: 'buttons', body: `Thanks${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. A few quick things before your call: is this WhatsApp number the best one to reach you on?`,
       buttons: [['call_number_yes', 'Yes, this one'], ['call_number_other', 'Use another number']] };
     return out;
   }
@@ -609,7 +609,7 @@ export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
   if (lang === 'af') {
     return `Dankie vir jou boodskap${first ? ` ${first}` : ''}! Ek is Lindi, SortMyCover se KI-besprekingsassistent. ${slots ? 'Ek kon nie nou die adviseur se oop tye kry nie' : 'Iets het nou aan my kant skeefgeloop'}, so iemand van ons span sal jou kort-kort hier ’n boodskap stuur.`;
   }
-  return `Thanks for your message${first ? `, ${first}` : ''}! I'm Lindi, SortMyCover's AI booking assistant. ${slots ? "I couldn't pull up the adviser's open times just now" : 'Something went wrong on my side just now'}, so a person from our team will message you here shortly.`;
+  return `Thanks for your message${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. ${slots ? "I couldn't pull up the adviser's open times just now" : 'Something went wrong on my side just now'}, so a person from our team will message you here shortly.`;
 }
 /** The guard's send: one prebuilt text through smc-whatsapp-send (record:true, so it lands in communications). */
 export function neverSilentSend(j = {}) {

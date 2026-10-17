@@ -23,7 +23,6 @@ export const SECRETS = [
   ['Twilio API key', 'TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET', [
     ['httpBasicAuth', 'Twilio (SMC voice)'], ['httpBasicAuth', 'Twilio API key (Basic)']]],
   ['Microsoft Entra app (howzit@ and broker connect)', 'MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET', [
-    ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)'],
     ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)'],
     ['microsoftOutlookOAuth2Api', 'Microsoft Graph (howzit@)'], ['oAuth2Api', 'Microsoft Graph (howzit mailbox, app-only)'],
     ['oAuth2Api', 'MS Graph app-only - howzit@ Mail.Send'], ['httpCustomAuth', 'Microsoft Graph broker-connect client secret (W20)']]],

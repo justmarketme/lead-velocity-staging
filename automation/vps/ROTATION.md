@@ -21,11 +21,10 @@ Printed by `node automation/vps/credential-copies.mjs` from `automation/W*.json`
 | Anthropic API key | ANTHROPIC_API_KEY | Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 |
 | Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio (SMC voice) | `httpBasicAuth` | W32 |
 | Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15, W22 |
-| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` | W05, W10, W15 |
-| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W05, W14, W15, W17, W19, W34 |
+| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W14, W17, W19, W34 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` | W32 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` | W20 |
-| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W22, W36 |
+| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W05, W10, W15, W22, W36 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token |
 | Supabase service-role key | SUPABASE_SERVICE_ROLE_KEY | Supabase Storage (service role) | `httpHeaderAuth` | W23 |
 | Supabase service-role key | SUPABASE_SERVICE_ROLE_KEY | Supabase service role (W16 magic link) | `httpHeaderAuth` | W16 |

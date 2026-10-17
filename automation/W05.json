@@ -1158,8 +1158,8 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $json.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.event) }}",
@@ -1174,9 +1174,9 @@
         }
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
@@ -1641,8 +1641,8 @@
       "parameters": {
         "method": "POST",
         "url": "=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.mail) }}",
@@ -1657,9 +1657,9 @@
         }
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
@@ -2261,8 +2261,8 @@
       "parameters": {
         "method": "PATCH",
         "url": "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}",
@@ -2277,9 +2277,9 @@
         }
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
