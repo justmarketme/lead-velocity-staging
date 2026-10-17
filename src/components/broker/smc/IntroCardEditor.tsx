@@ -117,19 +117,29 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   const [videoBusy, setVideoBusy] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoNonce, setVideoNonce] = useState(0);
-  // The broker must have seen the video before the approve switch unlocks: at least 90% of it actually played
-  // (video.played, so scrubbing to the end doesn't count).
-  const [videoWatched, setVideoWatched] = useState(false);
+  // The broker must have seen the video before the approve switch unlocks: it unlocks once playback reaches the
+  // end (or 90% of it has played). Progress is kept per video take, so a re-signed link or a page reload doesn't
+  // make him watch again, and the furthest point reached is shown so he can see what it's waiting for.
+  const [watchedPct, setWatchedPct] = useState(0);
+  const watchKey = video ? `lv-intro-video-watched:${video.id}:v${video.version}` : null;
+  const videoWatched = watchedPct >= 90;
   const videoResigned = useRef(false);
-  useEffect(() => { setVideoWatched(false); }, [videoUrl]);
+  useEffect(() => {
+    let saved = 0;
+    try { saved = watchKey && sessionStorage.getItem(watchKey) === "1" ? 100 : 0; } catch { /* storage blocked */ }
+    setWatchedPct(saved);
+  }, [watchKey]);
   function trackWatched(e: SyntheticEvent<HTMLVideoElement>) {
     const v = e.currentTarget;
     if (!v.duration || !Number.isFinite(v.duration)) return;
-    let seen = 0;
-    for (let i = 0; i < v.played.length; i++) seen += v.played.end(i) - v.played.start(i);
-    if (seen >= v.duration * 0.9) setVideoWatched(true);
+    let played = 0;
+    for (let i = 0; i < v.played.length; i++) played += v.played.end(i) - v.played.start(i);
+    const reachedEnd = e.type === "ended" || (!v.paused && v.currentTime >= v.duration - 0.5);
+    const pct = reachedEnd ? 100 : Math.min(100, Math.round((played / v.duration) * 100));
+    setWatchedPct((prev) => Math.max(prev, pct));
+    if (pct >= 90 && watchKey) { try { sessionStorage.setItem(watchKey, "1"); } catch { /* storage blocked */ } }
   }
-  // Signed URLs last 10 minutes: if the page sat open longer, sign a fresh one once instead of showing a dead player.
+  // If the signed link has expired anyway, sign a fresh one once instead of showing a dead player.
   function videoFailed() {
     if (videoResigned.current) return;
     videoResigned.current = true;
@@ -367,7 +377,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <ApprovalSwitch label="Approve my intro video" approved={false} blocked={preview || !videoUrl || !videoWatched}
                 blockedNote={preview ? "Preview only: nothing is saved."
                   : !videoUrl ? "Wait until the private video preview loads before approving."
-                  : "Watch your video to the end first. The switch unlocks once you've seen it."}
+                  : `Watch your video to the end first. The switch unlocks once you've seen it${watchedPct > 0 ? ` (watched ${watchedPct}%)` : ""}.`}
                 busy={videoBusy} error={videoError} onConfirm={approveVideo} />
             )}
             {video?.state === "approved" && <p role="status" className={c.ok}>You approved this video. Lead Velocity will complete the delivery check before using it with clients.</p>}

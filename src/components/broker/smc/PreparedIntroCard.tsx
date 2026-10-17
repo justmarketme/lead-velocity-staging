@@ -19,11 +19,12 @@ import ApprovalSwitch from "./ApprovalSwitch";
 interface CardRow { id: string; version: number; url: string | null; state: string | null; is_current: boolean; approved_at: string | null }
 
 /** https links are used as they are; anything else is a path in the private broker-media bucket and gets signed. */
-export async function viewUrl(url: string | null): Promise<string | null> {
+// One hour: a broker may read the page for a while before pressing play.
+export async function viewUrl(url: string | null, seconds = 3600): Promise<string | null> {
   if (!url) return null;
   if (/^https?:/i.test(url)) return url;
   const key = url.replace(/^\/+/, "").replace(new RegExp(`^${MEDIA_BUCKET}/`), "");
-  const { data } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(key, 600);
+  const { data } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(key, seconds);
   return data?.signedUrl || null;
 }
 
