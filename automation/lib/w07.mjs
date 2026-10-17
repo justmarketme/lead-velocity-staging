@@ -86,7 +86,7 @@ export function emailReplyPlan(lead = {}, text = '', { hasMx } = {}) {
   }
   const changed = String(lead.email || '').trim().toLowerCase() !== c.email.toLowerCase();
   return { action: 'save', email: c.email, email_status: c.status || 'mx_ok', changed, issue: { op: 'issue', lead_id: lead.id },
-    reply: `Thank you. We've emailed a link and a 6-digit code to ${c.email}. Tap the link, or reply here with the code, to confirm it.` };
+    reply: `Thank you. We've emailed a confirmation link to ${c.email}. Please tap it to confirm your email.` };
 }
 /**
  * I-45d: a delivery receipt for a W06 intro card / booking_confirmed -> W06 { op:'status' } (disclosure evidence +
@@ -150,7 +150,8 @@ function routeCore(msg, ctx) {
   if (ctx.lead.opted_out_at) return { route: 'ignore_opted_out', reason: 'opted out: logged only, no reply (W15 sent the one confirmation)' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
-  if (ctx.lead.email_verify_pending && !msg.payload && !msg.list_id && EMAIL_CODE_RE.test(msg.text || '')) return { route: 'email_code', reason: 'email verification code' };
+  // 18 Oct 2026 (Jono): the email is confirmed by the link only. No code is offered any more, so a typed 6-digit number is
+  // an ordinary message (the code check would answer "That code doesn't match").
   // 2026-10-11: a typed email address from a lead whose email is not verified -> save it + smc-email-verify (W07 "Email reply")
   if (ctx.lead.email_verified !== true && !msg.payload && !msg.list_id && typedEmail(msg.text)) return { route: 'email_reply', reason: 'typed email address' };
   const state = ctx.lead.conv_state?.state || 'unbooked';

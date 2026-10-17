@@ -609,7 +609,7 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
   assert.equal(W.routeInbound(msg('STOP'), { lead }).route, 'W15');
   const ok = W.emailReplyPlan(lead, 'My email is Lerato.M@gmail.com.');
   assert.deepEqual([ok.action, ok.email, ok.changed, ok.issue], ['save', 'lerato.m@gmail.com', true, { op: 'issue', lead_id: lead.id }]);
-  assert.match(ok.reply, /emailed a link and a 6-digit code to lerato\.m@gmail\.com/);
+  assert.equal(ok.reply, "Thank you. We've emailed a confirmation link to lerato.m@gmail.com. Please tap it to confirm your email."); // link only (18 Oct 2026)
   const typo = W.emailReplyPlan(lead, 'lerato@gmial.com');
   assert.deepEqual([typo.action, typo.reason, typo.suggestion], ['reply', 'typo', 'lerato@gmail.com']);
   assert.equal(W.emailReplyPlan(lead, 'x@mailinator.com').action, 'reply', 'disposable refused');

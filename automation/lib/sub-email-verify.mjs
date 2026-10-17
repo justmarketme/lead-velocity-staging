@@ -4,10 +4,10 @@
 // build-sub-workflows.mjs) does the SQL, the Resend call and the WhatsApp reply. Code node form:
 //   const L = require('lv-automation').subEmailVerify;
 //
-// One email, two ways to confirm (capture-v2 COPY.verify_body): a one-tap link https://sortmycover.co.za/v/<token>
-// (served by the same sub-workflow's GET webhook v/:token) and a 6-digit code the lead types on WhatsApp (W07 routes
-// it here: route 'email_code'). Sent from hello@sortmycover.co.za through Resend (RESEND_API_KEY, the CRM's existing
-// key). Only sha256(lead_id|code) is stored; the code exists in the email and nowhere else.
+// One email, one way to confirm (capture-v2 COPY.verify_body): a one-tap link (served by the same sub-workflow's GET
+// webhook v/:token). 18 Oct 2026 (Jono): link only. The 6-digit code is no longer in the email or any message and W07 no
+// longer routes typed numbers here; op 'code' / codePlan stay for old emails but nothing offers a code. Sent from
+// hello@sortmycover.co.za through Resend (directly, or through the smc-email-send relay when n8n has no Resend key).
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const C = require('../ctwa/capture-v2.js');

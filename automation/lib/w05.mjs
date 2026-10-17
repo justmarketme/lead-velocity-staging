@@ -658,7 +658,7 @@ export function leadUpdate(ctx, p) {
 /**
  * The HELD slot (verify gate, 2026-10-11): what follows the insert of a pending_verification row instead of finish().
  * No Outlook event, no Teams link, no invite, no broker notice, no W06 / W09 / CAPI: the broker learns nothing yet.
- * The lead gets ONE WhatsApp (booking_held_verify_email: the time is held, confirm the email by the link or the code,
+ * The lead gets ONE WhatsApp (booking_held_verify_email: the time is held, confirm the email by the link (link only since 18 Oct 2026),
  * deadline) and the verification email (smc-email-verify issue). Without any email (chat tap) -> ask for it (W28 ask_email).
  */
 export function holdPending(ctx, p, row) {
@@ -688,7 +688,7 @@ export function holdPending(ctx, p, row) {
 /** The lead already has a held slot and picks again: one reminder to confirm the email first (session text: they just wrote). */
 export function heldReminderMessage(lead, held) {
   const start = held.appointment_date ?? held.start;
-  const body = `You already have ${dateLabel(start)} at ${timeLabel(start)} held for you. Please confirm your email first: tap the link we emailed you, or reply here with the 6-digit code.`;
+  const body = `You already have ${dateLabel(start)} at ${timeLabel(start)} held for you. Please confirm your email first: tap the link we emailed you.`;
   return { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(lead.phone || '').replace(/^\+/, ''), type: 'text', text: { body } };
 }
 
