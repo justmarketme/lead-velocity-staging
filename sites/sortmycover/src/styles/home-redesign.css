@@ -10,7 +10,6 @@
 .w-in{display:inline-block;will-change:transform}
 .w-line{display:block}
 .smc-home{position:relative}
-.smc-home::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:60;background:url("/grain.png");opacity:.045;mix-blend-mode:multiply}
 .hx-section .eyebrow-light,.hx-dark .eyebrow{letter-spacing:.16em}
 .hx-hero-copy .eyebrow{display:inline-flex;align-items:center;gap:10px}
 .hx-hero-copy .eyebrow::before{content:"";width:28px;height:2px;background:var(--sm-amber-dark)}

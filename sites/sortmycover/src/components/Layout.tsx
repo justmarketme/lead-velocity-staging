@@ -108,7 +108,7 @@ export function Header() {
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative">
+    <div className="site">
       <ScrollToTop />
       <Enhance />
       <a className="skip" href="#main">Skip to content</a>

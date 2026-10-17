@@ -17,6 +17,7 @@ export default function Cover() {
       description="Life cover, disability cover, severe illness cover and income protection in plain words: what each is, what it is not, and questions to ask an adviser."
       path="/cover/"
       h1="Cover types, in plain words"
+      accent="in plain words"
       lede="Four kinds of long-term insurance an adviser can talk to you about: what each one is, what it is not, and questions to ask an adviser. Information, not advice."
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/cover/" }]}
       ctaKind="cover"

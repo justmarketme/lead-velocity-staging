@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 export default function Advisers() {
   return (
-    <PageFrame title="Your adviser: how to check them | SortMyCover" description="Who your adviser is, how to check them on the FSCA register, and what an adviser must tell you." path="/advisers/" h1="Your adviser" lede="You are introduced to one adviser. Here is how to check them and what they must tell you." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Advisers", path: "/advisers/" }]}>
+    <PageFrame title="Your adviser: how to check them | SortMyCover" description="Who your adviser is, how to check them on the FSCA register, and what an adviser must tell you." path="/advisers/" h1="Your adviser" accent="adviser" lede="You are introduced to one adviser. Here is how to check them and what they must tell you." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Advisers", path: "/advisers/" }]}>
       <h2>Who the adviser is</h2>
       <p>The adviser works for, or is, a financial services provider authorised by the Financial Sector Conduct Authority (FSCA). SortMyCover is not that provider. The adviser runs their own business and is responsible for the advice they give.</p>
       <h2>How to check them</h2>

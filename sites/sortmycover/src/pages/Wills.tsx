@@ -19,6 +19,7 @@ export default function Wills() {
       description={`Book a call with a ${provider.name} consultant to get your will drafted, and read plain guides to wills, guardians, estate costs and estate administration.`}
       path="/wills/"
       h1="Wills and estate planning"
+      accent="estate planning"
       lede={`Get your will drafted by ${provider.name}, and read plain-words guides to what a will does and what happens to an estate.`}
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/wills/" }]}
       ctaKind="wills"

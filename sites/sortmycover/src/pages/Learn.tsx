@@ -7,7 +7,7 @@ const CRUMB_ROOT = { name: "SortMyCover", path: "/" };
 
 export function LearnHub() {
   return (
-    <PageFrame title="Learn about cover and wills | SortMyCover" description="Short guides in plain words, with sources and dates: cover types, wills and estate, life events, the call, and a glossary. Information, not advice." path="/learn/" h1="Learn" lede="Short guides in plain words, with sources and dates. They are information, not advice." crumbs={[CRUMB_ROOT, { name: "Learn", path: "/learn/" }]}>
+    <PageFrame title="Learn about cover and wills | SortMyCover" description="Short guides in plain words, with sources and dates: cover types, wills and estate, life events, the call, and a glossary. Information, not advice." path="/learn/" h1="Learn in plain words" accent="in plain words" lede="Short guides in plain words, with sources and dates. They are information, not advice." crumbs={[CRUMB_ROOT, { name: "Learn", path: "/learn/" }]}>
       <Reveal className="grid gap-3 mt-6">
         {hubs.map((h) => (
           <Link key={h.slug} to={hubPath(h)} className="card-link" data-reveal><b>{h.title}</b><span>{h.intro}</span></Link>

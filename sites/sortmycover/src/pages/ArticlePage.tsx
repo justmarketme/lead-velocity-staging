@@ -29,18 +29,21 @@ export default function ArticlePage({ article }: { article: Article }) {
       : [{ name: "SortMyCover", path: "/" }, { name: "Learn", path: "/learn/" }, { name: hub.title, path: hubPath(hub) }, { name: meta.title, path }];
   const scene = ARTICLE_SCENES[meta.slug];
   const related = meta.related.map(metaFor).filter(Boolean) as NonNullable<ReturnType<typeof metaFor>>[];
+  const head = (
+    <>
+      <p className="page-meta" data-byline>
+        By {meta.author.name}. Last reviewed <time dateTime={meta.lastReviewed}>{fmtDate(meta.lastReviewed)}</time>. Fact-checked by {meta.fact_checked_by} on <time dateTime={meta.fact_checked_on}>{fmtDate(meta.fact_checked_on)}</time>. See our <Link to="/editorial-policy/">editorial policy</Link>.
+      </p>
+      {meta.reviewer && (
+        <p className="page-meta">Reviewed by {meta.reviewer.name} on <time dateTime={meta.reviewer.verified_on}>{fmtDate(meta.reviewer.verified_on)}</time>. <a href={meta.reviewer.fsca_url} rel="noopener noreferrer">FSCA register entry</a>.</p>
+      )}
+      {wills && <p className="page-meta" data-disclosure data-provider>{PROVIDER_SERVICE_LINE.replace("on this page", "SortMyCover books")} {PROVIDER_ROLE_LINE}</p>}
+    </>
+  );
   return (
     <>
       <ReadProgress />
-      <PageFrame title={pageTitle(meta.titleTag ?? meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path, scene?.src)]} ctaKind={wills ? "wills" : ownSection ? "cover" : "adviser"} ctaHeading={meta.cta}>
-        <h1>{meta.title}</h1>
-        <p className="text-[15px] text-muted-foreground" data-byline>
-          By {meta.author.name}. Last reviewed <time dateTime={meta.lastReviewed}>{fmtDate(meta.lastReviewed)}</time>. Fact-checked by {meta.fact_checked_by} on <time dateTime={meta.fact_checked_on}>{fmtDate(meta.fact_checked_on)}</time>. See our <Link to="/editorial-policy/">editorial policy</Link>.
-        </p>
-        {meta.reviewer && (
-          <p className="text-[15px] text-muted-foreground">Reviewed by {meta.reviewer.name} on <time dateTime={meta.reviewer.verified_on}>{fmtDate(meta.reviewer.verified_on)}</time>. <a href={meta.reviewer.fsca_url} rel="noopener noreferrer">FSCA register entry</a>.</p>
-        )}
-        {wills && <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>{PROVIDER_SERVICE_LINE.replace("on this page", "SortMyCover books")} {PROVIDER_ROLE_LINE}</p>}
+      <PageFrame title={pageTitle(meta.titleTag ?? meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path, scene?.src)]} ctaKind={wills ? "wills" : ownSection ? "cover" : "adviser"} ctaHeading={meta.cta} h1={meta.title} meta={head}>
         {scene && <figure className="hub-photo article-photo"><img src={scene.src} alt={scene.alt} width={scene.w} height={scene.h} loading="eager" fetchPriority="high" /></figure>}
         <div className="answer-block" data-answer><span className="label">Short answer</span><p>{meta.answer}</p></div>
         {body.map((b, i) => {
