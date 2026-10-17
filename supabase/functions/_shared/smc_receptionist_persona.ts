@@ -6,7 +6,9 @@
 // Hard rules (LGSA v0.3 cl 3.8, SortMyCover is NOT an FSP): logistics only.
 // Never advice, never product comparisons, never premiums, never "best/right cover".
 
-export const SMC_AGENT_NAME = "SortMyCover receptionist";
+// Renamed in the ElevenLabs dashboard on 17 Oct 2026 (Jono): "on call" vs the text-only twin
+// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, not managed by this sync).
+export const SMC_AGENT_NAME = "Lindi SortMyCover on call";
 export const SMC_NUMBER_SPOKEN = "060 015 6480";
 
 // The first adviser. Keep in step with brokers row 306062a1-c271-4ae1-8b1e-bb9aed10a5f6.

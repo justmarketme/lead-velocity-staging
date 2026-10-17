@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.send-broker-invite]
 verify_jwt = false
+
+[functions.smc-lindi-chat]
+verify_jwt = false

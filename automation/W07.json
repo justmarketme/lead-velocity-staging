@@ -1242,7 +1242,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -1258,7 +1258,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.intent_body) }}",
         "options": {
-          "timeout": 8000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -1750,7 +1750,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -1766,7 +1766,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.reply_body) }}",
         "options": {
-          "timeout": 8000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -1810,7 +1810,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -1826,7 +1826,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.classifier_body) }}",
         "options": {
-          "timeout": 5000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -2424,7 +2424,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -2440,7 +2440,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
         "options": {
-          "timeout": 8000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
