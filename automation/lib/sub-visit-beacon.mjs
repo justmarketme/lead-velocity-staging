@@ -1,6 +1,8 @@
 // I-32b: first-party visit beacon receiver. Pure functions; automation/SUB-visit-beacon.json writes.
 // Code node form: const L = require('lv-automation').subVisitBeacon;
 // POST <api_base>/beacon  (navigator.sendBeacon, text/plain JSON, no cookies): { v: 1, sid, a: <angle slug>, e: 'view'|'step', s?: 1..8 }
+// e: 'wa' (17 Oct 2026, WhatsApp-only booking): an "Open WhatsApp" tap, a = the opener's ref code (w-home, a06, ...). Counted
+// in the same ops.page_day row under quiz_steps.wa.views (no schema change); visits and quiz_starts are untouched.
 // Privacy (POPIA, first-party only): NO IP, user agent, referrer or session id is written anywhere. The session id only
 // keys an in-memory rate-limit window (n8n static data) that is pruned after RATE_WINDOW_MS. The database gets daily counters
 // in ops.page_day (visits, quiz_starts, quiz_steps.sN.views). DNT / Sec-GPC requests are dropped before anything is counted.
@@ -11,6 +13,7 @@ export const MAX_SESSIONS_TRACKED = 5000;
 export const MAX_STEP = 8;
 const SID = /^[A-Za-z0-9-]{8,64}$/;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
+const WA_REF = /^(w-[a-z0-9-]{1,30}|[ab]\d{2})$/; // sites/sortmycover/docs/WHATSAPP-OPENERS.md ref codes
 const SAST_MS = 2 * 3600e3; // Africa/Johannesburg, no DST
 export const sastDay = (ms) => new Date(ms + SAST_MS).toISOString().slice(0, 10);
 
@@ -31,8 +34,10 @@ export function normalise({ body, headers = {}, env = {} } = {}) {
   if (typeof b.sid !== 'string' || !SID.test(b.sid)) return { ok: false, reason: 'sid' };
   if (typeof b.a !== 'string' || !SLUG.test(b.a)) return { ok: false, reason: 'angle' };
   const list = String(env.BEACON_ANGLE_SLUGS || '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (list.length && !list.includes(b.a)) return { ok: false, reason: 'angle' };
-  if (b.e !== 'view' && b.e !== 'step') return { ok: false, reason: 'event' };
+  // a WhatsApp tap carries a ref code, not an angle slug: checked against the opener ref pattern instead of the slug list
+  if (b.e === 'wa') { if (!WA_REF.test(b.a)) return { ok: false, reason: 'angle' }; }
+  else if (list.length && !list.includes(b.a)) return { ok: false, reason: 'angle' };
+  if (b.e !== 'view' && b.e !== 'step' && b.e !== 'wa') return { ok: false, reason: 'event' };
   let step = null;
   if (b.e === 'step') { step = Number(b.s); if (!Number.isInteger(step) || step < 1 || step > MAX_STEP) return { ok: false, reason: 'step' }; }
   return { ok: true, event: b.e, slug: b.a, step, sid: b.sid };
@@ -56,7 +61,7 @@ export function increment(ev, nowMs, brandId) {
     day: sastDay(nowMs), brand_id: brandId, page_path: `/${ev.slug}/`,
     visits: ev.event === 'view' ? 1 : 0,
     quiz_starts: ev.event === 'step' && ev.step === 1 ? 1 : 0,
-    step_key: ev.event === 'step' ? `s${ev.step}` : '',
+    step_key: ev.event === 'step' ? `s${ev.step}` : ev.event === 'wa' ? 'wa' : '',
   };
 }
 

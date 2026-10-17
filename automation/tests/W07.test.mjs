@@ -525,7 +525,8 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   const keys = route.parameters.rules.values.map((v) => v.outputKey);
   const main = WF.connections.Route.main;
   assert.equal(main.length, keys.length + 1, 'one connection list per rule + fallback');
-  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node)]));
+  // 2026-10-17: the never-silent guard runs BESIDE the hand-offs (own test below); it rewires nothing, so it is left out here
+  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node).filter((n) => !n.startsWith('Never silent: '))]));
   const { W28, ...expected } = before;
   assert.deepEqual(W28, ['-> W28']);
   // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
@@ -628,4 +629,38 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
   assert.equal(plan.json.action, 'save'); assert.equal(plan.json.to, '+27600000301');
   const sub = await runCode(WF, 'SUB input (email reply)', { json: plan.json });
   assert.equal(sub.json.kind, 'prebuilt'); assert.equal(sub.json.wa.to, '27600000301'); assert.equal(sub.json.correlation, 'w07:reply:SMemail1');
+});
+
+test('never silent: fallback text per route and language, one prebuilt recorded send keyed to the inbound', () => {
+  assert.equal(W.neverSilentText('W04', { first_name: 'Jono' }), "Thanks for your message, Jono! I'm Lindi, SortMyCover's AI booking assistant. I couldn't pull up the adviser's open times just now, so a person from our team will message you here shortly.");
+  assert.match(W.neverSilentText('W03', {}), /^Thanks for your message! .*Something went wrong on my side just now/);
+  assert.match(W.neverSilentText('W04_list', { lang: 'af' }), /^Dankie vir jou boodskap!.*oop tye/);
+  const s = W.neverSilentSend({ route: 'W04', msg: { from: '+27725548057', wamid: 'SMx', profile_name: 'Jono' }, lead: { id: 'lead_1', first_name: 'TestyC', language: 'en' } });
+  assert.equal(s.kind, 'prebuilt');
+  assert.equal(s.record, true, 'lands in communications, so a second guard sees it');
+  assert.equal(s.to, '+27725548057');
+  assert.equal(s.wa.type, 'text');
+  assert.match(s.wa.text.body, /, TestyC!/);
+  assert.equal(s.correlation, 'W07:never_silent:SMx');
+  assert.equal(s.lead_id, 'lead_1');
+  assert.match(W.neverSilentSend({ route: 'W03', msg: { from: '+27600000001', wamid: 'SMy', profile_name: 'Thabo' } }).wa.text.body, /, Thabo!/, 'unknown number: WhatsApp profile name');
+});
+
+test('never silent: W07.json guard runs beside every hand-off that carries the reply and fails safe', () => {
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  const WAIT = 'Never silent: wait 25 s';
+  const outs = (sw) => { const s = nd(sw); return s.parameters.rules.values.map((r, i) => [r.outputKey, (WF.connections[sw].main[i] || []).map((x) => x.node)]); };
+  const guarded = (sw) => outs(sw).filter(([, t]) => t.includes(WAIT)).map(([k]) => k).sort();
+  assert.deepEqual(guarded('Route'), ['W03', 'W04_list', 'W05', 'W10']);
+  assert.deepEqual(guarded('Delegate to'), ['W03', 'W04', 'W10']);
+  for (const [k, t] of outs('Route')) if (t.includes(WAIT)) assert.ok(t.length === 2, `${k}: the hand-off still runs`);
+  assert.equal(nd(WAIT).parameters.amount, W.NEVER_SILENT_WAIT_S);
+  assert.equal(nd(WAIT).parameters.unit, 'seconds');
+  const q = nd('Never silent: anything sent since the inbound?').parameters.query;
+  for (const k of ["direction = 'outbound'", 'smc_hash_contact($1)', 'opted_out_at IS NOT NULL', "'w07:silent:' || $4", 'ON CONFLICT (source, external_id) DO NOTHING']) assert.ok(q.includes(k), k);
+  assert.deepEqual(WF.connections['Never silent: nothing went out?'].main[0].map((x) => x.node).sort(), ['Never silent: escalation', 'Never silent: fallback (lib w07.neverSilentSend)']);
+  assert.equal(WF.connections['Never silent: nothing went out?'].main[1], undefined, 'something went out: nothing more');
+  assert.equal(nd('Never silent: send fallback').parameters.workflowId.value, 'smc-whatsapp-send');
+  assert.match(nd('Never silent: escalation').parameters.query, /'needs_human', 'urgent'/);
+  for (const n of ['Never silent: anything sent since the inbound?', 'Never silent: send fallback', 'Never silent: escalation']) assert.equal(nd(n).onError, 'continueRegularOutput', n);
 });

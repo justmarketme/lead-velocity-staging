@@ -65,6 +65,65 @@ function consentFor(mode, broker) {
   };
 }
 
+// ---------------------------------------------------------------- website opener (sites/sortmycover/docs/WHATSAPP-OPENERS.md)
+// 17 Oct 2026: WhatsApp is the only way to book. The site's chat widget asks for the consent tick, then opens wa.me with:
+//   Hi Lindi, I'd like to chat about <topic>. I agree that SortMyCover may message me on WhatsApp about this and share my
+//   details with <who>. Ref <code>
+// An unchanged opener IS the consent, in the person's own words, so W03 stores the lead at once (no consent buttons).
+// Edited text that drops the consent sentence never matches, and the normal consent question is asked instead.
+// Parse defensively: the person can edit the text, and phones swap ' for a curly apostrophe.
+const OPENER_RE = /^\s*Hi Lindi,\s+I['’]d like to chat about (.+?)\.\s+(I agree that SortMyCover may message me on WhatsApp about this and share my details with (.+?)\.)\s+Ref ([a-z0-9-]{2,40})(?:\s+via\s+([a-z0-9_\/-]{1,120}))?\s*$/i;
+const OPENER_CONSENT_VERSION = 'CONSENT-GENERIC-v5web';
+const OPENER_CONSENT_SOURCE = 'whatsapp_opener';
+// site page codes (w-*) and campaign landing pages (a01-a06, b01-b04: the angle's neutral meta_code)
+const OPENER_REF_RE = /^(w-[a-z0-9-]{1,30}|[ab]\d{2})$/;
+/** Opener text -> { topic, who, consent_text, ref, source, product_interest, reasons, wills } or null (no match / unknown ref). */
+function parseOpener(text) {
+  const m = OPENER_RE.exec(String(text || ''));
+  if (!m) return null;
+  const ref = m[4].toLowerCase();
+  if (!OPENER_REF_RE.test(ref)) return null;
+  const topic = m[1].trim().slice(0, 120);
+  const who = m[3].trim().slice(0, 80);
+  const wills = /capital legacy/i.test(who) || /\b(will|wills|guardian)\b/i.test(topic) || /^b\d{2}$/.test(ref) || /will/.test(ref);
+  const income = !wills && /income|salary|disab/i.test(topic);
+  // group 5 (optional): where the visitor came from before the page, "<source>/<campaign>/<content>" (site sourceTag())
+  const [vs, vc, vt] = String(m[5] || '').toLowerCase().split('/');
+  const via = vs ? { source: vs.slice(0, 24), campaign: vc ? vc.slice(0, 64) : null, content: vt ? vt.slice(0, 64) : null } : null;
+  return {
+    topic, who, ref, wills, via,
+    consent_text: m[2].replace(/’/g, "'"), // the consent sentence exactly as sent
+    // leads_source_check allows a category only; the exact code is kept in leads.ref
+    source: /^[ab]\d{2}$/.test(ref) ? 'campaign' : 'website_form',
+    product_interest: wills ? 'wills' : 'life_cover',
+    reasons: wills ? null : [income ? 'disability' : 'life_cover'],
+  };
+}
+/** The first reply to an opener: greet, name the topic (the welcome option, pre-selected), then the next step. */
+function openerGreeting(op, profileName) {
+  const first = String(profileName || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
+  const hi = first ? `Hi ${first}, I'm Lindi` : "Hi, I'm Lindi";
+  return `${hi}, SortMyCover's booking assistant. I'm an AI assistant, and you can ask for a person at any time. Thanks for getting in touch about ${op.topic}. If it's something else, just tell me.`;
+}
+
+/**
+ * Where an opt-in came from (Jono, 17 Oct 2026: "at any time ... see exactly where it came from"). One record per consent,
+ * stored on the lead (consent_source = the door, ref, utm_*, ad_id, ctwa_clid) and in full in the consent activity payload.
+ * Doors: whatsapp_opener (site / landing page chat, page code + optional via), ctwa_ad / ctwa_post (Twilio CTWA referral),
+ * whatsapp_direct (anything else).
+ */
+function provenanceFor({ op = null, origin = {}, referral = null, wamid = null, at = null, text = '', version = null } = {}) {
+  const r = referral && typeof referral === 'object' ? referral : null;
+  const type = r && String(r.source_type || '').toLowerCase();
+  const door = op ? 'whatsapp_opener' : r ? (type === 'post' ? 'ctwa_post' : 'ctwa_ad') : 'whatsapp_direct';
+  return {
+    door, page_ref: op ? op.ref : null, via: op ? op.via : null,
+    referral: r ? { source_type: r.source_type || null, source_id: r.source_id || null, source_url: r.source_url || null, headline: r.headline || null, ctwa_clid: r.ctwa_clid || null } : null,
+    comment_ref: !op && origin.ref ? origin.ref : null,
+    consent_version: version, opener_text: String(text || '').slice(0, 600), inbound_sid: wamid, received_at: at,
+  };
+}
+
 // ---------------------------------------------------------------- tap-only questions (4.6 step 3)
 const AGE_ROWS = [['age_under_35', 'Under 35'], ['age_35_44', '35 to 44'], ['age_45_50', '45 to 50'], ['age_51_plus', '51 or older']];
 const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_750', 'R500 to R750'], ['budget_750_1250', 'R750 to R1,250'], ['budget_1250_1499', 'R1,250 to R1,499'], ['budget_1500_plus', 'R1,500 or more']];
@@ -179,14 +238,20 @@ function step(thread, msg, ctx) {
 
   // first contact: consent first, nothing stored but the thread state
   if (!t || t.stage === 'closed') {
-    const consent = consentFor(ctx.brand.consent_mode, ctx.broker);
     const origin = readOrigin(msg);
+    // website opener: the unchanged opener carries the consent sentence, so the lead is stored now (WHATSAPP-OPENERS.md rule 1)
+    const op = msg.type === 'text' ? parseOpener(origin.text_without_ref) : null;
+    const firstText = origin.text_without_ref;
+    delete origin.text_without_ref; // the thread is stored (wa_threads.state, "no PII in state"): the message text stays on the inbound row
+    if (op) return openerIntake(op, origin, { ...ctx, referral: msg.referral || null, text: firstText }, actions);
+    const consent = consentFor(ctx.brand.consent_mode, ctx.broker);
     if (!consent) {
       send({ type: 'text', body: "Thanks for getting in touch. We can't take new enquiries right now. Please try again in a few days." });
       return { thread: { stage: 'closed', origin, closed_reason: 'no_named_broker', at: ctx.at }, actions: actions.concat([{ kind: 'alert', signal_key: 'ctwa_no_broker' }]) };
     }
     send(buttons(consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']]));
-    return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null }, actions };
+    return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null,
+      first_wamid: ctx.wamid || null, first_referral: msg.referral || null }, actions }; // no free text in thread state: the SID points at the stored inbound
   }
 
   const id = tapId(msg);
@@ -205,6 +270,10 @@ function step(thread, msg, ctx) {
         consent_at: ctx.at, consent_source: 'ctwa', verified_at: ctx.at, wa_delivered_at: t.first_at, stage: 'verified',
         is_synthetic: !!ctx.is_synthetic,
       };
+      // provenance (17 Oct 2026): the door is decided by the FIRST message (t.origin / t.first_*), the evidence is this tap
+      row.provenance = provenanceFor({ origin: o, referral: t.first_referral || null, wamid: ctx.wamid, at: ctx.at, text: '', version: t.consent.version });
+      row.provenance.first_inbound_sid = t.first_wamid || null;
+      row.consent_source = row.provenance.door;
       actions.push({ kind: 'insert_lead', row });
       // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)
       if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });
@@ -232,6 +301,38 @@ function step(thread, msg, ctx) {
   }
 
   return qualify(t, msg, ctx, actions);
+}
+
+/**
+ * Website opener from a number with no open lead (WHATSAPP-OPENERS.md rules 1 and 2). Consent = the opener's own consent
+ * sentence (version CONSENT-GENERIC-v5web, mode generic: the site's tick names "an authorised adviser" / Capital Legacy),
+ * evidence = the inbound message id + received time (lead_activities W03:consent:{wamid}). Then the flow spec from step 2:
+ * greet, name the topic, ask the first question. Wills go to a person: there is no wills booking calendar yet.
+ */
+function openerIntake(op, origin, ctx, actions) {
+  const send = (m) => actions.push({ kind: 'send', message: m });
+  const row = {
+    id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: 'ctwa', ref: op.ref, ad_id: origin.ad_id || null,
+    ctwa_clid: origin.ctwa_clid || null, phone: ctx.mobile, first_name: ctx.profile_name || null,
+    consent_text: op.consent_text, consent_text_version: OPENER_CONSENT_VERSION, consent_mode: 'generic',
+    consent_at: ctx.at, consent_source: OPENER_CONSENT_SOURCE, verified_at: ctx.at, wa_delivered_at: ctx.at, stage: 'verified',
+    source: op.source, product_interest: op.product_interest, reasons: op.reasons,
+    utm_source: op.via ? op.via.source : null, utm_campaign: op.via ? op.via.campaign : null, utm_content: op.via ? op.via.content : null,
+    provenance: provenanceFor({ op, origin, referral: ctx.referral, wamid: ctx.wamid, at: ctx.at, text: ctx.text, version: OPENER_CONSENT_VERSION }),
+    is_synthetic: !!ctx.is_synthetic,
+  };
+  actions.push({ kind: 'insert_lead', row });
+  const greet = openerGreeting(op, ctx.profile_name);
+  if (op.wills) {
+    row.conv_state = { state: 'handoff', topic: op.topic, ref: op.ref };
+    send({ type: 'text', body: `${greet.replace(/ If it's something else, just tell me\.$/, '')} Wills are done with a Capital Legacy consultant, so I've asked a person from our team to message you here shortly to set up the call.` });
+    return { thread: { stage: 'done', lead_id: row.id, origin, opener: { ref: op.ref, topic: op.topic } }, actions: actions.concat([{ kind: 'escalate', lead_id: row.id, note: `wills opener ${op.ref}: no wills calendar, a person books the Capital Legacy call` }]) };
+  }
+  row.conv_state = { state: 'q_age', topic: op.topic, ref: op.ref };
+  const q = question('q_age');
+  send({ ...q, body: `${greet}\n\n${q.body}` });
+  actions.push({ kind: 'schedule_stall', stage: 'q_age', hours: STALL_HOURS, from: ctx.at, replaces: true });
+  return { thread: { stage: 'q_age', origin, answers: {}, first_at: ctx.at, lead_id: row.id, opener: { ref: op.ref, topic: op.topic } }, actions };
 }
 
 /** Qualifying (4.6 step 3 order): a tap, or a typed answer W07 handed over (ctx.typed = { slots, actions }, I-47a). */
@@ -372,4 +473,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { parseOpener, openerGreeting, provenanceFor, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

@@ -75,3 +75,14 @@ test('workflow: webhook /beacon -> Code -> 204 -> upsert; SQL matches the schema
   assert.ok(sd.rate && !JSON.stringify(sd.rate).includes('127.0.0.1'), 'rate state holds only the window counters');
   delete globalThis.$getWorkflowStaticData;
 });
+
+test('WhatsApp tap (e: "wa", 17 Oct 2026): ref codes accepted even with an angle allow-list, counted under quiz_steps.wa', () => {
+  const body = (o) => JSON.stringify({ v: 1, sid: SID, ...o });
+  const env = { BEACON_ANGLE_SLUGS: 'new-bond,new-baby' };
+  for (const a of ['w-home', 'w-learn-income', 'a06', 'b04']) assert.deepEqual(L.normalise({ body: body({ a, e: 'wa' }), env }), { ok: true, event: 'wa', slug: a, step: null, sid: SID }, a);
+  for (const a of ['new-bond', 'c01', 'w-']) assert.equal(L.normalise({ body: body({ a, e: 'wa' }), env }).reason, 'angle', a);
+  const inc = L.increment({ event: 'wa', slug: 'a06', step: null }, Date.parse('2026-10-17T12:00:00Z'), 'brand');
+  assert.deepEqual(inc, { day: '2026-10-17', brand_id: 'brand', page_path: '/a06/', visits: 0, quiz_starts: 0, step_key: 'wa' });
+  const rows = L.applyIncrement(L.applyIncrement(new Map(), inc), inc);
+  assert.deepEqual(rows.get('2026-10-17|brand|/a06/').quiz_steps, { wa: { views: 2, abandons: 0 } });
+});

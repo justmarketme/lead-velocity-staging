@@ -2807,6 +2807,138 @@
         -10,
         1640
       ]
+    },
+    {
+      "id": "ns-wait",
+      "name": "Never silent: wait 25 s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2600,
+        2200
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 25,
+        "unit": "seconds"
+      },
+      "notes": "WHATSAPP-OPENERS.md rule 4 (17 Oct 2026): runs in parallel with every hand-off to W03/W04/W05/W10, which send the reply themselves. lib/w07.mjs NEVER_SILENT_WAIT_S."
+    },
+    {
+      "id": "ns-check",
+      "name": "Never silent: anything sent since the inbound?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2820,
+        2200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.from) || '', ($json.lead && $json.lead.id) || '', String(($json.msg && $json.msg.at_ms) || Date.now()), ($json.msg && $json.msg.wamid) || '', $json.brand_id || '' ] }}"
+        },
+        "query": "-- Never silent: any outbound WhatsApp to this number (or lead) since the inbound? If none and the number is not opted out,\n-- claim the one fallback for this inbound (w07:silent:{wamid}), so a W03 -> W07 hand-back cannot send a second one.\nWITH s AS (\n  SELECT EXISTS (SELECT 1 FROM public.communications c\n                  WHERE c.direction = 'outbound' AND c.channel = 'whatsapp'\n                    AND c.created_at >= to_timestamp($3::bigint / 1000.0) - interval '5 seconds'\n                    AND (c.recipient_contact = $1 OR (nullif($2, '') IS NOT NULL AND c.lead_id = nullif($2, '')::uuid))) AS sent,\n         EXISTS (SELECT 1 FROM public.suppression x\n                  WHERE x.mobile_hash = public.smc_hash_contact($1) AND x.source <> 'no_consent_ctwa') AS suppressed,\n         EXISTS (SELECT 1 FROM public.leads l WHERE l.phone = $1 AND l.opted_out_at IS NOT NULL) AS opted_out),\nc AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  SELECT 'whatsapp', 'w07:silent:' || $4, nullif($5, '')::uuid, true\n    FROM s WHERE NOT s.sent AND NOT s.suppressed AND NOT s.opted_out AND $4 <> '' AND $1 <> ''\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT s.sent, s.suppressed, s.opted_out, (SELECT id FROM c) AS claim_id FROM s;"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ns-if",
+      "name": "Never silent: nothing went out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        2200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.claim_id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ns-build",
+      "name": "Never silent: fallback (lib w07.neverSilentSend)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        2100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('Never silent: wait 25 s').item.json;\nreturn { json: L.neverSilentSend(j) };"
+      }
+    },
+    {
+      "id": "ns-send",
+      "name": "Never silent: send fallback",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        3480,
+        2100
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ns-esc",
+      "name": "Never silent: escalation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3260,
+        2300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Never silent: wait 25 s').item.json; return [ j.brand_id || '', (j.msg && j.msg.wamid) || '', (j.lead && j.lead.id) || '', 'never_silent: hand-off to ' + (j.route || '?') + ' produced no reply in 25 s; a fallback was sent, a person must follow up' ]; })() }}"
+        },
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nVALUES (nullif($1, '')::uuid, 'needs_human', 'urgent', 'communications', nullif($2, ''), nullif($3, '')::uuid, now(), $4)\nRETURNING id;"
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -2958,11 +3090,21 @@
             "node": "-> W03",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "-> W05",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -2977,6 +3119,11 @@
         [
           {
             "node": "-> W10",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -3005,6 +3152,11 @@
         [
           {
             "node": "-> W04_list",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -3351,6 +3503,11 @@
             "node": "-> W03",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -3358,11 +3515,21 @@
             "node": "-> W04_list",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "-> W10",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -3878,6 +4045,55 @@
         [
           {
             "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: wait 25 s": {
+      "main": [
+        [
+          {
+            "node": "Never silent: anything sent since the inbound?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: anything sent since the inbound?": {
+      "main": [
+        [
+          {
+            "node": "Never silent: nothing went out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: nothing went out?": {
+      "main": [
+        [
+          {
+            "node": "Never silent: fallback (lib w07.neverSilentSend)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: fallback (lib w07.neverSilentSend)": {
+      "main": [
+        [
+          {
+            "node": "Never silent: send fallback",
             "type": "main",
             "index": 0
           }

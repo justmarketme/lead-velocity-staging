@@ -586,3 +586,27 @@ export function explodeDelegations(items = []) {
   }
   return out;
 }
+
+// ---------- never silent (17 Oct 2026, sites/sortmycover/docs/WHATSAPP-OPENERS.md rule 4) ----------
+// When W07 hands a message to W03 / W04 / W05 / W10 it sends nothing itself, so a failed or inactive delegate meant total
+// silence (every 17 Oct test). A parallel guard waits NEVER_SILENT_WAIT_S, checks communications for any outbound to the number
+// since the inbound, and if there is none (and the number is not opted out) sends ONE fallback and opens a console escalation.
+export const NEVER_SILENT_WAIT_S = 25;
+export const NEVER_SILENT_ROUTES = ['W03', 'W04', 'W04_list', 'W05', 'W10'];
+export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
+  const first = sanitiseField('first_name', first_name || '').value;
+  const slots = route === 'W04' || route === 'W04_list';
+  if (lang === 'af') {
+    return `Dankie vir jou boodskap${first ? ` ${first}` : ''}! Ek is Lindi, SortMyCover se KI-besprekingsassistent. ${slots ? 'Ek kon nie nou die adviseur se oop tye kry nie' : 'Iets het nou aan my kant skeefgeloop'}, so iemand van ons span sal jou kort-kort hier ’n boodskap stuur.`;
+  }
+  return `Thanks for your message${first ? `, ${first}` : ''}! I'm Lindi, SortMyCover's AI booking assistant. ${slots ? "I couldn't pull up the adviser's open times just now" : 'Something went wrong on my side just now'}, so a person from our team will message you here shortly.`;
+}
+/** The guard's send: one prebuilt text through smc-whatsapp-send (record:true, so it lands in communications). */
+export function neverSilentSend(j = {}) {
+  const msg = j.msg || {};
+  const lead = j.lead || {};
+  const body = neverSilentText(j.route, { first_name: lead.first_name || msg.profile_name || '', lang: lead.language === 'af' ? 'af' : 'en' });
+  const wa = { messaging_product: 'whatsapp', to: msg.from, type: 'text', text: { body } };
+  return { kind: 'prebuilt', wa, to: msg.from, record: true, caller: 'W07', bypass_suppression: false, phone_number_id: null,
+    lead_id: lead.id || null, broker_id: null, correlation: `W07:never_silent:${msg.wamid || 'none'}` };
+}
