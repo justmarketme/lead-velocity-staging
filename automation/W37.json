@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 330,
-        "content": "## W37 Cal.com booking intake (17 Oct 2026)\nPOST /webhook/cal from Cal.com (BOOKING_CREATED, BOOKING_RESCHEDULED, BOOKING_CANCELLED). `x-cal-signature-256` = HMAC-SHA256(raw body, CAL_WEBHOOK_SECRET), checked before anything is read; answers 200 at once (401 when the signature is wrong).\n- Created: lead (consent_source calcom, CONSENT-CALCOM-v1, the checkbox wording, ref = page code, utm_* from \"via\"), appointment (booked_via page, idempotency_key calcom:<uid>), consent activity with provenance, one lead_optins row, then the UTILITY template `booking_confirm_chat` (\"Yes, let's chat\" -> W07 contact confirm).\n- Rescheduled: new appointment linked to the old one (old -> rescheduled). Cancelled: appointment cancelled, Lindi's conv_state back to unbooked.\n- No broker for the organiser email, no valid +27 number, or no consent tick: console escalation, nothing sent.\nNeeds: CAL_WEBHOOK_SECRET, BRAND_ID, the adviser's brokers.calendar_email = the Cal.com organiser email, TWILIO_CONTENT_SIDS.booking_confirm_chat after Meta approval. Inactive until Jono activates it."
+        "content": "## W37 Cal.com booking intake (17 Oct 2026)\nPOST /webhook/cal from Cal.com (BOOKING_CREATED, BOOKING_RESCHEDULED, BOOKING_CANCELLED). `x-cal-signature-256` = HMAC-SHA256(raw body, CAL_WEBHOOK_SECRET), checked before anything is read; answers 200 at once (401 when the signature is wrong).\n- Created: lead (consent_source calcom, CONSENT-CALCOM-v1, the checkbox wording, ref = page code, utm_* from \"via\"), appointment (booked_via page, idempotency_key calcom:<uid>), consent activity with provenance, one lead_optins row, then the UTILITY template `booking_confirm_chat` (\"Yes, let's chat\" -> W07 contact confirm).\n- Rescheduled: new appointment linked to the old one (old -> rescheduled). Cancelled: appointment cancelled, Lindi's conv_state back to unbooked.\n- No broker for the organiser email, no valid +27 number, or no consent tick: console escalation, nothing sent.\n- Confirmation email (SortMyCover's own Cal.com sends none): Resend from hello@sortmycover.co.za with the .ics and the reschedule / cancel links, never a Lead Velocity address. Needs RESEND_API_KEY and sortmycover.co.za verified in Resend; until then it is skipped and logged (lead_activities calcom_confirmation_email, outcome skipped).\nNeeds: CAL_WEBHOOK_SECRET, BRAND_ID, the adviser's brokers.calendar_email = the Cal.com organiser email, TWILIO_CONTENT_SIDS.booking_confirm_chat after Meta approval. Inactive until Jono activates it."
       }
     },
     {
@@ -438,6 +438,148 @@
     },
     {
       "id": "w37n17",
+      "name": "Plan confirmation email (w37.confirmationEmail)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w37;\nconst p = $('Plan (w37.planCal)').item.json;\nconst r = L.confirmationEmail(p.ev, p, { RESEND_API_KEY: $env.RESEND_API_KEY ? 'set' : '', CALCOM_EMAIL_FROM: $env.CALCOM_EMAIL_FROM, CALCOM_EMAIL_REPLY_TO: $env.CALCOM_EMAIL_REPLY_TO, CAL_PUBLIC_ORIGIN: $env.CAL_PUBLIC_ORIGIN }, { appointmentId: $json.appointment_id });\nreturn [{ json: { ...r, lead_id: $json.lead_id, brand_id: p.lead.brand_id, uid: p.ev.uid } }];"
+      }
+    },
+    {
+      "id": "w37n18",
+      "name": "Email to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.action === 'send') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n19",
+      "name": "Live send? (confirmation email)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n20",
+      "name": "Resend POST /emails (hello@sortmycover.co.za)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Plan confirmation email (w37.confirmationEmail)').item.json.request.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.RESEND_API_KEY }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $('Plan confirmation email (w37.confirmationEmail)').item.json.request.idempotency_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan confirmation email (w37.confirmationEmail)').item.json.request.body) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n21",
+      "name": "Log confirmation email (sent / dry / skipped)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2860,
+        -360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES (nullif($1, '')::uuid, nullif($2, '')::uuid, 'W37', 'system', 'calcom_confirmation_email', $3::jsonb, now(), 'W37:calcom_confirmation_email:' || $4)\nON CONFLICT DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const e = $('Plan confirmation email (w37.confirmationEmail)').item.json; const sent = e.action === 'send' && $env.DRY_RUN_SENDS !== 'true'; const code = Number(($json && $json.statusCode) || 0); return [ e.lead_id || '', e.brand_id || '', JSON.stringify({ ...(e.activity ? e.activity.payload : { uid: e.uid }), outcome: e.action !== 'send' ? 'skipped' : (!sent ? 'dry_run' : (code >= 200 && code < 300 ? 'sent' : 'failed')), reason: e.reason || null, status: code || null, resend_id: ($json && $json.body && $json.body.id) || null }), e.uid ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n22",
       "name": "Cancel: appointment + Lindi context",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -460,7 +602,7 @@
       }
     },
     {
-      "id": "w37n18",
+      "id": "w37n23",
       "name": "Escalate (Cal.com, needs a person)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -484,7 +626,7 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "w37n19",
+      "id": "w37n24",
       "name": "Escalate (booking not stored)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -651,11 +793,74 @@
             "node": "Send the confirm template?",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Plan confirmation email (w37.confirmationEmail)",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "Escalate (booking not stored)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan confirmation email (w37.confirmationEmail)": {
+      "main": [
+        [
+          {
+            "node": "Email to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email to send?": {
+      "main": [
+        [
+          {
+            "node": "Live send? (confirmation email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log confirmation email (sent / dry / skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (confirmation email)": {
+      "main": [
+        [
+          {
+            "node": "Resend POST /emails (hello@sortmycover.co.za)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log confirmation email (sent / dry / skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend POST /emails (hello@sortmycover.co.za)": {
+      "main": [
+        [
+          {
+            "node": "Log confirmation email (sent / dry / skipped)",
             "type": "main",
             "index": 0
           }

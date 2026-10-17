@@ -81,6 +81,9 @@ export function normaliseCal(body, { consentField } = {}) {
     organizer_email: String(org.email || '').trim().toLowerCase() || null, organizer_name: String(org.name || '').trim() || null,
     method: methodOf(loc), ref, consent,
     cancellation_reason: p.cancellationReason ? String(p.cancellationReason).slice(0, 300) : null,
+    video_url: String((p.metadata && p.metadata.videoCallUrl) || p.videoCallUrl || '').trim() || null,
+    reschedule_url: String(p.rescheduleUrl || p.rescheduleLink || '').trim() || null,
+    cancel_url: String(p.cancelUrl || p.cancelLink || '').trim() || null,
     created_at: String(b.createdAt || p.createdAt || '') || null,
   };
 }
@@ -140,4 +143,91 @@ export function confirmSend(plan, appointmentId, leadId) {
   return { to: plan.lead.phone, kind: 'template', template: plan.send.template, variables: plan.send.variables,
     buttons: [{ quick_reply: `${plan.send.quick_reply_prefix}:${appointmentId}` }], lead_id: leadId, broker_id: plan.appointment.broker_id,
     correlation: `W37:confirm:${plan.appointment.idempotency_key}`, caller: 'W37' };
+}
+
+// ---------- SortMyCover-branded confirmation email (Jono, 17 Oct 2026) ----------
+// SortMyCover runs its own Cal.com account with Cal.com's attendee email turned OFF, so W37 sends the confirmation itself:
+// from the sortmycover.co.za domain through Resend (the sender the SMC email-verify flow already uses), with the .ics invite
+// and the reschedule / cancel links. Nothing in it names Lead Velocity. No RESEND_API_KEY, or a From that is not
+// sortmycover.co.za -> skipped and logged, never sent from another domain.
+export const EMAIL_FROM_DEFAULT = 'SortMyCover <hello@sortmycover.co.za>';
+export const RESEND_URL = 'https://api.resend.com/emails';
+const METHOD_LABEL = { teams: 'Microsoft Teams video call', zoom: 'Zoom video call', meet: 'Google Meet video call', whatsapp_call: 'WhatsApp call', phone: 'phone call' };
+const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => HTML_ESC[c]);
+const BS = String.fromCharCode(92); // backslash, spelled out so no shell or generator can mangle it
+const icsText = (v) => String(v ?? '').split(BS).join(BS + BS).replace(/;/g, BS + ';').replace(/,/g, BS + ',').replace(/\r?\n/g, BS + 'n');
+const icsTime = (iso) => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+/** RFC 5545 3.1: content lines longer than 75 octets are folded (CRLF + one space); never splits a UTF-8 character. */
+export function icsFold(line) {
+  const out = []; let cur = ''; let bytes = 0;
+  for (const ch of line) {
+    const b = Buffer.byteLength(ch, 'utf8');
+    if (bytes + b > (out.length ? 74 : 75)) { out.push(cur); cur = ''; bytes = 0; }
+    cur += ch; bytes += b;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+
+/** Reschedule / cancel links: the payload's own when Cal.com sends them, else Cal.com's booking URLs on CAL_PUBLIC_ORIGIN. */
+export function manageLinks(ev, env = {}) {
+  const origin = String(env.CAL_PUBLIC_ORIGIN || 'https://app.cal.com').replace(/\/+$/, '');
+  const uid = encodeURIComponent(ev.uid);
+  return { reschedule: ev.reschedule_url || `${origin}/reschedule/${uid}`, cancel: ev.cancel_url || `${origin}/booking/${uid}?cancel=true` };
+}
+
+/** "Add to calendar" file: METHOD:PUBLISH (an information copy; the booking itself lives in the adviser's calendar). */
+export function icsFor(ev, { adviser = 'your adviser', now = new Date().toISOString(), env = {} } = {}) {
+  const where = ev.video_url || METHOD_LABEL[ev.method] || 'Online';
+  const links = manageLinks(ev, env);
+  const desc = [`Your SortMyCover call with ${adviser}.`, ...(ev.video_url ? [`Join: ${ev.video_url}`] : []), `Reschedule: ${links.reschedule}`, `Cancel: ${links.cancel}`].join('\n');
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SortMyCover//Adviser call//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT', `UID:${ev.uid}@sortmycover.co.za`, `DTSTAMP:${icsTime(now)}`, `DTSTART:${icsTime(ev.start)}`, `DTEND:${icsTime(ev.end)}`,
+    `SUMMARY:${icsText(`SortMyCover call with ${adviser}`)}`, `LOCATION:${icsText(where)}`, `DESCRIPTION:${icsText(desc)}`,
+    ...(ev.video_url ? [`URL:${ev.video_url}`] : []), 'STATUS:CONFIRMED', 'END:VEVENT', 'END:VCALENDAR'].map(icsFold).join('\r\n') + '\r\n';
+}
+
+/** The confirmation email for a stored booking -> { action: 'skip', reason } | { action: 'send', request, activity }. */
+export function confirmationEmail(ev, plan, env = {}, { appointmentId = null, now = new Date().toISOString() } = {}) {
+  if (!plan || plan.action !== 'book') return { action: 'skip', reason: 'not_a_new_booking' };
+  if (!appointmentId) return { action: 'skip', reason: 'booking_not_stored' };
+  if (!ev.email) return { action: 'skip', reason: 'no_email' };
+  if (!env.RESEND_API_KEY) return { action: 'skip', reason: 'resend_key_missing' };
+  const from = String(env.CALCOM_EMAIL_FROM || EMAIL_FROM_DEFAULT);
+  if (!/@sortmycover\.co\.za>?\s*$/i.test(from)) return { action: 'skip', reason: 'from_not_sortmycover' };
+  const adviser = (plan.send && plan.send.variables && plan.send.variables[1]) || 'your adviser';
+  const first = ev.first_name || 'there';
+  const when = whenText(ev.start);
+  const how = METHOD_LABEL[ev.method] || 'video call';
+  const links = manageLinks(ev, env);
+  const subject = `Your SortMyCover call is booked: ${when}`;
+  const text = [`Hi ${first},`, '', `Your call with ${adviser} is booked for ${when} (South African time), by ${how}.`,
+    ...(ev.video_url ? [`Join here: ${ev.video_url}`] : []), '',
+    "We'll message you on WhatsApp from +27 60 015 6480 to confirm a few things before the call.", '',
+    `Need another time? ${links.reschedule}`, `Can't make it? ${links.cancel}`, '', 'The calendar invite is attached.', '',
+    'SortMyCover', 'sortmycover.co.za | Privacy notice: https://sortmycover.co.za/privacy/'].join('\n');
+  const btn = (href, label, bg, fg) => `<a href="${esc(href)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:${bg};color:${fg};font-weight:700;text-decoration:none;margin:4px 8px 4px 0">${esc(label)}</a>`;
+  const html = `<!doctype html><html><body style="margin:0;background:#FBF8F2;font-family:'DM Sans',Arial,sans-serif;color:#1F2933">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden">
+<tr><td style="background:#1F2933;padding:20px 28px;color:#FBF8F2;font-size:20px;font-weight:800">Sort<span style="color:#F5A623">My</span>Cover</td></tr>
+<tr><td style="padding:28px">
+<p style="margin:0 0 12px;font-size:16px">Hi ${esc(first)},</p>
+<p style="margin:0 0 16px;font-size:16px;line-height:1.5">Your call with <strong>${esc(adviser)}</strong> is booked.</p>
+<p style="margin:0 0 20px;padding:16px;border-radius:12px;background:#FFF4E0;font-size:18px;font-weight:700;line-height:1.4">${esc(when)}<br><span style="font-size:14px;font-weight:500">South African time, by ${esc(how)}</span></p>
+${ev.video_url ? `<p style="margin:0 0 20px">${btn(ev.video_url, 'Join the call', '#F5A623', '#2A1B02')}</p>` : ''}
+<p style="margin:0 0 20px;font-size:15px;line-height:1.5">We'll message you on WhatsApp from <strong>+27 60 015 6480</strong> to confirm a few things before the call.</p>
+<p style="margin:0 0 8px">${btn(links.reschedule, 'Reschedule', '#1F2933', '#FBF8F2')}${btn(links.cancel, 'Cancel', '#ffffff', '#1F2933')}</p>
+<p style="margin:16px 0 0;font-size:13px;color:#52606D">The calendar invite is attached.</p>
+</td></tr>
+<tr><td style="padding:16px 28px;background:#FBF8F2;font-size:12px;color:#52606D">SortMyCover | <a href="https://sortmycover.co.za" style="color:#52606D">sortmycover.co.za</a> | <a href="https://sortmycover.co.za/privacy/" style="color:#52606D">Privacy notice</a></td></tr>
+</table></td></tr></table></body></html>`;
+  const ics = icsFor(ev, { adviser, now, env });
+  const body = { from, to: [ev.email], subject, text, html,
+    attachments: [{ filename: 'sortmycover-call.ics', content: Buffer.from(ics, 'utf8').toString('base64'), content_type: 'text/calendar; charset=utf-8; method=PUBLISH' }],
+    ...(env.CALCOM_EMAIL_REPLY_TO ? { reply_to: env.CALCOM_EMAIL_REPLY_TO } : {}) };
+  // the API key is NOT in the item: the HTTP node adds Authorization from $env, so execution data never holds it
+  return { action: 'send', request: { url: RESEND_URL, idempotency_key: `calcom-confirm:${ev.uid}`, body },
+    activity: { type: 'calcom_confirmation_email', payload: { uid: ev.uid, to_domain: ev.email.split('@')[1], via: 'resend', appointment_id: appointmentId } } };
 }

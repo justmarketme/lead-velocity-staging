@@ -121,12 +121,60 @@ test('W37.json: POST /cal, signature before anything, claim, one-statement upser
   const up = nd('Book: lead + appointment + consent (one statement)').parameters.query;
   for (const k of ["'calcom', 'booked'", "INSERT INTO public.appointments", 'ON CONFLICT DO NOTHING', "'W37:' || $24 || ':' || $20", 'public.smc_hash_contact($4)']) assert.ok(up.includes(k), k);
   assert.equal(nd('Opt-in record (lead_optins)').onError, 'continueRegularOutput');
-  const senders = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest');
-  assert.equal(senders.length, 0, 'no direct HTTP sender: DRY_RUN and suppression live in smc-whatsapp-send');
+  // WhatsApp goes through smc-whatsapp-send (DRY_RUN + suppression there); the only HTTP node is the gated Resend email (test below)
   assert.equal(nd('WhatsApp Send (booking_confirm_chat)').parameters.workflowId.value, 'smc-whatsapp-send');
   const outs = (x, i) => (WF.connections[x].main[i] || []).map((t) => t.node);
   assert.deepEqual(outs('Action?', 0), ['Book: lead + appointment + consent (one statement)']);
   assert.deepEqual(outs('Action?', 3), ['Escalate (Cal.com, needs a person)']);
   assert.deepEqual(outs('Appointment stored?', 1), ['Escalate (booking not stored)']);
   assert.ok(!JSON.stringify(WF).includes(SECRET));
+});
+
+test('confirmation email: SortMyCover only, .ics + reschedule/cancel links, skips instead of using another domain', () => {
+  const ev = { ...L.normaliseCal(body({}, { metadata: { videoCallUrl: 'https://teams.microsoft.com/l/meetup-join/abc' } })), email: 'lerato@example.com' };
+  const plan = L.planCal(ev, { broker: BROKER, lead: null }, { brandId: 'b' });
+  const r = L.confirmationEmail(ev, plan, { RESEND_API_KEY: 're_DUMMYKEY_9f3' }, { appointmentId: 'appt-1', now: '2026-10-17T13:00:00Z' });
+  assert.equal(r.action, 'send');
+  const m = r.request.body;
+  assert.equal(m.from, 'SortMyCover <hello@sortmycover.co.za>');
+  assert.deepEqual(m.to, ['lerato@example.com']);
+  assert.equal(m.subject, 'Your SortMyCover call is booked: Wed 21 Oct at 10:00');
+  assert.equal(/lead velocity|leadvelocity/i.test(JSON.stringify(m)), false, 'nothing names Lead Velocity');
+  assert.equal(/\bAI\b/.test(m.text + m.html), false);
+  for (const s of [m.text, m.html]) {
+    assert.ok(s.includes('https://app.cal.com/reschedule/bk7Hq2xYz91'), 'reschedule link');
+    assert.ok(s.includes('https://app.cal.com/booking/bk7Hq2xYz91?cancel=true'), 'cancel link');
+    assert.ok(s.includes('https://teams.microsoft.com/l/meetup-join/abc'), 'join link');
+    assert.ok(s.includes('+27 60 015 6480'), 'the WhatsApp number Lindi messages from');
+  }
+  assert.equal(r.request.idempotency_key, 'calcom-confirm:bk7Hq2xYz91');
+  assert.equal(JSON.stringify(r).includes('re_DUMMYKEY_9f3'), false, 'the API key never travels in the item');
+  const ics = Buffer.from(m.attachments[0].content, 'base64').toString('utf8');
+  assert.equal(m.attachments[0].filename, 'sortmycover-call.ics');
+  assert.match(ics, /^BEGIN:VCALENDAR\r\n/);
+  assert.match(ics, /\r\nDTSTART:20261021T080000Z\r\nDTEND:20261021T083000Z\r\n/);
+  assert.match(ics, /\r\nUID:bk7Hq2xYz91@sortmycover\.co\.za\r\n/);
+  for (const line of ics.split('\r\n')) assert.ok(Buffer.byteLength(line) <= 75, `folded: ${line}`);
+  assert.ok(ics.replace(/\r\n /g, '').includes('Cancel: https://app.cal.com/booking/bk7Hq2xYz91?cancel=true'), 'links survive unfolding');
+  // payload links win; another origin is configurable
+  assert.equal(L.manageLinks({ uid: 'u1', reschedule_url: 'https://cal.sortmycover.co.za/r/u1' }, { CAL_PUBLIC_ORIGIN: 'https://cal.sortmycover.co.za/' }).cancel, 'https://cal.sortmycover.co.za/booking/u1?cancel=true');
+  // skips, each logged with its reason
+  assert.equal(L.confirmationEmail(ev, plan, {}, { appointmentId: 'a' }).reason, 'resend_key_missing');
+  assert.equal(L.confirmationEmail(ev, plan, { RESEND_API_KEY: 'set', CALCOM_EMAIL_FROM: 'Bookings <howzit@leadvelocity.co.za>' }, { appointmentId: 'a' }).reason, 'from_not_sortmycover');
+  assert.equal(L.confirmationEmail({ ...ev, email: null }, plan, { RESEND_API_KEY: 'set' }, { appointmentId: 'a' }).reason, 'no_email');
+  assert.equal(L.confirmationEmail(ev, plan, { RESEND_API_KEY: 'set' }, {}).reason, 'booking_not_stored');
+  assert.equal(L.confirmationEmail(ev, { action: 'reschedule' }, { RESEND_API_KEY: 'set' }, { appointmentId: 'a' }).reason, 'not_a_new_booking');
+});
+
+test('W37.json: the one HTTP sender is Resend, behind DRY_RUN, key from $env; every outcome is logged', () => {
+  const nd = (x) => WF.nodes.find((n) => n.name === x);
+  const http = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest');
+  assert.deepEqual(http.map((n) => n.name), ['Resend POST /emails (hello@sortmycover.co.za)']);
+  const h = http[0].parameters.headerParameters.parameters;
+  assert.equal(h.find((x) => x.name === 'Authorization').value, '=Bearer {{ $env.RESEND_API_KEY }}');
+  const into = (target) => Object.entries(WF.connections).filter(([, c]) => c.main.some((o) => (o || []).some((t) => t.node === target))).map(([k]) => k);
+  assert.deepEqual(into('Resend POST /emails (hello@sortmycover.co.za)'), ['Live send? (confirmation email)']);
+  assert.match(JSON.stringify(nd('Live send? (confirmation email)').parameters), /DRY_RUN_SENDS !== 'true'/);
+  assert.deepEqual(into('Log confirmation email (sent / dry / skipped)').sort(), ['Email to send?', 'Live send? (confirmation email)', 'Resend POST /emails (hello@sortmycover.co.za)']);
+  assert.ok(!/leadvelocity/i.test(JSON.stringify(nd('Plan confirmation email (w37.confirmationEmail)'))));
 });

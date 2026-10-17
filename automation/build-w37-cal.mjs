@@ -28,6 +28,7 @@ n.push(node('Sticky: read me', 'stickyNote', 1, [0, -380], { width: 760, height:
   '- Created: lead (consent_source calcom, CONSENT-CALCOM-v1, the checkbox wording, ref = page code, utm_* from "via"), appointment (booked_via page, idempotency_key calcom:<uid>), consent activity with provenance, one lead_optins row, then the UTILITY template `booking_confirm_chat` ("Yes, let\'s chat" -> W07 contact confirm).\n' +
   '- Rescheduled: new appointment linked to the old one (old -> rescheduled). Cancelled: appointment cancelled, Lindi\'s conv_state back to unbooked.\n' +
   '- No broker for the organiser email, no valid +27 number, or no consent tick: console escalation, nothing sent.\n' +
+  '- Confirmation email (SortMyCover\'s own Cal.com sends none): Resend from hello@sortmycover.co.za with the .ics and the reschedule / cancel links, never a Lead Velocity address. Needs RESEND_API_KEY and sortmycover.co.za verified in Resend; until then it is skipped and logged (lead_activities calcom_confirmation_email, outcome skipped).\n' +
   'Needs: CAL_WEBHOOK_SECRET, BRAND_ID, the adviser\'s brokers.calendar_email = the Cal.com organiser email, TWILIO_CONTENT_SIDS.booking_confirm_chat after Meta approval. Inactive until Jono activates it.' }));
 n.push(node('POST /cal (Cal.com)', 'webhook', 2, [0, 0], { httpMethod: 'POST', path: 'cal', responseMode: 'responseNode', options: { rawBody: true } }, { webhookId: 'smc-w37-cal' }));
 n.push(code('Verify signature + normalise (w37)', [220, 0],
@@ -140,6 +141,31 @@ const s = L.confirmSend(p, $json.appointment_id, $json.lead_id);
 return s ? [{ json: s }] : [];`));
 n.push(node('WhatsApp Send (booking_confirm_chat)', 'executeWorkflow', 1.1, [2420, -180],
   { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-whatsapp-send', cachedResultName: 'WhatsApp Send' }, options: { waitForSubWorkflow: true } }, { onError: 'continueRegularOutput' }));
+// SortMyCover-branded confirmation email (Jono, 17 Oct): SortMyCover's own Cal.com has its attendee email OFF, so W37 sends it.
+// Resend from hello@sortmycover.co.za (the SMC email-verify sender). Skips (logged) without RESEND_API_KEY or a sortmycover From.
+n.push(code('Plan confirmation email (w37.confirmationEmail)', [1980, -360],
+`const L = require('lv-automation').w37;
+const p = $('Plan (w37.planCal)').item.json;
+const r = L.confirmationEmail(p.ev, p, { RESEND_API_KEY: $env.RESEND_API_KEY ? 'set' : '', CALCOM_EMAIL_FROM: $env.CALCOM_EMAIL_FROM, CALCOM_EMAIL_REPLY_TO: $env.CALCOM_EMAIL_REPLY_TO, CAL_PUBLIC_ORIGIN: $env.CAL_PUBLIC_ORIGIN }, { appointmentId: $json.appointment_id });
+return [{ json: { ...r, lead_id: $json.lead_id, brand_id: p.lead.brand_id, uid: p.ev.uid } }];`, 'runOnceForEachItem'));
+n.push(ifTrue('Email to send?', [2200, -360], "$json.action === 'send'"));
+n.push(ifTrue('Live send? (confirmation email)', [2420, -420], "$env.DRY_RUN_SENDS !== 'true'"));
+n.push(node('Resend POST /emails (hello@sortmycover.co.za)', 'httpRequest', 4.2, [2640, -480], {
+  method: 'POST', url: `={{ $('Plan confirmation email (w37.confirmationEmail)').item.json.request.url }}`,
+  sendHeaders: true, headerParameters: { parameters: [
+    { name: 'Authorization', value: '=Bearer {{ $env.RESEND_API_KEY }}' },
+    { name: 'Idempotency-Key', value: `={{ $('Plan confirmation email (w37.confirmationEmail)').item.json.request.idempotency_key }}` }] },
+  sendBody: true, specifyBody: 'json', jsonBody: `={{ JSON.stringify($('Plan confirmation email (w37.confirmationEmail)').item.json.request.body) }}`,
+  options: { timeout: 15000, response: { response: { neverError: true, fullResponse: true } } },
+}, { onError: 'continueRegularOutput' }));
+n.push(pg('Log confirmation email (sent / dry / skipped)', [2860, -360],
+`INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+VALUES (nullif($1, '')::uuid, nullif($2, '')::uuid, 'W37', 'system', 'calcom_confirmation_email', $3::jsonb, now(), 'W37:calcom_confirmation_email:' || $4)
+ON CONFLICT DO NOTHING
+RETURNING id;`,
+  `={{ (() => { const e = $('Plan confirmation email (w37.confirmationEmail)').item.json; const sent = e.action === 'send' && $env.DRY_RUN_SENDS !== 'true'; const code = Number(($json && $json.statusCode) || 0); return [ e.lead_id || '', e.brand_id || '', JSON.stringify({ ...(e.activity ? e.activity.payload : { uid: e.uid }), outcome: e.action !== 'send' ? 'skipped' : (!sent ? 'dry_run' : (code >= 200 && code < 300 ? 'sent' : 'failed')), reason: e.reason || null, status: code || null, resend_id: ($json && $json.body && $json.body.id) || null }), e.uid ]; })() }}`,
+  { onError: 'continueRegularOutput' }));
+
 n.push(pg('Cancel: appointment + Lindi context', [1540, 200],
 `WITH a AS (
   UPDATE public.appointments SET status = 'cancelled', cancelled_at = now(), updated_at = now()
@@ -178,6 +204,13 @@ for (const s of ['Book: lead + appointment + consent (one statement)', 'Reschedu
   link(s, 'Appointment stored?');
 }
 link('Appointment stored?', 'Send the confirm template?', 0);
+link('Appointment stored?', 'Plan confirmation email (w37.confirmationEmail)', 0);
+link('Plan confirmation email (w37.confirmationEmail)', 'Email to send?');
+link('Email to send?', 'Live send? (confirmation email)', 0);
+link('Email to send?', 'Log confirmation email (sent / dry / skipped)', 1);
+link('Live send? (confirmation email)', 'Resend POST /emails (hello@sortmycover.co.za)', 0);
+link('Live send? (confirmation email)', 'Log confirmation email (sent / dry / skipped)', 1);
+link('Resend POST /emails (hello@sortmycover.co.za)', 'Log confirmation email (sent / dry / skipped)');
 link('Appointment stored?', 'Escalate (booking not stored)', 1);
 link('Send the confirm template?', 'SUB input (booking_confirm_chat)', 0);
 link('SUB input (booking_confirm_chat)', 'WhatsApp Send (booking_confirm_chat)');
