@@ -28,8 +28,8 @@
 - topic: call_cost
 - type: answer
 - asked as: "Do I pay for the call?" · "Is it free?" · "Kos die oproep iets?"
-- en: No, the call is free, and there's no obligation to buy anything.
-- af: Nee, die oproep is gratis, en jy is nie verplig om iets te koop nie.
+- en: You don't pay for the call. Advisers pay SortMyCover a fee for the service, and that fee doesn't depend on whether you buy anything.
+- af: Jy betaal nie vir die oproep nie. Adviseurs betaal SortMyCover 'n fooi vir die diens, en daardie fooi hang nie af of jy iets koop nie.
 
 ### FAQ-03 · Who is the adviser?
 - topic: adviser_who
