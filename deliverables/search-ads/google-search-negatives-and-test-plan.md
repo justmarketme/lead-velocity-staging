@@ -18,7 +18,7 @@ Marshall's question for every rand: **are we spending on the most relevant searc
 
    Ads pay for every raw lead, not only delivered ones (under-R750 band held, no-replies, no-shows). At an assumed 60% delivery rate, max ad spend per **raw** lead is about **R267** (40% profit) or **R217** (50% profit).
 
-   **Working target (17 Oct 2026, pending Jono):** R350 ad spend per delivered lead, hard stop at R450; watch R210–R270 per raw lead in Ads Manager. Jono confirmed on 17 Oct 2026 that the R16,500 had **no VAT** in it, so revenue is R825 per lead and these figures stand. Still to confirm: Jono's profit target (40% or 50%). Replace the 60% delivery rate with the real rate once the CRM has 30–50 leads.
+   **Decided by Jono, 17 Oct 2026: 50% profit.** Hard stop **R362 ad spend per delivered lead** (about **R217 per raw lead**). Working target **R300 per delivered lead** (about **R180 per raw lead**), so normal swings stay inside the margin. Jono confirmed on 17 Oct 2026 that the R16,500 had **no VAT** in it, so revenue is R825 per lead and these figures stand. Replace the 60% delivery rate with the real rate once the CRM has 30–50 leads.
 4. **Google financial services verification.** Check whether Google requires advertiser verification for financial services in South Africa before ads can run (not verified here).
 
 ## 2. Negative keywords (paste-ready)
@@ -188,9 +188,9 @@ Expect low volumes on most of these (Trends: credit life 2, income protection 4,
 ## 4. Test plan
 1. **One variable at a time.** Change the hook or the image or the landing page, never two at once, so a result can be attributed.
 2. **Measure the right result.** The decision metric is **cost per qualified, booked appointment** (and later attendance), pulled from the CRM. Clicks, CTR and WhatsApp taps are diagnostics only.
-3. **Minimum before judging.** Do not call a test before an ad group has spent about **2× the target ad cost per delivered lead (≈R700 at the R350 target)** or produced 10 qualified bookings, whichever comes first. New YMYL accounts are volatile in weeks 1–2.
+3. **Minimum before judging.** Do not call a test before an ad group has spent about **2× the hard stop (≈R725)** or produced 10 qualified bookings, whichever comes first. New YMYL accounts are volatile in weeks 1–2.
 4. **Weekly search-terms review** (every Monday): add new negatives, promote converting terms to exact match.
-5. **Kill rule.** Pause an ad group that has spent 2× the target (≈R700) with **zero** qualified bookings, or whose ad cost per delivered lead is above the R450 hard stop for two weeks. Pause an ad that is 50% worse on cost per qualified booking than its sibling after the minimum spend.
+5. **Kill rule.** Pause an ad group that has spent ≈R725 with **zero** qualified bookings, or whose ad cost per delivered lead stays above the R362 hard stop for two weeks. Pause an ad that is 50% worse on cost per qualified booking than its sibling after the minimum spend.
 6. **80/20 reallocation.** Every two weeks, move budget from the bottom 80% of ad groups to the top 20% by cost per qualified booking. Keep a small test slice (≈10%) for new hooks.
 7. **Compliance gate is separate.** A strong score never overrides a PASS / REVIEW / BLOCK compliance check (master brief section 6).
 
