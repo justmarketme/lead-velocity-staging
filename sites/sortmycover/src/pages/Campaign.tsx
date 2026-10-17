@@ -27,20 +27,20 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
     <div className="smc-campaign">
       <Seo title={angle.title} description={angle.description} canonical={origin + "/"} robots="noindex,follow" />
       <a className="skip" href="#h-how">Skip to what happens next</a>
-      <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c9c3b8]">{COST_LINE}</small></div></header>
+      <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c3c8ce]">{COST_LINE}</small></div></header>
       <main id="main">
         <section className="hero-band on-dark">
           <div className="wrap campaign-hero-grid">
             <div className="campaign-hero-copy">
             <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
-            <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
+            <p className="mt-4 text-[17px] text-[#d3d7dc] max-w-[40ch]">{angle.sub}</p>
             <div className="hx-actions" id="chat"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><a href="#h-how" className="hx-how-link">What happens next ↓</a></div>
             <p className="mt-3 text-[14px] text-[#56606a] max-w-[46ch]">{isWills(angle) ? WA_EXPECT.replace("your adviser", "your consultant") : WA_EXPECT}</p>
-            {angle.note && <p className="mt-3 text-[15px] text-[#c9c3b8] max-w-[44ch]" data-disclosure>{angle.note}</p>}
-            {wills && <p className="mt-3 text-[14px] text-[#c9c3b8] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}
+            {angle.note && <p className="mt-3 text-[15px] text-[#c3c8ce] max-w-[44ch]" data-disclosure>{angle.note}</p>}
+            {wills && <p className="mt-3 text-[14px] text-[#c3c8ce] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}
             {angle.proof && (
-              <p className="mt-4 text-[14px] text-[#c9c3b8] max-w-[46ch] border-l-2 border-amber pl-3" data-proof data-disclosure>
+              <p className="mt-4 text-[14px] text-[#c3c8ce] max-w-[46ch] border-l-2 border-amber pl-3" data-proof data-disclosure>
                 {angle.proof.text} <span>Source: {angle.proof.source}, {proofMonth(angle.proof.month)}.</span>
               </p>
             )}
