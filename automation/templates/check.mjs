@@ -89,7 +89,7 @@ for (const f of files) {
     // that look like "Firstname Surname" unless it is the adviser/practice (known fixture names).
     const allowed = /(Mark Smith|Smith Financial|Lead Velocity|SortMyCover|Outlook calendar|Microsoft Teams)/;
     for (const e of [...ex, ...(header?.example?.header_text || [])]) {
-      const m = String(e).match(/\b(Lerato|Sipho|Pieter|Thandi|Ayanda|Nomsa|Johan|Zanele) [A-Z][a-z]+/);
+      const m = String(e).match(/\b(Lerato|Sipho|Pieter|Lindi|Ayanda|Nomsa|Johan|Zanele) [A-Z][a-z]+/);
       if (m && !allowed.test(e)) err(n, `example "${e}" looks like a lead full name (use "Lerato M.")`);
     }
   }

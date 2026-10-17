@@ -48,7 +48,7 @@ Generation runs only when `brokers.positioning_answers.interview_complete_at` is
 1. `scriptCheck(text, { practice, fsp, verified_credentials }, { lang })` is deterministic and already contains `outputGate()` plus rules 5-20 and I-1…I-6. It is free and cannot be persuaded, and the eval proves it (`evals/scripts.json`, `fais.script_gate`).
 2. Only if (1) passes: the gate LLM `script-gate.md`, which fails closed.
 
-**Why `script-gate.md` and not the WhatsApp classifier via `classifierInput()`.** The WhatsApp classifier (`guardrail.md`) is written for Thandi's chat replies. On an adviser script it would wrongly block:
+**Why `script-gate.md` and not the WhatsApp classifier via `classifierInput()`.** The WhatsApp classifier (`guardrail.md`) is written for Lindi's chat replies. On an adviser script it would wrongly block:
 - category 11, persona_break: a script says "I'm Mark" in the first person;
 - category 12, off_scope: "who I help";
 - category 13 is defined for public replies.

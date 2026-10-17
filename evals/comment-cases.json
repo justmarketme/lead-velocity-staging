@@ -74,7 +74,7 @@
     },
     {
       "id": "C06", "surface": "fb_comment", "lang": "en", "is_nested_reply": true, "prior_exchanges": 0,
-      "text": "@Thandi how long is the call? I want to know too",
+      "text": "@Lindi how long is the call? I want to know too",
       "expected_class": "question", "expected_needs_human": false, "expected_fais_risk": false,
       "expected_public": {"action": "none"},
       "expected_private": {"send": true, "template": "private_question"},

@@ -279,7 +279,7 @@ UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'le
   n.push(http('Email from howzit@ (Graph sendMail)', 'POST', '=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail', { cred: HOWZIT_MAIL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.mail) }}' } }));
   n.push(sub('-> W06 First touch (booking event)', 'W06 First touch'));
   n.push(sub('-> W09 Reminder sequence (schedule / rebuild)', 'W09 Reminder sequence'));
-  n.push(sub('-> W07 post-booking contact confirm', 'W07 Conversation agent (Thandi)'));
+  n.push(sub('-> W07 post-booking contact confirm', 'W07 Conversation agent (Lindi)'));
   n.push(sub('-> CAPI Send (Schedule, no email)', 'CAPI Send'));
   n.push(sub('-> W28 ask_email', 'W28 Booking Flow endpoint'));
   n.push(sub('-> W22 Alerts', 'W22 Alerts'));

@@ -1,6 +1,6 @@
 {
   "id": "smc-w07",
-  "name": "W07 Conversation agent (Thandi)",
+  "name": "W07 Conversation agent (Lindi)",
   "nodes": [
     {
       "id": "n01",
@@ -2258,9 +2258,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- I-48b: one inbound message -> at most one lead-facing reply. Claim key w07:reply:{wamid} in the same idempotency\n-- table as the wamid claim (webhook_events); W03 takes the same key. Already claimed -> 0 rows -> this branch ends (no send,\n-- no outbound row). Turns with no inbound wamid (W05 post-booking contact start) get a one-off key.\nWITH c AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  VALUES ('whatsapp', 'w07:reply:' || coalesce(nullif($1, ''), 'none:' || gen_random_uuid()::text), nullif($2, '')::uuid, true)\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT c.id AS reply_claim_id, $3::jsonb AS wa FROM c;",
+        "query": "-- I-48b: one inbound message -> at most one lead-facing reply. Claim key w07:reply:{wamid} in the same idempotency\n-- table as the wamid claim (webhook_events); W03 takes the same key. Already claimed -> 0 rows -> this branch ends (no send,\n-- no outbound row). Turns with no inbound wamid (W05 post-booking contact start) get a one-off key.\nWITH c AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  VALUES ('whatsapp', 'w07:reply:' || coalesce(nullif($1, ''), 'none:' || gen_random_uuid()::text), nullif($2, '')::uuid, true)\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT c.id AS reply_claim_id, $3::jsonb AS wa, nullif($1, '') AS inbound_wamid, $4::bigint AS inbound_at_ms FROM c;",
         "options": {
-          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', JSON.stringify($json.wa || {}) ] }}"
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', JSON.stringify($json.wa || {}), String(($json.msg && $json.msg.at_ms) || Date.now()) ] }}"
         }
       },
       "credentials": {
@@ -2720,6 +2720,93 @@
           "waitForSubWorkflow": false
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "t1",
+              "leftValue": "={{ $env.WHATSAPP_PROVIDER === 'twilio' && /^(SM|MM)/.test(String($json.inbound_wamid || '')) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "name": "Twilio inbound? (typing)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -560,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://messaging.twilio.com/v3/Indicators/Typing.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + (($env.TWILIO_API_KEY_SID ? $env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET : $env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN)).base64Encode() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'whatsapp', messageId: $json.inbound_wamid }) }}",
+        "options": {
+          "timeout": 4000
+        }
+      },
+      "name": "Typing indicator (Lindi, Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -340,
+        1520
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Jono 17 Oct: show the WhatsApp typing dots before Lindi's free-text reply (Twilio Public Beta; also marks the inbound message read). Only for Twilio SM/MM inbound SIDs; failures never block the reply."
+    },
+    {
+      "parameters": {
+        "amount": "={{ (() => { const w = $('Twilio inbound? (typing)').item.json.wa || {}; const t = (w.text && w.text.body) || w.body || ''; const want = Math.min(7, 1.2 + String(t).length * 0.035); const spent = (Date.now() - Number($('Twilio inbound? (typing)').item.json.inbound_at_ms || Date.now())) / 1000; return Math.max(0.8, Math.round((want - spent) * 10) / 10); })() }}"
+      },
+      "name": "Human typing pause",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -120,
+        1520
+      ],
+      "webhookId": "lindi-typing-pause-w07",
+      "notes": "Reply lands after a human-length pause (1.2 s + 35 ms/char, max 7 s) counted from when the message arrived. Jono 17 Oct overrides persona-v1 'no fake typing delays'."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Restore the claimed item (wa) after the typing indicator / pause replaced $json.\nreturn { json: $('Twilio inbound? (typing)').item.json };"
+      },
+      "name": "Carry reply after pause",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10,
+        1640
+      ]
     }
   ],
   "connections": {
@@ -3412,7 +3499,7 @@
       "main": [
         [
           {
-            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "node": "Twilio inbound? (typing)",
             "type": "main",
             "index": 0
           }
@@ -3740,6 +3827,57 @@
         [
           {
             "node": "WhatsApp reply (email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio inbound? (typing)": {
+      "main": [
+        [
+          {
+            "node": "Typing indicator (Lindi, Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carry reply after pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Typing indicator (Lindi, Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Human typing pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human typing pause": {
+      "main": [
+        [
+          {
+            "node": "Carry reply after pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry reply after pause": {
+      "main": [
+        [
+          {
+            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
             "type": "main",
             "index": 0
           }

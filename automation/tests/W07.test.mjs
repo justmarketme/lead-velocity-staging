@@ -167,7 +167,7 @@ test('injection / off-topic stay in lane; first free-text reply carries DISCLOSE
   assert.ok(t.plan.prefix.includes(LINES.en.STAY_IN_LANE));
   assert.equal(t.plan.prefix[0], LINES.en.DISCLOSE);
   const txt = W.gateAndAssemble(t.plan).text;
-  assert.ok(txt.startsWith('Hi Lerato, I\'m Thandi'));
+  assert.ok(txt.startsWith('Hi Lerato, I\'m Lindi'));
 });
 
 test('operational intents are delegated, never answered by the LLM: book, reschedule, cancel, change method, close unbooked', () => {

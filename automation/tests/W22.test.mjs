@@ -212,7 +212,7 @@ test('W34 kinds: severity, IO recipient, scope; never unknown_signal (I-38b)', (
     w34('dsar_overdue', { to: ['jonathan', 'kg'], severity: 'red' }),
     w34('dsar_erased', { dsr_id: 'd1', severity: 'info' }),
     w34('dsar_erased', { dsr_id: 'd2', severity: 'red' }),
-    w34('broker_dsr_erase', { to_broker_id: 'b1', severity: 'info', first_name: 'Thandi' }),
+    w34('broker_dsr_erase', { to_broker_id: 'b1', severity: 'info', first_name: 'Lindi' }),
     w34('w34_retention_failure', { severity: 'red' }),
     w34('w34_monthly_report', { severity: 'info' }),
   ] });
@@ -247,7 +247,7 @@ test('W34 kinds: severity, IO recipient, scope; never unknown_signal (I-38b)', (
   assert.deepEqual(st(5), ['amber_to_pulse', 'broker:b1']);
   assert.deepEqual(st(6), ['sending', 'jonathan,kg']);
   assert.deepEqual(st(7), ['amber_to_pulse', 'jonathan']);
-  assert.match(pol[5].payload, /Thandi/, 'broker notice keeps the first name only');
+  assert.match(pol[5].payload, /Lindi/, 'broker notice keeps the first name only');
   // night: the IO alert waits for 07:00 like any non-always-send item
   assert.equal(runCode('Policy: severity, DND, redaction', { nowIso: '2026-10-02T21:30:00Z', input: [out[0]] })[0].status, 'held_dnd');
   // a non-W34 signal keeps the default recipients

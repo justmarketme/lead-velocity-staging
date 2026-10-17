@@ -131,7 +131,7 @@ export function onPulseTap(payload, c, now_ms) {
 
 /**
  * isPulseLine(text, conv_state, now_ms) -> boolean. W07 routeInbound calls this BEFORE the NLU path: free text inside
- * the open line window is the optional reason, unless it is something Thandi must act on (STOP, a person, a
+ * the open line window is the optional reason, unless it is something Lindi must act on (STOP, a person, a
  * complaint, a claim problem, distress, an injection, or an advice question) - those go the normal W07 way
  * (DEFER_AFTER_CALL, handoff, W15) and are never stored as pulse feedback.
  */

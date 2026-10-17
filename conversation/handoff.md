@@ -14,7 +14,7 @@
 | 1 | Asks for a person ("speak to a person", "human", "real person", "manager", "praat met 'n mens") | `prefilter().person` OR intent `person` | `HANDOFF_IN_HOURS` / `HANDOFF_OUT_OF_HOURS` |
 | 2 | Complaint (the keyword `COMPLAINT`, "I want to complain", topic `complaint`) | `prefilter().complaint` OR topic | `HANDOFF_COMPLAINT` (48-h SLA, 2.1.7; logged in the obligations register) |
 | 3 | Frustration (sentiment `frustrated`: swearing at us, "this is useless", "I've asked three times") | intent model `sentiment` | `HANDOFF_FRUSTRATED` |
-| 4 | Unanswered twice: two turns in a row where Thandi could only send `CLARIFY` | `decide()` with `ctx.unanswered >= 1` | `HANDOFF_IN_HOURS` / `HANDOFF_OUT_OF_HOURS` |
+| 4 | Unanswered twice: two turns in a row where Lindi could only send `CLARIFY` | `decide()` with `ctx.unanswered >= 1` | `HANDOFF_IN_HOURS` / `HANDOFF_OUT_OF_HOURS` |
 | 5 | Lead says the adviser didn't call (`reach_check` = `No, not yet`) | W12 | handled by W12/W13 (broker no-show path, Schedule D); KG is alerted, not a chat handoff |
 | 6 | **Self-harm or bereavement**: any hint of self-harm or not wanting to live ("my family would be better off with the payout"), or that someone close has died ("my late husband", "passed away", "oorlede") | `prefilter().distress` OR topic `distress` (the intent model is told: when unsure, include it) | **None.** No automated text at all: no deferral line, no handoff line, no buttons. See "Trigger 6" below. |
 | 7 | A refused or unpaid claim on an existing policy ("my claim was rejected") | `prefilter().claim_problem` OR topic `claim_problem` | `DEFER` (+ `DEFER_NOTED`), then `HANDOFF_IN_HOURS` / `HANDOFF_OUT_OF_HOURS`. The person points them to the insurer and the ombud's complaint route; they never judge the claim. |
@@ -28,7 +28,7 @@ Not a trigger: a deferral. The person on our side cannot quote or advise either;
 3. **Alert** (WhatsApp to the primary, interactive buttons `Take it` · `Pass to KG`; console banner): first name + initial, state, trigger, the last 5 messages **redacted** (`redactForStorage`), the booking if any, and a deep link to the conversation in the console.
 4. **Not taken in 15 minutes** (in hours) → same alert to the backup. Not taken in 2 hours → both, marked Red (6.8b escalation rule).
 5. **Out of hours** → `HANDOFF_OUT_OF_HOURS`, and a callback task for the primary at 08:00, which leaves an hour before the 09:00 promise. The alert goes into the 07:30 digest, not overnight: handoffs are not on the 6.8b do-not-disturb exception list. Complaints go to the top of the 08:00 queue.
-6. **Release.** The human taps `Hand back to Thandi` in the console when done. Thandi resumes with memory intact and does not re-send anything the human already covered. A human reply is never generated or rewritten by the LLM, but the console shows the human the same FAIS reminder: no premiums, amounts, products, insurers, comparisons, suitability, tax or health.
+6. **Release.** The human taps `Hand back to Lindi` in the console when done. Lindi resumes with memory intact and does not re-send anything the human already covered. A human reply is never generated or rewritten by the LLM, but the console shows the human the same FAIS reminder: no premiums, amounts, products, insurers, comparisons, suitability, tax or health.
 7. **Logged** in `conversations` (`handoff_at`, `trigger`, `taken_by`, `released_at`) and counted as the console KPI "handoff rate per 100 conversations".
 
 ## Trigger 6: self-harm or bereavement (no automated content)
