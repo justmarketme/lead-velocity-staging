@@ -1,0 +1,36 @@
+{
+  "name": "reach_check",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, did {{2}} reach you today for your call? Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Yes, we spoke"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "No, not yet"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>02 The contract and Mark</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .list { position: absolute; left: 140px; top: 330px; width: 860px; padding: 14px 36px; }
+  .row { display: flex; align-items: center; gap: 24px; height: 128px; border-top: 1.5px solid var(--soft); }
+  .row:first-child { border-top: 0; }
+  .row .a { font-size: 32px; font-weight: 700; color: var(--navy); }
+  .row .b { font-size: 21px; color: var(--muted); margin-top: 4px; }
+  .doc { position: absolute; left: 1100px; top: 300px; width: 560px; height: 560px; padding: 40px 44px; }
+  .doc .lg { height: 46px; }
+  .doc .ttl { margin-top: 22px; font-size: 30px; font-weight: 700; color: var(--navy); }
+  .doc .ref { font-size: 19px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .doc .sk { height: 13px; border-radius: 7px; background: var(--soft); margin-top: 14px; }
+  .doc .amt { margin-top: 30px; display: flex; justify-content: space-between; align-items: baseline; border-top: 1.5px solid var(--line); padding-top: 22px; }
+  .doc .amt span { font-size: 20px; font-weight: 700; color: var(--faint); letter-spacing: .1em; text-transform: uppercase; }
+  .doc .amt b { font-size: 56px; color: var(--navy); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .tag { position: absolute; right: 30px; top: 34px; }
+  .doc2 { position: absolute; left: 1140px; top: 320px; width: 560px; height: 560px; background: #fff; border: 1.5px solid var(--line); border-radius: 22px; }
+  .send { position: absolute; left: 1010px; top: 800px; display: flex; align-items: center; gap: 16px; padding: 18px 30px 18px 18px; border-radius: 999px; background: var(--navy); color: #fff; font-size: 27px; font-weight: 700; box-shadow: var(--shadow-lg); z-index: 4; }
+  .send .dot { width: 46px; height: 46px; border-radius: 50%; background: var(--grad); display: grid; place-items: center; }
+  .send svg { width: 24px; height: 24px; stroke: #fff; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .cc { position: absolute; left: 1100px; top: 236px; display: flex; gap: 12px; }
+</style></head>
+<body data-scene="s02"><div class="stage">
+  <div class="top"><div class="eyebrow">Done</div><h1 class="h"><i></i>The contract and Mark</h1></div>
+  <div class="card list">
+    <div class="row"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Agreement written</div><div class="b">Lead Generation Services Agreement · Raspberry Academy basis</div></div></div>
+    <div class="row"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Mark's copy ready</div><div class="b">Our registration number, his details, our contract design</div></div></div>
+    <div class="row"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Invoice INV-458F2960</div><div class="b">First invoice · R16,500</div></div></div>
+    <div class="row"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Email in Drafts</div><div class="b">Both attached · cc you and KG · your two references</div></div></div>
+  </div>
+  <div class="cc"><span class="pill pink">Fee is never commission</span></div>
+  <div class="doc2"></div>
+  <div class="card doc">
+    <div class="tag pill green"><i></i>Ready</div>
+    <img class="lg" src="assets/lead-velocity-logo-contract.png" alt="">
+    <div class="ttl">Tax invoice</div>
+    <div class="ref">INV-458F2960 · Mark Weston</div>
+    <div class="sk" style="width:90%;margin-top:30px"></div><div class="sk" style="width:76%"></div><div class="sk" style="width:84%"></div><div class="sk" style="width:58%"></div>
+    <div class="amt"><span>Total</span><b id="amt">R0</b></div>
+  </div>
+  <div class="send"><div class="dot"><svg viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg></div>Waiting for you to press Send</div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const rows = $$('.row'), tR = [cue('agreement'), cue('copy'), cue('invoice'), cue('email')];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.list', t, tR[0] - .6, { y: 34, dur: 1 });
+    rows.forEach((r, i) => { rv(r, t, tR[i] - .4, { x: 24, y: 0, dur: .7 }); tick(r.querySelector('.tick'), t, tR[i] + .5); });
+    rv('.cc', t, cue('commission') - .2, { y: 14, dur: .7 });
+    rv('.doc2', t, tR[1] - .1, { y: 40, dur: 1 });
+    $('.doc2').style.transform += ' rotate(3deg)';
+    rv('.doc', t, tR[1] - .3, { y: 40, scale: .96, dur: 1 });
+    const a = P(t, cue('sixteen'), 1.6, E.out5);
+    $('#amt').textContent = 'R' + Math.round(16500 * a).toLocaleString('en-US');
+    rv('.tag', t, cue('ready') - .1, { y: 8, scale: .8, dur: .6, ease: E.back });
+    rv('.send', t, cue('drafts') - .2, { y: 30, scale: .9, dur: .9, ease: E.back });
+    // a gentle pulse so the call to action reads as pending
+    const pulse = t > cue('drafts') + 1 ? (Math.sin((t - cue('drafts')) * 3) + 1) / 2 : 0;
+    $('.send').style.boxShadow = `0 0 0 ${(pulse * 10).toFixed(1)}px rgba(219,39,119,${(.18 * (1 - pulse * .4)).toFixed(3)}), 0 30px 60px -24px rgba(15,23,42,.35)`;
+  };
+</script></body></html>

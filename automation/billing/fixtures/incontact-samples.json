@@ -1,0 +1,462 @@
+{
+ "_comment": "SYNTHETIC inContact-style alerts for parser tests. Not real bank data: amounts, references, account digits and sender wording are invented (FNB's real wording is an ASSUMPTION until GATE-INCONTACT, when 20 real alerts replace these shapes). Graph message shape: id, from.emailAddress.address, subject, receivedDateTime, body{contentType,content}, internetMessageHeaders.",
+ "samples": [
+  {
+   "id": "SYNTH-MSG-01",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-03T07:14:40Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R12,345.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0001-B-202610. 03Oct 09:14"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 1234500,
+    "parsed_reference": "LV-0001-B-202610",
+    "occurred_at": "2026-10-03T07:14:00.000Z",
+    "account_tail": "987654"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-02",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-03T09:02:10Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB:-) R9 876.54 paid to cheq a/c..987654 @ Eft. Ref:lv 2 s 202610. 03Oct26 11:02"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 987654,
+    "parsed_reference": "LV-0002-S-202610",
+    "occurred_at": "2026-10-03T09:02:00.000Z"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-03",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "inContact - Payment notification",
+   "receivedDateTime": "2026-10-04T06:30:40Z",
+   "body": {
+    "contentType": "text",
+    "content": "Payment received\nAmount: R4,321.00\nReference: LV0003G202610\nDate: 2026/10/04 08:30:15\nAccount: ...987654"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 432100,
+    "parsed_reference": "LV-0003-G-202610",
+    "occurred_at": "2026-10-04T06:30:15.000Z",
+    "account_tail": "987654"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-04",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Credit received",
+   "receivedDateTime": "2026-10-05T12:45:30Z",
+   "body": {
+    "contentType": "text",
+    "content": "Deposit of ZAR 10 000,00 into account ending 987654. Reference: LV-0004-202610. Date: 05 October 2026 14:45"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 1000000,
+    "parsed_reference": "LV-0004-202610",
+    "occurred_at": "2026-10-05T12:45:00.000Z"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-05",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-02T14:20:05Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R1.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0099-B-202610 R1 TEST. 02Oct 16:20"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 100,
+    "parsed_reference": "LV-0099-B-202610",
+    "occurred_at": "2026-10-02T14:20:00.000Z"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-06",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-06T08:00:12Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R5,000.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0001-B-202610. 06Oct 10:00"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 500000,
+    "parsed_reference": "LV-0001-B-202610",
+    "note": "partial payment against the same invoice family as sample 1"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-07",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-03T07:16:02Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R12,345.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0001-B-202610. 03Oct 09:14"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 1234500,
+    "parsed_reference": "LV-0001-B-202610",
+    "note": "duplicate alert (re-sent) of sample 1 with a different message id"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-08",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-07T10:12:30Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R7,777.00 paid to cheq a/c..987654 @ Online Banking. Ref.ACME BROKERS OCT. 07Oct 12:12"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 777700,
+    "parsed_reference": null,
+    "reference_raw": "ACME BROKERS OCT",
+    "note": "paid without the LV reference -> console queue + POP request"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-09",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-08T04:01:00Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R3,210.50 paid to cheq a/c..987654 @ Online Banking. Ref.PAYSTACK SETTLEMENT 0001. 08Oct 06:01"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 321050,
+    "parsed_reference": null,
+    "note": "Paystack settlement payout: never marks an invoice paid"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-10",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment notification",
+   "receivedDateTime": "2026-10-08T07:00:00Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R2,000.00 paid from cheq a/c..987654 to SUPPLIER @ Online Banking. Ref.INV 55. 08Oct 09:00"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "debit",
+    "amount_cents": 200000
+   }
+  },
+  {
+   "id": "SYNTH-MSG-11",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment notification",
+   "receivedDateTime": "2026-10-08T11:30:00Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R450.00 reserved for purchase @ SOME SHOP from cheq a/c..987654. 08Oct 13:30"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "debit",
+    "amount_cents": 45000
+   }
+  },
+  {
+   "id": "SYNTH-MSG-12",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb-alerts.co"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-03T07:14:40Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R12,345.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0001-B-202610. 03Oct 09:14"
+   },
+   "expect": {
+    "pass": false,
+    "reason": "sender_not_fnb",
+    "note": "look-alike sender domain"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-13",
+   "from": {
+    "emailAddress": {
+     "name": "FNB",
+     "address": "news@fnb.co.za"
+    }
+   },
+   "subject": "Earn more eBucks this month",
+   "receivedDateTime": "2026-10-03T08:00:00Z",
+   "body": {
+    "contentType": "text",
+    "content": "Dear client, earn eBucks when you pay with your card. Deposit your savings today."
+   },
+   "expect": {
+    "pass": false,
+    "reason": "subject_not_credit_alert"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-14",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-09T07:00:00Z",
+   "body": {
+    "contentType": "text",
+    "content": "Hello, a transaction happened on your profile. Log in to the app to see the details."
+   },
+   "expect": {
+    "pass": true,
+    "recognised": false,
+    "note": "FNB changed the wording: no amount/direction -> format-change alert"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-15",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-09T13:05:20Z",
+   "body": {
+    "contentType": "html",
+    "content": "<html><body><table><tr><td>Payment received</td></tr><tr><td>Amount:</td><td>R8,642.00</td></tr><tr><td>Reference:</td><td>LV-0005-S-202610</td></tr><tr><td>Date:</td><td>09/10/2026 15:05</td></tr></table></body></html>"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 864200,
+    "parsed_reference": "LV-0005-S-202610",
+    "occurred_at": "2026-10-09T13:05:00.000Z"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-16",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-10T05:45:10Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R6,543.21 t/fer from SAVINGS to cheq a/c..987654 @ App. Ref.LV-0006-G-202610. 10Oct 07:45"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 654321,
+    "parsed_reference": "LV-0006-G-202610"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-17",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2027-01-01T00:05:00Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R11,111.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0007-B-202611. 31Dec 23:50"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 1111100,
+    "parsed_reference": "LV-0007-B-202611",
+    "occurred_at": "2026-12-31T21:50:00.000Z",
+    "note": "no year in alert, received on 1 Jan -> previous year"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-18",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-03T07:14:40Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R12,345.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0001-B-202610. 03Oct 09:14"
+   },
+   "expect": {
+    "pass": false,
+    "reason": "auth_failed",
+    "note": "spoofed: DMARC fail in Authentication-Results"
+   },
+   "internetMessageHeaders": [
+    {
+     "name": "Authentication-Results",
+     "value": "spf=fail smtp.mailfrom=fnb.co.za; dkim=none; dmarc=fail action=none header.from=fnb.co.za"
+    }
+   ]
+  },
+  {
+   "id": "SYNTH-MSG-19",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-11T08:10:30Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R2,468.00 paid to cheq a/c..987654 @ Eft. Ref.PAYMENT LV 8 S 202610 THANKS. 11Oct 10:10"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 246800,
+    "parsed_reference": "LV-0008-S-202610"
+   }
+  },
+  {
+   "id": "SYNTH-MSG-20",
+   "from": {
+    "emailAddress": {
+     "name": "FNB inContact",
+     "address": "incontact@fnb.co.za"
+    }
+   },
+   "subject": "FNB inContact: Payment received",
+   "receivedDateTime": "2026-10-12T06:05:40Z",
+   "body": {
+    "contentType": "text",
+    "content": "FNB :-) R13,579.00 paid to cheq a/c..987654 @ Online Banking. Ref.LV-0009-G-202610. 12 Oct 2026 08:05"
+   },
+   "expect": {
+    "pass": true,
+    "recognised": true,
+    "direction": "credit",
+    "amount_cents": 1357900,
+    "parsed_reference": "LV-0009-G-202610",
+    "occurred_at": "2026-10-12T06:05:00.000Z"
+   },
+   "internetMessageHeaders": [
+    {
+     "name": "Authentication-Results",
+     "value": "spf=pass smtp.mailfrom=fnb.co.za; dkim=pass header.d=fnb.co.za; dmarc=pass action=none header.from=fnb.co.za"
+    }
+   ]
+  }
+ ]
+}

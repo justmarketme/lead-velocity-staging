@@ -1,0 +1,3701 @@
+{
+ "lead": 1.0,
+ "tail": 1.3,
+ "voice": "en-US-AndrewNeural",
+ "rate": "-3%",
+ "scenes": [
+  {
+   "id": "s01",
+   "title": "Scene 1: Welcome (about 15s)",
+   "spoken": "Welcome to Lead Velocity. You've paid for your first cycle, so here's exactly what happens next: how your leads reach you, where your money goes, and how the results get better over time.",
+   "audio": 11.424,
+   "clip": 13.724,
+   "words": [
+    {
+     "w": "Welcome",
+     "t": 1.116,
+     "e": 1.516
+    },
+    {
+     "w": "to",
+     "t": 1.644,
+     "e": 1.76
+    },
+    {
+     "w": "Lead",
+     "t": 1.773,
+     "e": 2.031
+    },
+    {
+     "w": "Velocity.",
+     "t": 2.044,
+     "e": 2.662
+    },
+    {
+     "w": "You've",
+     "t": 3.088,
+     "e": 3.242
+    },
+    {
+     "w": "paid",
+     "t": 3.255,
+     "e": 3.539
+    },
+    {
+     "w": "for",
+     "t": 3.552,
+     "e": 3.668
+    },
+    {
+     "w": "your",
+     "t": 3.68,
+     "e": 3.783
+    },
+    {
+     "w": "first",
+     "t": 3.796,
+     "e": 4.106
+    },
+    {
+     "w": "cycle,",
+     "t": 4.119,
+     "e": 4.492
+    },
+    {
+     "w": "so",
+     "t": 4.905,
+     "e": 5.008
+    },
+    {
+     "w": "here's",
+     "t": 5.021,
+     "e": 5.253
+    },
+    {
+     "w": "exactly",
+     "t": 5.265,
+     "e": 5.832
+    },
+    {
+     "w": "what",
+     "t": 5.845,
+     "e": 5.987
+    },
+    {
+     "w": "happens",
+     "t": 6.0,
+     "e": 6.425
+    },
+    {
+     "w": "next:",
+     "t": 6.438,
+     "e": 6.954
+    },
+    {
+     "w": "how",
+     "t": 7.405,
+     "e": 7.521
+    },
+    {
+     "w": "your",
+     "t": 7.534,
+     "e": 7.701
+    },
+    {
+     "w": "leads",
+     "t": 7.714,
+     "e": 8.023
+    },
+    {
+     "w": "reach",
+     "t": 8.036,
+     "e": 8.32
+    },
+    {
+     "w": "you,",
+     "t": 8.332,
+     "e": 8.539
+    },
+    {
+     "w": "where",
+     "t": 8.861,
+     "e": 8.977
+    },
+    {
+     "w": "your",
+     "t": 8.99,
+     "e": 9.093
+    },
+    {
+     "w": "money",
+     "t": 9.106,
+     "e": 9.363
+    },
+    {
+     "w": "goes,",
+     "t": 9.376,
+     "e": 9.892
+    },
+    {
+     "w": "and",
+     "t": 10.137,
+     "e": 10.24
+    },
+    {
+     "w": "how",
+     "t": 10.253,
+     "e": 10.394
+    },
+    {
+     "w": "the",
+     "t": 10.407,
+     "e": 10.497
+    },
+    {
+     "w": "results",
+     "t": 10.51,
+     "e": 10.897
+    },
+    {
+     "w": "get",
+     "t": 10.91,
+     "e": 11.129
+    },
+    {
+     "w": "better",
+     "t": 11.142,
+     "e": 11.451
+    },
+    {
+     "w": "over",
+     "t": 11.464,
+     "e": 11.644
+    },
+    {
+     "w": "time.",
+     "t": 11.657,
+     "e": 12.031
+    }
+   ],
+   "cues": [
+    {
+     "text": "Welcome to Lead Velocity.",
+     "t": 1.116,
+     "e": 3.088
+    },
+    {
+     "text": "You've paid for your first cycle,",
+     "t": 3.088,
+     "e": 4.905
+    },
+    {
+     "text": "so here's exactly what happens next:",
+     "t": 4.905,
+     "e": 7.405
+    },
+    {
+     "text": "how your leads reach you, where your money goes,",
+     "t": 7.405,
+     "e": 10.137
+    },
+    {
+     "text": "and how the results get better over time.",
+     "t": 10.137,
+     "e": 12.381
+    }
+   ]
+  },
+  {
+   "id": "s02",
+   "title": "Scene 2: Getting you live (about 25s)",
+   "spoken": "First, we get you set up. We check your F S P number on the public F S C A register. You connect your Microsoft Outlook calendar, add your photo and a short bio for your intro card, and give us your business WhatsApp number. Once your payment has cleared and that's done, your campaigns go live, normally within three business days.",
+   "audio": 20.76,
+   "clip": 23.06,
+   "words": [
+    {
+     "w": "First,",
+     "t": 1.142,
+     "e": 1.477
+    },
+    {
+     "w": "we",
+     "t": 1.657,
+     "e": 1.76
+    },
+    {
+     "w": "get",
+     "t": 1.773,
+     "e": 1.889
+    },
+    {
+     "w": "you",
+     "t": 1.902,
+     "e": 1.979
+    },
+    {
+     "w": "set",
+     "t": 1.992,
+     "e": 2.211
+    },
+    {
+     "w": "up.",
+     "t": 2.224,
+     "e": 2.417
+    },
+    {
+     "w": "We",
+     "t": 2.843,
+     "e": 2.959
+    },
+    {
+     "w": "check",
+     "t": 2.972,
+     "e": 3.229
+    },
+    {
+     "w": "your",
+     "t": 3.242,
+     "e": 3.448
+    },
+    {
+     "w": "FSP",
+     "t": 3.461,
+     "e": 4.131
+    },
+    {
+     "w": "number",
+     "t": 4.144,
+     "e": 4.492
+    },
+    {
+     "w": "on",
+     "t": 4.557,
+     "e": 4.634
+    },
+    {
+     "w": "the",
+     "t": 4.647,
+     "e": 4.724
+    },
+    {
+     "w": "public",
+     "t": 4.737,
+     "e": 5.149
+    },
+    {
+     "w": "FSCA",
+     "t": 5.278,
+     "e": 6.193
+    },
+    {
+     "w": "register.",
+     "t": 6.206,
+     "e": 6.812
+    },
+    {
+     "w": "You",
+     "t": 7.237,
+     "e": 7.34
+    },
+    {
+     "w": "connect",
+     "t": 7.353,
+     "e": 7.688
+    },
+    {
+     "w": "your",
+     "t": 7.701,
+     "e": 7.804
+    },
+    {
+     "w": "Microsoft",
+     "t": 7.817,
+     "e": 8.513
+    },
+    {
+     "w": "Outlook",
+     "t": 8.526,
+     "e": 8.887
+    },
+    {
+     "w": "calendar,",
+     "t": 8.899,
+     "e": 9.454
+    },
+    {
+     "w": "add",
+     "t": 9.84,
+     "e": 9.982
+    },
+    {
+     "w": "your",
+     "t": 9.995,
+     "e": 10.111
+    },
+    {
+     "w": "photo",
+     "t": 10.124,
+     "e": 10.639
+    },
+    {
+     "w": "and",
+     "t": 10.755,
+     "e": 10.871
+    },
+    {
+     "w": "a",
+     "t": 10.884,
+     "e": 10.91
+    },
+    {
+     "w": "short",
+     "t": 10.923,
+     "e": 11.296
+    },
+    {
+     "w": "bio",
+     "t": 11.309,
+     "e": 11.683
+    },
+    {
+     "w": "for",
+     "t": 11.696,
+     "e": 11.838
+    },
+    {
+     "w": "your",
+     "t": 11.851,
+     "e": 11.992
+    },
+    {
+     "w": "intro",
+     "t": 12.005,
+     "e": 12.379
+    },
+    {
+     "w": "card,",
+     "t": 12.392,
+     "e": 12.74
+    },
+    {
+     "w": "and",
+     "t": 13.049,
+     "e": 13.113
+    },
+    {
+     "w": "give",
+     "t": 13.126,
+     "e": 13.294
+    },
+    {
+     "w": "us",
+     "t": 13.307,
+     "e": 13.436
+    },
+    {
+     "w": "your",
+     "t": 13.448,
+     "e": 13.577
+    },
+    {
+     "w": "business",
+     "t": 13.59,
+     "e": 13.977
+    },
+    {
+     "w": "WhatsApp",
+     "t": 13.99,
+     "e": 14.428
+    },
+    {
+     "w": "number.",
+     "t": 14.441,
+     "e": 14.789
+    },
+    {
+     "w": "Once",
+     "t": 15.214,
+     "e": 15.381
+    },
+    {
+     "w": "your",
+     "t": 15.394,
+     "e": 15.497
+    },
+    {
+     "w": "payment",
+     "t": 15.51,
+     "e": 15.858
+    },
+    {
+     "w": "has",
+     "t": 15.871,
+     "e": 16.026
+    },
+    {
+     "w": "cleared",
+     "t": 16.039,
+     "e": 16.515
+    },
+    {
+     "w": "and",
+     "t": 16.644,
+     "e": 16.786
+    },
+    {
+     "w": "that's",
+     "t": 16.799,
+     "e": 17.07
+    },
+    {
+     "w": "done,",
+     "t": 17.082,
+     "e": 17.392
+    },
+    {
+     "w": "your",
+     "t": 17.778,
+     "e": 17.881
+    },
+    {
+     "w": "campaigns",
+     "t": 17.894,
+     "e": 18.448
+    },
+    {
+     "w": "go",
+     "t": 18.461,
+     "e": 18.629
+    },
+    {
+     "w": "live,",
+     "t": 18.642,
+     "e": 19.08
+    },
+    {
+     "w": "normally",
+     "t": 19.479,
+     "e": 19.84
+    },
+    {
+     "w": "within",
+     "t": 19.853,
+     "e": 20.201
+    },
+    {
+     "w": "three",
+     "t": 20.214,
+     "e": 20.549
+    },
+    {
+     "w": "business",
+     "t": 20.562,
+     "e": 20.948
+    },
+    {
+     "w": "days.",
+     "t": 20.961,
+     "e": 21.361
+    }
+   ],
+   "cues": [
+    {
+     "text": "First, we get you set up.",
+     "t": 1.142,
+     "e": 2.843
+    },
+    {
+     "text": "We check your FSP number on the public FSCA register.",
+     "t": 2.843,
+     "e": 7.237
+    },
+    {
+     "text": "You connect your Microsoft Outlook calendar,",
+     "t": 7.237,
+     "e": 9.84
+    },
+    {
+     "text": "add your photo and a short",
+     "t": 9.84,
+     "e": 11.309
+    },
+    {
+     "text": "bio for your intro card, and give us your business WhatsApp number.",
+     "t": 11.309,
+     "e": 15.214
+    },
+    {
+     "text": "Once your payment has cleared and that's done,",
+     "t": 15.214,
+     "e": 17.778
+    },
+    {
+     "text": "your campaigns go live, normally within three business days.",
+     "t": 17.778,
+     "e": 21.711
+    }
+   ]
+  },
+  {
+   "id": "s03",
+   "title": "Scene 3: How a lead reaches you (about 45s)",
+   "spoken": "Our ads run under our consumer brand, SortMyCover. They never name a product or a price. Someone taps an ad, answers a few quick questions, and agrees to be contacted. Our WhatsApp assistant follows up within minutes, introduces you by name, practice and F S P number, and books a time with you. The booking only appears in your calendar once the client has verified their email. You get a WhatsApp and a short pre-call brief. We send them reminders right up to ten minutes before the meeting. After that, the conversation is yours. A lead only counts as one of your Qualified Leads once the client has verified their email and you've actually met them, which you mark as Attended in your portal.",
+   "audio": 41.976,
+   "clip": 44.276,
+   "words": [
+    {
+     "w": "Our",
+     "t": 1.103,
+     "e": 1.271
+    },
+    {
+     "w": "ads",
+     "t": 1.283,
+     "e": 1.515
+    },
+    {
+     "w": "run",
+     "t": 1.528,
+     "e": 1.85
+    },
+    {
+     "w": "under",
+     "t": 1.863,
+     "e": 2.16
+    },
+    {
+     "w": "our",
+     "t": 2.173,
+     "e": 2.276
+    },
+    {
+     "w": "consumer",
+     "t": 2.289,
+     "e": 2.778
+    },
+    {
+     "w": "brand,",
+     "t": 2.791,
+     "e": 3.139
+    },
+    {
+     "w": "SortMyCover.",
+     "t": 3.41,
+     "e": 4.235
+    },
+    {
+     "w": "They",
+     "t": 4.66,
+     "e": 4.724
+    },
+    {
+     "w": "never",
+     "t": 4.737,
+     "e": 4.982
+    },
+    {
+     "w": "name",
+     "t": 4.995,
+     "e": 5.162
+    },
+    {
+     "w": "a",
+     "t": 5.175,
+     "e": 5.227
+    },
+    {
+     "w": "product",
+     "t": 5.24,
+     "e": 5.729
+    },
+    {
+     "w": "or",
+     "t": 5.923,
+     "e": 6.026
+    },
+    {
+     "w": "a",
+     "t": 6.039,
+     "e": 6.09
+    },
+    {
+     "w": "price.",
+     "t": 6.103,
+     "e": 6.67
+    },
+    {
+     "w": "Someone",
+     "t": 7.108,
+     "e": 7.43
+    },
+    {
+     "w": "taps",
+     "t": 7.443,
+     "e": 7.817
+    },
+    {
+     "w": "an",
+     "t": 7.83,
+     "e": 7.92
+    },
+    {
+     "w": "ad,",
+     "t": 7.933,
+     "e": 8.268
+    },
+    {
+     "w": "answers",
+     "t": 8.655,
+     "e": 8.977
+    },
+    {
+     "w": "a",
+     "t": 8.99,
+     "e": 9.041
+    },
+    {
+     "w": "few",
+     "t": 9.054,
+     "e": 9.299
+    },
+    {
+     "w": "quick",
+     "t": 9.312,
+     "e": 9.531
+    },
+    {
+     "w": "questions,",
+     "t": 9.544,
+     "e": 10.201
+    },
+    {
+     "w": "and",
+     "t": 10.446,
+     "e": 10.575
+    },
+    {
+     "w": "agrees",
+     "t": 10.588,
+     "e": 11.013
+    },
+    {
+     "w": "to",
+     "t": 11.026,
+     "e": 11.103
+    },
+    {
+     "w": "be",
+     "t": 11.116,
+     "e": 11.219
+    },
+    {
+     "w": "contacted.",
+     "t": 11.232,
+     "e": 11.902
+    },
+    {
+     "w": "Our",
+     "t": 12.327,
+     "e": 12.469
+    },
+    {
+     "w": "WhatsApp",
+     "t": 12.482,
+     "e": 12.933
+    },
+    {
+     "w": "assistant",
+     "t": 12.946,
+     "e": 13.436
+    },
+    {
+     "w": "follows",
+     "t": 13.448,
+     "e": 13.861
+    },
+    {
+     "w": "up",
+     "t": 13.874,
+     "e": 14.015
+    },
+    {
+     "w": "within",
+     "t": 14.028,
+     "e": 14.35
+    },
+    {
+     "w": "minutes,",
+     "t": 14.363,
+     "e": 14.84
+    },
+    {
+     "w": "introduces",
+     "t": 15.111,
+     "e": 15.755
+    },
+    {
+     "w": "you",
+     "t": 15.768,
+     "e": 15.884
+    },
+    {
+     "w": "by",
+     "t": 15.897,
+     "e": 16.064
+    },
+    {
+     "w": "name,",
+     "t": 16.077,
+     "e": 16.515
+    },
+    {
+     "w": "practice",
+     "t": 16.812,
+     "e": 17.405
+    },
+    {
+     "w": "and",
+     "t": 17.418,
+     "e": 17.662
+    },
+    {
+     "w": "FSP",
+     "t": 17.74,
+     "e": 18.448
+    },
+    {
+     "w": "number,",
+     "t": 18.461,
+     "e": 18.848
+    },
+    {
+     "w": "and",
+     "t": 19.144,
+     "e": 19.209
+    },
+    {
+     "w": "books",
+     "t": 19.222,
+     "e": 19.505
+    },
+    {
+     "w": "a",
+     "t": 19.518,
+     "e": 19.57
+    },
+    {
+     "w": "time",
+     "t": 19.582,
+     "e": 19.853
+    },
+    {
+     "w": "with",
+     "t": 19.866,
+     "e": 20.021
+    },
+    {
+     "w": "you.",
+     "t": 20.034,
+     "e": 20.227
+    },
+    {
+     "w": "The",
+     "t": 20.665,
+     "e": 20.729
+    },
+    {
+     "w": "booking",
+     "t": 20.742,
+     "e": 21.142
+    },
+    {
+     "w": "only",
+     "t": 21.155,
+     "e": 21.477
+    },
+    {
+     "w": "appears",
+     "t": 21.49,
+     "e": 21.928
+    },
+    {
+     "w": "in",
+     "t": 21.941,
+     "e": 22.005
+    },
+    {
+     "w": "your",
+     "t": 22.018,
+     "e": 22.147
+    },
+    {
+     "w": "calendar",
+     "t": 22.16,
+     "e": 22.662
+    },
+    {
+     "w": "once",
+     "t": 22.675,
+     "e": 22.92
+    },
+    {
+     "w": "the",
+     "t": 22.933,
+     "e": 23.023
+    },
+    {
+     "w": "client",
+     "t": 23.036,
+     "e": 23.474
+    },
+    {
+     "w": "has",
+     "t": 23.487,
+     "e": 23.668
+    },
+    {
+     "w": "verified",
+     "t": 23.68,
+     "e": 24.247
+    },
+    {
+     "w": "their",
+     "t": 24.26,
+     "e": 24.415
+    },
+    {
+     "w": "email.",
+     "t": 24.428,
+     "e": 24.866
+    },
+    {
+     "w": "You",
+     "t": 25.291,
+     "e": 25.356
+    },
+    {
+     "w": "get",
+     "t": 25.369,
+     "e": 25.485
+    },
+    {
+     "w": "a",
+     "t": 25.497,
+     "e": 25.562
+    },
+    {
+     "w": "WhatsApp",
+     "t": 25.575,
+     "e": 26.116
+    },
+    {
+     "w": "and",
+     "t": 26.219,
+     "e": 26.309
+    },
+    {
+     "w": "a",
+     "t": 26.322,
+     "e": 26.361
+    },
+    {
+     "w": "short",
+     "t": 26.374,
+     "e": 26.683
+    },
+    {
+     "w": "pre-call",
+     "t": 26.696,
+     "e": 27.121
+    },
+    {
+     "w": "brief.",
+     "t": 27.134,
+     "e": 27.534
+    },
+    {
+     "w": "We",
+     "t": 27.959,
+     "e": 28.049
+    },
+    {
+     "w": "send",
+     "t": 28.062,
+     "e": 28.294
+    },
+    {
+     "w": "them",
+     "t": 28.307,
+     "e": 28.423
+    },
+    {
+     "w": "reminders",
+     "t": 28.436,
+     "e": 29.028
+    },
+    {
+     "w": "right",
+     "t": 29.041,
+     "e": 29.312
+    },
+    {
+     "w": "up",
+     "t": 29.325,
+     "e": 29.441
+    },
+    {
+     "w": "to",
+     "t": 29.454,
+     "e": 29.531
+    },
+    {
+     "w": "ten",
+     "t": 29.544,
+     "e": 29.802
+    },
+    {
+     "w": "minutes",
+     "t": 29.814,
+     "e": 30.162
+    },
+    {
+     "w": "before",
+     "t": 30.175,
+     "e": 30.51
+    },
+    {
+     "w": "the",
+     "t": 30.523,
+     "e": 30.588
+    },
+    {
+     "w": "meeting.",
+     "t": 30.601,
+     "e": 30.974
+    },
+    {
+     "w": "After",
+     "t": 31.399,
+     "e": 31.683
+    },
+    {
+     "w": "that,",
+     "t": 31.696,
+     "e": 31.979
+    },
+    {
+     "w": "the",
+     "t": 32.237,
+     "e": 32.327
+    },
+    {
+     "w": "conversation",
+     "t": 32.34,
+     "e": 33.062
+    },
+    {
+     "w": "is",
+     "t": 33.075,
+     "e": 33.191
+    },
+    {
+     "w": "yours.",
+     "t": 33.204,
+     "e": 33.68
+    },
+    {
+     "w": "A",
+     "t": 34.093,
+     "e": 34.144
+    },
+    {
+     "w": "lead",
+     "t": 34.157,
+     "e": 34.402
+    },
+    {
+     "w": "only",
+     "t": 34.415,
+     "e": 34.737
+    },
+    {
+     "w": "counts",
+     "t": 34.75,
+     "e": 35.175
+    },
+    {
+     "w": "as",
+     "t": 35.188,
+     "e": 35.33
+    },
+    {
+     "w": "one",
+     "t": 35.343,
+     "e": 35.51
+    },
+    {
+     "w": "of",
+     "t": 35.523,
+     "e": 35.588
+    },
+    {
+     "w": "your",
+     "t": 35.6,
+     "e": 35.704
+    },
+    {
+     "w": "Qualified",
+     "t": 35.717,
+     "e": 36.438
+    },
+    {
+     "w": "Leads",
+     "t": 36.451,
+     "e": 36.709
+    },
+    {
+     "w": "once",
+     "t": 36.722,
+     "e": 37.031
+    },
+    {
+     "w": "the",
+     "t": 37.044,
+     "e": 37.134
+    },
+    {
+     "w": "client",
+     "t": 37.147,
+     "e": 37.572
+    },
+    {
+     "w": "has",
+     "t": 37.585,
+     "e": 37.74
+    },
+    {
+     "w": "verified",
+     "t": 37.753,
+     "e": 38.358
+    },
+    {
+     "w": "their",
+     "t": 38.371,
+     "e": 38.539
+    },
+    {
+     "w": "email",
+     "t": 38.552,
+     "e": 39.067
+    },
+    {
+     "w": "and",
+     "t": 39.247,
+     "e": 39.325
+    },
+    {
+     "w": "you've",
+     "t": 39.338,
+     "e": 39.518
+    },
+    {
+     "w": "actually",
+     "t": 39.544,
+     "e": 39.943
+    },
+    {
+     "w": "met",
+     "t": 39.956,
+     "e": 40.201
+    },
+    {
+     "w": "them,",
+     "t": 40.214,
+     "e": 40.407
+    },
+    {
+     "w": "which",
+     "t": 40.794,
+     "e": 40.936
+    },
+    {
+     "w": "you",
+     "t": 40.948,
+     "e": 41.064
+    },
+    {
+     "w": "mark",
+     "t": 41.077,
+     "e": 41.348
+    },
+    {
+     "w": "as",
+     "t": 41.361,
+     "e": 41.464
+    },
+    {
+     "w": "Attended",
+     "t": 41.477,
+     "e": 41.954
+    },
+    {
+     "w": "in",
+     "t": 41.967,
+     "e": 42.044
+    },
+    {
+     "w": "your",
+     "t": 42.057,
+     "e": 42.186
+    },
+    {
+     "w": "portal.",
+     "t": 42.198,
+     "e": 42.572
+    }
+   ],
+   "cues": [
+    {
+     "text": "Our ads run under our consumer brand, SortMyCover.",
+     "t": 1.103,
+     "e": 4.66
+    },
+    {
+     "text": "They never name a product or a price.",
+     "t": 4.66,
+     "e": 7.108
+    },
+    {
+     "text": "Someone taps an ad, answers a few quick questions,",
+     "t": 7.108,
+     "e": 10.446
+    },
+    {
+     "text": "and agrees to be contacted.",
+     "t": 10.446,
+     "e": 12.327
+    },
+    {
+     "text": "Our WhatsApp assistant follows up within minutes,",
+     "t": 12.327,
+     "e": 15.111
+    },
+    {
+     "text": "introduces you by name,",
+     "t": 15.111,
+     "e": 16.812
+    },
+    {
+     "text": "practice and FSP number, and books a time with you.",
+     "t": 16.812,
+     "e": 20.665
+    },
+    {
+     "text": "The booking only appears in your calendar",
+     "t": 20.665,
+     "e": 22.675
+    },
+    {
+     "text": "once the client has verified their email.",
+     "t": 22.675,
+     "e": 25.291
+    },
+    {
+     "text": "You get a WhatsApp and a short pre-call brief.",
+     "t": 25.291,
+     "e": 27.959
+    },
+    {
+     "text": "We send them reminders right up to ten minutes before the meeting.",
+     "t": 27.959,
+     "e": 31.399
+    },
+    {
+     "text": "After that, the conversation is yours.",
+     "t": 31.399,
+     "e": 34.093
+    },
+    {
+     "text": "A lead only counts as one of your Qualified",
+     "t": 34.093,
+     "e": 36.451
+    },
+    {
+     "text": "Leads once the client has verified",
+     "t": 36.451,
+     "e": 38.371
+    },
+    {
+     "text": "their email and you've actually met them,",
+     "t": 38.371,
+     "e": 40.794
+    },
+    {
+     "text": "which you mark as Attended in your portal.",
+     "t": 40.794,
+     "e": 42.922
+    }
+   ]
+  },
+  {
+   "id": "s04",
+   "title": "Scene 4: Where your money goes (about 50s)",
+   "spoken": "There are four plans, each a flat fee for a set number of Qualified Leads. A once-off Pilot: ten for eight thousand five hundred rand. Bronze: twenty for sixteen thousand five hundred. Silver: thirty for twenty-four thousand five hundred. And Gold: forty-five for thirty-five thousand five hundred. Take Bronze. You pay sixteen thousand five hundred rand for a thirty-day cycle. We plan for just over half of that, about eight and a half thousand rand, to go straight into advertising on Meta. That's the biggest single part. The rest runs everything around the ads: the WhatsApp assistant, booking and reminders, the creative, the testing and tracking, and the people doing the work. It's a flat fee. It's never linked to policies, premiums or commission.",
+   "audio": 48.84,
+   "clip": 51.14,
+   "words": [
+    {
+     "w": "There",
+     "t": 1.116,
+     "e": 1.219
+    },
+    {
+     "w": "are",
+     "t": 1.232,
+     "e": 1.335
+    },
+    {
+     "w": "four",
+     "t": 1.348,
+     "e": 1.644
+    },
+    {
+     "w": "plans,",
+     "t": 1.657,
+     "e": 2.198
+    },
+    {
+     "w": "each",
+     "t": 2.482,
+     "e": 2.624
+    },
+    {
+     "w": "a",
+     "t": 2.637,
+     "e": 2.688
+    },
+    {
+     "w": "flat",
+     "t": 2.701,
+     "e": 3.023
+    },
+    {
+     "w": "fee",
+     "t": 3.036,
+     "e": 3.281
+    },
+    {
+     "w": "for",
+     "t": 3.294,
+     "e": 3.448
+    },
+    {
+     "w": "a",
+     "t": 3.461,
+     "e": 3.513
+    },
+    {
+     "w": "set",
+     "t": 3.526,
+     "e": 3.822
+    },
+    {
+     "w": "number",
+     "t": 3.835,
+     "e": 4.144
+    },
+    {
+     "w": "of",
+     "t": 4.157,
+     "e": 4.235
+    },
+    {
+     "w": "Qualified",
+     "t": 4.247,
+     "e": 4.879
+    },
+    {
+     "w": "Leads.",
+     "t": 4.892,
+     "e": 5.33
+    },
+    {
+     "w": "A",
+     "t": 5.755,
+     "e": 5.832
+    },
+    {
+     "w": "once-off",
+     "t": 5.845,
+     "e": 6.322
+    },
+    {
+     "w": "Pilot:",
+     "t": 6.335,
+     "e": 6.786
+    },
+    {
+     "w": "ten",
+     "t": 7.173,
+     "e": 7.443
+    },
+    {
+     "w": "for",
+     "t": 7.456,
+     "e": 7.649
+    },
+    {
+     "w": "eight",
+     "t": 7.765,
+     "e": 7.946
+    },
+    {
+     "w": "thousand",
+     "t": 7.959,
+     "e": 8.436
+    },
+    {
+     "w": "five",
+     "t": 8.448,
+     "e": 8.745
+    },
+    {
+     "w": "hundred",
+     "t": 8.758,
+     "e": 9.015
+    },
+    {
+     "w": "rand.",
+     "t": 9.028,
+     "e": 9.428
+    },
+    {
+     "w": "Bronze:",
+     "t": 9.866,
+     "e": 10.381
+    },
+    {
+     "w": "twenty",
+     "t": 10.652,
+     "e": 10.923
+    },
+    {
+     "w": "for",
+     "t": 10.936,
+     "e": 11.103
+    },
+    {
+     "w": "sixteen",
+     "t": 11.116,
+     "e": 11.696
+    },
+    {
+     "w": "thousand",
+     "t": 11.709,
+     "e": 12.224
+    },
+    {
+     "w": "five",
+     "t": 12.237,
+     "e": 12.521
+    },
+    {
+     "w": "hundred.",
+     "t": 12.534,
+     "e": 12.933
+    },
+    {
+     "w": "Silver:",
+     "t": 13.371,
+     "e": 13.796
+    },
+    {
+     "w": "thirty",
+     "t": 14.196,
+     "e": 14.531
+    },
+    {
+     "w": "for",
+     "t": 14.544,
+     "e": 14.698
+    },
+    {
+     "w": "twenty-four",
+     "t": 14.711,
+     "e": 15.265
+    },
+    {
+     "w": "thousand",
+     "t": 15.278,
+     "e": 15.768
+    },
+    {
+     "w": "five",
+     "t": 15.781,
+     "e": 16.026
+    },
+    {
+     "w": "hundred.",
+     "t": 16.039,
+     "e": 16.425
+    },
+    {
+     "w": "And",
+     "t": 16.851,
+     "e": 16.954
+    },
+    {
+     "w": "Gold:",
+     "t": 16.966,
+     "e": 17.366
+    },
+    {
+     "w": "forty-five",
+     "t": 17.675,
+     "e": 18.255
+    },
+    {
+     "w": "for",
+     "t": 18.268,
+     "e": 18.397
+    },
+    {
+     "w": "thirty-five",
+     "t": 18.41,
+     "e": 19.183
+    },
+    {
+     "w": "thousand",
+     "t": 19.196,
+     "e": 19.647
+    },
+    {
+     "w": "five",
+     "t": 19.66,
+     "e": 19.918
+    },
+    {
+     "w": "hundred.",
+     "t": 19.93,
+     "e": 20.317
+    },
+    {
+     "w": "Take",
+     "t": 20.742,
+     "e": 20.936
+    },
+    {
+     "w": "Bronze.",
+     "t": 20.948,
+     "e": 21.515
+    },
+    {
+     "w": "You",
+     "t": 21.941,
+     "e": 22.07
+    },
+    {
+     "w": "pay",
+     "t": 22.082,
+     "e": 22.314
+    },
+    {
+     "w": "sixteen",
+     "t": 22.327,
+     "e": 22.869
+    },
+    {
+     "w": "thousand",
+     "t": 22.881,
+     "e": 23.423
+    },
+    {
+     "w": "five",
+     "t": 23.436,
+     "e": 23.771
+    },
+    {
+     "w": "hundred",
+     "t": 23.784,
+     "e": 24.067
+    },
+    {
+     "w": "rand",
+     "t": 24.08,
+     "e": 24.441
+    },
+    {
+     "w": "for",
+     "t": 24.454,
+     "e": 24.608
+    },
+    {
+     "w": "a",
+     "t": 24.621,
+     "e": 24.66
+    },
+    {
+     "w": "thirty-day",
+     "t": 24.673,
+     "e": 25.227
+    },
+    {
+     "w": "cycle.",
+     "t": 25.24,
+     "e": 25.742
+    },
+    {
+     "w": "We",
+     "t": 26.18,
+     "e": 26.283
+    },
+    {
+     "w": "plan",
+     "t": 26.296,
+     "e": 26.606
+    },
+    {
+     "w": "for",
+     "t": 26.619,
+     "e": 26.747
+    },
+    {
+     "w": "just",
+     "t": 26.76,
+     "e": 27.031
+    },
+    {
+     "w": "over",
+     "t": 27.044,
+     "e": 27.276
+    },
+    {
+     "w": "half",
+     "t": 27.289,
+     "e": 27.598
+    },
+    {
+     "w": "of",
+     "t": 27.611,
+     "e": 27.701
+    },
+    {
+     "w": "that,",
+     "t": 27.714,
+     "e": 27.997
+    },
+    {
+     "w": "about",
+     "t": 28.242,
+     "e": 28.564
+    },
+    {
+     "w": "eight",
+     "t": 28.577,
+     "e": 28.861
+    },
+    {
+     "w": "and",
+     "t": 28.938,
+     "e": 29.028
+    },
+    {
+     "w": "a",
+     "t": 29.041,
+     "e": 29.093
+    },
+    {
+     "w": "half",
+     "t": 29.106,
+     "e": 29.454
+    },
+    {
+     "w": "thousand",
+     "t": 29.466,
+     "e": 29.866
+    },
+    {
+     "w": "rand,",
+     "t": 29.879,
+     "e": 30.214
+    },
+    {
+     "w": "to",
+     "t": 30.575,
+     "e": 30.665
+    },
+    {
+     "w": "go",
+     "t": 30.678,
+     "e": 30.858
+    },
+    {
+     "w": "straight",
+     "t": 30.871,
+     "e": 31.309
+    },
+    {
+     "w": "into",
+     "t": 31.322,
+     "e": 31.567
+    },
+    {
+     "w": "advertising",
+     "t": 31.683,
+     "e": 32.366
+    },
+    {
+     "w": "on",
+     "t": 32.379,
+     "e": 32.482
+    },
+    {
+     "w": "Meta.",
+     "t": 32.495,
+     "e": 32.817
+    },
+    {
+     "w": "That's",
+     "t": 33.255,
+     "e": 33.423
+    },
+    {
+     "w": "the",
+     "t": 33.436,
+     "e": 33.552
+    },
+    {
+     "w": "biggest",
+     "t": 33.629,
+     "e": 33.977
+    },
+    {
+     "w": "single",
+     "t": 33.99,
+     "e": 34.286
+    },
+    {
+     "w": "part.",
+     "t": 34.299,
+     "e": 34.66
+    },
+    {
+     "w": "The",
+     "t": 35.098,
+     "e": 35.175
+    },
+    {
+     "w": "rest",
+     "t": 35.188,
+     "e": 35.536
+    },
+    {
+     "w": "runs",
+     "t": 35.549,
+     "e": 35.948
+    },
+    {
+     "w": "everything",
+     "t": 36.103,
+     "e": 36.58
+    },
+    {
+     "w": "around",
+     "t": 36.593,
+     "e": 36.928
+    },
+    {
+     "w": "the",
+     "t": 36.941,
+     "e": 37.031
+    },
+    {
+     "w": "ads:",
+     "t": 37.044,
+     "e": 37.598
+    },
+    {
+     "w": "the",
+     "t": 37.843,
+     "e": 37.959
+    },
+    {
+     "w": "WhatsApp",
+     "t": 37.972,
+     "e": 38.384
+    },
+    {
+     "w": "assistant,",
+     "t": 38.397,
+     "e": 39.003
+    },
+    {
+     "w": "booking",
+     "t": 39.273,
+     "e": 39.724
+    },
+    {
+     "w": "and",
+     "t": 39.737,
+     "e": 39.827
+    },
+    {
+     "w": "reminders,",
+     "t": 39.84,
+     "e": 40.6
+    },
+    {
+     "w": "the",
+     "t": 40.794,
+     "e": 40.884
+    },
+    {
+     "w": "creative,",
+     "t": 40.897,
+     "e": 41.503
+    },
+    {
+     "w": "the",
+     "t": 41.722,
+     "e": 41.812
+    },
+    {
+     "w": "testing",
+     "t": 41.825,
+     "e": 42.392
+    },
+    {
+     "w": "and",
+     "t": 42.405,
+     "e": 42.482
+    },
+    {
+     "w": "tracking,",
+     "t": 42.495,
+     "e": 43.049
+    },
+    {
+     "w": "and",
+     "t": 43.371,
+     "e": 43.423
+    },
+    {
+     "w": "the",
+     "t": 43.436,
+     "e": 43.513
+    },
+    {
+     "w": "people",
+     "t": 43.526,
+     "e": 43.848
+    },
+    {
+     "w": "doing",
+     "t": 43.861,
+     "e": 44.119
+    },
+    {
+     "w": "the",
+     "t": 44.131,
+     "e": 44.209
+    },
+    {
+     "w": "work.",
+     "t": 44.222,
+     "e": 44.582
+    },
+    {
+     "w": "It's",
+     "t": 45.008,
+     "e": 45.111
+    },
+    {
+     "w": "a",
+     "t": 45.124,
+     "e": 45.175
+    },
+    {
+     "w": "flat",
+     "t": 45.188,
+     "e": 45.497
+    },
+    {
+     "w": "fee.",
+     "t": 45.51,
+     "e": 45.781
+    },
+    {
+     "w": "It's",
+     "t": 46.206,
+     "e": 46.322
+    },
+    {
+     "w": "never",
+     "t": 46.335,
+     "e": 46.631
+    },
+    {
+     "w": "linked",
+     "t": 46.644,
+     "e": 46.902
+    },
+    {
+     "w": "to",
+     "t": 46.915,
+     "e": 46.992
+    },
+    {
+     "w": "policies,",
+     "t": 47.005,
+     "e": 47.753
+    },
+    {
+     "w": "premiums",
+     "t": 47.946,
+     "e": 48.603
+    },
+    {
+     "w": "or",
+     "t": 48.809,
+     "e": 48.912
+    },
+    {
+     "w": "commission.",
+     "t": 48.925,
+     "e": 49.415
+    }
+   ],
+   "cues": [
+    {
+     "text": "There are four plans,",
+     "t": 1.116,
+     "e": 2.482
+    },
+    {
+     "text": "each a flat fee for a set number of Qualified Leads.",
+     "t": 2.482,
+     "e": 5.755
+    },
+    {
+     "text": "A once-off Pilot: ten for eight thousand five hundred rand.",
+     "t": 5.755,
+     "e": 9.866
+    },
+    {
+     "text": "Bronze: twenty for sixteen thousand five hundred.",
+     "t": 9.866,
+     "e": 13.371
+    },
+    {
+     "text": "Silver: thirty for twenty-four thousand five hundred.",
+     "t": 13.371,
+     "e": 16.851
+    },
+    {
+     "text": "And Gold: forty-five for thirty-five thousand five hundred.",
+     "t": 16.851,
+     "e": 20.742
+    },
+    {
+     "text": "Take Bronze.",
+     "t": 20.742,
+     "e": 21.941
+    },
+    {
+     "text": "You pay sixteen thousand five hundred rand for a thirty-day cycle.",
+     "t": 21.941,
+     "e": 26.18
+    },
+    {
+     "text": "We plan for just over half of that,",
+     "t": 26.18,
+     "e": 28.242
+    },
+    {
+     "text": "about eight and a half thousand rand,",
+     "t": 28.242,
+     "e": 30.575
+    },
+    {
+     "text": "to go straight into advertising on Meta.",
+     "t": 30.575,
+     "e": 33.255
+    },
+    {
+     "text": "That's the biggest single part.",
+     "t": 33.255,
+     "e": 35.098
+    },
+    {
+     "text": "The rest runs everything around the ads:",
+     "t": 35.098,
+     "e": 37.843
+    },
+    {
+     "text": "the WhatsApp assistant, booking and reminders,",
+     "t": 37.843,
+     "e": 40.794
+    },
+    {
+     "text": "the creative, the testing and tracking,",
+     "t": 40.794,
+     "e": 43.371
+    },
+    {
+     "text": "and the people doing the work. It's a flat fee.",
+     "t": 43.371,
+     "e": 46.206
+    },
+    {
+     "text": "It's never linked to policies, premiums or commission.",
+     "t": 46.206,
+     "e": 49.765
+    }
+   ]
+  },
+  {
+   "id": "s05",
+   "title": "Scene 5: How we keep improving (about 30s)",
+   "spoken": "We never set it and forget it. We test a few genuinely different ads side by side, usually for at least a week, before we pick a winner. We watch the numbers every day: cost per lead, how many people book, and how many actually show up. When people have seen an ad too often, results get more expensive, so we keep refreshing the creative. Meta's system usually needs about fifty results in a week to settle, so we make changes on purpose, not on impulse.",
+   "audio": 28.584,
+   "clip": 30.884,
+   "words": [
+    {
+     "w": "We",
+     "t": 1.103,
+     "e": 1.193
+    },
+    {
+     "w": "never",
+     "t": 1.206,
+     "e": 1.425
+    },
+    {
+     "w": "set",
+     "t": 1.438,
+     "e": 1.67
+    },
+    {
+     "w": "it",
+     "t": 1.683,
+     "e": 1.812
+    },
+    {
+     "w": "and",
+     "t": 2.095,
+     "e": 2.173
+    },
+    {
+     "w": "forget",
+     "t": 2.186,
+     "e": 2.546
+    },
+    {
+     "w": "it.",
+     "t": 2.559,
+     "e": 2.727
+    },
+    {
+     "w": "We",
+     "t": 3.165,
+     "e": 3.255
+    },
+    {
+     "w": "test",
+     "t": 3.268,
+     "e": 3.577
+    },
+    {
+     "w": "a",
+     "t": 3.59,
+     "e": 3.642
+    },
+    {
+     "w": "few",
+     "t": 3.655,
+     "e": 3.938
+    },
+    {
+     "w": "genuinely",
+     "t": 3.951,
+     "e": 4.57
+    },
+    {
+     "w": "different",
+     "t": 4.634,
+     "e": 4.995
+    },
+    {
+     "w": "ads",
+     "t": 5.046,
+     "e": 5.356
+    },
+    {
+     "w": "side",
+     "t": 5.369,
+     "e": 5.652
+    },
+    {
+     "w": "by",
+     "t": 5.665,
+     "e": 5.82
+    },
+    {
+     "w": "side,",
+     "t": 5.832,
+     "e": 6.283
+    },
+    {
+     "w": "usually",
+     "t": 6.722,
+     "e": 7.07
+    },
+    {
+     "w": "for",
+     "t": 7.082,
+     "e": 7.25
+    },
+    {
+     "w": "at",
+     "t": 7.263,
+     "e": 7.366
+    },
+    {
+     "w": "least",
+     "t": 7.379,
+     "e": 7.637
+    },
+    {
+     "w": "a",
+     "t": 7.649,
+     "e": 7.701
+    },
+    {
+     "w": "week,",
+     "t": 7.714,
+     "e": 8.1
+    },
+    {
+     "w": "before",
+     "t": 8.332,
+     "e": 8.655
+    },
+    {
+     "w": "we",
+     "t": 8.668,
+     "e": 8.745
+    },
+    {
+     "w": "pick",
+     "t": 8.758,
+     "e": 8.951
+    },
+    {
+     "w": "a",
+     "t": 8.964,
+     "e": 9.015
+    },
+    {
+     "w": "winner.",
+     "t": 9.028,
+     "e": 9.389
+    },
+    {
+     "w": "We",
+     "t": 9.827,
+     "e": 9.943
+    },
+    {
+     "w": "watch",
+     "t": 9.956,
+     "e": 10.214
+    },
+    {
+     "w": "the",
+     "t": 10.227,
+     "e": 10.304
+    },
+    {
+     "w": "numbers",
+     "t": 10.317,
+     "e": 10.794
+    },
+    {
+     "w": "every",
+     "t": 10.897,
+     "e": 11.129
+    },
+    {
+     "w": "day:",
+     "t": 11.142,
+     "e": 11.477
+    },
+    {
+     "w": "cost",
+     "t": 11.863,
+     "e": 12.16
+    },
+    {
+     "w": "per",
+     "t": 12.173,
+     "e": 12.302
+    },
+    {
+     "w": "lead,",
+     "t": 12.314,
+     "e": 12.675
+    },
+    {
+     "w": "how",
+     "t": 13.075,
+     "e": 13.152
+    },
+    {
+     "w": "many",
+     "t": 13.165,
+     "e": 13.371
+    },
+    {
+     "w": "people",
+     "t": 13.384,
+     "e": 13.706
+    },
+    {
+     "w": "book,",
+     "t": 13.719,
+     "e": 14.041
+    },
+    {
+     "w": "and",
+     "t": 14.363,
+     "e": 14.428
+    },
+    {
+     "w": "how",
+     "t": 14.441,
+     "e": 14.621
+    },
+    {
+     "w": "many",
+     "t": 14.634,
+     "e": 14.892
+    },
+    {
+     "w": "actually",
+     "t": 14.905,
+     "e": 15.265
+    },
+    {
+     "w": "show",
+     "t": 15.278,
+     "e": 15.588
+    },
+    {
+     "w": "up.",
+     "t": 15.601,
+     "e": 15.807
+    },
+    {
+     "w": "When",
+     "t": 16.245,
+     "e": 16.335
+    },
+    {
+     "w": "people",
+     "t": 16.348,
+     "e": 16.683
+    },
+    {
+     "w": "have",
+     "t": 16.696,
+     "e": 16.838
+    },
+    {
+     "w": "seen",
+     "t": 16.851,
+     "e": 17.134
+    },
+    {
+     "w": "an",
+     "t": 17.147,
+     "e": 17.263
+    },
+    {
+     "w": "ad",
+     "t": 17.276,
+     "e": 17.521
+    },
+    {
+     "w": "too",
+     "t": 17.534,
+     "e": 17.765
+    },
+    {
+     "w": "often,",
+     "t": 17.778,
+     "e": 18.229
+    },
+    {
+     "w": "results",
+     "t": 18.616,
+     "e": 18.938
+    },
+    {
+     "w": "get",
+     "t": 18.951,
+     "e": 19.093
+    },
+    {
+     "w": "more",
+     "t": 19.106,
+     "e": 19.299
+    },
+    {
+     "w": "expensive,",
+     "t": 19.312,
+     "e": 19.917
+    },
+    {
+     "w": "so",
+     "t": 20.317,
+     "e": 20.433
+    },
+    {
+     "w": "we",
+     "t": 20.446,
+     "e": 20.588
+    },
+    {
+     "w": "keep",
+     "t": 20.601,
+     "e": 20.845
+    },
+    {
+     "w": "refreshing",
+     "t": 20.858,
+     "e": 21.335
+    },
+    {
+     "w": "the",
+     "t": 21.348,
+     "e": 21.425
+    },
+    {
+     "w": "creative.",
+     "t": 21.438,
+     "e": 21.992
+    },
+    {
+     "w": "Meta's",
+     "t": 22.418,
+     "e": 22.662
+    },
+    {
+     "w": "system",
+     "t": 22.675,
+     "e": 23.088
+    },
+    {
+     "w": "usually",
+     "t": 23.101,
+     "e": 23.564
+    },
+    {
+     "w": "needs",
+     "t": 23.577,
+     "e": 23.874
+    },
+    {
+     "w": "about",
+     "t": 23.887,
+     "e": 24.157
+    },
+    {
+     "w": "fifty",
+     "t": 24.17,
+     "e": 24.582
+    },
+    {
+     "w": "results",
+     "t": 24.595,
+     "e": 25.008
+    },
+    {
+     "w": "in",
+     "t": 25.021,
+     "e": 25.162
+    },
+    {
+     "w": "a",
+     "t": 25.175,
+     "e": 25.24
+    },
+    {
+     "w": "week",
+     "t": 25.253,
+     "e": 25.523
+    },
+    {
+     "w": "to",
+     "t": 25.536,
+     "e": 25.626
+    },
+    {
+     "w": "settle,",
+     "t": 25.639,
+     "e": 26.064
+    },
+    {
+     "w": "so",
+     "t": 26.387,
+     "e": 26.503
+    },
+    {
+     "w": "we",
+     "t": 26.515,
+     "e": 26.619
+    },
+    {
+     "w": "make",
+     "t": 26.631,
+     "e": 26.838
+    },
+    {
+     "w": "changes",
+     "t": 26.851,
+     "e": 27.276
+    },
+    {
+     "w": "on",
+     "t": 27.289,
+     "e": 27.43
+    },
+    {
+     "w": "purpose,",
+     "t": 27.443,
+     "e": 28.036
+    },
+    {
+     "w": "not",
+     "t": 28.268,
+     "e": 28.448
+    },
+    {
+     "w": "on",
+     "t": 28.461,
+     "e": 28.59
+    },
+    {
+     "w": "impulse.",
+     "t": 28.603,
+     "e": 29.196
+    }
+   ],
+   "cues": [
+    {
+     "text": "We never set it and forget it.",
+     "t": 1.103,
+     "e": 3.165
+    },
+    {
+     "text": "We test a few genuinely different ads side by side,",
+     "t": 3.165,
+     "e": 6.722
+    },
+    {
+     "text": "usually for at least a week, before we pick a winner.",
+     "t": 6.722,
+     "e": 9.827
+    },
+    {
+     "text": "We watch the numbers every day: cost per lead,",
+     "t": 9.827,
+     "e": 13.075
+    },
+    {
+     "text": "how many people book, and how many actually show up.",
+     "t": 13.075,
+     "e": 16.245
+    },
+    {
+     "text": "When people have seen an ad too often,",
+     "t": 16.245,
+     "e": 18.616
+    },
+    {
+     "text": "results get more expensive, so we keep refreshing the creative.",
+     "t": 18.616,
+     "e": 22.418
+    },
+    {
+     "text": "Meta's system usually needs about fifty results in a week to settle,",
+     "t": 22.418,
+     "e": 26.387
+    },
+    {
+     "text": "so we make changes on purpose, not on impulse.",
+     "t": 26.387,
+     "e": 29.546
+    }
+   ]
+  },
+  {
+   "id": "s06",
+   "title": "Scene 6: More data, better leads (about 35s)",
+   "spoken": "Here's what makes it better over time. When a person attends, and they've said yes to ad measurement, we tell Meta. That shows the system who your real clients look like, not just who clicked. Once we have at least a hundred of those people, Meta can build a lookalike audience: new people who share their characteristics. It works better with a thousand or more, which is why we pool what we learn across all the advisers we work with. At around twenty a month, this is a slow build, not a switch. Lookalikes are available for these ads in South Africa today, but Meta can change that, so we treat them as a bonus, never a promise. And we never target anyone by health, income or other sensitive traits.",
+   "audio": 42.096,
+   "clip": 44.396,
+   "words": [
+    {
+     "w": "Here's",
+     "t": 1.129,
+     "e": 1.283
+    },
+    {
+     "w": "what",
+     "t": 1.296,
+     "e": 1.425
+    },
+    {
+     "w": "makes",
+     "t": 1.438,
+     "e": 1.709
+    },
+    {
+     "w": "it",
+     "t": 1.722,
+     "e": 1.825
+    },
+    {
+     "w": "better",
+     "t": 1.838,
+     "e": 2.108
+    },
+    {
+     "w": "over",
+     "t": 2.121,
+     "e": 2.302
+    },
+    {
+     "w": "time.",
+     "t": 2.314,
+     "e": 2.701
+    },
+    {
+     "w": "When",
+     "t": 3.139,
+     "e": 3.229
+    },
+    {
+     "w": "a",
+     "t": 3.242,
+     "e": 3.294
+    },
+    {
+     "w": "person",
+     "t": 3.307,
+     "e": 3.693
+    },
+    {
+     "w": "attends,",
+     "t": 3.706,
+     "e": 4.26
+    },
+    {
+     "w": "and",
+     "t": 4.544,
+     "e": 4.647
+    },
+    {
+     "w": "they've",
+     "t": 4.66,
+     "e": 4.853
+    },
+    {
+     "w": "said",
+     "t": 4.866,
+     "e": 5.111
+    },
+    {
+     "w": "yes",
+     "t": 5.124,
+     "e": 5.446
+    },
+    {
+     "w": "to",
+     "t": 5.459,
+     "e": 5.575
+    },
+    {
+     "w": "ad",
+     "t": 5.588,
+     "e": 5.794
+    },
+    {
+     "w": "measurement,",
+     "t": 5.807,
+     "e": 6.283
+    },
+    {
+     "w": "we",
+     "t": 6.606,
+     "e": 6.735
+    },
+    {
+     "w": "tell",
+     "t": 6.747,
+     "e": 6.979
+    },
+    {
+     "w": "Meta.",
+     "t": 6.992,
+     "e": 7.379
+    },
+    {
+     "w": "That",
+     "t": 7.817,
+     "e": 7.92
+    },
+    {
+     "w": "shows",
+     "t": 7.933,
+     "e": 8.216
+    },
+    {
+     "w": "the",
+     "t": 8.229,
+     "e": 8.32
+    },
+    {
+     "w": "system",
+     "t": 8.332,
+     "e": 8.732
+    },
+    {
+     "w": "who",
+     "t": 8.745,
+     "e": 8.874
+    },
+    {
+     "w": "your",
+     "t": 8.887,
+     "e": 9.131
+    },
+    {
+     "w": "real",
+     "t": 9.144,
+     "e": 9.389
+    },
+    {
+     "w": "clients",
+     "t": 9.402,
+     "e": 9.802
+    },
+    {
+     "w": "look",
+     "t": 9.814,
+     "e": 10.008
+    },
+    {
+     "w": "like,",
+     "t": 10.021,
+     "e": 10.291
+    },
+    {
+     "w": "not",
+     "t": 10.678,
+     "e": 10.871
+    },
+    {
+     "w": "just",
+     "t": 10.884,
+     "e": 11.103
+    },
+    {
+     "w": "who",
+     "t": 11.116,
+     "e": 11.219
+    },
+    {
+     "w": "clicked.",
+     "t": 11.232,
+     "e": 11.657
+    },
+    {
+     "w": "Once",
+     "t": 12.095,
+     "e": 12.25
+    },
+    {
+     "w": "we",
+     "t": 12.263,
+     "e": 12.379
+    },
+    {
+     "w": "have",
+     "t": 12.392,
+     "e": 12.598
+    },
+    {
+     "w": "at",
+     "t": 12.611,
+     "e": 12.714
+    },
+    {
+     "w": "least",
+     "t": 12.727,
+     "e": 12.985
+    },
+    {
+     "w": "a",
+     "t": 12.997,
+     "e": 13.036
+    },
+    {
+     "w": "hundred",
+     "t": 13.049,
+     "e": 13.41
+    },
+    {
+     "w": "of",
+     "t": 13.423,
+     "e": 13.5
+    },
+    {
+     "w": "those",
+     "t": 13.513,
+     "e": 13.745
+    },
+    {
+     "w": "people,",
+     "t": 13.758,
+     "e": 14.144
+    },
+    {
+     "w": "Meta",
+     "t": 14.557,
+     "e": 14.763
+    },
+    {
+     "w": "can",
+     "t": 14.776,
+     "e": 14.93
+    },
+    {
+     "w": "build",
+     "t": 14.943,
+     "e": 15.24
+    },
+    {
+     "w": "a",
+     "t": 15.253,
+     "e": 15.291
+    },
+    {
+     "w": "lookalike",
+     "t": 15.304,
+     "e": 15.948
+    },
+    {
+     "w": "audience:",
+     "t": 15.961,
+     "e": 16.554
+    },
+    {
+     "w": "new",
+     "t": 16.954,
+     "e": 17.147
+    },
+    {
+     "w": "people",
+     "t": 17.16,
+     "e": 17.495
+    },
+    {
+     "w": "who",
+     "t": 17.508,
+     "e": 17.585
+    },
+    {
+     "w": "share",
+     "t": 17.598,
+     "e": 17.856
+    },
+    {
+     "w": "their",
+     "t": 17.869,
+     "e": 17.997
+    },
+    {
+     "w": "characteristics.",
+     "t": 18.01,
+     "e": 18.912
+    },
+    {
+     "w": "It",
+     "t": 19.338,
+     "e": 19.479
+    },
+    {
+     "w": "works",
+     "t": 19.492,
+     "e": 19.75
+    },
+    {
+     "w": "better",
+     "t": 19.763,
+     "e": 20.059
+    },
+    {
+     "w": "with",
+     "t": 20.072,
+     "e": 20.227
+    },
+    {
+     "w": "a",
+     "t": 20.24,
+     "e": 20.278
+    },
+    {
+     "w": "thousand",
+     "t": 20.291,
+     "e": 20.948
+    },
+    {
+     "w": "or",
+     "t": 20.961,
+     "e": 21.064
+    },
+    {
+     "w": "more,",
+     "t": 21.077,
+     "e": 21.464
+    },
+    {
+     "w": "which",
+     "t": 21.838,
+     "e": 21.966
+    },
+    {
+     "w": "is",
+     "t": 21.979,
+     "e": 22.07
+    },
+    {
+     "w": "why",
+     "t": 22.082,
+     "e": 22.276
+    },
+    {
+     "w": "we",
+     "t": 22.289,
+     "e": 22.43
+    },
+    {
+     "w": "pool",
+     "t": 22.443,
+     "e": 22.765
+    },
+    {
+     "w": "what",
+     "t": 22.778,
+     "e": 22.907
+    },
+    {
+     "w": "we",
+     "t": 22.92,
+     "e": 23.023
+    },
+    {
+     "w": "learn",
+     "t": 23.036,
+     "e": 23.32
+    },
+    {
+     "w": "across",
+     "t": 23.332,
+     "e": 23.835
+    },
+    {
+     "w": "all",
+     "t": 23.938,
+     "e": 24.209
+    },
+    {
+     "w": "the",
+     "t": 24.222,
+     "e": 24.325
+    },
+    {
+     "w": "advisers",
+     "t": 24.338,
+     "e": 24.866
+    },
+    {
+     "w": "we",
+     "t": 24.879,
+     "e": 24.995
+    },
+    {
+     "w": "work",
+     "t": 25.008,
+     "e": 25.266
+    },
+    {
+     "w": "with.",
+     "t": 25.278,
+     "e": 25.588
+    },
+    {
+     "w": "At",
+     "t": 26.013,
+     "e": 26.103
+    },
+    {
+     "w": "around",
+     "t": 26.116,
+     "e": 26.399
+    },
+    {
+     "w": "twenty",
+     "t": 26.412,
+     "e": 26.696
+    },
+    {
+     "w": "a",
+     "t": 26.709,
+     "e": 26.747
+    },
+    {
+     "w": "month,",
+     "t": 26.76,
+     "e": 27.173
+    },
+    {
+     "w": "this",
+     "t": 27.456,
+     "e": 27.649
+    },
+    {
+     "w": "is",
+     "t": 27.662,
+     "e": 27.765
+    },
+    {
+     "w": "a",
+     "t": 27.778,
+     "e": 27.83
+    },
+    {
+     "w": "slow",
+     "t": 27.843,
+     "e": 28.178
+    },
+    {
+     "w": "build,",
+     "t": 28.191,
+     "e": 28.603
+    },
+    {
+     "w": "not",
+     "t": 28.925,
+     "e": 29.067
+    },
+    {
+     "w": "a",
+     "t": 29.08,
+     "e": 29.119
+    },
+    {
+     "w": "switch.",
+     "t": 29.131,
+     "e": 29.647
+    },
+    {
+     "w": "Lookalikes",
+     "t": 30.072,
+     "e": 30.588
+    },
+    {
+     "w": "are",
+     "t": 30.601,
+     "e": 30.704
+    },
+    {
+     "w": "available",
+     "t": 30.716,
+     "e": 31.219
+    },
+    {
+     "w": "for",
+     "t": 31.232,
+     "e": 31.361
+    },
+    {
+     "w": "these",
+     "t": 31.374,
+     "e": 31.567
+    },
+    {
+     "w": "ads",
+     "t": 31.58,
+     "e": 31.902
+    },
+    {
+     "w": "in",
+     "t": 31.915,
+     "e": 32.005
+    },
+    {
+     "w": "South",
+     "t": 32.018,
+     "e": 32.34
+    },
+    {
+     "w": "Africa",
+     "t": 32.353,
+     "e": 32.753
+    },
+    {
+     "w": "today,",
+     "t": 32.765,
+     "e": 33.152
+    },
+    {
+     "w": "but",
+     "t": 33.436,
+     "e": 33.564
+    },
+    {
+     "w": "Meta",
+     "t": 33.577,
+     "e": 33.835
+    },
+    {
+     "w": "can",
+     "t": 33.848,
+     "e": 33.99
+    },
+    {
+     "w": "change",
+     "t": 34.003,
+     "e": 34.389
+    },
+    {
+     "w": "that,",
+     "t": 34.402,
+     "e": 34.673
+    },
+    {
+     "w": "so",
+     "t": 35.072,
+     "e": 35.188
+    },
+    {
+     "w": "we",
+     "t": 35.201,
+     "e": 35.304
+    },
+    {
+     "w": "treat",
+     "t": 35.317,
+     "e": 35.639
+    },
+    {
+     "w": "them",
+     "t": 35.652,
+     "e": 35.832
+    },
+    {
+     "w": "as",
+     "t": 35.961,
+     "e": 36.09
+    },
+    {
+     "w": "a",
+     "t": 36.103,
+     "e": 36.167
+    },
+    {
+     "w": "bonus,",
+     "t": 36.18,
+     "e": 36.786
+    },
+    {
+     "w": "never",
+     "t": 36.979,
+     "e": 37.263
+    },
+    {
+     "w": "a",
+     "t": 37.276,
+     "e": 37.314
+    },
+    {
+     "w": "promise.",
+     "t": 37.327,
+     "e": 37.933
+    },
+    {
+     "w": "And",
+     "t": 38.358,
+     "e": 38.448
+    },
+    {
+     "w": "we",
+     "t": 38.461,
+     "e": 38.552
+    },
+    {
+     "w": "never",
+     "t": 38.564,
+     "e": 38.848
+    },
+    {
+     "w": "target",
+     "t": 38.861,
+     "e": 39.273
+    },
+    {
+     "w": "anyone",
+     "t": 39.286,
+     "e": 39.647
+    },
+    {
+     "w": "by",
+     "t": 39.66,
+     "e": 39.802
+    },
+    {
+     "w": "health,",
+     "t": 39.814,
+     "e": 40.162
+    },
+    {
+     "w": "income",
+     "t": 40.536,
+     "e": 41.052
+    },
+    {
+     "w": "or",
+     "t": 41.245,
+     "e": 41.425
+    },
+    {
+     "w": "other",
+     "t": 41.438,
+     "e": 41.67
+    },
+    {
+     "w": "sensitive",
+     "t": 41.683,
+     "e": 42.134
+    },
+    {
+     "w": "traits.",
+     "t": 42.147,
+     "e": 42.701
+    }
+   ],
+   "cues": [
+    {
+     "text": "Here's what makes it better over time.",
+     "t": 1.129,
+     "e": 3.139
+    },
+    {
+     "text": "When a person attends,",
+     "t": 3.139,
+     "e": 4.544
+    },
+    {
+     "text": "and they've said yes to ad measurement, we tell Meta.",
+     "t": 4.544,
+     "e": 7.817
+    },
+    {
+     "text": "That shows the system who your real clients look like,",
+     "t": 7.817,
+     "e": 10.678
+    },
+    {
+     "text": "not just who clicked.",
+     "t": 10.678,
+     "e": 12.095
+    },
+    {
+     "text": "Once we have at least a hundred of those people,",
+     "t": 12.095,
+     "e": 14.557
+    },
+    {
+     "text": "Meta can build a lookalike audience:",
+     "t": 14.557,
+     "e": 16.954
+    },
+    {
+     "text": "new people who share their characteristics.",
+     "t": 16.954,
+     "e": 19.338
+    },
+    {
+     "text": "It works better with a thousand or more,",
+     "t": 19.338,
+     "e": 21.838
+    },
+    {
+     "text": "which is why we pool what we learn",
+     "t": 21.838,
+     "e": 23.332
+    },
+    {
+     "text": "across all the advisers we work with.",
+     "t": 23.332,
+     "e": 26.013
+    },
+    {
+     "text": "At around twenty a month, this is a slow build, not a switch.",
+     "t": 26.013,
+     "e": 30.072
+    },
+    {
+     "text": "Lookalikes are available for these ads in South Africa today,",
+     "t": 30.072,
+     "e": 33.436
+    },
+    {
+     "text": "but Meta can change that,",
+     "t": 33.436,
+     "e": 35.072
+    },
+    {
+     "text": "so we treat them as a bonus, never a promise.",
+     "t": 35.072,
+     "e": 38.358
+    },
+    {
+     "text": "And we never target anyone by health,",
+     "t": 38.358,
+     "e": 40.536
+    },
+    {
+     "text": "income or other sensitive traits.",
+     "t": 40.536,
+     "e": 43.051
+    }
+   ]
+  },
+  {
+   "id": "s07",
+   "title": "Scene 7: Your part (about 25s)",
+   "spoken": "Your part is simple. Keep your calendar up to date. After every meeting, tap Attended or No-show in your portal. That tap is the signal that improves your leads. If someone doesn't show, wait ten minutes, then send us your proof straight away. If you couldn't reach a lead, send us proof of that too. Out of goodwill, we replace up to three a week.",
+   "audio": 21.216,
+   "clip": 23.516,
+   "words": [
+    {
+     "w": "Your",
+     "t": 1.103,
+     "e": 1.193
+    },
+    {
+     "w": "part",
+     "t": 1.206,
+     "e": 1.412
+    },
+    {
+     "w": "is",
+     "t": 1.425,
+     "e": 1.515
+    },
+    {
+     "w": "simple.",
+     "t": 1.528,
+     "e": 1.915
+    },
+    {
+     "w": "Keep",
+     "t": 2.34,
+     "e": 2.508
+    },
+    {
+     "w": "your",
+     "t": 2.521,
+     "e": 2.624
+    },
+    {
+     "w": "calendar",
+     "t": 2.637,
+     "e": 3.075
+    },
+    {
+     "w": "up",
+     "t": 3.088,
+     "e": 3.204
+    },
+    {
+     "w": "to",
+     "t": 3.216,
+     "e": 3.307
+    },
+    {
+     "w": "date.",
+     "t": 3.32,
+     "e": 3.668
+    },
+    {
+     "w": "After",
+     "t": 4.093,
+     "e": 4.441
+    },
+    {
+     "w": "every",
+     "t": 4.454,
+     "e": 4.711
+    },
+    {
+     "w": "meeting,",
+     "t": 4.724,
+     "e": 5.124
+    },
+    {
+     "w": "tap",
+     "t": 5.459,
+     "e": 5.716
+    },
+    {
+     "w": "Attended",
+     "t": 5.729,
+     "e": 6.232
+    },
+    {
+     "w": "or",
+     "t": 6.399,
+     "e": 6.503
+    },
+    {
+     "w": "No-show",
+     "t": 6.515,
+     "e": 7.057
+    },
+    {
+     "w": "in",
+     "t": 7.07,
+     "e": 7.147
+    },
+    {
+     "w": "your",
+     "t": 7.16,
+     "e": 7.289
+    },
+    {
+     "w": "portal.",
+     "t": 7.302,
+     "e": 7.688
+    },
+    {
+     "w": "That",
+     "t": 8.126,
+     "e": 8.281
+    },
+    {
+     "w": "tap",
+     "t": 8.294,
+     "e": 8.629
+    },
+    {
+     "w": "is",
+     "t": 8.719,
+     "e": 8.822
+    },
+    {
+     "w": "the",
+     "t": 8.835,
+     "e": 8.925
+    },
+    {
+     "w": "signal",
+     "t": 8.938,
+     "e": 9.415
+    },
+    {
+     "w": "that",
+     "t": 9.428,
+     "e": 9.557
+    },
+    {
+     "w": "improves",
+     "t": 9.57,
+     "e": 10.085
+    },
+    {
+     "w": "your",
+     "t": 10.098,
+     "e": 10.227
+    },
+    {
+     "w": "leads.",
+     "t": 10.24,
+     "e": 10.755
+    },
+    {
+     "w": "If",
+     "t": 11.18,
+     "e": 11.271
+    },
+    {
+     "w": "someone",
+     "t": 11.284,
+     "e": 11.619
+    },
+    {
+     "w": "doesn't",
+     "t": 11.631,
+     "e": 11.954
+    },
+    {
+     "w": "show,",
+     "t": 11.966,
+     "e": 12.289
+    },
+    {
+     "w": "wait",
+     "t": 12.714,
+     "e": 12.959
+    },
+    {
+     "w": "ten",
+     "t": 12.972,
+     "e": 13.178
+    },
+    {
+     "w": "minutes,",
+     "t": 13.191,
+     "e": 13.642
+    },
+    {
+     "w": "then",
+     "t": 13.912,
+     "e": 14.08
+    },
+    {
+     "w": "send",
+     "t": 14.093,
+     "e": 14.325
+    },
+    {
+     "w": "us",
+     "t": 14.338,
+     "e": 14.454
+    },
+    {
+     "w": "your",
+     "t": 14.466,
+     "e": 14.57
+    },
+    {
+     "w": "proof",
+     "t": 14.582,
+     "e": 14.879
+    },
+    {
+     "w": "straight",
+     "t": 14.892,
+     "e": 15.162
+    },
+    {
+     "w": "away.",
+     "t": 15.175,
+     "e": 15.497
+    },
+    {
+     "w": "If",
+     "t": 15.923,
+     "e": 16.026
+    },
+    {
+     "w": "you",
+     "t": 16.039,
+     "e": 16.142
+    },
+    {
+     "w": "couldn't",
+     "t": 16.155,
+     "e": 16.425
+    },
+    {
+     "w": "reach",
+     "t": 16.438,
+     "e": 16.606
+    },
+    {
+     "w": "a",
+     "t": 16.619,
+     "e": 16.67
+    },
+    {
+     "w": "lead,",
+     "t": 16.683,
+     "e": 17.057
+    },
+    {
+     "w": "send",
+     "t": 17.379,
+     "e": 17.585
+    },
+    {
+     "w": "us",
+     "t": 17.598,
+     "e": 17.701
+    },
+    {
+     "w": "proof",
+     "t": 17.714,
+     "e": 18.062
+    },
+    {
+     "w": "of",
+     "t": 18.075,
+     "e": 18.152
+    },
+    {
+     "w": "that",
+     "t": 18.165,
+     "e": 18.384
+    },
+    {
+     "w": "too.",
+     "t": 18.397,
+     "e": 18.732
+    },
+    {
+     "w": "Out",
+     "t": 19.157,
+     "e": 19.286
+    },
+    {
+     "w": "of",
+     "t": 19.299,
+     "e": 19.389
+    },
+    {
+     "w": "goodwill,",
+     "t": 19.402,
+     "e": 19.827
+    },
+    {
+     "w": "we",
+     "t": 20.149,
+     "e": 20.278
+    },
+    {
+     "w": "replace",
+     "t": 20.291,
+     "e": 20.742
+    },
+    {
+     "w": "up",
+     "t": 20.755,
+     "e": 20.884
+    },
+    {
+     "w": "to",
+     "t": 20.897,
+     "e": 20.987
+    },
+    {
+     "w": "three",
+     "t": 21.0,
+     "e": 21.296
+    },
+    {
+     "w": "a",
+     "t": 21.309,
+     "e": 21.387
+    },
+    {
+     "w": "week.",
+     "t": 21.399,
+     "e": 21.812
+    }
+   ],
+   "cues": [
+    {
+     "text": "Your part is simple.",
+     "t": 1.103,
+     "e": 2.34
+    },
+    {
+     "text": "Keep your calendar up to date.",
+     "t": 2.34,
+     "e": 4.093
+    },
+    {
+     "text": "After every meeting, tap Attended or No-show in your portal.",
+     "t": 4.093,
+     "e": 8.126
+    },
+    {
+     "text": "That tap is the signal that improves your leads.",
+     "t": 8.126,
+     "e": 11.18
+    },
+    {
+     "text": "If someone doesn't show, wait ten minutes,",
+     "t": 11.18,
+     "e": 13.912
+    },
+    {
+     "text": "then send us your proof straight away.",
+     "t": 13.912,
+     "e": 15.923
+    },
+    {
+     "text": "If you couldn't reach a lead, send us proof of that too.",
+     "t": 15.923,
+     "e": 19.157
+    },
+    {
+     "text": "Out of goodwill, we replace up to three a week.",
+     "t": 19.157,
+     "e": 22.162
+    }
+   ]
+  },
+  {
+   "id": "s08",
+   "title": "Scene 8: Close (about 10s)",
+   "spoken": "That's it. We'll handle the ads, the follow-up and the bookings. You do what you do best. Welcome to Lead Velocity.",
+   "audio": 7.608,
+   "clip": 9.908,
+   "words": [
+    {
+     "w": "That's",
+     "t": 1.116,
+     "e": 1.284
+    },
+    {
+     "w": "it.",
+     "t": 1.296,
+     "e": 1.451
+    },
+    {
+     "w": "We'll",
+     "t": 1.876,
+     "e": 1.992
+    },
+    {
+     "w": "handle",
+     "t": 2.005,
+     "e": 2.314
+    },
+    {
+     "w": "the",
+     "t": 2.327,
+     "e": 2.443
+    },
+    {
+     "w": "ads,",
+     "t": 2.456,
+     "e": 2.946
+    },
+    {
+     "w": "the",
+     "t": 3.139,
+     "e": 3.229
+    },
+    {
+     "w": "follow-up",
+     "t": 3.242,
+     "e": 3.809
+    },
+    {
+     "w": "and",
+     "t": 3.951,
+     "e": 4.015
+    },
+    {
+     "w": "the",
+     "t": 4.028,
+     "e": 4.106
+    },
+    {
+     "w": "bookings.",
+     "t": 4.119,
+     "e": 4.711
+    },
+    {
+     "w": "You",
+     "t": 5.137,
+     "e": 5.201
+    },
+    {
+     "w": "do",
+     "t": 5.214,
+     "e": 5.33
+    },
+    {
+     "w": "what",
+     "t": 5.343,
+     "e": 5.459
+    },
+    {
+     "w": "you",
+     "t": 5.472,
+     "e": 5.562
+    },
+    {
+     "w": "do",
+     "t": 5.575,
+     "e": 5.742
+    },
+    {
+     "w": "best.",
+     "t": 5.755,
+     "e": 6.232
+    },
+    {
+     "w": "Welcome",
+     "t": 6.67,
+     "e": 7.07
+    },
+    {
+     "w": "to",
+     "t": 7.198,
+     "e": 7.314
+    },
+    {
+     "w": "Lead",
+     "t": 7.327,
+     "e": 7.585
+    },
+    {
+     "w": "Velocity.",
+     "t": 7.598,
+     "e": 8.216
+    }
+   ],
+   "cues": [
+    {
+     "text": "That's it.",
+     "t": 1.116,
+     "e": 1.876
+    },
+    {
+     "text": "We'll handle the ads, the follow-up and the bookings.",
+     "t": 1.876,
+     "e": 5.137
+    },
+    {
+     "text": "You do what you do best.",
+     "t": 5.137,
+     "e": 6.67
+    },
+    {
+     "text": "Welcome to Lead Velocity.",
+     "t": 6.67,
+     "e": 8.566
+    }
+   ]
+  }
+ ]
+}

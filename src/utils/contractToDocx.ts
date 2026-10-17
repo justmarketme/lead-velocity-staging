@@ -1,120 +1,112 @@
 /**
- * Builds a Word document (.docx) from contract form data.
- * Matches preview design: logo, serif font, all section colours, party boxes, section styling.
+ * Builds the Lead Generation Services Agreement as a Word document (.docx).
+ *
+ * Input is the resolved block list from src/lib/contract/agreement.ts — the same structure the
+ * on-screen preview renders — so Word, PDF and preview always carry identical wording.
+ * Layout mirrors deliverables/contracts-drafter/lead-generation-agreement/build-docx.mjs
+ * (A4, Arial, literal clause numbers with hanging indents, yellow-highlighted unfilled [PLACEHOLDERS],
+ * page x of y footer). Client output: no drafting banner; internal notes only if the caller resolved
+ * the agreement with include_notes (never on the email / save path).
  * Logo is exported as PNG (transparent background); PDF/preview keep using webp.
  */
 import {
-    Document,
-    Packer,
-    Paragraph,
-    TextRun,
-    HeadingLevel,
     AlignmentType,
     BorderStyle,
+    Document,
+    Footer,
+    HeadingLevel,
     ImageRun,
+    Packer,
+    PageNumber,
+    Paragraph,
     ShadingType,
     Table,
-    TableRow,
     TableCell,
+    TableRow,
+    TextRun,
     WidthType,
 } from "docx";
-
-export type ContractDataForDocx = Record<string, string | undefined>;
+import { AGREEMENT_TITLE, type Inline, type ResolvedAgreement } from "@/lib/contract/agreement";
 
 export type BuildContractDocxOptions = {
     /** Logo URL (e.g. Vite-resolved webp). Fetched and exported as PNG (transparent) for docx. */
     logoUrl?: string;
 };
 
-const FONT = "Times New Roman";
-const COLOR = {
-    title: "1e293b",
-    subtitle: "64748b",
-    heading: "1e40af",
-    label: "be185d",
-    body: "334155",
-    muted: "64748b",
-    serviceFee: "be185d",
-    // Section-specific (match preview)
-    slate: "475569",
-    slateHeading: "0f172a",
-    red: "b91c1c",
-    redHeading: "7f1d1d",
-    redBody: "991b1b",
-    amber: "d97706",
-    amberHeading: "78350f",
-    amberBody: "92400e",
-    green: "059669",
-    greenHeading: "14532d",
-    greenBody: "166534",
-    blue: "2563eb",
-    blueHeading: "1e3a8a",
-    blueBody: "1e40af",
-    purple: "7c3aed",
-    purpleHeading: "4c1d95",
-    purpleBody: "5b21b6",
-    orange: "ea580c",
-    orangeHeading: "7c2d12",
-    orangeBody: "9a3412",
-};
-// Light fills for tinted sections (match bg-*-50)
-const FILL = {
-    red: "fef2f2",
-    amber: "fffbeb",
-    green: "f0fdf4",
-    blue: "eff6ff",
-    purple: "f5f3ff",
-    orange: "fff7ed",
-    slate: "f8fafc",
-};
+const FONT = "Arial";
+const PAGE_W = 11906; // A4 in twips
+const PAGE_H = 16838;
+const MARGIN = 1304; // ~2.3 cm
+const CONTENT_W = PAGE_W - 2 * MARGIN;
+const GREY = "595959";
+const INDENT: Record<number, number> = { 1: 720, 2: 1440, 3: 2160 };
 
-function run(text: string, opts: { bold?: boolean; italic?: boolean; size?: number; color?: string; allCaps?: boolean } = {}) {
-    return new TextRun({
-        text: opts.allCaps ? text.toUpperCase() : text,
-        font: FONT,
-        bold: opts.bold,
-        italics: opts.italic,
-        size: opts.size ?? 24,
-        color: opts.color ?? COLOR.body,
+type RunBase = { bold?: boolean; italics?: boolean; color?: string; size?: number; noHighlight?: boolean };
+
+function runs(inl: Inline[], base: RunBase = {}): TextRun[] {
+    return inl.map((i) => {
+        const bold = base.bold || i.bold;
+        const common = { font: FONT, bold, italics: base.italics, color: base.color, size: base.size };
+        if (i.kind === "text") return new TextRun({ text: i.text, ...common });
+        if (i.blank) return new TextRun({ text: "________________", ...common });
+        if (i.confirm) return new TextRun({ text: i.value || "", ...common, highlight: "yellow" });
+        if (i.value) return new TextRun({ text: i.value, ...common });
+        return new TextRun({ text: i.token, ...common, highlight: base.noHighlight ? undefined : "yellow" });
     });
 }
 
-function heading(text: string, level: "Title" | "Heading1" | "Heading2" = "Heading2"): Paragraph {
+function numbered(num: string, inl: Inline[], level: number): Paragraph {
+    const left = INDENT[level] || 2160;
     return new Paragraph({
-        children: [run(text, { bold: true, size: level === "Title" ? 32 : 28, color: level === "Title" ? COLOR.title : COLOR.heading })],
-        heading: level === "Title" ? HeadingLevel.TITLE : level === "Heading1" ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
-        spacing: { before: 240, after: 120 },
-    });
-}
-
-function body(text: string, options?: { italic?: boolean; color?: string }): Paragraph {
-    return new Paragraph({
-        children: [run(text, { italic: options?.italic, color: options?.color ?? COLOR.body })],
         spacing: { after: 120 },
+        indent: { left, hanging: 720 },
+        tabStops: [{ type: "left", position: left }],
+        children: [new TextRun({ text: num + "\t", font: FONT }), ...runs(inl)],
     });
 }
 
-function sectionHeading(
-    num: string,
-    title: string,
-    opts?: { barColor?: string; headingColor?: string; shading?: string }
-): Paragraph {
-    const text = num ? `${num}. ${title}` : title;
-    const barColor = opts?.barColor ?? "be185d";
-    const headingColor = opts?.headingColor ?? COLOR.heading;
+function listItem(letter: string, inl: Inline[], level: number): Paragraph {
+    const left = (INDENT[level] || 720) + 567;
     return new Paragraph({
-        children: [run(text, { bold: true, size: 26, color: headingColor })],
-        heading: HeadingLevel.HEADING_2,
-        border: { left: { style: BorderStyle.SINGLE, size: 12, color: barColor } },
-        shading: opts?.shading ? { fill: opts.shading, type: ShadingType.CLEAR } : undefined,
-        spacing: { before: 240, after: 120 },
+        spacing: { after: 80 },
+        indent: { left, hanging: 567 },
+        tabStops: [{ type: "left", position: left }],
+        children: [new TextRun({ text: `(${letter})\t`, font: FONT }), ...runs(inl)],
     });
 }
 
-function partyBoxLabel(text: string): Paragraph {
+function sideNote(inl: Inline[], level: number): Paragraph {
     return new Paragraph({
-        children: [run(text, { bold: true, size: 18, color: COLOR.label, allCaps: true })],
-        spacing: { before: 0, after: 80 },
+        spacing: { before: 60, after: 160 },
+        indent: { left: INDENT[level] || 720 },
+        shading: { type: ShadingType.CLEAR, color: "auto", fill: "F2F2F2" },
+        border: { left: { style: BorderStyle.SINGLE, size: 18, color: "A6A6A6", space: 6 } },
+        children: runs(inl, { italics: true, color: GREY, size: 18, noHighlight: true }),
+    });
+}
+
+function table(rows: Inline[][][]): Table {
+    const cols = rows[0]?.length || 1;
+    const colW = Math.floor(CONTENT_W / cols);
+    return new Table({
+        width: { size: CONTENT_W, type: WidthType.DXA },
+        columnWidths: Array(cols).fill(colW),
+        rows: rows.map(
+            (row, i) =>
+                new TableRow({
+                    tableHeader: i === 0,
+                    cantSplit: true,
+                    children: row.map(
+                        (c) =>
+                            new TableCell({
+                                width: { size: colW, type: WidthType.DXA },
+                                margins: { top: 60, bottom: 60, left: 100, right: 100 },
+                                shading: i === 0 ? { type: ShadingType.CLEAR, color: "auto", fill: "D9E2F3" } : undefined,
+                                children: [new Paragraph({ children: runs(c, i === 0 ? { bold: true } : {}) })],
+                            })
+                    ),
+                })
+        ),
     });
 }
 
@@ -123,321 +115,136 @@ async function loadLogoAsPng(logoUrl: string): Promise<{ data: ArrayBuffer; widt
     try {
         const res = await fetch(logoUrl);
         const blob = await res.blob();
-        const isWebp = blob.type === "image/webp" || /\.webp$/i.test(logoUrl);
-        let drawable: Blob | null = blob;
-        if (isWebp || blob.type === "image/png") {
-            const objectUrl = URL.createObjectURL(blob);
-            drawable = await new Promise<Blob | null>((resolve) => {
-                const img = new Image();
-                img.crossOrigin = "anonymous";
-                img.onload = () => {
-                    URL.revokeObjectURL(objectUrl);
-                    const canvas = document.createElement("canvas");
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-                    const ctx = canvas.getContext("2d");
-                    if (!ctx) {
-                        resolve(null);
-                        return;
-                    }
-                    // Don't fill canvas - leave transparent so logo has no black background
-                    ctx.drawImage(img, 0, 0);
-                    canvas.toBlob((b) => resolve(b), "image/png");
-                };
-                img.onerror = () => {
-                    URL.revokeObjectURL(objectUrl);
-                    resolve(null);
-                };
-                img.src = objectUrl;
-            });
-            if (!drawable) return undefined;
-        } else if (blob.type !== "image/png") {
-            return undefined;
-        }
-        const arrayBuffer = await drawable.arrayBuffer();
-        const bitmap = await createImageBitmap(drawable);
-        const maxW = 200;
-        const w = bitmap.width > maxW ? maxW : bitmap.width;
-        const h = bitmap.width > maxW ? Math.round((bitmap.height * maxW) / bitmap.width) : bitmap.height;
+        const objectUrl = URL.createObjectURL(blob);
+        const png = await new Promise<Blob | null>((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                // 3x the printed width is plenty; the source logo is far larger and bloats the .docx
+                const w = Math.min(img.naturalWidth, 480);
+                const canvas = document.createElement("canvas");
+                canvas.width = w;
+                canvas.height = Math.round((img.naturalHeight * w) / img.naturalWidth);
+                const ctx = canvas.getContext("2d");
+                if (!ctx) return resolve(null);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((b) => resolve(b), "image/png");
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve(null);
+            };
+            img.src = objectUrl;
+        });
+        if (!png) return undefined;
+        const bitmap = await createImageBitmap(png);
+        const maxW = 160;
+        const w = Math.min(maxW, bitmap.width);
+        const h = Math.round((bitmap.height * w) / bitmap.width);
         bitmap.close();
-        return { data: arrayBuffer, width: w, height: h, type: "png" };
+        return { data: await png.arrayBuffer(), width: w, height: h, type: "png" };
     } catch {
         return undefined;
     }
 }
 
-export async function buildContractDocx(
-    data: ContractDataForDocx,
-    options?: BuildContractDocxOptions
-): Promise<Blob> {
-    const d = (k: string) => data[k] ?? "";
+export async function buildContractDocx(doc: ResolvedAgreement, options?: BuildContractDocxOptions): Promise<Blob> {
     const children: (Paragraph | Table)[] = [];
 
-    // Header: logo + title/subtitle on left, "The Client" box on right (match preview)
-    const headerLeft: (Paragraph | Table)[] = [];
     if (options?.logoUrl) {
-        const logoData = await loadLogoAsPng(options.logoUrl);
-        if (logoData) {
-            headerLeft.push(
+        const logo = await loadLogoAsPng(options.logoUrl);
+        if (logo)
+            children.push(
                 new Paragraph({
-                    children: [
-                        new ImageRun({
-                            type: logoData.type,
-                            data: logoData.data,
-                            transformation: { width: logoData.width, height: logoData.height },
-                        }),
-                    ],
-                    spacing: { after: 120 },
+                    spacing: { after: 200 },
+                    children: [new ImageRun({ type: logo.type, data: logo.data, transformation: { width: logo.width, height: logo.height } })],
                 })
             );
+    }
+
+    for (const b of doc.blocks) {
+        switch (b.type) {
+            case "banner":
+                break; // internal drafting banner: never in client output
+            case "title":
+                children.push(new Paragraph({ heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER, children: runs(b.inl) }));
+                break;
+            case "h2":
+                children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, pageBreakBefore: b.pageBreak, keepNext: true, children: runs(b.inl) }));
+                break;
+            case "h3":
+                children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, keepNext: true, children: runs(b.inl) }));
+                break;
+            case "clause":
+                children.push(numbered(b.num, b.inl, b.level));
+                break;
+            case "item":
+                children.push(listItem(b.letter, b.inl, b.level));
+                break;
+            case "recital":
+                children.push(numbered(b.letter + ".", b.inl, 1));
+                break;
+            case "note":
+                children.push(sideNote(b.inl, b.level));
+                break;
+            case "table":
+                children.push(table(b.rows), new Paragraph({ spacing: { after: 120 }, children: [] }));
+                break;
+            default:
+                children.push(new Paragraph({ spacing: { after: 120 }, children: runs(b.inl) }));
         }
     }
-    headerLeft.push(
-        new Paragraph({
-            children: [run(d("title"), { bold: true, size: 32, color: COLOR.title })],
-            heading: HeadingLevel.TITLE,
-            alignment: AlignmentType.LEFT,
-            spacing: { after: 80 },
-        }),
-        new Paragraph({
-            children: [run(d("subtitle"), { size: 24, color: COLOR.subtitle })],
-            alignment: AlignmentType.LEFT,
-            spacing: { after: 0 },
-        })
-    );
 
-    const headerTable = new Table({
-        rows: [
-            new TableRow({
-                children: [
-                    new TableCell({
-                        children: headerLeft,
-                        width: { size: 65, type: WidthType.PERCENTAGE },
-                        shading: undefined,
-                    }),
-                    new TableCell({
+    const heading = (id: string, name: string, size: number, extra: Record<string, unknown> = {}) => ({
+        id,
+        name,
+        basedOn: "Normal",
+        next: "Normal",
+        quickFormat: true,
+        run: { font: FONT, size, bold: true, color: "1F3864" },
+        paragraph: { spacing: { before: 240, after: 120 }, ...extra },
+    });
+
+    const document = new Document({
+        creator: "Lead Velocity (Pty) Ltd",
+        title: AGREEMENT_TITLE,
+        styles: {
+            default: { document: { run: { font: FONT, size: 22 }, paragraph: { spacing: { line: 264 } } } },
+            paragraphStyles: [
+                heading("Title", "Title", 32, { alignment: AlignmentType.CENTER, spacing: { before: 120, after: 240 } }),
+                heading("Heading1", "Heading 1", 24, { outlineLevel: 0 }),
+                heading("Heading2", "Heading 2", 22, { outlineLevel: 1 }),
+            ],
+        },
+        sections: [
+            {
+                properties: {
+                    page: {
+                        size: { width: PAGE_W, height: PAGE_H },
+                        margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN, header: 600, footer: 600 },
+                    },
+                },
+                footers: {
+                    default: new Footer({
                         children: [
                             new Paragraph({
-                                children: [run("The Client", { bold: true, size: 18, color: COLOR.muted, allCaps: true })],
-                                alignment: AlignmentType.RIGHT,
-                                spacing: { after: 60 },
-                            }),
-                            new Paragraph({
-                                children: [run(d("clientName"), { bold: true, size: 28, color: COLOR.title })],
-                                alignment: AlignmentType.RIGHT,
-                                spacing: { after: 60 },
-                            }),
-                            new Paragraph({
-                                children: [run(d("clientCompany"), { size: 22, color: COLOR.subtitle })],
-                                alignment: AlignmentType.RIGHT,
-                                spacing: { after: 0 },
+                                alignment: AlignmentType.CENTER,
+                                children: [
+                                    new TextRun({
+                                        size: 16,
+                                        color: GREY,
+                                        font: FONT,
+                                        children: [`Lead Velocity — ${AGREEMENT_TITLE} ${doc.templateVersion}   ·   Page `, PageNumber.CURRENT, " of ", PageNumber.TOTAL_PAGES],
+                                    }),
+                                ],
                             }),
                         ],
-                        width: { size: 35, type: WidthType.PERCENTAGE },
-                        shading: { fill: "f8fafc", type: ShadingType.CLEAR },
-                        margins: { top: 100, bottom: 100, left: 200, right: 200 },
                     }),
-                ],
-            }),
+                },
+                children,
+            },
         ],
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.SINGLE, size: 12, color: "e2e8f0" }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
-    });
-    children.push(headerTable);
-    children.push(new Paragraph({ spacing: { before: 240, after: 0 } }));
-
-    // Parties to this Agreement (blue heading, intro in grey)
-    children.push(
-        new Paragraph({
-            children: [run("Parties to this Agreement", { bold: true, size: 26, color: COLOR.heading })],
-            heading: HeadingLevel.HEADING_2,
-            border: { left: { style: BorderStyle.SINGLE, size: 12, color: "be185d" } },
-            spacing: { before: 240, after: 120 },
-        }),
-        new Paragraph({
-            children: [run('This Service Level Agreement ("Agreement") is entered into as of the Effective Date set out below, by and between:', { size: 22, color: COLOR.muted })],
-            spacing: { after: 200 },
-        })
-    );
-
-    // The Service Provider (box label + content)
-    children.push(partyBoxLabel("The Service Provider"));
-    children.push(
-        new Paragraph({
-            children: [run(d("providerCompany"), { bold: true, size: 28, color: COLOR.title })],
-            spacing: { after: 80 },
-        }),
-        body(d("providerAddressLine")),
-        body(d("providerEmailLine")),
-        body(d("providerPhoneLine")),
-        body(d("providerRepresentativeLine")),
-        new Paragraph({
-            children: [run('(hereinafter referred to as "Lead Velocity" or "the Service Provider")', { italic: true, size: 22, color: COLOR.muted })],
-            spacing: { after: 200 },
-        })
-    );
-
-    // The Client (box label + content)
-    children.push(partyBoxLabel("The Client"));
-    children.push(
-        new Paragraph({
-            children: [run(d("clientCompany"), { bold: true, size: 28, color: COLOR.title })],
-            spacing: { after: 80 },
-        }),
-        body(d("clientAddressLine")),
-        body(d("clientEmailLine")),
-        body(d("clientPhoneLine")),
-        body(d("clientRepresentativeLine")),
-        new Paragraph({
-            children: [run('(hereinafter referred to as "the Client")', { italic: true, size: 22, color: COLOR.muted })],
-            spacing: { after: 120 },
-        }),
-        body('The Service Provider and the Client are collectively referred to as "the Parties" and individually as a "Party".')
-    );
-
-    // Recitals (slate bar, italic)
-    children.push(sectionHeading("", "Recitals", { barColor: COLOR.slate, headingColor: COLOR.slateHeading }));
-    children.push(body(d("recitalsText"), { italic: true, color: COLOR.muted }));
-    children.push(sectionHeading("", "Definitions & Interpretation"));
-    children.push(body(d("definitionsText")));
-    children.push(sectionHeading("1", "Scope of Services"));
-    children.push(body(d("scopeText")));
-    children.push(sectionHeading("2", "Deliverables"));
-    children.push(body(d("deliverablesText")));
-
-    // Commercial Terms (heading + service fee in pink)
-    children.push(
-        new Paragraph({
-            children: [run("COMMERCIAL TERMS", { bold: true, size: 22, color: COLOR.muted })],
-            spacing: { before: 240, after: 120 },
-        }),
-        new Paragraph({
-            children: [
-                run("SERVICE FEE: ", { bold: true, size: 22, color: COLOR.muted }),
-                run(d("serviceFee"), { bold: true, size: 28, color: COLOR.serviceFee }),
-            ],
-            spacing: { after: 80 },
-        }),
-        new Paragraph({
-            children: [
-                run("LEAD TARGET: ", { bold: true, size: 22, color: COLOR.muted }),
-                run(d("leadTarget")),
-            ],
-            spacing: { after: 80 },
-        }),
-        new Paragraph({
-            children: [
-                run("DURATION: ", { bold: true, size: 22, color: COLOR.muted }),
-                run("30 Days"),
-            ],
-            spacing: { after: 120 },
-        })
-    );
-    if (d("commissionText")) {
-        children.push(
-            new Paragraph({
-                children: [run("COMMISSION STRUCTURE", { bold: true, size: 22, color: COLOR.serviceFee })],
-                spacing: { before: 200, after: 80 },
-            }),
-            body(d("commissionText"))
-        );
-    }
-
-    // Numbered sections 3–20 (section-specific colours to match preview)
-    children.push(sectionHeading("3", "Terms & Conditions"));
-    children.push(body(d("termsText")));
-    children.push(sectionHeading("4", "Confidentiality"));
-    children.push(body(d("confidentialityText")));
-    // 5. Breach (red)
-    children.push(sectionHeading("5", "Breach & No-Refund Policy", { barColor: COLOR.red, headingColor: COLOR.redHeading, shading: FILL.red }));
-    children.push(body(d("breachText"), { color: COLOR.redBody }));
-    children.push(body(d("refundText"), { color: COLOR.redBody }));
-    children.push(sectionHeading("6", "Governing Law & Disputes"));
-    children.push(body(d("disputeText")));
-    if (d("pilotEligibilityText")) {
-        children.push(sectionHeading("7", "Pilot Eligibility", { barColor: COLOR.amber, headingColor: COLOR.amberHeading, shading: FILL.amber }));
-        children.push(body(d("pilotEligibilityText"), { color: COLOR.amberBody }));
-    }
-    // 8. Renewal (green)
-    children.push(sectionHeading("8", "Renewal & Upgrade Options", { barColor: COLOR.green, headingColor: COLOR.greenHeading, shading: FILL.green }));
-    children.push(body(d("renewalText"), { color: COLOR.greenBody }));
-    children.push(sectionHeading("9", "Force Majeure"));
-    children.push(body(d("forceMajeureText")));
-    children.push(sectionHeading("10", "Limitation of Liability"));
-    children.push(body(d("liabilityText")));
-    children.push(sectionHeading("11", "Indemnification"));
-    children.push(body(d("indemnityText")));
-    if (d("jurisdictionText")) {
-        children.push(sectionHeading("", "Governing Law"));
-        children.push(body(d("jurisdictionText")));
-    }
-    // 12. General (slate)
-    children.push(sectionHeading("12", "General Provisions", { barColor: COLOR.slate, headingColor: COLOR.slateHeading, shading: FILL.slate }));
-    children.push(body(d("entireAgreementText"), { color: COLOR.body }));
-    children.push(sectionHeading("13", "Intellectual Property"));
-    children.push(body(d("intellectualPropertyText")));
-    // 14. Data Protection (blue)
-    children.push(sectionHeading("14", "Data Protection & POPIA Compliance", { barColor: COLOR.blue, headingColor: COLOR.blueHeading, shading: FILL.blue }));
-    children.push(body(d("dataProtectionText"), { color: COLOR.blueBody }));
-    // 15. Non-Solicitation (purple)
-    children.push(sectionHeading("15", "Non-Solicitation & Protection of Methods", { barColor: COLOR.purple, headingColor: COLOR.purpleHeading, shading: FILL.purple }));
-    children.push(body(d("nonSolicitationText"), { color: COLOR.purpleBody }));
-    children.push(sectionHeading("16", "Warranties & Representations"));
-    children.push(body(d("warrantiesText")));
-    // 17. Termination (orange)
-    children.push(sectionHeading("17", "Termination", { barColor: COLOR.orange, headingColor: COLOR.orangeHeading, shading: FILL.orange }));
-    children.push(body(d("terminationText"), { color: COLOR.orangeBody }));
-    children.push(sectionHeading("18", "Assignment"));
-    children.push(body(d("assignmentText")));
-    children.push(sectionHeading("19", "Notices"));
-    children.push(body(d("noticesText")));
-    children.push(sectionHeading("20", "Relationship of Parties"));
-    children.push(body(d("relationshipText")));
-
-    if (d("bankName") || d("accountHolder")) {
-        const paymentColor = "e2e8f0";
-        children.push(
-            new Paragraph({
-                children: [run("Payment Details", { bold: true, size: 26, color: "ffffff" })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { before: 320, after: 120 },
-            }),
-            new Paragraph({
-                children: [run(`Bank: ${d("bankName")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 80 },
-            }),
-            new Paragraph({
-                children: [run(`Account Holder: ${d("accountHolder")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 80 },
-            }),
-            new Paragraph({
-                children: [run(`Account #: ${d("accountNumber")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 80 },
-            }),
-            new Paragraph({
-                children: [run(`Branch Code: ${d("branchCode")}`, { color: paymentColor })],
-                shading: { fill: "0f172a", type: ShadingType.CLEAR },
-                spacing: { after: 120 },
-            })
-        );
-    }
-    children.push(
-        new Paragraph({
-            children: [run(`Effective Date: ${d("effectiveDate")}`)],
-            spacing: { before: 320, after: 80 },
-        }),
-        new Paragraph({
-            children: [run(`Client: ${d("clientName")}`)],
-            spacing: { after: 400 },
-        })
-    );
-
-    const doc = new Document({
-        sections: [{ children }],
     });
 
-    return Packer.toBlob(doc);
+    return Packer.toBlob(document);
 }

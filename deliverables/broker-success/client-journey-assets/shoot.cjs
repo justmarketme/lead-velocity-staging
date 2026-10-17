@@ -1,0 +1,22 @@
+const { chromium } = require('/opt/node-tools/node_modules/playwright-core');
+(async()=>{
+ const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'}).catch(async()=>chromium.launch());
+ const p=await b.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});
+ await p.route(/^(?!http:\/\/localhost:8765).*/, r=>r.abort());
+ await p.goto('http://localhost:8765/employer-gap/',{waitUntil:'load'});
+ const out=process.argv[2];
+ await p.screenshot({path:out+'/lp-hero.png'});
+ await p.locator('#quiz').scrollIntoViewIfNeeded();
+ await p.evaluate(()=>document.querySelector('#quiz').scrollIntoView());
+ await p.waitForTimeout(300);
+ await p.screenshot({path:out+'/lp-q1.png'});
+ const pick=async(n,v)=>{await p.locator(`input[name="${n}"][value="${v}"]`).check({force:true});await p.waitForTimeout(500);};
+ await pick('age_band','35_44');await pick('bond','yes');await pick('dependants','kids');await pick('work_cover','yes');
+ await p.evaluate(()=>document.querySelector('#quiz').scrollIntoView());await p.screenshot({path:out+'/lp-q5.png'});
+ await pick('budget_band','750_1250');
+ await p.fill('#name','Lerato').catch(()=>{});await p.fill('#phone','082 000 0000').catch(()=>{});
+ await p.check('#consent',{force:true}).catch(()=>{});
+ await p.evaluate(()=>document.querySelector('#quiz').scrollIntoView());await p.waitForTimeout(300);
+ await p.screenshot({path:out+'/lp-q6.png'});
+ console.log(await p.evaluate(()=>[...document.querySelectorAll('fieldset.q')].map(f=>f.dataset.step+':'+f.className).join(' ')));
+ await b.close();})();

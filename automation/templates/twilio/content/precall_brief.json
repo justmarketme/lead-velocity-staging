@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "key": "precall_brief",
+    "source": "automation/templates/precall_brief.json",
+    "approval": {
+      "name": "smc_precall_brief",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "body"
+      },
+      {
+        "n": 7,
+        "kind": "body"
+      },
+      {
+        "n": 8,
+        "kind": "body"
+      },
+      {
+        "n": 9,
+        "kind": "body"
+      },
+      {
+        "n": 10,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_precall_brief",
+    "language": "en",
+    "variables": {
+      "1": "Lerato M.",
+      "2": "10:00",
+      "3": "phone call",
+      "4": "083 555 0123 (not the WhatsApp number)",
+      "5": "afternoons",
+      "6": "35-44",
+      "7": "R1,500+ (priority)",
+      "8": "how long the call takes; has a question for you about an existing policy",
+      "9": "English",
+      "10": "b/bk_8f3a2c"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Your next call: *{{1}}* at {{2}} by {{3}}. Number to call: {{4}}. Best time: {{5}}. Age band {{6}}, budget band {{7}}. Asked before the call: {{8}}. Language: {{9}}. Full brief in the portal.",
+        "header_text": "Call in 15 minutes",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Open brief",
+            "url": "https://leadvelocity.co.za/{{10}}"
+          }
+        ]
+      }
+    }
+  }
+}

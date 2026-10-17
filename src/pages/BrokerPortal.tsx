@@ -61,7 +61,7 @@ const BrokerPortal = () => {
           if (broker.portal_type === 'marketing' || broker.portal_type === 'premium') {
             navigate("/broker-elite");
           } else {
-            navigate("/broker/dashboard");
+            navigate("/broker/orders");
           }
         }
       }
@@ -99,7 +99,7 @@ const BrokerPortal = () => {
           if (broker.portal_type === "marketing" || broker.portal_type === "premium") {
             navigate("/broker-elite");
           } else {
-            navigate("/broker/dashboard");
+            navigate("/broker/orders");
           }
         } else {
           await supabase.auth.signOut();
@@ -164,23 +164,23 @@ const BrokerPortal = () => {
   const features = [
     {
       icon: Database,
-      title: "Lead Management",
-      description: "Upload and track your entire lead database in one centralized location",
-    },
-    {
-      icon: FileText,
-      title: "Referral Tracking",
-      description: "Monitor referrals generated from each lead with real-time updates",
+      title: "Your Purchased Leads",
+      description: "View, search and work every lead you've purchased in one place",
     },
     {
       icon: BarChart3,
-      title: "Performance Analytics",
-      description: "Visualize your conversion funnel and optimize your process",
+      title: "Sales Pipeline",
+      description: "Drag leads through your stages — New, Contacted, Interested, Meeting Set, Won",
+    },
+    {
+      icon: FileText,
+      title: "Notes & Feedback",
+      description: "Keep private notes on each lead and message the Lead Velocity team",
     },
     {
       icon: Lock,
-      title: "Will Completion",
-      description: "Track will status and appointment scheduling seamlessly",
+      title: "Secure Delivery",
+      description: "Contact details unlock on payment — then export your leads to CSV anytime",
     },
   ];
 

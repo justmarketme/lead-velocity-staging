@@ -1,0 +1,28 @@
+<!doctype html><html lang="en-ZA"><meta charset="utf8"><title>What to expect card</title>
+<link rel="stylesheet" href="_base.css">
+<style>
+body{width:1080px;height:1080px}
+.logo{left:72px;top:64px}.logo img{height:60px;display:block}
+h1{position:absolute;left:72px;right:72px;top:176px;font-size:88px}
+.steps{position:absolute;left:72px;right:72px;top:392px;display:grid;gap:34px}
+.s{display:flex;align-items:center;gap:36px}
+.n{flex:none;width:112px;height:112px;border-radius:50%;background:var(--sm-amber);color:var(--sm-accent-text);font-weight:800;font-size:60px;display:grid;place-items:center}
+.t{font-size:50px;font-weight:800;line-height:1.12;letter-spacing:-.01em}.t small{display:block;font-size:38px;font-weight:500;color:var(--sm-muted);margin-top:6px}
+.band{left:0;right:0;bottom:0;height:184px;padding:36px 72px}
+.band .m{font-size:46px;font-weight:800}.band .e{font-size:33px;margin-top:10px}
+body.wide{width:1200px;height:628px}
+.wide .logo{left:56px;top:34px}.wide .logo img{height:44px}.wide h1{left:56px;top:100px;font-size:56px;right:56px}
+.wide .steps{top:196px;left:56px;right:56px;gap:16px}.wide .n{width:72px;height:72px;font-size:40px}.wide .t{font-size:36px}.wide .t small{font-size:33px;display:none}
+.wide .s{gap:24px}.wide .band{height:104px;padding:0 56px;display:flex;align-items:center}.wide .band .e{display:none}.wide .band .m{font-size:36px}
+</style>
+<body>
+<div class="abs logo"><img src="../logo/wordmark-charcoal.svg" alt="SortMyCover"></div>
+<h1 class="hd" data-bh="title"></h1>
+<div class="steps">
+ <div class="s"><div class="n">1</div><div class="t"><span data-b="s1"></span><small data-b="s1m"></small></div></div>
+ <div class="s"><div class="n">2</div><div class="t"><span data-b="s2"></span><small data-b="s2m"></small></div></div>
+ <div class="s"><div class="n">3</div><div class="t"><span data-b="s3"></span><small data-b="s3m"></small></div></div>
+</div>
+<div class="abs band dark"><div><div class="m" data-b="footer_line"></div><div class="e" data-b="who"></div></div></div>
+<script>window.SM_DEFAULTS={title:"What to expect on **your call**",s1:"Hello, and what you want sorted",s1m:"About 5 minutes",s2:"Your situation, in plain English",s2m:"About 15 minutes",s3:"What happens next. You decide.",s3m:"About 10 minutes",footer_line:"30 minutes · No obligation",who:"With Mark Smith · FSP 00000 (SAMPLE: fictional adviser)"}</script>
+<script src="_t.js"></script>

@@ -1,0 +1,157 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Record Your Intro</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+:root{
+  --amber:#F5A623; --amber-ink:#2A1B02; --char:#1F2933; --off:#FBF8F2; --off-2:#F1ECE2;
+  --bg:var(--off); --fg:var(--char); --muted:#5C6672; --rule:#DCD6CB; --card:#FFFFFF;
+  --ok:#2E7D4F; --ok-bg:#E6F2EA; --warn:#B4541A; --warn-bg:#FBEBDD; --info-bg:#E8EEF5;
+  --wa-bg:#E5DDD5; --wa-in:#FFFFFF; --wa-text:#1F2933; --wa-muted:#667781;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --info-bg:#243041; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-text:#E9EDEF; --wa-muted:#8696A0; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --info-bg:#243041; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-text:#E9EDEF; --wa-muted:#8696A0; color-scheme:dark }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14.5px;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding-block:16px 48px;padding-inline:16px}
+h1{font-size:clamp(20px,2.6vw,26px);margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 16px;max-width:80ch}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start}
+.phone{width:100%;max-width:340px;margin:0 auto;background:#111;border-radius:34px;padding:10px;box-shadow:0 18px 44px rgba(0,0,0,.26)}
+.screen{background:var(--card);border-radius:26px;overflow:hidden;display:flex;flex-direction:column;min-height:640px;color:var(--fg)}
+.ph{background:var(--char);color:var(--off);padding:14px 14px 10px}
+.ph .k{font-size:11px;opacity:.8;letter-spacing:.06em;text-transform:uppercase}
+.ph h2{margin:2px 0 6px;font-size:16px}
+.steps{display:flex;gap:4px}
+.steps i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.25)}
+.steps i.on{background:var(--amber)}
+.pb{padding:12px 14px;display:flex;flex-direction:column;gap:10px;flex:1}
+.lbl{font-size:13px;color:var(--muted)}
+.why{background:var(--info-bg);border-radius:10px;padding:10px 12px;font-size:13px}
+.why b{display:block;font-size:13.5px}
+.clip{position:relative;background:#2B3845;border-radius:10px;aspect-ratio:16/9;display:grid;place-items:center;color:#fff;font-size:12.5px;font-weight:700}
+.clip::before{content:"";width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9);position:absolute}
+.clip::after{content:"";border-left:14px solid #111;border-top:9px solid transparent;border-bottom:9px solid transparent;position:absolute;margin-left:4px}
+.clip span{position:absolute;left:10px;bottom:8px;font-weight:500;opacity:.85}
+.btn{display:block;text-align:center;background:var(--amber);color:var(--amber-ink);font-weight:800;border-radius:10px;padding:11px;font-size:14px}
+.btn.g{background:transparent;border:1.5px solid var(--rule);color:var(--fg);font-weight:600}
+.q{font-size:15px;font-weight:700;line-height:1.3}
+.ex{font-size:12.5px;color:var(--muted);font-style:italic}
+.field{border:1.5px solid var(--rule);border-radius:10px;padding:10px 12px;font-size:14px;min-height:76px;background:var(--card)}
+.mic{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)}
+.mic i{width:28px;height:28px;border-radius:50%;background:var(--off-2);display:inline-block}
+.script{border:1.5px solid var(--rule);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45}
+.script.sel{border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,35,.2)}
+.script small{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.gate{font-size:12px;color:var(--ok);font-weight:700}
+.cam{position:relative;background:radial-gradient(ellipse at 50% 38%,#8FA3B8 0,#4B5A6E 55%,#1F2933 100%);border-radius:12px;aspect-ratio:9/13;overflow:hidden}
+.cam .face{position:absolute;left:50%;top:30%;width:38%;aspect-ratio:1;border-radius:50%;background:#C9A786;transform:translateX(-50%)}
+.cam .shoulders{position:absolute;left:50%;top:58%;width:78%;height:40%;border-radius:40% 40% 0 0;background:#2B3845;transform:translateX(-50%)}
+.cam .guide{position:absolute;inset:14% 22% 30% 22%;border:1.5px dashed rgba(255,255,255,.55);border-radius:50%/40%}
+.cam .tp{position:absolute;left:8px;right:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.4;font-weight:600}
+.cam .tp b{color:var(--amber)}
+.cam .cnt{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:54px;height:54px;border-radius:50%;background:#fff;border:4px solid #d33}
+.cam .tm{position:absolute;right:10px;bottom:22px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:2px 7px;border-radius:5px;font-variant-numeric:tabular-nums}
+.chk{display:flex;flex-direction:column;gap:5px;font-size:12.5px}
+.chk div{display:flex;gap:8px;align-items:flex-start}
+.chk i{width:16px;height:16px;border-radius:50%;flex:none;margin-top:2px;background:var(--ok-bg);border:1.5px solid var(--ok);position:relative}
+.chk i::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid var(--ok);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.chk i.w{background:var(--warn-bg);border-color:var(--warn)}
+.chk i.w::after{display:none}
+.chk small{display:block;color:var(--muted)}
+.takes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.take{aspect-ratio:9/13;border-radius:8px;background:#4B5A6E;position:relative;border:2px solid transparent}
+.take.sel{border-color:var(--amber)}
+.take span{position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10.5px;padding:1px 5px;border-radius:4px}
+.take .ai{position:absolute;left:4px;top:4px;right:4px;font-size:10px;color:#fff;background:rgba(46,125,79,.85);padding:2px 5px;border-radius:4px}
+.take .ai.w{background:rgba(180,84,26,.9)}
+.preview{background:var(--wa-bg);border-radius:12px;padding:10px;color:var(--wa-text)}
+.msg{background:var(--wa-in);border-radius:10px;border-top-left-radius:2px;padding:7px 9px 6px;font-size:12.5px;max-width:92%;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.vid{position:relative;background:#222;border-radius:8px;overflow:hidden;aspect-ratio:9/12;margin:-3px -5px 6px}
+.vid .bgp{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,#6E829A 0,#3B4A5C 55%,#1F2933 100%)}
+.vid .sil{position:absolute;left:50%;top:26%;width:34%;aspect-ratio:1;border-radius:50%;background:#C9A786;transform:translateX(-50%)}
+.vid .sh{position:absolute;left:50%;top:52%;width:70%;height:40%;border-radius:40% 40% 0 0;background:#2B3845;transform:translateX(-50%)}
+.vid .cap{position:absolute;left:8%;right:8%;bottom:22%;text-align:center;color:#fff;font-weight:700;font-size:12px;text-shadow:0 1px 2px rgba(0,0,0,.8);background:rgba(0,0,0,.45);padding:4px 6px;border-radius:4px}
+.vid .lt{position:absolute;left:0;right:0;bottom:0;background:var(--amber);color:var(--amber-ink);font-size:10px;font-weight:800;padding:4px 8px}
+.vid .play{position:absolute;left:50%;top:50%;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.9);transform:translate(-50%,-50%)}
+.vid .play::after{content:"";position:absolute;left:16px;top:11px;border-left:14px solid #111;border-top:9px solid transparent;border-bottom:9px solid transparent}
+.msg .ts{display:block;text-align:right;font-size:10px;color:var(--wa-muted);margin-top:3px}
+.cap2{font-size:12.5px;color:var(--muted);text-align:center;margin-top:8px}
+.foot{margin-top:22px;font-size:12.5px;color:var(--muted);max-width:90ch}
+</style>
+
+<div class="wrap">
+  <h1>Step 5 of onboarding: "Record your intro" — what Mark sees on his phone</h1>
+  <p class="sub">Four screens, about ten minutes. Why it matters → eight questions → three scripts in his words → record with a teleprompter and an instant check → approve exactly what the lead will receive. Figures and people are illustrative; no real adviser is shown.</p>
+
+  <div class="row">
+    <!-- Screen A -->
+    <div><div class="phone"><div class="screen">
+      <div class="ph"><div class="k">Step 5 of 7 · ~10 min</div><h2>Record your intro</h2><div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+      <div class="pb">
+        <div class="why"><b>Why this is the step that moves your show rate most</b>People show up for people. A lead who has seen your face and heard your voice for 25 seconds before the call is far less likely to no-show — and that's what you're paying for. Ten minutes, once.</div>
+        <div class="clip"><span>0:40 · how this works + an example</span></div>
+        <div class="lbl">Three parts: answer 8 quick questions → pick one of 3 scripts in your words → record 25 seconds with the teleprompter. We add captions and your FSP number.</div>
+        <div class="btn">Start — 8 quick questions</div>
+        <div class="btn g">Prefer audio only? Same steps, no camera</div>
+        <div class="lbl" style="text-align:center">Skip for now · we'll remind you tomorrow</div>
+      </div>
+    </div></div><p class="cap2">A · Why, in 40 seconds, with an example</p></div>
+
+    <!-- Screen B -->
+    <div><div class="phone"><div class="screen">
+      <div class="ph"><div class="k">Question 1 of 8 · type or talk</div><h2>Who do you help most?</h2><div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+      <div class="pb">
+        <div class="q">Who do you help most, and what do they usually come to you worried about?</div>
+        <div class="ex">e.g. families in their 30s and 40s with a bond and kids, who aren't sure the cover they have through work is enough</div>
+        <div class="field">Mostly families with a bond and young kids — usually they have something through work and have no idea if it's enough, or what happens to the bond.</div>
+        <div class="mic"><i></i>Hold to answer by voice — we'll transcribe it</div>
+        <div class="btn">Next</div>
+        <div class="lbl">Then: what the first 10 minutes of your call is like · what people say afterwards · the misconception you keep correcting · what you <i>don't</i> do · where you're from · languages · years &amp; why · one personal detail</div>
+      </div>
+    </div></div><p class="cap2">B · Eight questions, one per screen, voice or text</p></div>
+
+    <!-- Screen C -->
+    <div><div class="phone"><div class="screen">
+      <div class="ph"><div class="k">Pick a script · edit anything</div><h2>Three scripts, in your words</h2><div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+      <div class="pb">
+        <div class="script sel"><small>Option 1 · 24 s · plain</small>Hi, I'm Mark from Mark Williams Financial Planning, FSP 00000. I work with families who've got a bond and people depending on them, and want to know whether the cover they have through work actually matches their life. On our call I'll ask a few questions and tell you plainly where you stand — there's nothing to buy and no pressure. Thirty minutes is usually all it takes. Looking forward to Thursday.</div>
+        <div class="script"><small>Option 2 · 26 s · warmer</small>Hi, Mark here from Mark Williams Financial Planning, FSP 00000. Most people I meet have some cover through work and have never checked whether it covers the bond and the kids…</div>
+        <div class="script"><small>Option 3 · 22 s · direct</small>I'm Mark, FSP 00000. Thirty minutes, a few questions, a straight answer on where your cover stands. No selling…</div>
+        <div class="gate">✓ Compliance check passed — no products, premiums or advice; practice and FSP included</div>
+        <div class="btn">Use option 1 → set up camera</div>
+      </div>
+    </div></div><p class="cap2">C · AI-drafted from his answers; FAIS gate before recording unlocks</p></div>
+
+    <!-- Screen D -->
+    <div><div class="phone"><div class="screen">
+      <div class="ph"><div class="k">Record · take 2 of 3</div><h2>Face the window. Look at the lens.</h2><div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+      <div class="pb">
+        <div class="cam"><div class="face"></div><div class="shoulders"></div><div class="guide"></div><div class="tp">…and want to know whether the cover they have through work <b>actually matches their life.</b> On our call I'll ask a few questions…</div><div class="tm">0:11</div><div class="cnt"></div></div>
+        <div class="chk">
+          <div><i></i><div>Face in frame, eye level<small>eye contact is the whole point</small></div></div>
+          <div><i></i><div>Light on your face<small>a window behind you makes you a silhouette</small></div></div>
+          <div><i class="w"></i><div>Background noise detected — fan or aircon?<small>your voice matters more than the picture</small></div></div>
+          <div><i></i><div>20–30 s · teleprompter paces you</div></div>
+        </div>
+        <div class="lbl">Or record on your phone and WhatsApp it to us — same checks, shows up here.</div>
+      </div>
+    </div></div><p class="cap2">D · Teleprompter over the preview; instant checks with the reason</p></div>
+
+    <!-- Screen E -->
+    <div><div class="phone"><div class="screen">
+      <div class="ph"><div class="k">Pick a take · approve</div><h2>This is exactly what a lead receives</h2><div class="steps"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+      <div class="pb">
+        <div class="takes"><div class="take"><span>Take 1 · 0:27</span><div class="ai w">Dark</div></div><div class="take sel"><span>Take 2 · 0:25</span><div class="ai">Good</div></div><div class="take"><span>Take 3 · 0:31</span><div class="ai">Good</div></div></div>
+        <div class="preview"><div class="msg"><div class="vid"><div class="bgp"></div><div class="sil"></div><div class="sh"></div><div class="play"></div><div class="cap">…there's nothing to buy and no pressure.</div><div class="lt">Mark Williams · Mark Williams Financial Planning · FSP 00000</div></div>Hi Lerato, Mark recorded this for people booking a call with him this week — 25 seconds, captions on.<span class="ts">Tue 11:00</span></div></div>
+        <div class="lbl">Captions, your name and FSP, and the SortMyCover end-frame are added automatically. Sent 48 hours before each call. Audio version made from the same take.</div>
+        <div class="btn">Approve and use this</div>
+        <div class="btn g">Record another language</div>
+      </div>
+    </div></div><p class="cap2">E · Three takes, AI verdict, the real WhatsApp preview, approve</p></div>
+  </div>
+
+  <p class="foot">Mock of master prompt §4.10b. Infrastructure: in-browser MediaRecorder (iOS Safari + Android Chrome), signed upload, W23 ffmpeg pipeline (trim, H.264 ≤ 16 MB, burned captions from transcript, lower-third, end-frame, thumbnail, OGG/Opus voice version), AI check (face, light, loudness/noise, duration), WhatsApp-capture fallback, versioning. Measured on show rate: video vs voice vs none over the first 100 bookings.</p>
+</div>
+
+</body></html>

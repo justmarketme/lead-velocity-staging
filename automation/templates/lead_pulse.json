@@ -1,0 +1,36 @@
+{
+  "name": "lead_pulse",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, one quick question: was your call with {{2}} worth your time? Answers are only shared as a total, never with your name. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Yes, worth it"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Not really"
+        }
+      ]
+    }
+  ]
+}

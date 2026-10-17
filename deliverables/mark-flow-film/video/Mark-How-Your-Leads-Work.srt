@@ -1,0 +1,251 @@
+1
+00:00:00,000 --> 00:00:07,880
+Hi Mark. This film shows how a client finds you, what you see, what the updated agreement (v0.2) says, and how you get set up.
+
+2
+00:00:07,880 --> 00:00:14,560
+Tap along or let it play: Sipho is a made-up client, and your questions pop up where they're answered.
+
+3
+00:00:14,560 --> 00:00:23,080
+It starts with a SortMyCover ad that never names you, an insurer, a product or a price. And we never give advice: you do.
+
+4
+00:00:23,080 --> 00:00:30,120
+Sipho taps it, and WhatsApp opens. Because he chats from his own number, it's verified from his first message.
+
+5
+00:00:30,120 --> 00:00:38,960
+Before any question, he's asked if we may share his details with your practice, named with your FSP number. He taps Yes, continue.
+
+6
+00:00:38,960 --> 00:00:46,080
+That tap, the wording he saw and the time become his consent record. If you ever question a lead, you get it.
+
+7
+00:00:46,080 --> 00:00:52,704
+A short form then opens inside WhatsApp itself, with no website and no app. He taps Start.
+
+8
+00:00:52,704 --> 00:01:00,600
+First, what does he want to talk about? He can tick several, and every client, for every broker, gets the same questions.
+
+9
+00:01:00,600 --> 00:01:07,160
+Next, and optional: what is he paying now? Because he ticked paying too much, the question says so.
+
+10
+00:01:07,160 --> 00:01:14,560
+Then his name and surname: obvious fakes are turned away, and three bad tries end the chat with nothing passed on.
+
+11
+00:01:14,560 --> 00:01:21,080
+Then his email for the invite, checked while he waits. He can add a second address, or tick Same as above.
+
+12
+00:01:21,080 --> 00:01:28,712
+Is this the number to call you on? One tap says yes, and another number must be a South African mobile, not a landline.
+
+13
+00:01:28,712 --> 00:01:36,752
+Then his age group: 35 to 50 qualifies. Anyone younger or older is thanked politely and never passed on.
+
+14
+00:01:36,752 --> 00:01:43,552
+Now the question that matters most to you: what could he put towards cover each month? Try it: pick any answer.
+
+15
+00:01:43,552 --> 00:01:52,720
+R1,500 or more is A-tier, the minimum target of every campaign. He books straight into your calendar and counts automatically.
+
+16
+00:01:52,720 --> 00:02:03,400
+R750 to R1,499 is B-tier. It's offered to you first, to Accept or Decline, and he's told we're matching him with an adviser.
+
+17
+00:02:03,400 --> 00:02:09,960
+Under R750, he's thanked and filtered out. He's never sent to you, and never counted.
+
+18
+00:02:09,960 --> 00:02:19,008
+Back on the A-tier path, two optional questions: first, does he smoke? It's used only to brief you, and never goes to advertisers.
+
+19
+00:02:19,008 --> 00:02:27,528
+And his income band, also optional, only to brief you. Checking income and affordability stays part of your own needs analysis.
+
+20
+00:02:27,528 --> 00:02:34,488
+Then he picks a day and a time. He only sees free times from your own Outlook calendar, inside your hours.
+
+21
+00:02:34,488 --> 00:02:40,104
+He taps Book my call, and your calendar is checked again at that moment, so you're never double-booked.
+
+22
+00:02:40,104 --> 00:02:49,008
+He's booked, and your welcome card lands in his chat: your photo, or initials for now, your name, practice and FSP number.
+
+23
+00:02:49,008 --> 00:02:55,248
+Then we email him a one-tap link and a 6-digit code, to prove the address is really his.
+
+24
+00:02:55,248 --> 00:03:02,304
+Now your side. Sipho's Teams meeting is already in your Outlook calendar, and WhatsApp tells you at once.
+
+25
+00:03:02,304 --> 00:03:09,912
+He's an A-tier lead, so there's nothing to approve. Once he's booked and confirmed he'll attend, he counts toward your 20.
+
+26
+00:03:09,912 --> 00:03:18,600
+After each call, tell us within 24 hours whether he attended and could be contacted. That's all we ask: never sales or policies.
+
+27
+00:03:18,600 --> 00:03:28,560
+Open the lead and it's all there: tier, name, numbers, email, reasons, age, budget, and any optional answers he gave.
+
+28
+00:03:28,560 --> 00:03:35,840
+Ticks show what's verified: his WhatsApp number, because he chatted from it, and his email, once he tapped the link.
+
+29
+00:03:35,840 --> 00:03:43,736
+Say investments is outside your licence: it's flagged, so you can handle it or refer him. You don't need to worry about it.
+
+30
+00:03:43,736 --> 00:03:52,456
+Now a B-tier lead: Thandi, another sample client, said R750 to R1,249. You get this first.
+
+31
+00:03:52,456 --> 00:04:01,648
+You have 2 working hours: 08:00 to 17:00, weekdays, not public holidays. This came in at 16:00, so the deadline is 09:00 next morning.
+
+32
+00:04:01,648 --> 00:04:04,264
+Try it. Accept, or Decline.
+
+33
+00:04:04,264 --> 00:04:11,704
+Accept, and she gets your welcome card with a Pick a time button. Once she books and confirms, she counts toward your 20.
+
+34
+00:04:11,704 --> 00:04:19,424
+Decline, and she doesn't count and isn't charged. She may go to another adviser with her consent, but never back to you.
+
+35
+00:04:19,424 --> 00:04:22,328
+No answer by the deadline counts as a decline.
+
+36
+00:04:22,328 --> 00:04:29,768
+You sent nine points, the first in two parts. Here's what the updated agreement (v0.2) says on each, with clause numbers.
+
+37
+00:04:29,768 --> 00:04:42,056
+1a, the budget: R1,500 or more is now every campaign's minimum target. Between R750 and R1,499, a lead counts only if you accept it.
+
+38
+00:04:42,056 --> 00:04:51,616
+8: you asked for a fix above a quarter of bad leads. Better than that, a lead with invalid details never counts, from the very first one.
+
+39
+00:04:51,616 --> 00:05:00,112
+Six: a wrong or disconnected number never counts, so nothing needs replacing. A booked client who doesn't join is a no-show.
+
+40
+00:05:00,112 --> 00:05:08,712
+9: ask in writing about any lead, and within 2 working days you get its consent record, booking confirmation and answers.
+
+41
+00:05:08,712 --> 00:05:20,672
+4: force majeure can't stretch delivery any more. A delay, such as a Meta outage, gets 14 extra days at most, so a cycle's delivery ends by day 44.
+
+42
+00:05:20,672 --> 00:05:29,552
+After day 44, your choice: anything still owed rolls into your next cycle, on top of your 20, or you ask for a refund.
+
+43
+00:05:29,552 --> 00:05:37,040
+A refund is R825 a lead, your Bronze price, paid within 7 working days of asking.
+
+44
+00:05:37,040 --> 00:06:06,320
+2: goodwill means supporting you beyond delivery. Consistent WhatsApp nurturing and opt-in or opt-out help us spot attendance problems early. For a no-show, reschedule first; if that cannot be arranged, replace through our goodwill process, up to 3 a week.
+
+45
+00:06:06,320 --> 00:06:19,040
+5: we aim to deliver an approved replacement within 14 days. To ask, wait 10 minutes in the Teams call, then send a screenshot straight away, by 30 minutes past the start at the latest.
+
+46
+00:06:19,040 --> 00:06:27,200
+7: there's no attendance trigger, because attendance isn't part of the lead definition: nobody can control who turns up.
+
+47
+00:06:27,200 --> 00:06:40,160
+1b: valid contact details, yes; attending, no. Tying pay to sales outcomes would push a lead seller toward being an intermediary under FAIS, so your fee stays flat.
+
+48
+00:06:40,160 --> 00:06:48,080
+3: age, income and budget stay the client's own answers, and affordability is part of your needs analysis.
+
+49
+00:06:48,080 --> 00:06:54,128
+We'll send you login details for the Lead Velocity broker portal. Here's the setup journey you'll follow.
+
+50
+00:06:54,128 --> 00:07:05,008
+Start here lists seven steps, starting with a 3-minute video. About 12 minutes, video included, gets you ready to go live; the optional intro can wait.
+
+51
+00:07:05,008 --> 00:07:17,416
+First, your details: practice, FSP number, adviser name, WhatsApp and email. Tap Save, and the number is checked on the FSCA register automatically.
+
+52
+00:07:17,416 --> 00:07:26,608
+Then a headshot, two lines about you, languages and years advising. With no photo yet, your card uses your initials until you add one.
+
+53
+00:07:26,608 --> 00:07:35,728
+Next, connect your Outlook calendar: tap Sign in with Microsoft, with your normal work login. No app to set up, and we never read your email.
+
+54
+00:07:35,728 --> 00:07:42,328
+Tap Accept, and you're back in the portal, connected as your own address, with your next free slot showing.
+
+55
+00:07:42,328 --> 00:07:51,520
+If your company's IT blocks outside apps, Microsoft asks for admin approval, and the portal gives you a ready-made link and note for your admin.
+
+56
+00:07:51,520 --> 00:07:58,720
+Your admin signs in and taps Accept, and that's all they do. You tap Sign in with Microsoft again, and you're connected.
+
+57
+00:07:58,720 --> 00:08:05,560
+Then your hours and how you meet: we start you on a normal week. Change anything, or just tap Looks right.
+
+58
+00:08:05,560 --> 00:08:14,800
+Next, sign the updated agreement (v0.2), with every change marked, and return the signed PDF by email. Copies go to you and to us.
+
+59
+00:08:14,800 --> 00:08:20,104
+Then approve your intro card: exactly what clients see the moment they book.
+
+60
+00:08:20,104 --> 00:08:28,504
+The last step, a 25-second intro video or voice note, is optional: about 10 minutes, and not needed to go live.
+
+61
+00:08:28,504 --> 00:08:42,280
+Then pay your first cycle by EFT, in advance, with your invoice reference: R16,500 for 20 Qualified Leads. We're not VAT registered, so none is charged.
+
+62
+00:08:42,280 --> 00:08:51,240
+Once payment is made, we start working on your campaign. After the final checks, Jonathan switches you live and we confirm it on WhatsApp.
+
+63
+00:08:51,240 --> 00:08:58,960
+That's the whole picture: if anything isn't clear, WhatsApp us and we'll answer it. We look forward to working with you, Mark.

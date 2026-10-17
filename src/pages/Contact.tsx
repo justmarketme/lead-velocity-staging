@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin, Send, MessageCircle } from "lucide-react";
 import { z } from "zod";
 import SEO from "@/components/SEO";
+import { supabase } from "@/integrations/supabase/client";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
@@ -47,8 +48,27 @@ const Contact = () => {
       // Validate form data
       contactSchema.parse(formData);
 
-      // Simulate form submission
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Persist the enquiry — this form previously discarded every submission.
+      const { data: saved, error: saveError } = await (supabase as any)
+        .from("contact_submissions")
+        .insert({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          company: formData.company?.trim() || null,
+          message: formData.message.trim(),
+          source: "website_contact",
+        })
+        .select("id")
+        .single();
+
+      if (saveError) throw saveError;
+
+      // Fire-and-forget: alert the team. Never block the visitor on email.
+      supabase.functions
+        .invoke("notify-contact-enquiry", { body: { submissionId: saved?.id } })
+        .then(({ error }) => { if (error) console.error("contact notify:", error); })
+        .catch((e) => console.error("contact notify failed:", e));
 
       toast({
         title: "Message Sent!",

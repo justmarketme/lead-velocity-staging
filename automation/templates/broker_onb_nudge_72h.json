@@ -1,0 +1,42 @@
+{
+  "name": "broker_onb_nudge_72h",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "SortMyCover setup"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, your SortMyCover setup is still waiting on one thing: {{2}}. {{3}} Leads can't be sent to you until it's done. Reply here and we'll help, no call needed.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Sign your agreement",
+            "You can read it first. It's per 30-day cycle, with no lock-in."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Finish setup",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/s/agreement"
+          ]
+        }
+      ]
+    }
+  ]
+}

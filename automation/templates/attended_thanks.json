@@ -1,0 +1,23 @@
+{
+  "name": "attended_thanks",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Thanks for making time today, {{1}}. {{2}} will follow up with you directly. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

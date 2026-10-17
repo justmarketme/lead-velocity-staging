@@ -1,0 +1,1 @@
+{"run":"I-55","env":"local","approve_creates_task":true,"note":"same local proof as S7-08.jsonl (automation/tests/S7-08-09.local.test.mjs); staging-only keys (w32_w33_scheduled, slos_seeded_db, first_pulse_generated, first_weekly_memo_generated) left unset."}

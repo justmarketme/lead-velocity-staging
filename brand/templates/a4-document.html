@@ -1,0 +1,19 @@
+<!doctype html><html lang="en-ZA"><meta charset="utf8"><title>A4 document header / footer</title>
+<link rel="stylesheet" href="_base.css">
+<!-- A4 at 96 dpi = 794 x 1123 CSS px. Header: wordmark + document title. Footer: endorsement lock-up + page. Used for proposal, agreement, invoice, pre-call brief, weekly report.
+     For multi-page PDFs reuse .hdr / .ftr as Playwright page.pdf headerTemplate / footerTemplate (inline the SVGs). -->
+<style>
+@page{size:A4;margin:0}
+body{width:794px;height:1123px}
+.hdr{left:56px;right:56px;top:40px;display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:4px solid var(--sm-amber)}
+.hdr img{height:30px;display:block}.hdr .dt{font-size:var(--sm-text-md);font-weight:800;text-align:right;line-height:1.15}.hdr .dt small{display:block;font-weight:500;font-size:var(--sm-text-sm);color:var(--sm-muted)}
+.body{left:56px;right:56px;top:150px;font-size:var(--sm-text-base);line-height:1.5;color:var(--sm-muted)}
+.ftr{left:56px;right:56px;bottom:34px;display:flex;justify-content:space-between;align-items:flex-end;padding-top:14px;border-top:1px solid var(--sm-rule);font-size:12px;color:var(--sm-muted)}
+.ftr img{width:330px;display:block}
+</style>
+<body>
+<div class="abs hdr"><img src="../logo/wordmark-charcoal.svg" alt="SortMyCover"><div class="dt"><span data-b="title"></span><small data-b="subtitle"></small></div></div>
+<div class="abs body" data-b="body"></div>
+<div class="abs ftr"><img src="../logo/lockup-endorsement-charcoal.svg" alt="SortMyCover, a service of Lead Velocity (Pty) Ltd"><div><span data-b="reg"></span> &nbsp; Page <span data-b="page"></span></div></div>
+<script>window.SM_DEFAULTS={title:"Document title",subtitle:"Prepared for {{recipient}}",body:"Document body goes here.",reg:"Reg. no. {{CIPC_REG_NO}}",page:"1 of 1"}</script>
+<script src="_t.js"></script>

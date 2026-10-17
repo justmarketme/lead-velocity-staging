@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import einsteinAvatar from "@/assets/einstein-chatbot-avatar.webp";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 // --- Audio Utility Functions ---
 function decodeBase64Audio(base64: string) {
@@ -87,15 +87,6 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
 
     const startSession = async () => {
         if (isActive || isConnecting) return;
-        if (!GEMINI_API_KEY) {
-            toast({
-                title: "Neural Link Restricted",
-                description: "VITE_GEMINI_API_KEY is missing. Spacetime coordinates unavailable.",
-                variant: "destructive"
-            });
-            return;
-        }
-
         setIsConnecting(true);
         const connectionTimeout = setTimeout(() => {
             if (isConnecting) {
@@ -114,7 +105,10 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
             audioContexts.current = { input: inputAudioCtx, output: outputAudioCtx };
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+            // I-32c: the real key stays server-side; the gemini-proxy edge function (auth required) mints a short-lived token.
+            const { data: tokenData, error: tokenError } = await supabase.functions.invoke('gemini-proxy', { body: { action: 'live-token' } });
+            if (tokenError || !tokenData?.token) throw new Error("Neural Link Restricted: could not obtain a session token.");
+            const ai = new GoogleGenAI({ apiKey: tokenData.token, httpOptions: { apiVersion: 'v1alpha' } });
 
             const sessionPromise = ai.live.connect({
                 model: 'gemini-2.0-flash-exp',
@@ -294,7 +288,7 @@ export const EinsteinLiveVoice: React.FC<EinsteinLiveVoiceProps> = ({
                     <div className="flex items-center gap-1.5 mt-1 ml-1 overflow-hidden h-3">
                         <div className="flex gap-1 items-center animate-[pulse_3s_infinite]">
                             <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                            <p className="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase tracking-[0.2em] whitespace-nowrap opacity-70 group-hover:opacity-100 transition-all">
+                            <p className="text-[8px] md:text-[9px] text-slate-300 font-bold uppercase tracking-[0.2em] whitespace-nowrap opacity-100 transition-all">
                                 Neural Link 2.0 Hybrid Ready
                             </p>
                         </div>

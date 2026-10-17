@@ -1,0 +1,200 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Lead Velocity//SortMyCover drills//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:smc-drill-breach-20270121@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270121T080000Z
+DTEND:20270121T093000Z
+SUMMARY:SortMyCover P14 breach drill (POPIA s22, synthetic)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-breach-20270422@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270422T080000Z
+DTEND:20270422T093000Z
+SUMMARY:SortMyCover P14 breach drill (POPIA s22, synthetic)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-breach-20270722@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270722T080000Z
+DTEND:20270722T093000Z
+SUMMARY:SortMyCover P14 breach drill (POPIA s22, synthetic)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-restore-20261112@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20261112T080000Z
+DTEND:20261112T093000Z
+SUMMARY:SortMyCover Restore drill (backup to clean server)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-restore-20270211@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270211T080000Z
+DTEND:20270211T093000Z
+SUMMARY:SortMyCover Restore drill (backup to clean server)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-restore-20270513@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270513T080000Z
+DTEND:20270513T093000Z
+SUMMARY:SortMyCover Restore drill (backup to clean server)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-restore-20270812@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270812T080000Z
+DTEND:20270812T093000Z
+SUMMARY:SortMyCover Restore drill (backup to clean server)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-failover-20261203@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20261203T080000Z
+DTEND:20261203T093000Z
+SUMMARY:SortMyCover Failover drill (n8n/VPS down)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-failover-20270304@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270304T080000Z
+DTEND:20270304T093000Z
+SUMMARY:SortMyCover Failover drill (n8n/VPS down)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-failover-20270603@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270603T080000Z
+DTEND:20270603T093000Z
+SUMMARY:SortMyCover Failover drill (n8n/VPS down)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-failover-20270902@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270902T080000Z
+DTEND:20270902T093000Z
+SUMMARY:SortMyCover Failover drill (n8n/VPS down)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-redteam-20261210@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20261210T080000Z
+DTEND:20261210T093000Z
+SUMMARY:SortMyCover Red-team drill (staging only)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-redteam-20270311@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270311T080000Z
+DTEND:20270311T093000Z
+SUMMARY:SortMyCover Red-team drill (staging only)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-redteam-20270610@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270610T080000Z
+DTEND:20270610T093000Z
+SUMMARY:SortMyCover Red-team drill (staging only)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:smc-drill-redteam-20270909@leadvelocity.co.za
+DTSTAMP:20261005T000000Z
+DTSTART:20270909T080000Z
+DTEND:20270909T093000Z
+SUMMARY:SortMyCover Red-team drill (staging only)
+DESCRIPTION:See deliverables/compliance-qa/drill-calendar.md. Jonathan runs, KG second pair of eyes, compliance-qa writes the note.
+BEGIN:VALARM
+TRIGGER:-P1D
+ACTION:DISPLAY
+DESCRIPTION:Drill tomorrow
+END:VALARM
+END:VEVENT
+END:VCALENDAR

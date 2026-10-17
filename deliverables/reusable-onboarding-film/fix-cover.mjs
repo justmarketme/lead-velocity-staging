@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {execFileSync} from 'node:child_process';
+const root=path.dirname(fileURLToPath(import.meta.url)),final=path.join(root,'final');
+const corrected=path.join(final,'explainer-cover-fixed.mp4');
+execFileSync('ffmpeg',['-y','-v','error','-i',path.join(final,'explainer.mp4'),'-i',path.join(final,'thumbnail.jpg'),'-filter_complex',"[0:v][1:v]overlay=0:0:enable='lt(t,0.36)'[v]",'-map','[v]','-map','0:a','-map_metadata','0','-map_chapters','0','-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p','-c:a','copy','-movflags','+faststart',corrected],{stdio:['ignore','ignore','inherit']});
+fs.copyFileSync(corrected,path.join(final,'explainer.mp4'));
+execFileSync('ffmpeg',['-y','-v','error','-i',corrected,'-i',path.join(final,'thumbnail.jpg'),'-map','0:v','-map','0:a','-map','1:v','-c','copy','-disposition:v:1','attached_pic','-movflags','+faststart',path.join(final,'Lead-Velocity-Broker-Onboarding-WhatsApp.mp4')],{stdio:['ignore','ignore','inherit']});
+for(const dir of ['C:/Users/Jono/lead-velocity-sortmycover/public/media/explainer/en','C:/Users/Jono/AppData/Local/Temp/lv-portal-onboarding-release/public/media/explainer/en','C:/Users/Jono/AppData/Local/Temp/lv-portal-onboarding-release/.vercel/output/static/media/explainer/en'])for(const f of ['explainer.mp4','Lead-Velocity-Broker-Onboarding-WhatsApp.mp4'])fs.copyFileSync(path.join(final,f),path.join(dir,f));
+fs.copyFileSync(path.join(final,'Lead-Velocity-Broker-Onboarding-WhatsApp.mp4'),'C:/Users/Jono/Desktop/Lead-Velocity-Broker-Onboarding-WhatsApp.mp4');
+console.log('Opening thumbnail is visible from the first frame.');

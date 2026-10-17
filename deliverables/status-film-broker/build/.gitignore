@@ -1,0 +1,8 @@
+node_modules
+frames/
+clips/
+stills/
+check/
+audio/
+render.log
+timings.json

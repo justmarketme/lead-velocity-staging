@@ -1,0 +1,250 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SortMyCover Chat Replay</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+:root{
+  --amber:#F5A623; --amber-ink:#2A1B02; --char:#1F2933; --off:#FBF8F2; --off-2:#F1ECE2;
+  --bg:var(--off); --fg:var(--char); --muted:#5C6672; --rule:#DCD6CB; --card:#FFFFFF;
+  --wa-bg:#E5DDD5; --wa-in:#FFFFFF; --wa-out:#DCF8C6; --wa-head:#075E54; --wa-link:#027EB5; --wa-sys:#FFF5C4; --wa-text:#1F2933; --wa-muted:#667781;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; --wa-text:#E9EDEF; --wa-muted:#8696A0; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; --wa-text:#E9EDEF; --wa-muted:#8696A0; color-scheme:dark }
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45}
+.wrap{max-width:980px;margin:0 auto;padding-block:16px 40px;padding-inline:16px}
+.top{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:12px}
+.logo{font-weight:800;font-size:19px;letter-spacing:-.02em}
+.logo .tick{display:inline-block;width:.78em;height:.78em;border-radius:50%;background:var(--amber);vertical-align:-.08em;position:relative;margin:0 .02em}
+.logo .tick::after{content:"";position:absolute;left:.26em;top:.12em;width:.2em;height:.38em;border:solid var(--amber-ink);border-width:0 .13em .13em 0;transform:rotate(45deg)}
+.top h1{font-size:17px;margin:0;font-weight:700}
+.top p{margin:0;color:var(--muted);font-size:13.5px;flex-basis:100%}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto}
+.btn{appearance:none;border:0;font:inherit;font-weight:800;padding:9px 16px;border-radius:999px;cursor:pointer;background:var(--amber);color:var(--amber-ink)}
+.btn.sec{background:transparent;border:1.5px solid var(--rule);color:var(--fg);font-weight:600}
+.spd{display:flex;border:1.5px solid var(--rule);border-radius:999px;overflow:hidden}
+.spd button{appearance:none;border:0;background:transparent;font:inherit;font-weight:700;color:var(--muted);padding:7px 11px;cursor:pointer}
+.spd button[aria-pressed="true"]{background:var(--char);color:var(--off)}
+.stage{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:760px){.stage{grid-template-columns:1fr}}
+.phone{width:100%;max-width:400px;margin:0 auto;background:#111;border-radius:40px;padding:12px;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+.screen{background:var(--wa-bg);border-radius:30px;overflow:hidden;position:relative;height:min(760px,calc(100vh - 150px));min-height:560px;display:flex;flex-direction:column;background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:12px 12px}
+.sb{display:flex;justify-content:space-between;padding:10px 20px 0;font-size:12px;font-weight:700;color:#fff;background:var(--wa-head)}
+.wa-head{background:var(--wa-head);color:#fff;padding:8px 12px 10px;display:flex;gap:10px;align-items:center;flex:none}
+.wa-av{width:38px;height:38px;border-radius:50%;background:var(--amber);display:grid;place-items:center;position:relative;flex:none}
+.wa-av::after{content:"";position:absolute;left:14px;top:9px;width:7px;height:14px;border:solid var(--amber-ink);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.wa-head .n{font-weight:700;line-height:1.1}.wa-head .s{font-size:12px;opacity:.85;min-height:14px}
+.chat{padding:10px 10px 12px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;scroll-behavior:smooth;color:var(--wa-text)}
+.comp{flex:none;display:flex;gap:8px;align-items:center;padding:8px 10px;background:var(--wa-bg)}
+.comp .inp{flex:1;background:var(--wa-in);border-radius:999px;padding:9px 14px;font-size:14px;min-height:38px;color:var(--wa-text);word-break:break-word}
+.comp .inp:empty::before{content:"Message";color:var(--wa-muted)}
+.comp .inp .cur{display:inline-block;width:1px;height:1em;background:var(--wa-text);vertical-align:-.15em;margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.comp .send{width:38px;height:38px;border-radius:50%;background:var(--wa-head);flex:none;position:relative}
+.comp .send::after{content:"";position:absolute;left:13px;top:12px;border-left:12px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent}
+.day,.sys,.skip{align-self:center;background:var(--wa-sys);font-size:11.5px;padding:5px 10px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.08);text-align:center;max-width:92%}
+.day{font-weight:700;margin-top:6px}
+.skip{background:var(--char);color:var(--off);font-weight:700;letter-spacing:.02em}
+.msg{max-width:86%;padding:7px 9px 6px;border-radius:10px;font-size:13.5px;line-height:1.38;box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative;word-wrap:break-word;animation:pop .22s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+.in{align-self:flex-start;background:var(--wa-in);border-top-left-radius:2px}
+.out{align-self:flex-end;background:var(--wa-out);border-top-right-radius:2px}
+.msg .ts{display:block;text-align:right;font-size:10.5px;color:var(--wa-muted);margin-top:3px}
+.msg .ts .tk{color:#53BDEB;font-weight:700}
+.msg b{font-weight:700}
+.btns{display:flex;flex-direction:column;gap:3px;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:5px}
+.btns span{display:block;text-align:center;color:var(--wa-link);font-weight:600;font-size:13.5px;padding:5px;background:var(--wa-in);border-radius:7px;transition:background .15s}
+.btns span.tap{background:var(--amber);color:var(--amber-ink)}
+.link{color:var(--wa-link);text-decoration:underline;word-break:break-all}
+.typing{align-self:flex-start;background:var(--wa-in);border-radius:10px;border-top-left-radius:2px;padding:10px 14px;display:flex;gap:4px;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--wa-muted);animation:dot 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,60%,100%{transform:translateY(0);opacity:.5}30%{transform:translateY(-4px);opacity:1}}
+.lp{align-self:flex-start;background:var(--wa-in);color:var(--wa-muted);font-size:12px;padding:5px 9px;border-radius:8px;display:flex;align-items:center;gap:6px}
+.lp::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--amber);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+/* intro card */
+.card{background:#FBF8F2;color:#1F2933;border-radius:8px;overflow:hidden;margin:-3px -5px 6px;border:1px solid #e8e2d6}
+.card .ctop{background:#1F2933;color:#FBF8F2;padding:10px 10px 8px;display:flex;gap:10px;align-items:center}
+.hs{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#8FA3B8,#5C7089);display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px;flex:none;border:2px solid var(--amber)}
+.card .nm{font-weight:800;font-size:15px;line-height:1.1}
+.card .pr{font-size:12px;opacity:.9}
+.card .fsp{font-size:11px;background:var(--amber);color:var(--amber-ink);font-weight:800;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:4px}
+.card .bio{padding:8px 10px;font-size:12.5px}
+.card .meta{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 9px}
+.card .meta span{font-size:11px;background:#fff;border:1px solid #e3ddd1;border-radius:999px;padding:2px 7px}
+.card .foot{border-top:1px solid #e8e2d6;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;font-size:11px}
+.card .foot .lg{font-weight:800;font-size:12.5px}
+.card .foot .lg i{display:inline-block;width:.75em;height:.75em;border-radius:50%;background:var(--amber);vertical-align:-.06em;font-style:normal;position:relative}
+.card .foot .lg i::after{content:"";position:absolute;left:.25em;top:.1em;width:.18em;height:.36em;border:solid var(--amber-ink);border-width:0 .12em .12em 0;transform:rotate(45deg)}
+.vid{position:relative;background:#222;border-radius:8px;overflow:hidden;aspect-ratio:9/12;margin:-3px -5px 6px}
+.vid .bgp{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,#6E829A 0,#3B4A5C 55%,#1F2933 100%)}
+.vid .sil{position:absolute;left:50%;top:26%;width:34%;aspect-ratio:1;border-radius:50%;background:#C9A786;transform:translateX(-50%)}
+.vid .sh{position:absolute;left:50%;top:52%;width:70%;height:40%;border-radius:40% 40% 0 0;background:#2B3845;transform:translateX(-50%)}
+.vid .cap{position:absolute;left:8%;right:8%;bottom:22%;text-align:center;color:#fff;font-weight:700;font-size:12.5px;text-shadow:0 1px 2px rgba(0,0,0,.8);background:rgba(0,0,0,.45);padding:4px 6px;border-radius:4px}
+.vid .lt{position:absolute;left:0;right:0;bottom:0;background:var(--amber);color:var(--amber-ink);font-size:10.5px;font-weight:800;padding:4px 8px}
+.vid .play{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.9);transform:translate(-50%,-50%)}
+.vid .play::after{content:"";position:absolute;left:18px;top:13px;border-left:16px solid #111;border-top:10px solid transparent;border-bottom:10px solid transparent}
+.vid .dur{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10.5px;padding:2px 6px;border-radius:4px}
+.teams{display:flex;gap:8px;align-items:center;background:#EEF2FA;border-radius:8px;padding:8px;margin:4px -3px 6px;color:#1F2933}
+.teams .ic{width:36px;height:36px;border-radius:8px;background:#4B53BC;color:#fff;font-weight:800;display:grid;place-items:center;flex:none;font-size:13px}
+.teams .t1{font-weight:700;font-size:12.5px}.teams .t2{font-size:11px;color:#5C6672}
+
+/* side commentary */
+.side h2{font-size:15px;margin:0 0 8px}
+.now{border:1px solid var(--rule);border-radius:14px;padding:14px 16px;background:var(--card);min-height:120px}
+.now .k{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.now .k b{color:var(--amber-ink);background:var(--amber);padding:1px 6px;border-radius:4px;margin-left:6px}
+.now h3{margin:4px 0 6px;font-size:16px}
+.now p{margin:0;font-size:13.5px;color:var(--fg)}
+.clock{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);margin-top:10px}
+.prog{height:6px;background:var(--rule);border-radius:999px;overflow:hidden;margin-top:14px}
+.prog i{display:block;height:100%;background:var(--amber);width:0;transition:width .3s}
+.key{margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.5}
+.key b{color:var(--fg)}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <span class="logo">SortMyC<span class="tick"></span>ver</span>
+    <h1>Lerato's WhatsApp, replayed in real time</h1>
+    <div class="ctl">
+      <div class="spd" role="group" aria-label="Speed"><button data-s="1" aria-pressed="true">1×</button><button data-s="2" aria-pressed="false">2×</button><button data-s="4" aria-pressed="false">4×</button></div>
+      <button class="btn" id="play">▶ Play</button>
+      <button class="btn sec" id="reset">Replay</button>
+    </div>
+    <p>Waits between messages are the real planned timings; days are compressed into a dark "skip" card. Templates arrive instantly (sent by n8n). Thandi's own replies show a typing indicator for as long as the three LLM calls actually take.</p>
+  </div>
+
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="sb"><span id="clock">21:14</span><span>▂▄▆ 5G 🔋</span></div>
+      <div class="wa-head"><div class="wa-av"></div><div><div class="n">SortMyCover</div><div class="s" id="status">Business account</div></div></div>
+      <div class="chat" id="chat"></div>
+      <div class="comp"><div class="inp" id="inp"></div><div class="send"></div></div>
+    </div></div>
+
+    <aside class="side">
+      <h2>What's happening behind the screen</h2>
+      <div class="now" id="now"><div class="k">Ready</div><h3>Press Play</h3><p>Lerato has just tapped “Book it” on sortmycover.co.za — Monday 5 Oct, 21:14. Thursday 11:00 on Teams with Mark.</p></div>
+      <div class="prog"><i id="prog"></i></div>
+      <div class="key"><b>Timing rules shown here:</b> disclosure message &lt; 60 s after submit · AI replies in 1.5–3 s (intent → logic → reply → guardrail) · client typing is simulated at a normal thumb speed · reminders at T-48 h, T-24 h, T-2 h, T-10 min · outcome check at T+30. No fake “typing” on templates: those are system sends and arrive at once.</div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  var chat=document.getElementById('chat'), inp=document.getElementById('inp'), clock=document.getElementById('clock'), status=document.getElementById('status'), now=document.getElementById('now'), prog=document.getElementById('prog');
+  var speed=1, running=false, token=0;
+
+  var CARD='<div class="card"><div class="ctop"><div class="hs">MW</div><div><div class="nm">Mark Williams</div><div class="pr">Mark Williams Financial Planning</div><span class="fsp">Authorised FSP · FSP 00000</span></div></div><div class="bio">I help families in their 30s and 40s make sure the cover they have actually matches the life they\'ve built. No jargon, no pressure — we just look at where you are.</div><div class="meta"><span>English · Afrikaans</span><span>14 yrs advising</span><span>Cape Town · nationwide by video</span></div><div class="foot"><span class="lg">SortMyC<i></i>ver</span><span>30-min call · No obligation</span></div></div>';
+  var VIDEO='<div class="vid"><div class="bgp"></div><div class="sil"></div><div class="sh"></div><div class="play"></div><div class="dur">0:26</div><div class="cap">…so bring your questions. We\'ll look at where you are — that\'s all the call is.</div><div class="lt">Mark Williams · Mark Williams Financial Planning · FSP 00000</div></div>';
+  var TEAMS='<div class="teams"><div class="ic">T</div><div><div class="t1">Your call with Mark</div><div class="t2">Thu 8 Oct · 11:00–11:30 · Microsoft Teams meeting</div></div></div>';
+
+  // type: day | sys | skip | in (template: no typing) | ai (typing indicator) | out (typed by client) | tap (button press -> out) | note (side panel)
+  var S=[
+    {t:'note',k:'Mon 5 Oct · 21:14',h:'Form submitted',p:'W01 validates her number, stores consent + UTM, routes her to Mark. W05 re-checks his Outlook and creates the Teams event. All of this takes about 3 seconds.',clock:'21:14'},
+    {t:'day',x:'Mon 5 Oct'},
+    {t:'sys',x:'Messages are end-to-end encrypted. This business uses a secure service from Meta to manage this chat.',w:900},
+    {t:'wait',w:2600},
+    {t:'note',k:'21:15 · 41 seconds after submit',h:'The disclosure lands first',p:'Template broker_intro_booked with the intro card as its image header. Adviser, practice and FSP number in message one. The message ID and delivery receipt are stored as disclosure evidence.',clock:'21:15',tag:'W06'},
+    {t:'in',html:CARD+'Hi Lerato, thanks for your insurance and financial planning enquiry. Your details have been passed to <b>Mark Williams Financial Planning (FSP 00000)</b>, an authorised financial services provider. <b>Mark Williams</b> will be your adviser for your Teams call on <b>Thu 8 Oct at 11:00</b>. Our WhatsApp assistant uses AI. Reply STOP to opt out.<div class="btns"><span>Add to calendar</span><span>Reschedule</span><span>Cancel</span></div>',ts:'21:15',w:2500},
+    {t:'note',k:'21:15',h:'Thandi introduces herself — and says she\'s an AI',p:'This is a generated message, so you see the typing indicator while the reply model composes. First contact always discloses that it\'s an AI assistant and that a person is one message away.',tag:'W07 · LLM'},
+    {t:'ai',typing:1800,html:'Hi Lerato, I\'m Thandi, SortMyCover\'s booking assistant for Mark — I\'m an AI assistant, and you can ask for a person at any time. Could you reply with the date and time of your call so I know it\'s in your diary?',ts:'21:15',w:2200},
+    {t:'note',k:'21:22',h:'The commitment ask works',p:'She types the date back herself. NHS study: people who write the appointment details down themselves miss 18% fewer appointments.',tag:'4.12'},
+    {t:'out',text:'Thursday 8 Oct 11am 👍',ts:'21:22',w:900},
+    {t:'ai',typing:1400,html:'Perfect, it\'s in Mark\'s diary too. You\'ll get the Teams link here on Thursday morning.',ts:'21:22',w:1800},
+    {t:'skip',x:'10 minutes later',w:1200},
+    {t:'note',k:'21:25 · T0 + 10 min',h:'“What to expect” card',p:'Template, so it arrives at once. Removes the main no-show driver — not knowing what the call is. Includes the .ics so it lands in her own calendar.',clock:'21:25',tag:'W09'},
+    {t:'in',html:'<b>What to expect on Thursday</b><br>• 30 minutes, on Teams (you can join from your phone)<br>• Mark will ask about your bond, who depends on you, and what cover you have through work<br>• Nothing to buy on the call — it\'s a conversation, not a sale<br><span class="link">📎 Add to calendar (.ics)</span>',ts:'21:25',w:2600},
+    {t:'note',k:'21:31',h:'She asks the two questions everyone asks',p:'Free text. The intent model reads it as a question with two parts: sales pressure, and cost. Our logic allows the first; the second is advice territory.',tag:'W07'},
+    {t:'out',text:'Ok cool. Will he try sell me something though? And roughly what would cover cost for someone my age?',ts:'21:31',w:700},
+    {t:'note',k:'21:31 · ~2.5 s',h:'Guardrail fires inside the pause',p:'The reply model drafted a sentence about premiums. The classifier gate caught “premium” and “R per month”, swapped in the deferral line and logged the question to Mark\'s pre-call brief. She never sees a bot error — just a human answer.',tag:'W07 · guardrail'},
+    {t:'ai',typing:2600,html:'No selling on the call — Mark goes through where you are and whether there are any gaps, and that\'s it. If you want to take it further afterwards, that\'s your call entirely.<br><br>The cost question is exactly what Mark will go through with you on the call. I\'ve made a note so he comes prepared for it.',ts:'21:31',w:2800},
+    {t:'out',text:'Great thanks',ts:'21:32',w:1400},
+
+    {t:'skip',x:'⏩ Tue 6 Oct · 11:00 · 48 hours before the call',w:1500},
+    {t:'day',x:'Tue 6 Oct'},
+    {t:'note',k:'Tue 11:00 · T-48 h',h:'Mark, in 26 seconds',p:'Video template with Mark\'s own recording (made in the portal from an AI-written script). Captions burned in, FSP in the lower third. The caption text above is personalised by the LLM; the video is not — no voice cloning.',clock:'11:00',tag:'W09 · intro_media'},
+    {t:'in',html:VIDEO+'Hi Lerato, Mark recorded this for people booking a call with him this week — 26 seconds, captions on.',ts:'11:00',w:3200},
+
+    {t:'skip',x:'⏩ Wed 7 Oct · 11:00 · 24 hours before',w:1500},
+    {t:'day',x:'Wed 7 Oct'},
+    {t:'note',k:'Wed 11:00 · T-24 h',h:'Confirm or reschedule',p:'One tap. “Most people find 30 minutes is all it takes” is the positive social norm from the same NHS study — combined with the written commitment, −31.7% missed appointments.',clock:'11:00',tag:'W09 · reminder_24h'},
+    {t:'in',html:'Hi Lerato, a reminder of your Teams call with <b>Mark Williams</b> tomorrow, <b>Thu 8 Oct at 11:00</b>. Most people find 30 minutes is all it takes.<div class="btns" id="b24"><span data-b="Confirm">Confirm</span><span>Reschedule</span></div>',ts:'11:00',w:2400},
+    {t:'tap',sel:'#b24 span[data-b]',text:'Confirm',ts:'12:47',clock:'12:47',w:900},
+    {t:'in',html:'Thanks, Lerato — confirmed. If you have a payslip or your current policy schedule handy tomorrow, it helps. Not needed, though.',ts:'12:47',w:2400},
+
+    {t:'skip',x:'⏩ Thu 8 Oct · 09:00 · 2 hours before',w:1500},
+    {t:'day',x:'Thu 8 Oct'},
+    {t:'note',k:'Thu 09:00 · T-2 h',h:'Here\'s the Teams link',p:'The link comes from the Outlook event W05 created in Mark\'s calendar (Graph, isOnlineMeeting = true). “Mark has set aside 30 minutes for you” is the specific-cost framing from the PLOS ONE trials — true, specific, no guilt.',clock:'09:00',tag:'W09 · reminder_2h'},
+    {t:'in',html:'Morning Lerato. Mark has set aside 30 minutes for you at <b>11:00</b> today. Your Teams link is below — reply here if anything\'s changed.'+TEAMS+'<span class="link">https://teams.microsoft.com/l/meetup-join/19%3ameeting_Nz…</span>',ts:'09:00',w:2600},
+    {t:'out',text:'Thanks! 👍',ts:'09:14',clock:'09:14',w:1200},
+
+    {t:'skip',x:'⏩ 10:50 · 10 minutes before',w:1300},
+    {t:'note',k:'10:50 · T-10 min',h:'Link again, so nobody hunts for it',p:'At the same moment Mark gets his pre-call brief on WhatsApp and in the portal: her bands, her two questions in her own words, and what seemed to matter to her.',clock:'10:50',tag:'W09 · W11'},
+    {t:'in',html:'Starting in 10 minutes. Join here: <span class="link">https://teams.microsoft.com/l/meetup-join/19%3ameeting_Nz…</span>',ts:'10:50',w:2400},
+
+    {t:'skip',x:'⏩ 12:00 · after the call',w:1300},
+    {t:'note',k:'12:00 · T+30',h:'Both sides confirm the outcome',p:'Mark tapped “Attended” at 11:47. Lerato is asked too, so a broker no-show can never be logged as hers. Then we go quiet — every follow-up from here is Mark\'s.',clock:'12:00',tag:'W12'},
+    {t:'in',html:'Hi Lerato, did Mark reach you today?<div class="btns" id="boc"><span data-b="Yes">Yes</span><span>No</span></div>',ts:'12:00',w:2200},
+    {t:'tap',sel:'#boc span[data-b]',text:'Yes',ts:'12:04',clock:'12:04',w:900},
+    {t:'in',html:'Thanks for your time today, Lerato. Mark will follow up with you directly from here. That\'s the last message from us unless you book again.',ts:'12:04',w:2000},
+    {t:'note',k:'Done',h:'14 messages, 4 days, 4 written by the AI',p:'Everything else was an approved template with buttons. Cost of the whole conversation: about R2 in WhatsApp fees and under R0.50 in LLM calls.',tag:'end'}
+  ];
+
+  function el(cls,html){var d=document.createElement('div');d.className=cls;d.innerHTML=html;return d;}
+  function scroll(){chat.scrollTop=chat.scrollHeight;}
+  function sleep(ms){return new Promise(function(r){setTimeout(r,ms/speed);});}
+  function ts(t,out){return '<span class="ts">'+t+(out?' <span class="tk">✓✓</span>':'')+'</span>';}
+  function setNote(s){now.innerHTML='<div class="k">'+s.k+(s.tag?'<b>'+s.tag+'</b>':'')+'</div><h3>'+s.h+'</h3><p>'+s.p+'</p>';}
+
+  async function typeOut(text,myToken){
+    inp.innerHTML='<span class="cur"></span>';
+    var shown='';
+    for(var i=0;i<text.length;i++){
+      if(myToken!==token) return;
+      shown+=text[i];
+      inp.innerHTML=shown.replace(/</g,'&lt;')+'<span class="cur"></span>';
+      await sleep(text[i]===' '?90:55+Math.random()*50);
+    }
+    await sleep(350);
+    inp.innerHTML='';
+  }
+
+  async function run(){
+    var my=++token; running=true; document.getElementById('play').textContent='Playing…';
+    chat.innerHTML=''; inp.innerHTML=''; status.textContent='Business account';
+    for(var i=0;i<S.length;i++){
+      if(my!==token) return;
+      var s=S[i]; prog.style.width=Math.round(100*i/(S.length-1))+'%';
+      if(s.clock) clock.textContent=s.clock;
+      if(s.t==='note'){ setNote(s); continue; }
+      if(s.t==='wait'){ await sleep(s.w); continue; }
+      if(s.t==='day'||s.t==='sys'||s.t==='skip'){ chat.appendChild(el(s.t,s.x)); scroll(); await sleep(s.w||700); continue; }
+      if(s.t==='in'){ chat.appendChild(el('msg in',s.html+ts(s.ts))); scroll(); await sleep(s.w||2000); continue; }
+      if(s.t==='ai'){
+        status.textContent='typing…'; var ty=el('typing','<i></i><i></i><i></i>'); chat.appendChild(ty); scroll();
+        await sleep(s.typing||1500); if(my!==token) return;
+        ty.remove(); status.textContent='online';
+        chat.appendChild(el('msg in',s.html+ts(s.ts))); scroll(); await sleep(s.w||2000);
+        status.textContent='Business account'; continue;
+      }
+      if(s.t==='out'){ await sleep(600); await typeOut(s.text,my); if(my!==token) return; chat.appendChild(el('msg out',s.text.replace(/</g,'&lt;')+ts(s.ts,true))); scroll(); await sleep(s.w||1200); continue; }
+      if(s.t==='tap'){ var b=chat.querySelector(s.sel); await sleep(700); if(b){b.classList.add('tap');} await sleep(500); chat.appendChild(el('msg out','✅ '+s.text+ts(s.ts,true))); scroll(); await sleep(s.w||900); continue; }
+    }
+    prog.style.width='100%'; running=false; document.getElementById('play').textContent='▶ Play again';
+  }
+
+  document.getElementById('play').addEventListener('click',function(){ run(); });
+  document.getElementById('reset').addEventListener('click',function(){ token++; running=false; chat.innerHTML=''; inp.innerHTML=''; prog.style.width='0'; clock.textContent='21:14'; status.textContent='Business account'; now.innerHTML='<div class="k">Ready</div><h3>Press Play</h3><p>Lerato has just tapped “Book it” on sortmycover.co.za — Monday 5 Oct, 21:14. Thursday 11:00 on Teams with Mark.</p>'; document.getElementById('play').textContent='▶ Play'; });
+  document.querySelectorAll('.spd button').forEach(function(b){ b.addEventListener('click',function(){ speed=+b.dataset.s; document.querySelectorAll('.spd button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));}); }); });
+  if((location.hash||'')==='#autoplay'){ setTimeout(run,600); }
+  window.__run=run;
+})();
+</script>
+
+</body></html>

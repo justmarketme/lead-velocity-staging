@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>08 Close</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .hero { position: absolute; left: 0; right: 0; top: 150px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .logo { height: 250px; width: auto; filter: drop-shadow(0 24px 40px rgba(147,51,234,.18)); }
+  .line { margin-top: 40px; display: flex; gap: 18px; }
+  .line span { display: inline-flex; align-items: center; gap: 12px; height: 60px; padding: 0 26px; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); font-size: 25px; font-weight: 700; color: var(--navy); }
+  .line span i { width: 10px; height: 10px; border-radius: 50%; background: var(--grad); }
+  .you { margin-top: 30px; font-size: 30px; color: var(--muted); font-weight: 600; }
+  .rule { margin-top: 36px; width: 160px; height: 6px; border-radius: 3px; background: var(--grad); }
+  .mail { margin-top: 32px; font-size: 58px; font-weight: 700; letter-spacing: -.02em; background: var(--grad); -webkit-background-clip: text; color: transparent; }
+  .ask { margin-top: 12px; font-size: 28px; color: var(--slate); font-weight: 600; display: flex; align-items: center; gap: 12px; }
+  .ask svg { width: 30px; height: 30px; stroke: #059669; fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+</style></head>
+<body data-scene="s08" data-header="0"><div class="stage">
+  <div class="hero">
+    <img class="logo" src="assets/lead-velocity-logo-contract.png" alt="Lead Velocity">
+    <div class="line"><span><i></i>The ads</span><span><i></i>The follow-up</span><span><i></i>The bookings</span></div>
+    <div class="you">You do what you do best.</div>
+    <div class="rule"></div>
+    <div class="mail">howzit@leadvelocity.co.za</div>
+    <div class="ask"><svg viewBox="0 0 24 24"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>Questions? Reply on WhatsApp any time.</div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const tAds = cue('ads'), tFollow = cue('follow'), tBook = cue('bookings'), tYou = cue('you'), tWel = cue('welcome');
+  window.update = t => {
+    rv('.logo', t, .2, { y: 30, scale: .9, blur: 10, dur: 1.2 });
+    $('.logo').style.transform += ` translateY(${(Math.sin(t * 1.1) * 4).toFixed(2)}px)`;
+    $$('.line span').forEach((s, i) => rv(s, t, [tAds, tFollow, tBook][i] - .25, { y: 20, scale: .94, dur: .8 }));
+    rv('.you', t, tYou - .2, { y: 14, dur: .8 });
+    $('.rule').style.transform = `scaleX(${P(t, tWel - .6, 1, E.inOut).toFixed(4)})`;
+    rv('.mail', t, tWel - .4, { y: 24, blur: 6, dur: 1 });
+    rv('.ask', t, tWel + .1, { y: 16, dur: .9 });
+  };
+</script></body></html>

@@ -1,0 +1,179 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Broker Weekly Report</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+:root{
+  --amber:#F5A623; --amber-ink:#2A1B02; --char:#1F2933; --off:#FBF8F2; --off-2:#F1ECE2;
+  --bg:var(--off); --fg:var(--char); --muted:#5C6672; --rule:#DCD6CB; --card:#FFFFFF;
+  --ok:#2E7D4F; --ok-bg:#E6F2EA; --warn:#B4541A; --warn-bg:#FBEBDD; --info-bg:#E8EEF5;
+  --wa-bg:#E5DDD5; --wa-in:#FFFFFF; --wa-out:#DCF8C6; --wa-head:#075E54; --wa-link:#027EB5; --wa-sys:#FFF5C4; --wa-text:#1F2933; --wa-muted:#667781;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --info-bg:#243041; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; --wa-text:#E9EDEF; --wa-muted:#8696A0; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --info-bg:#243041; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; --wa-text:#E9EDEF; --wa-muted:#8696A0; color-scheme:dark }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14.5px;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding-block:16px 48px;padding-inline:16px}
+h1{font-size:clamp(20px,2.6vw,26px);margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 14px;max-width:80ch}
+.layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+
+/* phone */
+.phone{width:100%;max-width:330px;margin:0 auto;background:#111;border-radius:34px;padding:10px;box-shadow:0 18px 44px rgba(0,0,0,.26)}
+.screen{background:var(--wa-bg);border-radius:26px;overflow:hidden;display:flex;flex-direction:column;color:var(--wa-text)}
+.wa-head{background:var(--wa-head);color:#fff;padding:14px 12px 10px;display:flex;gap:10px;align-items:center}
+.wa-av{width:34px;height:34px;border-radius:50%;background:var(--amber);position:relative;flex:none}
+.wa-av::after{content:"";position:absolute;left:12px;top:7px;width:7px;height:14px;border:solid var(--amber-ink);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.wa-head .n{font-weight:700;line-height:1.1}.wa-head .s{font-size:11.5px;opacity:.85}
+.chat{padding:10px;display:flex;flex-direction:column;gap:6px}
+.day{align-self:center;background:var(--wa-sys);font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;margin:4px 0}
+.msg{max-width:94%;padding:7px 9px 6px;border-radius:10px;font-size:12.5px;line-height:1.4;box-shadow:0 1px 1px rgba(0,0,0,.08);background:var(--wa-in);align-self:flex-start;border-top-left-radius:2px}
+.msg.out{background:var(--wa-out);align-self:flex-end;border-top-right-radius:2px;border-top-left-radius:10px}
+.msg .ts{display:block;text-align:right;font-size:10px;color:var(--wa-muted);margin-top:3px}
+.msg .tag{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:4px;background:var(--info-bg);color:var(--muted);margin-bottom:3px}
+.wb{display:flex;flex-direction:column;gap:3px;margin-top:6px;border-top:1px solid rgba(0,0,0,.08);padding-top:5px}
+.wb span{display:block;text-align:center;color:var(--wa-link);font-weight:600;font-size:12.5px;padding:4px;background:var(--wa-in);border-radius:7px}
+.wb span.tap{background:var(--amber);color:var(--amber-ink)}
+.cap{font-size:12.5px;color:var(--muted);text-align:center;margin-top:10px}
+
+/* email */
+.mail{border:1px solid var(--rule);border-radius:12px;background:var(--card);margin-top:14px;overflow:hidden}
+.mail .mh{padding:10px 14px;border-bottom:1px solid var(--rule);font-size:12.5px}
+.mail .mh b{display:block;font-size:13.5px}
+.mail .mh span{color:var(--muted)}
+.mail .mb{padding:12px 14px;font-size:13px}
+.mail .att{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:8px;padding:5px 9px;font-size:12px;margin-top:8px}
+
+/* portal */
+.portal{background:var(--card);border:1px solid var(--rule);border-radius:16px;overflow:hidden;min-width:0}
+.ph{background:var(--char);color:var(--off);padding:14px 18px 10px}
+.ph .hi{font-size:12px;opacity:.8}
+.ph h2{margin:2px 0 8px;font-size:19px}
+.pnav{display:flex;gap:14px;font-size:12.5px;flex-wrap:wrap}
+.pnav span{opacity:.7}.pnav span.cur{opacity:1;border-bottom:2px solid var(--amber);padding-bottom:2px;font-weight:700}
+.pb{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.one{font-size:17px;font-weight:700;line-height:1.35;border-left:4px solid var(--amber);padding-left:12px;text-wrap:balance}
+.one small{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:2px}
+.sec{border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.sec h3{margin:0;padding:9px 14px;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--off-2)}
+.sec .in{padding:12px 14px}
+.prog{height:12px;background:var(--off-2);border-radius:999px;overflow:hidden;margin:6px 0 10px}
+.prog i{display:block;height:100%;background:var(--amber);width:35%;border-radius:999px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.kpi{border:1px solid var(--rule);border-radius:10px;padding:8px 10px}
+.kpi b{display:block;font-size:20px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi span{font-size:11.5px;color:var(--muted);display:block}
+.kpi .tg{font-size:11px;margin-top:3px}
+.kpi .tg i{font-style:normal;color:var(--ok);font-weight:700}
+.kpi .tg i.w{color:var(--warn)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:5px 6px;border-bottom:1.5px solid var(--rule)}
+td{padding:7px 6px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.st{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--off-2)}
+.st.ok{background:var(--ok-bg);color:var(--ok)}.st.w{background:var(--warn-bg);color:var(--warn)}
+.tap{display:inline-block;font-size:11.5px;font-weight:800;padding:4px 9px;border-radius:7px;background:var(--amber);color:var(--amber-ink)}
+.tap.g{background:transparent;border:1.5px solid var(--rule);color:var(--fg);font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.themes li{margin:3px 0}
+.bars div{display:grid;grid-template-columns:150px 1fr 36px;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
+.bars i{display:block;height:9px;border-radius:999px;background:var(--off-2);overflow:hidden}
+.bars i b{display:block;height:100%;background:var(--amber);border-radius:999px}
+.notice{font-size:13px;margin:0;padding-left:18px}
+.ask{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--amber);color:var(--amber-ink);border-radius:12px;padding:12px 14px}
+.ask b{font-size:14.5px}
+.ask span{font-size:12.5px}
+.ask .go{margin-left:auto;background:var(--char);color:var(--off);font-weight:800;padding:8px 14px;border-radius:9px;font-size:13px}
+.roi{font-size:13px}
+.roi input{font:inherit;width:70px;padding:4px 6px;border:1.5px solid var(--rule);border-radius:6px;background:var(--card);color:var(--fg)}
+.foot{margin-top:22px;font-size:12.5px;color:var(--muted);max-width:90ch}
+</style>
+
+<div class="wrap">
+  <h1>Mark's Monday report — one set of numbers, three surfaces</h1>
+  <p class="sub">What Mark gets on <b>Monday 07:00</b> in week 2 of his October cycle: a six-line WhatsApp with one ask, the interactive report in his portal, and the same report by email with a PDF for his own files. Numbers are illustrative; lead names appear only inside the portal.</p>
+
+  <div class="layout">
+    <div>
+      <div class="phone"><div class="screen">
+        <div class="wa-head"><div class="wa-av"></div><div><div class="n">SortMyCover</div><div class="s">Business account · Lead Velocity</div></div></div>
+        <div class="chat">
+          <div class="day">Mon 12 Oct</div>
+          <div class="msg"><span class="tag">broker_weekly · 07:00</span><b>Your SortMyCover week, Mark</b><br>Week 2 of 4: <b>7 of 20</b> leads delivered · <b>5</b> booked · <b>4</b> showed (80%, target 65%) · you rated <b>3</b> a good fit.<br>This week: <b>4 calls</b> booked. <b>2 outcomes</b> still to mark.<br>Top theme: "is my work cover enough?"<br><b>One thing to do:</b> mark Thursday's two outcomes — it keeps your replacements accurate.<div class="wb"><span class="tap">Mark outcomes (2)</span><span>Open full report</span></div><span class="ts">07:00</span></div>
+          <div class="msg out">✅ Mark outcomes (2)<span class="ts">07:12 ✓✓</span></div>
+          <div class="msg">Sipho D. (Thu 14:30) — how did it go?<div class="wb"><span>Attended</span><span>No-show</span><span>Rescheduled</span></div><span class="ts">07:12</span></div>
+        </div>
+      </div></div>
+      <p class="cap">Six lines, aggregates only, one ask with a button. Read rate on WhatsApp is what makes this the primary surface; the portal is where he acts in detail.</p>
+
+      <div class="mail">
+        <div class="mh"><b>Your SortMyCover week · 7/20 delivered · 1 thing to do</b><span>howzit@leadvelocity.co.za → mark@mwfp.co.za · Mon 12 Oct 07:00</span></div>
+        <div class="mb">Morning Mark — the same report as your portal, for your records. Week 2 of your October cycle: 7 of 20 delivered, 5 booked, 4 attended (80%), 3 good fits. Four calls booked this week; two outcomes to mark. Full detail and your to-dos are in the portal link below.<br><span class="att">📎 SortMyCover-week-2-Oct-2026.pdf · 2 pages</span></div>
+      </div>
+    </div>
+
+    <div class="portal">
+      <div class="ph"><div class="hi">Mon 12 Oct · Mark Williams Financial Planning · FSP 00000</div><h2>Reports · Week 2 of your October cycle</h2>
+        <div class="pnav"><span>Start here</span><span>My leads</span><span>Calendar</span><span>Intro media</span><span class="cur">Reports</span><span>Help</span></div></div>
+      <div class="pb">
+        <div class="one">7 of 20 leads delivered, 5 booked, 4 showed up, 3 you rated a good fit. On track for the cycle.<small>Week 2 of 4 · cycle ends Mon 26 Oct · renewal offer Mon 19 Oct · Bronze</small></div>
+
+        <div class="sec"><h3>1 · Progress</h3><div class="in">
+          <div style="display:flex;justify-content:space-between;font-size:12.5px"><span>Delivered <b>7</b> of 20 committed</span><span style="color:var(--muted)">day 14 of 30</span></div>
+          <div class="prog"><i></i></div>
+          <div class="kpis">
+            <div class="kpi"><b>5</b><span>booked</span><div class="tg">of 7 · <i>71%</i> · last wk 60%</div></div>
+            <div class="kpi"><b>4</b><span>attended</span><div class="tg">show <i>80%</i> · target 65% · last wk 75%</div></div>
+            <div class="kpi"><b>3</b><span>good fit</span><div class="tg">your rating · avg <i>4.1 / 5</i></div></div>
+            <div class="kpi"><b>0</b><span>replacements used this cycle</span><div class="tg"><i>none needed</i></div></div>
+          </div>
+        </div></div>
+
+        <div class="sec"><h3>2 · Your meetings</h3><div class="in">
+          <table>
+            <tr><th>Last week</th><th>How</th><th>Outcome</th><th>Your disposition</th></tr>
+            <tr><td>Lerato Mokoena · Thu 11:00</td><td>Teams</td><td><span class="st ok">Attended</span></td><td>Good fit – follow-up · ★4</td></tr>
+            <tr><td>Sipho Dlamini · Thu 14:30</td><td>WhatsApp call</td><td><span class="st w">Not marked</span></td><td><span class="tap">Mark now</span></td></tr>
+            <tr><td>Anél v.d. Merwe · Fri 09:30</td><td>Teams</td><td><span class="st ok">Attended</span></td><td>Good fit – proceeding · ★5</td></tr>
+            <tr><td>Thabo Nkosi · Fri 11:00</td><td>Teams</td><td><span class="st w">Not marked</span></td><td><span class="tap">Mark now</span></td></tr>
+          </table>
+          <div class="two" style="margin-top:12px">
+            <div><b style="font-size:12.5px">This week (4)</b><table>
+              <tr><td>Tue 10:00 · Pieter B.</td><td>Teams</td></tr><tr><td>Wed 11:00 · Zanele M.</td><td>WhatsApp call</td></tr><tr><td>Thu 09:30 · Kabelo S.</td><td>Teams</td></tr><tr><td>Fri 14:00 · Riaan v.R.</td><td>Phone</td></tr></table></div>
+            <div><b style="font-size:12.5px">Your to-dos</b><table>
+              <tr><td>Mark 2 outcomes (Sipho, Thabo)</td><td><span class="tap">Do</span></td></tr>
+              <tr><td>Follow-up due Thu: Lerato M. (you flagged)</td><td><span class="tap g">Remind me</span></td></tr></table></div>
+          </div>
+        </div></div>
+
+        <div class="two">
+          <div class="sec"><h3>3 · Quality, in your words</h3><div class="in">
+            <div class="bars">
+              <div><span>Good fit – proceeding</span><i><b style="width:33%"></b></i><span>1</span></div>
+              <div><span>Good fit – follow-up</span><i><b style="width:66%"></b></i><span>2</span></div>
+              <div><span>Not a fit – covered</span><i><b style="width:0%"></b></i><span>0</span></div>
+              <div><span>Unreachable</span><i><b style="width:0%"></b></i><span>0</span></div>
+            </div>
+            <b style="font-size:12.5px;display:block;margin-top:10px">What leads asked before the call</b>
+            <ol class="themes" style="margin:4px 0 0;padding-left:18px;font-size:13px"><li>"Is my work cover enough?" (4 of 7)</li><li>"Will you try to sell me something?" (3 of 7)</li><li>"How does the bond get paid if…" (2 of 7)</li></ol>
+          </div></div>
+          <div class="sec"><h3>4 · What you'll notice this week</h3><div class="in">
+            <ul class="notice"><li>A new ad about bond cover went live Friday — expect more leads mentioning a bond.</li><li>Leads can now book from inside WhatsApp; no change for you.</li><li>No public holidays this week.</li></ul>
+            <h3 style="margin:12px -14px 8px;border-top:1px solid var(--rule)">5 · Your ROI view (your numbers only)</h3>
+            <div class="roi">Your close rate <input value="30"> % · Policies written this cycle <input value="1"> (optional)<br><span style="color:var(--muted);font-size:12px">At 30% of attended, this cycle is tracking to ~4 policies. Never used in any fee — it's here for you.</span></div>
+          </div></div>
+        </div>
+
+        <div class="ask"><div><b>One thing to do this week</b><br><span>Mark Thursday's two outcomes — it keeps your replacements accurate and your pre-call briefs sharp.</span></div><span class="go">Mark outcomes (2)</span></div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)"><span>History: Week 1 · <b>Week 2</b></span><span>·</span><span>Download PDF</span><span>·</span><span>Sent to WhatsApp 07:00 · email 07:00 · opened 07:12</span></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">Mock of the 4.10a weekly report. Same query feeds all three surfaces and the Lead Velocity console (renewal-risk, lead-quality by angle, capacity). Our costs, creative names and other brokers never appear. Policies written is voluntary and never touches a fee (FAIS).</p>
+</div>
+
+</body></html>

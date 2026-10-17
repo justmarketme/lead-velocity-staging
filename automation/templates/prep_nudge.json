@@ -1,0 +1,23 @@
+{
+  "name": "prep_nudge",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, one optional tip for your call with {{2}}: some people like to have a recent payslip or any existing policy schedule nearby. It helps, but it is not needed. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

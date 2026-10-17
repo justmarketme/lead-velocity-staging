@@ -1,0 +1,477 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SortMyCover Journey</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+/* One lead, three screens. Client = WhatsApp (its own visual world). CRM + broker portal = SortMyCover/Lead Velocity brand tokens. */
+:root{
+  --amber:#F5A623; --amber-ink:#2A1B02; --char:#1F2933; --char-2:#2B3845; --off:#FBF8F2; --off-2:#F1ECE2;
+  --bg:var(--off); --fg:var(--char); --muted:#5C6672; --rule:#DCD6CB; --card:#FFFFFF; --ok:#2E7D4F; --ok-bg:#E6F2EA; --warn:#B4541A; --warn-bg:#FBEBDD; --info-bg:#E8EEF5;
+  --wa-bg:#E5DDD5; --wa-in:#FFFFFF; --wa-out:#DCF8C6; --wa-head:#075E54; --wa-link:#027EB5; --wa-sys:#FFF5C4;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --info-bg:#243041; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; color-scheme:dark } }
+:root[data-theme="dark"]{ --bg:#15191F; --fg:#F1ECE2; --muted:#A8B0BA; --rule:#2F3842; --card:#1F2933; --off-2:#262F3A; --ok-bg:#1F3A2B; --warn-bg:#3F2A18; --info-bg:#243041; --wa-bg:#0B141A; --wa-in:#1F2C34; --wa-out:#005C4B; --wa-sys:#1D2A2F; color-scheme:dark }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 60px;padding-inline:16px}
+h1{font-size:clamp(22px,3.2vw,30px);margin:0 0 4px;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 16px;max-width:70ch}
+.sub b{color:var(--fg)}
+.lede{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.logo{font-weight:800;font-size:20px;letter-spacing:-.02em}
+.logo .tick{display:inline-block;width:.78em;height:.78em;border-radius:50%;background:var(--amber);vertical-align:-.08em;position:relative;margin:0 .02em}
+.logo .tick::after{content:"";position:absolute;left:.26em;top:.12em;width:.2em;height:.38em;border:solid var(--amber-ink);border-width:0 .13em .13em 0;transform:rotate(45deg)}
+.pill{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px solid var(--rule);border-radius:999px;padding:3px 9px}
+
+/* tabs */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--rule);margin-bottom:18px}
+.tab{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;padding:10px 14px;border-radius:10px 10px 0 0;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--amber)}
+.tab small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+.panel{display:none}.panel.on{display:block}
+
+/* legend */
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:18px}
+.leg{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px 14px}
+.leg b{display:block;font-size:13px;margin-bottom:2px}
+.leg span{font-size:13px;color:var(--muted)}
+
+/* layout */
+.split{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:820px){.split{grid-template-columns:1fr}}
+.notes{position:sticky;top:12px}
+.notes h3{margin:0 0 8px;font-size:15px}
+.step{border-left:3px solid var(--rule);padding:6px 0 6px 12px;margin:0 0 10px;font-size:13.5px}
+.step b{display:block;font-size:13px}
+.step .w{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+.step.on{border-left-color:var(--amber)}
+.step span.t{color:var(--muted)}
+
+/* phone */
+.phone{width:100%;max-width:380px;margin:0 auto;background:#111;border-radius:38px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.screen{background:var(--wa-bg);border-radius:28px;overflow:hidden;position:relative;background-image:radial-gradient(rgba(0,0,0,.035) 1px,transparent 1px);background-size:12px 12px}
+.wa-head{background:var(--wa-head);color:#fff;padding:14px 12px 10px;display:flex;gap:10px;align-items:center}
+.wa-av{width:38px;height:38px;border-radius:50%;background:var(--amber);color:var(--amber-ink);display:grid;place-items:center;font-weight:800;font-size:15px;position:relative}
+.wa-av::after{content:"";position:absolute;left:14px;top:9px;width:7px;height:14px;border:solid var(--amber-ink);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.wa-head .n{font-weight:700;line-height:1.1}.wa-head .s{font-size:12px;opacity:.85}
+.chat{padding:10px 10px 14px;display:flex;flex-direction:column;gap:6px;max-height:720px;overflow-y:auto;overscroll-behavior:contain}
+.day{align-self:center;background:var(--wa-sys);color:var(--fg);font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:8px;margin:8px 0 4px;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+.sys{align-self:center;background:var(--wa-sys);font-size:11.5px;padding:6px 10px;border-radius:8px;text-align:center;max-width:92%;color:var(--fg)}
+.msg{max-width:86%;padding:7px 9px 6px;border-radius:10px;font-size:13.5px;line-height:1.38;box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative;word-wrap:break-word;color:var(--fg)}
+.in{align-self:flex-start;background:var(--wa-in);border-top-left-radius:2px}
+.out{align-self:flex-end;background:var(--wa-out);border-top-right-radius:2px}
+.msg .ts{display:block;text-align:right;font-size:10.5px;color:var(--muted);margin-top:3px}
+.msg b{font-weight:700}
+.btns{display:flex;flex-direction:column;gap:3px;margin-top:6px;border-top:1px solid var(--rule);padding-top:5px}
+.btns span{display:block;text-align:center;color:var(--wa-link);font-weight:600;font-size:13.5px;padding:5px;background:var(--wa-in);border-radius:7px}
+.link{color:var(--wa-link);text-decoration:underline}
+.tag{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:5px;margin-bottom:4px}
+.tag.tpl{background:var(--info-bg);color:#2E4A6B}
+.tag.llm{background:var(--amber);color:var(--amber-ink)}
+.tag.guard{background:var(--warn-bg);color:var(--warn)}
+:root[data-theme="dark"] .tag.tpl{color:#B9CDE4}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tag.tpl{color:#B9CDE4}}
+
+/* intro card */
+.card{background:var(--off);color:var(--char);border-radius:8px;overflow:hidden;margin:-3px -5px 6px;border:1px solid #e8e2d6}
+.card .top{background:var(--char);color:var(--off);padding:10px 10px 8px;display:flex;gap:10px;align-items:center}
+.hs{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#8FA3B8,#5C7089);display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px;flex:none;border:2px solid var(--amber)}
+.card .nm{font-weight:800;font-size:15px;line-height:1.1}
+.card .pr{font-size:12px;opacity:.9}
+.card .fsp{font-size:11px;background:var(--amber);color:var(--amber-ink);font-weight:800;padding:2px 7px;border-radius:4px;display:inline-block;margin-top:4px}
+.card .bio{padding:8px 10px;font-size:12.5px}
+.card .meta{display:flex;flex-wrap:wrap;gap:4px;padding:0 10px 9px}
+.card .meta span{font-size:11px;background:#fff;border:1px solid #e3ddd1;border-radius:999px;padding:2px 7px}
+.card .foot{border-top:1px solid #e8e2d6;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;font-size:11px}
+.card .foot .lg{font-weight:800;font-size:12.5px}
+.card .foot .lg i{display:inline-block;width:.75em;height:.75em;border-radius:50%;background:var(--amber);vertical-align:-.06em;font-style:normal;position:relative}
+.card .foot .lg i::after{content:"";position:absolute;left:.25em;top:.1em;width:.18em;height:.36em;border:solid var(--amber-ink);border-width:0 .12em .12em 0;transform:rotate(45deg)}
+
+/* video bubble */
+.vid{position:relative;background:#222;border-radius:8px;overflow:hidden;aspect-ratio:9/12;max-width:100%;margin:-3px -5px 6px}
+.vid .bgp{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 35%,#6E829A 0,#3B4A5C 55%,#1F2933 100%)}
+.vid .sil{position:absolute;left:50%;top:26%;width:34%;aspect-ratio:1;border-radius:50%;background:#C9A786;transform:translateX(-50%)}
+.vid .sh{position:absolute;left:50%;top:52%;width:70%;height:40%;border-radius:40% 40% 0 0;background:#2B3845;transform:translateX(-50%)}
+.vid .cap{position:absolute;left:8%;right:8%;bottom:22%;text-align:center;color:#fff;font-weight:700;font-size:12.5px;text-shadow:0 1px 2px rgba(0,0,0,.8);background:rgba(0,0,0,.45);padding:4px 6px;border-radius:4px}
+.vid .lt{position:absolute;left:0;right:0;bottom:0;background:var(--amber);color:var(--amber-ink);font-size:10.5px;font-weight:800;padding:4px 8px}
+.vid .play{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.9);transform:translate(-50%,-50%)}
+.vid .play::after{content:"";position:absolute;left:18px;top:13px;border-left:16px solid #111;border-top:10px solid transparent;border-bottom:10px solid transparent}
+.vid .dur{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10.5px;padding:2px 6px;border-radius:4px}
+
+/* CRM */
+.crm{background:var(--card);border:1px solid var(--rule);border-radius:16px;overflow:hidden}
+.crm-bar{display:flex;align-items:center;gap:14px;padding:10px 16px;background:var(--char);color:var(--off);font-size:13px;flex-wrap:wrap}
+.crm-bar .brand{font-weight:800;font-size:15px;margin-right:auto}
+.crm-bar .brand i{color:var(--amber);font-style:normal}
+.crm-bar nav{display:flex;gap:14px;flex-wrap:wrap}
+.crm-bar nav span{opacity:.7}.crm-bar nav span.cur{opacity:1;border-bottom:2px solid var(--amber);padding-bottom:2px}
+.crm-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:0}
+@media (max-width:900px){.crm-body{grid-template-columns:1fr}}
+.main{padding:18px;border-right:1px solid var(--rule);min-width:0}
+@media (max-width:900px){.main{border-right:0;border-bottom:1px solid var(--rule)}}
+.side{padding:18px;min-width:0;background:var(--off-2)}
+.lead-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.lead-h h2{margin:0;font-size:20px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;padding:4px 10px;border-radius:999px;background:var(--ok-bg);color:var(--ok)}
+.status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.stage{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 16px}
+.stage span{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:6px;background:var(--off-2);color:var(--muted)}
+.stage span.done{background:var(--ok-bg);color:var(--ok)}
+.stage span.now{background:var(--amber);color:var(--amber-ink)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:14px}
+.box{border:1px solid var(--rule);border-radius:12px;padding:12px 14px;background:var(--card);min-width:0}
+.box h4{margin:0 0 8px;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.kv{display:grid;grid-template-columns:minmax(0,45%) minmax(0,1fr);gap:4px 10px;font-size:13px}
+.kv dt{color:var(--muted)}.kv dd{margin:0;font-weight:600;word-wrap:break-word}
+.kv dd code{font-size:11.5px;background:var(--off-2);padding:1px 5px;border-radius:4px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.quote{font-size:13px;background:var(--off-2);border-radius:8px;padding:8px 10px;margin-top:6px;line-height:1.4}
+.ev{display:grid;grid-template-columns:120px 70px minmax(0,1fr);gap:6px 10px;font-size:12.5px;align-items:baseline}
+@media (max-width:520px){.ev{grid-template-columns:96px 60px minmax(0,1fr)}}
+.ev .t{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ev .w{font-weight:800;font-size:11px;color:var(--muted);letter-spacing:.04em}
+.ev .flag{color:var(--warn);font-weight:700}
+.ev .okk{color:var(--ok);font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:10px}
+.kpi b{display:block;font-size:20px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.kpi span{font-size:11.5px;color:var(--muted)}
+.bar{height:8px;background:var(--rule);border-radius:999px;overflow:hidden;margin:6px 0 4px}
+.bar i{display:block;height:100%;background:var(--amber);border-radius:999px}
+.side h3{margin:0 0 10px;font-size:14px}
+.row{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--rule)}
+.row:last-child{border-bottom:0}
+.row b{font-variant-numeric:tabular-nums}
+.ok{color:var(--ok)}.warn{color:var(--warn)}
+.alerts{font-size:12.5px}
+.alerts div{padding:6px 8px;border-radius:8px;margin-bottom:6px;background:var(--ok-bg);color:var(--ok);font-weight:600}
+.alerts div.w{background:var(--warn-bg);color:var(--warn)}
+
+/* broker portal */
+.portal{max-width:420px;margin:0 auto;background:var(--card);border:1px solid var(--rule);border-radius:26px;overflow:hidden;box-shadow:0 14px 40px rgba(0,0,0,.14)}
+.p-head{background:var(--char);color:var(--off);padding:16px 16px 12px}
+.p-head .hi{font-size:12px;opacity:.8}
+.p-head h2{margin:2px 0 8px;font-size:19px}
+.p-nav{display:flex;gap:12px;font-size:12px;flex-wrap:wrap}
+.p-nav span{opacity:.7}.p-nav span.cur{opacity:1;border-bottom:2px solid var(--amber);padding-bottom:2px;font-weight:700}
+.p-body{padding:14px 14px 18px;display:flex;flex-direction:column;gap:12px}
+.brief{border:1px solid var(--rule);border-radius:14px;overflow:hidden}
+.brief .bh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:var(--off-2)}
+.brief .bh b{font-size:15px}
+.brief .bh span{font-size:12px;color:var(--muted)}
+.brief .bb{padding:10px 12px;font-size:13.5px}
+.brief .bb h5{margin:10px 0 4px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.brief .bb h5:first-child{margin-top:0}
+.brief ul{margin:0;padding-left:18px}
+.brief li{margin:2px 0}
+.join{display:block;text-align:center;background:var(--amber);color:var(--amber-ink);font-weight:800;border-radius:10px;padding:10px;margin-top:10px;text-decoration:none}
+.outc{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.outc span{text-align:center;font-size:12.5px;font-weight:700;border:1.5px solid var(--rule);border-radius:9px;padding:8px 4px}
+.outc span.sel{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.mini{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.mini .kpi b{font-size:18px}
+.upnext{font-size:13px}
+.upnext div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rule)}
+.upnext div:last-child{border-bottom:0}
+.upnext small{color:var(--muted)}
+.wa-mini{background:var(--wa-bg);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;max-width:400px}
+.wa-mini .msg{max-width:92%}
+.foot{margin-top:28px;font-size:12.5px;color:var(--muted);max-width:80ch}
+</style>
+
+<div class="wrap">
+  <div class="lede"><span class="logo">SortMyC<span class="tick"></span>ver</span><span class="pill">Journey mock · one lead, three screens</span></div>
+  <h1>What happens after Lerato taps “Book it”</h1>
+  <p class="sub">Fictional lead <b>Lerato Mokoena</b> (Johannesburg, 35–44, bond, two kids) submits on the SortMyCover page on <b>Mon 5 Oct, 21:14</b> and books <b>Thu 8 Oct, 11:00 on Teams</b> with Mark. Everything below follows the W01–W12 flow and the template wording in the master prompt. Names, FSP number and figures are placeholders.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-p="client">1 · What Lerato sees<small>WhatsApp, Mon → Thu</small></button>
+    <button class="tab" role="tab" aria-selected="false" data-p="crm">2 · What we see<small>Lead Velocity CRM</small></button>
+    <button class="tab" role="tab" aria-selected="false" data-p="broker">3 · What Mark sees<small>Broker portal + his WhatsApp</small></button>
+  </div>
+
+  <!-- ============ CLIENT ============ -->
+  <section class="panel on" id="p-client">
+    <div class="legend">
+      <div class="leg"><b><span class="tag tpl">Template</span></b><span>Approved utility template. Fixed wording, variables filled by n8n. Works outside the 24-h window. No LLM involved.</span></div>
+      <div class="leg"><b><span class="tag llm">LLM reply</span></b><span>Lerato typed free text. Intent model → our logic decides → reply model phrases it warmly. ~10% of turns.</span></div>
+      <div class="leg"><b><span class="tag guard">Guardrail</span></b><span>Draft mentioned cost/product → replaced with the fixed deferral line; question logged to Mark's pre-call brief.</span></div>
+    </div>
+    <div class="split">
+      <div class="phone">
+        <div class="screen">
+          <div class="wa-head"><div class="wa-av"></div><div><div class="n">SortMyCover</div><div class="s">Business account · Lead Velocity</div></div></div>
+          <div class="chat">
+            <div class="day">Mon 5 Oct</div>
+            <div class="sys">Messages are end-to-end encrypted. This business uses a secure service from Meta to manage this chat.</div>
+
+            <div class="msg in">
+              <span class="tag tpl">broker_intro_booked · 00:41 after submit</span>
+              <div class="card">
+                <div class="top"><div class="hs">MW</div><div><div class="nm">Mark Williams</div><div class="pr">Mark Williams Financial Planning</div><span class="fsp">Authorised FSP · FSP 00000</span></div></div>
+                <div class="bio">I help families in their 30s and 40s make sure the cover they have actually matches the life they've built. No jargon, no pressure — we just look at where you are.</div>
+                <div class="meta"><span>English · Afrikaans</span><span>14 yrs advising</span><span>Cape Town · nationwide by video</span></div>
+                <div class="foot"><span class="lg">SortMyC<i></i>ver</span><span>30-min call · No obligation</span></div>
+              </div>
+              Hi Lerato, thanks for your life cover enquiry. Your details have been passed to <b>Mark Williams Financial Planning (FSP 00000)</b>, an authorised financial services provider. <b>Mark Williams</b> will be your adviser for your Teams call on <b>Thu 8 Oct at 11:00</b>. Reply STOP to opt out.
+              <div class="btns"><span>Add to calendar</span><span>Reschedule</span><span>Cancel</span></div>
+              <span class="ts">21:15</span>
+            </div>
+
+            <div class="msg in">
+              <span class="tag llm">Thandi · AI disclosed</span>
+              Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark — I'm an AI assistant, and you can ask for a person at any time. Could you reply with the date and time of your call so I know it's in your diary?
+              <span class="ts">21:15</span>
+            </div>
+
+            <div class="msg out">Thursday 8 Oct 11am 👍<span class="ts">21:22 ✓✓</span></div>
+
+            <div class="msg in">
+              <span class="tag llm">Thandi</span>
+              Perfect, it's in Mark's diary too. You'll get the Teams link here on Thursday morning.
+              <span class="ts">21:22</span>
+            </div>
+
+            <div class="msg in">
+              <span class="tag tpl">what_to_expect · T0 + 10 min</span>
+              <b>What to expect on Thursday</b><br>
+              • 30 minutes, on Teams (you can join from your phone)<br>
+              • Mark will ask about your bond, who depends on you, and what cover you have through work<br>
+              • Nothing to buy on the call — it's a conversation, not a sale<br>
+              <span class="link">📎 Add to calendar (.ics)</span>
+              <span class="ts">21:25</span>
+            </div>
+
+            <div class="msg out">Ok cool. Will he try sell me something though? And roughly what would cover cost for someone my age?<span class="ts">21:31 ✓✓</span></div>
+
+            <div class="msg in">
+              <span class="tag llm">Thandi</span> <span class="tag guard">deferral · logged for Mark</span>
+              No selling on the call — Mark goes through where you are and whether there are any gaps, and that's it. If you want to take it further afterwards, that's your call entirely.<br><br>
+              The cost question is exactly what Mark will go through with you on the call. I've made a note so he comes prepared for it.
+              <span class="ts">21:31</span>
+            </div>
+
+            <div class="msg out">Great thanks<span class="ts">21:32 ✓✓</span></div>
+
+            <div class="day">Tue 6 Oct</div>
+            <div class="msg in">
+              <span class="tag tpl">intro_media · T-48 h</span>
+              <div class="vid"><div class="bgp"></div><div class="sil"></div><div class="sh"></div><div class="play"></div><div class="dur">0:26</div>
+                <div class="cap">…so bring your questions. We'll look at where you are — that's all the call is.</div>
+                <div class="lt">Mark Williams · Mark Williams Financial Planning · FSP 00000</div></div>
+              Hi Lerato, Mark recorded this for people booking a call with him this week — 26 seconds, captions on.
+              <span class="ts">11:00</span>
+            </div>
+
+            <div class="day">Wed 7 Oct</div>
+            <div class="msg in">
+              <span class="tag tpl">reminder_24h</span>
+              Hi Lerato, a reminder of your Teams call with <b>Mark Williams</b> tomorrow, <b>Thu 8 Oct at 11:00</b>. Most people find 30 minutes is all it takes.
+              <div class="btns"><span>Confirm</span><span>Reschedule</span></div>
+              <span class="ts">11:00</span>
+            </div>
+            <div class="msg out">✅ Confirm<span class="ts">12:47 ✓✓</span></div>
+            <div class="msg in">
+              <span class="tag tpl">prep_nudge</span>
+              Thanks, Lerato — confirmed. If you have a payslip or your current policy schedule handy tomorrow, it helps. Not needed, though.
+              <span class="ts">12:47</span>
+            </div>
+
+            <div class="day">Thu 8 Oct</div>
+            <div class="msg in">
+              <span class="tag tpl">reminder_2h</span>
+              Morning Lerato. Mark has set aside 30 minutes for you at <b>11:00</b> today. Your Teams link: <span class="link">teams.microsoft.com/l/meetup-join/…</span><br>Reply here if anything's changed.
+              <span class="ts">09:00</span>
+            </div>
+            <div class="msg in">
+              <span class="tag tpl">reminder_10m</span>
+              Starting in 10 minutes. Join here: <span class="link">teams.microsoft.com/l/meetup-join/…</span>
+              <span class="ts">10:50</span>
+            </div>
+            <div class="msg in">
+              <span class="tag tpl">lead_outcome_check · T+30</span>
+              Hi Lerato, did Mark reach you today?
+              <div class="btns"><span>Yes</span><span>No</span></div>
+              <span class="ts">12:00</span>
+            </div>
+            <div class="msg out">Yes<span class="ts">12:04 ✓✓</span></div>
+            <div class="msg in">
+              <span class="tag tpl">attended_thanks</span>
+              Thanks for your time today, Lerato. Mark will follow up with you directly from here. That's the last message from us unless you book again.
+              <span class="ts">12:04</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="notes">
+        <h3>Why each message exists</h3>
+        <div class="step on"><span class="w">W06 · &lt; 60 s</span><b>Intro card + disclosure</b>The adviser, practice and FSP number land in the first message — the one people actually read. Message ID and delivery status are stored as disclosure evidence. <span class="t">HBR: contact within the hour ≈ 7× qualification odds.</span></div>
+        <div class="step on"><span class="w">W07 · LLM</span><b>Commitment ask</b>Asking her to type the date back is the NHS commitment effect (−18% missed appointments when people write it themselves). Thandi discloses she's an AI on first contact.</div>
+        <div class="step on"><span class="w">W09 · T0 + 10</span><b>What to expect</b>Uncertainty is the main no-show driver. Three bullets, one .ics, no selling.</div>
+        <div class="step on"><span class="w">W07 · guardrail</span><b>The cost question</b>The reply model drafted something about premiums; the classifier gate caught it and swapped in the deferral line. The question is now in Mark's pre-call brief. Lerato gets a warm, human answer and nothing that counts as advice.</div>
+        <div class="step on"><span class="w">W09 · T-48 h</span><b>Mark's 26-second video</b>Recorded by Mark in the portal from an AI-written script, captions burned in, lower-third carries the FSP. The text above it is personalised; the video is not — no voice cloning.</div>
+        <div class="step on"><span class="w">W09 · T-24 h</span><b>Confirm + positive norm</b>"Most people find 30 minutes is all it takes" is the social-norm line from the same NHS study (combined effect −31.7%). Prep nudge is useful, optional, and signals seriousness.</div>
+        <div class="step on"><span class="w">W09 · T-2 h / T-10</span><b>Specific-cost framing</b>"Mark has set aside 30 minutes for you" is true and specific (PLOS ONE RCTs: specific beats vague). Link twice so nobody hunts for it.</div>
+        <div class="step on"><span class="w">W12 · T+30</span><b>Two-sided outcome</b>Lerato is asked too, so a broker no-show can't be logged as a lead no-show. Then we go quiet: the adviser owns every follow-up from here (FAIS).</div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============ CRM ============ -->
+  <section class="panel" id="p-crm">
+    <div class="crm">
+      <div class="crm-bar"><span class="brand">Lead <i>Velocity</i> · Console</span>
+        <nav><span>Dashboard</span><span>Brokers</span><span class="cur">Leads</span><span>Ads</span><span>Conversations</span><span>Billing</span><span>Health</span></nav>
+        <span style="opacity:.7">Jonathan · admin</span></div>
+      <div class="crm-body">
+        <div class="main">
+          <div class="lead-h"><h2>Lerato Mokoena</h2><span class="status">Attended</span><span class="pill">Lead #SMC-0417</span><span class="pill">Mark Williams · Cycle Oct-1</span></div>
+          <div class="stage"><span class="done">Lead</span><span class="done">Qualified</span><span class="done">Routed</span><span class="done">Booked</span><span class="done">Confirmed</span><span class="now">Attended</span><span>Replacement</span></div>
+
+          <div class="grid2">
+            <div class="box"><h4>Qualification (from the page quiz)</h4>
+              <dl class="kv"><dt>Age band</dt><dd>35–44</dd><dt>Bond</dt><dd>Yes</dd><dt>Dependants</dt><dd>2 children</dd><dt>Work cover</dt><dd>Yes, through employer</dd><dt>Budget band</dt><dd>R750–1,250 / month</dd><dt>Qualified</dt><dd class="ok">Yes · meets 3.3 definition</dd></dl></div>
+            <div class="box"><h4>Contact</h4>
+              <dl class="kv"><dt>Mobile</dt><dd>+27 82 ••• 4471</dd><dt>Language</dt><dd>English</dd><dt>Province</dt><dd>Gauteng (from number + IP)</dd><dt>Method</dt><dd>Microsoft Teams</dd><dt>Opt-out</dt><dd>No</dd><dt>Dedupe (90 d)</dt><dd>No match</dd></dl></div>
+            <div class="box"><h4>Consent &amp; disclosure evidence</h4>
+              <dl class="kv"><dt>Consent mode</dt><dd>named</dd><dt>Ticked at</dt><dd>2026-10-05 21:14:08 SAST</dd><dt>IP / UA</dt><dd><code>105.22.•.• · Safari iOS</code></dd><dt>Disclosure msg</dt><dd><code>wamid.HBgL…9xQ</code> · delivered 21:15:03 · read 21:21</dd></dl>
+              <div class="quote">“I agree that SortMyCover (Lead Velocity (Pty) Ltd) may share my name and number with Mark Williams Financial Planning (FSP 00000), an authorised financial services provider, who will contact me on WhatsApp about life cover. I can withdraw this at any time by replying STOP.”</div></div>
+            <div class="box"><h4>Attribution</h4>
+              <dl class="kv"><dt>Campaign</dt><dd>SMC · Core 35–50 · Oct</dd><dt>Ad set</dt><dd>Broad · ZA · 35–50</dd><dt>Ad</dt><dd><code>C2_bondgap_reel_v3</code></dd><dt>Placement</dt><dd>Instagram Reels</dd><dt>Landing page</dt><dd>/bond-gap (angle 2)</dd><dt>fbclid / event_id</dt><dd><code>IwAR2…k · ev_8f3a</code></dd><dt>CAPI sent</dt><dd class="ok">Lead ✓ Schedule ✓ Attended ✓</dd></dl></div>
+          </div>
+
+          <div class="box" style="margin-bottom:14px"><h4>Timeline</h4>
+            <div class="ev">
+              <span class="t">Mon 05 Oct 21:14</span><span class="w">W01</span><span>Lead received from landing page · validated · deduped · stored with consent + UTM</span>
+              <span class="t">21:14</span><span class="w">1.3</span><span>Routed to <b>Mark Williams</b> (only active broker; capacity 9/12 this week)</span>
+              <span class="t">21:14</span><span class="w">W05</span><span>Slot re-checked via Graph <code>getSchedule</code> → Outlook event created · Teams link generated · <code>cycle_id = Oct-1</code></span>
+              <span class="t">21:15</span><span class="w">W06</span><span><span class="okk">Disclosure sent in 41 s</span> · broker_intro_booked · intro card header</span>
+              <span class="t">21:15</span><span class="w">W05</span><span>Broker alert sent (WhatsApp + email) · broker_new_booking</span>
+              <span class="t">21:22</span><span class="w">W07</span><span>Lead confirmed date/time in own words → <code>commitment = true</code></span>
+              <span class="t">21:31</span><span class="w">W07</span><span><span class="flag">Guardrail trip</span> · intent: question · topic: cost · deferral sent · added to pre-call brief</span>
+              <span class="t">Tue 06 Oct 11:00</span><span class="w">W09</span><span>intro_media (video, en) delivered · viewed</span>
+              <span class="t">Wed 07 Oct 12:47</span><span class="w">W09</span><span>Confirmed via button → status <b>confirmed</b></span>
+              <span class="t">Thu 08 Oct 10:45</span><span class="w">W11</span><span>Pre-call brief sent to Mark (WhatsApp + portal)</span>
+              <span class="t">11:47</span><span class="w">W12</span><span>Mark tapped <b>Attended</b> · voice note transcribed (18 s)</span>
+              <span class="t">12:04</span><span class="w">W12</span><span>Lead confirmed “Yes” · outcome locked · CAPI offline <code>Attended</code> sent</span>
+            </div></div>
+
+          <div class="grid2">
+            <div class="box"><h4>Cost of this lead (actual)</h4>
+              <dl class="kv"><dt>Ad spend attributed</dt><dd>R218.40</dd><dt>WhatsApp (11 msgs)</dt><dd>R1.72</dd><dt>LLM (4 free-text turns)</dt><dd>R0.38</dd><dt>Total</dt><dd>R220.50</dd></dl></div>
+            <div class="box"><h4>Conversation (excerpt)</h4>
+              <div class="quote" style="margin-top:0"><b>Lead 21:31:</b> Will he try sell me something though? And roughly what would cover cost for someone my age?<br><b>Thandi 21:31:</b> No selling on the call… <i>[deferral line]</i><br><span class="warn">⚑ Draft blocked: mentioned “premium” and “R per month” → replaced.</span></div></div>
+          </div>
+        </div>
+
+        <div class="side">
+          <h3>Mark Williams · Bronze · Cycle Oct-1</h3>
+          <div class="kpis">
+            <div class="kpi"><b>7<span style="font-size:13px;color:var(--muted)">/20</span></b><span>Qualified leads delivered</span></div>
+            <div class="kpi"><b>5</b><span>Booked</span></div>
+            <div class="kpi"><b>3</b><span>Attended</span></div>
+          </div>
+          <div style="font-size:12.5px;color:var(--muted)">Cycle progress · day 6 of 30</div>
+          <div class="bar"><i style="width:35%"></i></div>
+          <div class="row"><span>Show rate (attended / due)</span><b class="ok">75%</b></div>
+          <div class="row"><span>Replacements used</span><b>0</b></div>
+          <div class="row"><span>Spend to date</span><b>R2,340</b></div>
+          <div class="row"><span>Cost / qualified lead</span><b>R334</b></div>
+          <div class="row"><span>Cost / attended meeting</span><b>R780</b></div>
+          <div class="row"><span>Projected margin (3.2)</span><b class="ok">On track</b></div>
+          <div class="row"><span>First-message SLA (&lt; 60 s)</span><b class="ok">100%</b></div>
+          <div class="row"><span>Next cycle offer</span><b>Mon 26 Oct</b></div>
+
+          <h3 style="margin-top:18px">Ads (live, from inside the CRM)</h3>
+          <div class="row"><span><code style="font-size:11.5px">C2_bondgap_reel_v3</code></span><b>CPL R186 · 4 leads</b></div>
+          <div class="row"><span><code style="font-size:11.5px">C1_worksalary_feed_v2</code></span><b>CPL R241 · 2 leads</b></div>
+          <div class="row"><span><code style="font-size:11.5px">C4_newbaby_story_v1</code></span><b class="warn">CPL R412 · 1 lead</b></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">Daily cap R180 · monthly cap = active brokers' media share · every change confirm-to-apply</div>
+
+          <h3 style="margin-top:18px">Health (W22 / W27)</h3>
+          <div class="alerts">
+            <div>WABA quality: green · templates 19/19 approved</div>
+            <div>Outlook token: valid · refreshed 06:00</div>
+            <div>CAPI match quality: 8.1 / 10</div>
+            <div class="w">C4_newbaby_story_v1 CPL above kill threshold for 3 days → pause suggested</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BROKER ============ -->
+  <section class="panel" id="p-broker">
+    <div class="split" style="grid-template-columns:minmax(0,420px) minmax(0,1fr)">
+      <div class="portal">
+        <div class="p-head"><div class="hi">Thu 8 Oct · Mark Williams Financial Planning</div><h2>Good morning, Mark</h2>
+          <div class="p-nav"><span>Start here</span><span class="cur">My leads</span><span>Calendar</span><span>Intro media</span><span>Reports</span><span>Help</span></div></div>
+        <div class="p-body">
+          <div class="mini">
+            <div class="kpi"><b>2</b><span>Calls today</span></div>
+            <div class="kpi"><b>7 / 20</b><span>Leads this cycle</span></div>
+            <div class="kpi"><b>80%</b><span>Show rate (4 wks)</span></div>
+            <div class="kpi"><b>0</b><span>Replacements</span></div>
+          </div>
+
+          <div class="brief">
+            <div class="bh"><div><b>11:00 · Lerato M.</b><br><span>Teams · 30 min · English · Johannesburg</span></div><span class="status">Confirmed</span></div>
+            <div class="bb">
+              <h5>Who</h5>
+              35–44 · has a bond · 2 dependants · has cover through work · comfortable with R750–1,250 / month.
+              <h5>What she asked (her words)</h5>
+              <ul><li>“Will he try sell me something though?”</li><li>“Roughly what would cover cost for someone my age?” — <i>deferred to you</i></li></ul>
+              <h5>What seemed to matter</h5>
+              Reassurance that it's not a sales call; she confirmed the time herself within 8 minutes and watched your intro video.
+              <h5>Suggested opening</h5>
+              Start with what she has through work and the bond — she's already thinking about the gap.
+              <a class="join" href="#">Join Teams call</a>
+              <div class="outc"><span class="sel">Attended</span><span>No-show</span><span>Rescheduled</span></div>
+              <div style="font-size:12px;color:var(--muted);margin-top:6px">After the call: tap one, optionally hold to record a 20-s voice note — we transcribe it for your notes.</div>
+            </div>
+          </div>
+
+          <div class="box"><h4>Up next</h4>
+            <div class="upnext">
+              <div><span>14:30 · Sipho D.<br><small>WhatsApp call · 45–50 · bond · 1 dependant</small></span><span class="status" style="background:var(--info-bg);color:var(--muted)">Booked</span></div>
+              <div><span>Fri 09:30 · Anél v.d.M.<br><small>Teams · 35–44 · Afrikaans · no bond, 3 dependants</small></span><span class="status">Confirmed</span></div>
+            </div></div>
+        </div>
+      </div>
+
+      <aside>
+        <h3 style="margin:0 0 8px;font-size:15px">What arrives on Mark's own WhatsApp</h3>
+        <div class="wa-mini">
+          <div class="day">Mon 5 Oct</div>
+          <div class="msg in"><span class="tag tpl">broker_new_booking</span>New booking: <b>Lerato M.</b> · Thu 8 Oct 11:00 · Teams · 35–44 · bond · 2 dependants · R750–1,250. Already in your Outlook. Consent ref SMC-0417.<span class="ts">21:15</span></div>
+          <div class="day">Thu 8 Oct</div>
+          <div class="msg in"><span class="tag tpl">broker_daily_digest</span>Today: <b>11:00 Lerato M.</b> (Teams, confirmed) · <b>14:30 Sipho D.</b> (WhatsApp call). Briefs 15 min before each.<span class="ts">07:30</span></div>
+          <div class="msg in"><span class="tag tpl">precall_brief · T-15</span><b>Lerato M. · 11:00 · Teams</b><br>35–44, bond, 2 dependants, work cover, R750–1,250.<br>Asked: whether you'd sell her something; what cover costs at her age (deferred to you).<br>Confirmed the time herself; watched your video.<br><span class="link">Join Teams</span> · <span class="link">Open brief</span><span class="ts">10:45</span></div>
+          <div class="msg in"><span class="tag tpl">broker_outcome_check · T+15</span>How did it go with Lerato M.?<div class="btns"><span>Attended</span><span>No-show</span><span>Rescheduled</span></div><span class="ts">11:45</span></div>
+          <div class="msg out">Attended<span class="ts">11:47 ✓✓</span></div>
+          <div class="msg out">🎤 Voice note · 0:18<span class="ts">11:48 ✓✓</span></div>
+          <div class="msg in"><span class="tag llm">Thandi</span>Logged, thanks Mark. Your note: “Good call, she's underinsured on the bond side, sending a needs analysis Friday.” Lerato has been thanked — the follow-up is yours from here.<span class="ts">11:48</span></div>
+        </div>
+
+        <h3 style="margin:18px 0 8px;font-size:15px">Why the broker side looks like this</h3>
+        <div class="step on"><b>Pre-call brief is the headline feature</b>Mark walks in knowing the person: bands only (no sensitive data), her questions in her own words, and what she cared about. Conversica/Verse call this the hand-off moment; it's the thing brokers tell other brokers about.</div>
+        <div class="step on"><b>One tap closes the loop</b>Outcome capture at T+15 with buttons, nudge at +3 h, auto-attended at 24 h if unmarked. Replacements only count when both sides agree it was a no-show.</div>
+        <div class="step on"><b>His calendar, not ours</b>The Teams meeting sits in Mark's own Outlook via Microsoft Graph. Lerato is not an attendee (keeps his email private); she gets her own .ics and link.</div>
+        <div class="step on"><b>Nothing from us after “Attended”</b>Quotes, advice and follow-up are Mark's — that's what keeps Lead Velocity on the right side of FAIS and what makes the flat fee defensible.</div>
+      </aside>
+    </div>
+  </section>
+
+  <p class="foot">Mock-up of the planned build, not a live system. Lerato, Sipho and Anél are fictional; Mark's practice name, FSP number, headshot and figures are placeholders filled from the <code>brokers</code> and <code>pricing</code> tables at build. Template names match the master prompt (§4.6); evidence references are in §4.11–4.12.</p>
+</div>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.tab'), panels={client:document.getElementById('p-client'),crm:document.getElementById('p-crm'),broker:document.getElementById('p-broker')};
+  function show(k){ tabs.forEach(function(t){t.setAttribute('aria-selected',String(t.dataset.p===k));}); Object.keys(panels).forEach(function(p){panels[p].classList.toggle('on',p===k);}); }
+  tabs.forEach(function(t){ t.addEventListener('click',function(){ show(t.dataset.p); try{history.replaceState(null,'','#'+t.dataset.p);}catch(e){} }); });
+  var h=(location.hash||'').replace('#',''); if(panels[h]) show(h);
+})();
+</script>
+
+</body></html>

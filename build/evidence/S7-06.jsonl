@@ -1,0 +1,1 @@
+{"env":"local","nudges_wired":true,"note":"W20 lane D sweep (Find due nudges/Build nudge/Mark sent) behind quiet hours + SUB-whatsapp-send DRY_RUN gate; W20.test.mjs shifted-clock S3 tests (24h, 72h, quiet hours, reset) pass; not run on a live staging n8n"}

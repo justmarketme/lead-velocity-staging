@@ -1,0 +1,40 @@
+{
+  "name": "broker_lead_offer",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a new SortMyCover enquiry is available to you: {{2}}, age {{3}}, budget {{4}} a month, interested in {{5}}. This lead is below R1,500 a month, so it only counts if you accept it. Please accept or decline by {{6}}. If you don't reply by then, it goes to another adviser.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Lerato",
+            "35 to 44",
+            "R750 to R1,249",
+            "Life cover, Funeral cover",
+            "Wed 7 Oct at 15:30"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Accept"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Decline"
+        }
+      ]
+    }
+  ]
+}

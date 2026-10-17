@@ -1,0 +1,47 @@
+{
+  "name": "reschedule_offer",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, no problem. Here are new times with {{2}}:\n1. {{3}}\n2. {{4}}\n3. {{5}}\nTap one, or tap Other times. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith",
+            "Thu 9 Oct, 10:00",
+            "Thu 9 Oct, 15:00",
+            "Fri 10 Oct, 09:30"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Time 1"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Time 2"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Time 3"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Other times"
+        }
+      ]
+    }
+  ]
+}

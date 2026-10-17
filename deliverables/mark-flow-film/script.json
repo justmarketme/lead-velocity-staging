@@ -1,0 +1,984 @@
+{
+  "title": "How your leads work",
+  "chapters": [
+    {
+      "id": "c1",
+      "title": "Part 1 · Your client's journey",
+      "scenes": [
+        {
+          "id": "c1s1",
+          "title": "Welcome",
+          "screen": "card",
+          "beats": [
+            {
+              "id": "c1s1b1",
+              "say": "Hi Mark. This film shows how a client finds you, what you see, what the updated agreement says, and how you get set up.",
+              "caption": "Hi Mark. This film shows how a client finds you, what you see, what the updated agreement (v0.2) says, and how you get set up.",
+              "action": "Title card in the Lead Velocity film style (Mark-facing, so the Lead Velocity wordmark is allowed). Title 'How your leads work'. Subtitle 'For Mark Weston · FSP 28418 · Bronze: 20 Qualified Leads per 30-day cycle, R16,500 excl. VAT'. Four chapter chips fade in left to right: '1 Your client's journey' · '2 Your side' · '3 Your requests and v0.2' · '4 Getting set up'. BUILDER LEGEND (never shown on screen): {PRACTICE} = the practice name Mark types in portal step 'Your details and FSP number'. It is NOT confirmed (Jonathan's email asked 'Oracle Private Wealth or Oracle Brokers'; FSP 28418 is Oracle Brokers' licence). USER-GATED: get the name from Jonathan before rendering any screen that shows {PRACTICE}, and never render the portal fallback 'Your practice' on a consumer screen. Mark has no headshot: every avatar of Mark is an initials disc 'MW'. Narration ('say') spells acronyms letter by letter for the voice (F S P, F S C A, F A I S, I T, E F T, V A T), writes 'Sort My Cover' as three words and writes 'Sipho' as 'Seepo'; captions and screens keep the normal spellings. Listen-check every 'A-tier' and 'B-tier' clip: if the voice says 'uh-tier', write 'Ay-tier' / 'Bee-tier' in that beat's 'say'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s1b2",
+              "say": "Tap along or let it play: Seepo is a made-up client, and your questions pop up where they're answered.",
+              "caption": "Tap along or let it play: Sipho is a made-up client, and your questions pop up where they're answered.",
+              "action": "A 'Sample data' badge pins to the top-right corner and stays on every consumer screen for the rest of the film. A demo callout bubble slides in from the right edge (label 'Mark asked', a one-line answer, a clause chip) and slides away. Two mode buttons appear: 'Play it for me' and 'I'll tap through'. With prefers-reduced-motion, every slide in the film becomes a cross-fade and typing animations show the full text at once.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "How would you like to watch?",
+                "options": [
+                  "Play it for me",
+                  "I'll tap through"
+                ],
+                "branches": {
+                  "Play it for me": "Auto-play: narration runs beat to beat; every interactive step takes its default after a 2-second pause, and branch beats play in order.",
+                  "I'll tap through": "Each beat waits for the viewer's tap or choice; the narration clip for a beat plays when its visual is reached; the chosen branch plays first, then 'See the other answers' chips offer the rest."
+                }
+              },
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c1s2",
+          "title": "The ad, WhatsApp and the consent tap",
+          "screen": "phone",
+          "beats": [
+            {
+              "id": "c1s2b1",
+              "say": "It starts with a Sort My Cover ad that never names you, an insurer, a product or a price. And we never give advice: you do.",
+              "caption": "It starts with a SortMyCover ad that never names you, an insurer, a product or a price. And we never give advice: you do.",
+              "action": "Phone, consumer side, SortMyCover brand only. An Instagram feed scrolls; a sample SortMyCover video ad plays (creative C03, captions exactly as rendered): 'Bond approved Champagne open Cover checked?' → 'A new bond can outgrow old cover.' → 'A licensed adviser checks it in 30 minutes.' → end card 'Sort your cover. 30 minutes. A real adviser.' / 'Tap to check your cover'. Ad button 'Learn more' (the only CTA our ads code allows). Small grey label 'Sample ad'. No broker name, insurer, product or premium anywhere. Outside the phone, a small viewer-only label beside the ad's '30 minutes' line: '30 minutes = the length of the call he books, at a time he picks'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s2b2",
+              "say": "Seepo taps it, and WhatsApp opens. Because he chats from his own number, it's verified from his first message.",
+              "caption": "Sipho taps it, and WhatsApp opens. Because he chats from his own number, it's verified from his first message.",
+              "action": "WhatsApp opens on the 'SortMyCover' business chat. The composer is pre-filled: 'Hi, I'd like to check my life cover'. The send arrow pulses. After send, a viewer-only side rail outside the phone ticks: 'WhatsApp number verified · 082 555 0101'.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tap send for Sipho",
+                "options": [
+                  "Send"
+                ],
+                "branches": {
+                  "Send": "The message sends; typing dots, then the consent message arrives (next beat)."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s2b3",
+              "say": "Before any question, he's asked if we may share his details with your practice, named with your F S P number. He taps Yes, continue.",
+              "caption": "Before any question, he's asked if we may share his details with your practice, named with your FSP number. He taps Yes, continue.",
+              "action": "Interactive message bubble types in: 'Before we start: if it's a fit, we'll share your details with {PRACTICE} (FSP 28418), an authorised financial services provider who'll contact you about insurance and financial planning. OK to continue?' After a blank line, in the same bubble, the live responsible-party footer in full: 'Lead Velocity (Pty) Ltd runs SortMyCover and is responsible for your details. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy'. Buttons slide up: 'Yes, continue' · 'No thanks'. This bubble is the exact consent-record wording (W03, ctwa-named-v3), so never shorten it. If page-cro-spec B61's footer ('SortMyCover is responsible for your details…') is live before rendering, use that instead. Jonathan may choose to drop the footer line entirely (script-sources.md, contradiction 2); a half footer is never allowed.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Which would Sipho tap?",
+                "options": [
+                  "Yes, continue",
+                  "No thanks"
+                ],
+                "branches": {
+                  "Yes, continue": "His tap shows as a sent reply; the capture form message arrives (scene c1s3).",
+                  "No thanks": "Reply bubble: 'No problem. We won’t contact you again. Take care.' The chat closes, his number goes on the do-not-contact list and nothing is passed to Mark. A 'Back' chip returns to the consent message."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s2b4",
+              "say": "That tap, the wording he saw and the time become his consent record. If you ever question a lead, you get it.",
+              "caption": "That tap, the wording he saw and the time become his consent record. If you ever question a lead, you get it.",
+              "action": "The consent bubble shrinks and flies to the side rail as a 'Consent record' card: 'Wording: named consent · Tapped: Yes, continue · Mon 19 Oct 19:42 · Source: WhatsApp ad'. The callout pops beside it.",
+              "interactive": null,
+              "callout": {
+                "mark_asked": "For a disputed lead, give me evidence of consent, the appointment confirmation and how they qualified.",
+                "answer": "Ask in writing about a specific lead and within 2 working days you get the consent record, the booking confirmation and the lead's own answers.",
+                "clause": "7.8"
+              }
+            }
+          ]
+        },
+        {
+          "id": "c1s3",
+          "title": "A few quick taps",
+          "screen": "phone",
+          "beats": [
+            {
+              "id": "c1s3b1",
+              "say": "A short form then opens inside WhatsApp itself, with no website and no app. He taps Start.",
+              "caption": "A short form then opens inside WhatsApp itself, with no website and no app. He taps Start.",
+              "action": "Message: 'Thanks Sipho. A few quick taps and you can pick a time with an adviser.' with the Flow button 'Start'. On tap, a WhatsApp Flow sheet slides up from the bottom. Every Flow screen shows its title in the header and a 'Continue' footer button.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tap Start",
+                "options": [
+                  "Start"
+                ],
+                "branches": {
+                  "Start": "The Flow sheet opens on 'What can we help with?'."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s3b2",
+              "say": "First, what does he want to talk about? He can tick several, and every client, for every broker, gets the same questions.",
+              "caption": "First, what does he want to talk about? He can tick several, and every client, for every broker, gets the same questions.",
+              "action": "Flow screen 'What can we help with?'. Sub-heading 'What would you like to talk to an adviser about?'. Checkbox group 'Choose all that apply': 'Life cover' · 'Funeral cover' · 'Retirement planning' · 'Investments' · 'Disability cover' · 'I feel like I'm paying too much' · 'Something else'. Sipho ticks 'Life cover', 'Investments' and 'I feel like I'm paying too much'. Footer 'Continue'. Side rail: a small amber chip 'Investments → licence check' drops onto a mini 'Lead record' card that opens fully in Part 2.",
+              "interactive": {
+                "type": "toggle",
+                "prompt": "Tick what Sipho wants to talk about",
+                "options": [
+                  "Life cover",
+                  "Funeral cover",
+                  "Retirement planning",
+                  "Investments",
+                  "Disability cover",
+                  "I feel like I'm paying too much",
+                  "Something else"
+                ],
+                "branches": {
+                  "nothing ticked": "Continue shows the error line 'Please choose at least one.'",
+                  "anything ticked": "Continue moves to 'Your current cover'. Default ticks in Play mode: Life cover, Investments, I feel like I'm paying too much."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s3b3",
+              "say": "Next, and optional: what is he paying now? Because he ticked paying too much, the question says so.",
+              "caption": "Next, and optional: what is he paying now? Because he ticked paying too much, the question says so.",
+              "action": "Flow screen 'Your current cover'. Sub-heading 'You said you might be paying too much. What are you paying at the moment? (Optional)'. Radio group 'Total per month': 'Under R500' · 'R500 to R1,000' · 'R1,000 to R1,500' · 'R1,500 to R2,500' · 'R2,500 or more' · 'Prefer not to say'. Sipho picks 'R1,000 to R1,500'. Continue.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s3b4",
+              "say": "Then his name and surname: obvious fakes are turned away, and three bad tries end the chat with nothing passed on.",
+              "caption": "Then his name and surname: obvious fakes are turned away, and three bad tries end the chat with nothing passed on.",
+              "action": "Flow screen 'Your name'. 'What is your name?' Fields 'Name' and 'Surname'. The viewer's choice runs here (Play mode: 'test' first, then the real name). Side rail note: 'Third bad name, email or number → \"Thanks for your time. We couldn't confirm your contact details, so we can't pass your enquiry on right now. You can message us again at any time.\"'",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Try a fake name",
+                "options": [
+                  "Type 'test'",
+                  "Type Sipho Ndlovu"
+                ],
+                "branches": {
+                  "Type 'test'": "'test' types into Name; Continue shows the error 'Please enter your real name and surname, letters only.' A chip then offers the real name.",
+                  "Type Sipho Ndlovu": "'Sipho' / 'Ndlovu' fill in; Continue moves to 'Your email'."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s3b5",
+              "say": "Then his email for the invite, checked while he waits. He can add a second address, or tick Same as above.",
+              "caption": "Then his email for the invite, checked while he waits. He can add a second address, or tick Same as above.",
+              "action": "Flow screen 'Your email'. 'Where should we send your meeting invite?' Field 'Email': sipho@example.co.za. Tick box 'Same as above (no other email)' (ticked). Field 'Alternative email (optional)' greys out. Continue. Side rail: 'Checked in under a second: format, typos, throwaway domains, mail server'.",
+              "interactive": {
+                "type": "toggle",
+                "prompt": "Does Sipho have another email?",
+                "options": [
+                  "Same as above (no other email)",
+                  "Add an alternative email"
+                ],
+                "branches": {
+                  "Same as above (no other email)": "The alternative field greys out; Continue.",
+                  "Add an alternative email": "The 'Alternative email (optional)' field takes focus; it is checked the same way."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s3b6",
+              "say": "Is this the number to call you on? One tap says yes, and another number must be a South African mobile, not a landline.",
+              "caption": "Is this the number to call you on? One tap says yes, and another number must be a South African mobile, not a landline.",
+              "action": "Flow screen 'Your number'. Sub-heading 'Is 082 555 0101 the number to call you on?'. Radio group 'Contact number': 'Yes, use my WhatsApp number' · 'No, use another number'. Field 'Other number (only if you chose another)'.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Is this Sipho's number for the call?",
+                "options": [
+                  "Yes, use my WhatsApp number",
+                  "No, use another number"
+                ],
+                "branches": {
+                  "Yes, use my WhatsApp number": "Call number = his verified WhatsApp number. Continue.",
+                  "No, use another number": "The other-number field takes focus. A landline typed in shows 'Please use a South African mobile number.'; a mobile is accepted and stored as checked but not verified."
+                }
+              },
+              "callout": {
+                "mark_asked": "Fake information and invalid or disconnected numbers must not count, and should be replaced.",
+                "answer": "They never count, so they use up nothing: your 20 are all leads with valid details.",
+                "clause": "5.8(d), 7.2"
+              }
+            },
+            {
+              "id": "c1s3b7",
+              "say": "Then his age group: thirty-five to fifty qualifies. Anyone younger or older is thanked politely and never passed on.",
+              "caption": "Then his age group: 35 to 50 qualifies. Anyone younger or older is thanked politely and never passed on.",
+              "action": "Flow screen 'Your age'. 'Which age group are you in?' Radio group 'Age': 'Under 35' · '35 to 44' · '45 to 50' · '51 or older'. Sipho picks '35 to 44'. Continue.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c1s4",
+          "title": "The budget: try it",
+          "screen": "phone",
+          "beats": [
+            {
+              "id": "c1s4b1",
+              "say": "Now the question that matters most to you: what could he put towards cover each month? Try it: pick any answer.",
+              "caption": "Now the question that matters most to you: what could he put towards cover each month? Try it: pick any answer.",
+              "action": "Flow screen 'Your budget'. 'Roughly what could you put towards cover each month?' Radio group 'Per month': 'R1,500 or more' · 'R1,250 to R1,499' · 'R750 to R1,249' · 'Under R750'. The four options pulse gently. Play mode: Sipho picks 'R1,500 or more' after 2 seconds; beats 3 and 4 then replay the other outcomes. The 1a callout pops as soon as an option is chosen.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "What budget does Sipho give?",
+                "options": [
+                  "R1,500 or more",
+                  "R1,250 to R1,499",
+                  "R750 to R1,249",
+                  "Under R750"
+                ],
+                "branches": {
+                  "R1,500 or more": "A-tier: stamp 'A-tier · counted automatically'; continue to the two optional questions, then 'Pick a day' (beat 2, then scene c1s5).",
+                  "R1,250 to R1,499": "B-tier: stamp 'B-tier · offered to Mark'; continue through the two optional questions; end on 'We're matching you with an adviser' (beat 3).",
+                  "R750 to R1,249": "B-tier: same path as 'R1,250 to R1,499' (beat 3).",
+                  "Under R750": "Filtered out: END 'Thank you' screen; stamp 'Never sent · never counted' (beat 4)."
+                }
+              },
+              "callout": {
+                "mark_asked": "Make R1,500 a month the minimum budget, not R750.",
+                "answer": "R1,500+ is now the minimum target of every campaign: A-tier, counted automatically. R750 to R1,499 counts only if you accept it. Under R750 is never sent.",
+                "clause": "5.6, 5.7"
+              }
+            },
+            {
+              "id": "c1s4b2",
+              "say": "Fifteen hundred rand or more is A-tier, the minimum target of every campaign. He books straight into your calendar and counts automatically.",
+              "caption": "R1,500 or more is A-tier, the minimum target of every campaign. He books straight into your calendar and counts automatically.",
+              "action": "Badge 'A-tier' stamps onto the side-rail lead card; an arrow labelled 'Pick a day' points forward.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s4b3",
+              "say": "Seven hundred and fifty to fourteen ninety-nine rand is B-tier. It's offered to you first, to Accept or Decline, and he's told we're matching him with an adviser.",
+              "caption": "R750 to R1,499 is B-tier. It's offered to you first, to Accept or Decline, and he's told we're matching him with an adviser.",
+              "action": "Replay with 'R1,250 to R1,499' selected. Badge 'B-tier · offered to Mark'. The two optional screens flash past, then the END screen: heading 'We're matching you with an adviser', body 'Thanks Sipho. We're matching you with an authorised adviser now. We'll message you here on WhatsApp shortly so you can pick a time.' Footer 'Done'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s4b4",
+              "say": "Under seven hundred and fifty rand, he's thanked and filtered out. He's never sent to you, and never counted.",
+              "caption": "Under R750, he's thanked and filtered out. He's never sent to you, and never counted.",
+              "action": "Replay with 'Under R750' selected. END screen: heading 'Thank you', body 'Thanks for your time, Sipho. Based on your answers, the advisers we work with aren't the right fit right now, so we won't pass your details on. Take care.' Badge 'Filtered out · never sent · never counted'. Then the film returns to the A-tier path.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c1s5",
+          "title": "Two optional questions",
+          "screen": "phone",
+          "beats": [
+            {
+              "id": "c1s5b1",
+              "say": "Back on the A-tier path, two optional questions: first, does he smoke? It's used only to brief you, and never goes to advertisers.",
+              "caption": "Back on the A-tier path, two optional questions: first, does he smoke? It's used only to brief you, and never goes to advertisers.",
+              "action": "Flow screen 'One more thing'. Text: 'Do you smoke? (Optional — used only to brief your adviser Mark before the call.)' Radio group 'Smoker': 'No' · 'Yes' · 'Prefer not to say'. Sipho picks 'No'. Side rail: 'Saved with the exact wording and the time. Never sent to Meta.'",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s5b2",
+              "say": "And his income band, also optional, only to brief you. Checking income and affordability stays part of your own needs analysis.",
+              "caption": "And his income band, also optional, only to brief you. Checking income and affordability stays part of your own needs analysis.",
+              "action": "Flow screen 'Your income'. 'What is your monthly income before tax? (Optional)' Radio group 'Income': 'Under R20,000' · 'R20,000 to R39,999' · 'R40,000 to R59,999' · 'R60,000 to R99,999' · 'R100,000 or more' · 'Prefer not to say'. Sipho picks 'R40,000 to R59,999'. Continue.",
+              "interactive": null,
+              "callout": {
+                "mark_asked": "Verify age, income and affordability.",
+                "answer": "Age, budget and income are the client's own answers, and we don't verify them. Affordability is part of your needs analysis.",
+                "clause": "5.3, 14.2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "c1s6",
+          "title": "Pick a time, and your welcome card",
+          "screen": "phone",
+          "beats": [
+            {
+              "id": "c1s6b1",
+              "say": "Then he picks a day and a time. He only sees free times from your own Outlook calendar, inside your hours.",
+              "caption": "Then he picks a day and a time. He only sees free times from your own Outlook calendar, inside your hours.",
+              "action": "Flow screen 'Pick a day'. 'Pick a day for your Teams call with Mark'. WhatsApp's calendar picker, label 'Day': only Mark's working days are selectable; full or blocked days are greyed. Tap 'Tue 20 Oct' → Flow screen 'Pick a time', sub-heading 'Tue 20 Oct (South African time)', radio group 'Time': '09:00' · '10:00' · '11:30' · '14:00'. Sipho picks '10:00'.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Pick a day, then a time",
+                "options": [
+                  "Tue 20 Oct",
+                  "10:00"
+                ],
+                "branches": {
+                  "Tue 20 Oct": "That day's free times appear.",
+                  "10:00": "Continue moves to 'Check and book'."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s6b2",
+              "say": "He taps Book my call, and your calendar is checked again at that moment, so you're never double-booked.",
+              "caption": "He taps Book my call, and your calendar is checked again at that moment, so you're never double-booked.",
+              "action": "Flow screen 'Check and book': 'Tue 20 Oct at 10:00 (South African time), 30-minute Microsoft Teams call with Mark from {PRACTICE} (FSP 28418). We’ll email the Teams link to sipho@example.co.za.' Footer button 'Book my call'. On tap, a short 'checking calendar' shimmer. (If the time had just gone: 'That time was just taken. We'll send you the next free times here on WhatsApp in a moment.')",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tap Book my call",
+                "options": [
+                  "Book my call"
+                ],
+                "branches": {
+                  "Book my call": "Calendar re-check shimmer, then the 'You're booked' screen."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c1s6b3",
+              "say": "He's booked, and your welcome card lands in his chat: your photo, or initials for now, your name, practice and F S P number.",
+              "caption": "He's booked, and your welcome card lands in his chat: your photo, or initials for now, your name, practice and FSP number.",
+              "action": "Flow END screen 'You're booked': 'Mark from {PRACTICE} (FSP 28418) will meet you on Teams on Tue 20 Oct at 10:00. We have emailed the Teams invite to sipho@example.co.za. Your confirmation is on its way here on WhatsApp.' Tap 'Done'; the sheet slides down. The welcome card arrives in the chat. Image header = intro card: initials disc 'MW', 'Mark Weston', '{PRACTICE}', 'Authorised financial services provider · FSP 28418', '30-min Teams, Phone call · No obligation' (the card lists Mark's meeting methods as set in the portal: Teams and Phone). Body: 'Hi Sipho, thanks for your insurance and financial planning enquiry. Your details have been passed to *{PRACTICE} (FSP 28418)*, an authorised financial services provider. *Mark Weston* will be your adviser for your Microsoft Teams call on *Tue 20 Oct at 10:00*. Our WhatsApp assistant uses AI. Reply STOP to opt out.' Footer 'SortMyCover'. Buttons 'Add to calendar' · 'Reschedule' · 'Cancel'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c1s6b4",
+              "say": "Then we email him a one-tap link and a six-digit code, to prove the address is really his.",
+              "caption": "Then we email him a one-tap link and a 6-digit code, to prove the address is really his.",
+              "action": "The phone switches to a mail app. Sender line shown as a neutral blur (no name, no address): the live sender is howzit@leadvelocity.co.za and its display name is not confirmed. Subject 'Confirm your email for your call with Mark'. Body: 'Hi Sipho, / Please confirm this is your email address so Mark can send you your meeting details: / https://sortmycover.co.za/v/… / Or reply on WhatsApp with this code: 482913 / The link and code work for 24 hours. If you did not ask for this, ignore this email. / SortMyCover'.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Confirm Sipho's email",
+                "options": [
+                  "Tap the link",
+                  "Type the code on WhatsApp"
+                ],
+                "branches": {
+                  "Tap the link": "A browser flash; the side rail ticks 'Email confirmed'.",
+                  "Type the code on WhatsApp": "Back in the chat Sipho sends '482913'; the side rail ticks 'Email confirmed'."
+                }
+              },
+              "callout": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "Part 2 · Your side",
+      "scenes": [
+        {
+          "id": "c2s1",
+          "title": "An A-tier lead lands",
+          "screen": "mark",
+          "beats": [
+            {
+              "id": "c2s1b1",
+              "say": "Now your side. Seepo's Teams meeting is already in your Outlook calendar, and WhatsApp tells you at once.",
+              "caption": "Now your side. Sipho's Teams meeting is already in your Outlook calendar, and WhatsApp tells you at once.",
+              "action": "Mark-facing split screen (Lead Velocity branding allowed). Left: Outlook calendar, Tue 20 Oct, 10:00 to 10:30, event 'Life cover call – Sipho – Teams' (the live W05 subject; if W05's subject changes, match it) with a Microsoft Teams 'Join' link. Right: Mark's phone, WhatsApp template with header 'New booking': 'New booking for you, Mark: *Sipho* on *Tue 20 Oct at 10:00* by Microsoft Teams. Age band 35-44, budget band R1,500+. It is in your Outlook calendar, and the pre-call brief will follow 15 minutes before the call.' Footer 'SortMyCover by Lead Velocity'. Button 'Open in portal'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c2s1b2",
+              "say": "He's an A-tier lead, so there's nothing to approve. Once he's booked and confirmed he'll attend, he counts toward your twenty.",
+              "caption": "He's an A-tier lead, so there's nothing to approve. Once he's booked and confirmed he'll attend, he counts toward your 20.",
+              "action": "Counter '1 of 20 delivered' ticks up from 0, labelled 'A-tier · counted automatically'. No show-rate, cost, target or campaign figures anywhere on this screen.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c2s1b3",
+              "say": "After each call, tell us within twenty-four hours whether he attended and could be contacted. That's all we ask: never sales or policies.",
+              "caption": "After each call, tell us within 24 hours whether he attended and could be contacted. That's all we ask: never sales or policies.",
+              "action": "Mark's phone: a portal row 'Sipho Ndlovu · Tue 20 Oct 10:00 · Teams' with 'Step 1: what happened?' and the buttons 'Attended' · 'No-show' · 'Rescheduled'. The viewer's choice runs here (Play mode: 'Attended'). Chip: 'Attendance only. Nothing about sales.' RELEASE GATE (script-sources.md, contradiction 9): today the real My leads page will not save 'Attended' without a Step 2 disposition and a Step 3 quality score, and it shows the broker a show-rate target, a per-cycle replacement cap and 48-hour replacement wording. Leads.tsx must change to Step 1 plus 'could be contacted' before Mark gets a login; then re-check this shot and render the 'could be contacted' control exactly as built. Until then this beat is not true of the product.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "What happened on Sipho's call?",
+                "options": [
+                  "Attended",
+                  "No-show",
+                  "Rescheduled"
+                ],
+                "branches": {
+                  "Attended": "The row shows 'Attended'; the chip 'Attendance only. Nothing about sales.' stays.",
+                  "No-show": "A viewer-only Schedule 3 strip opens beside the row: 'Wait 10 minutes in the call' → 'Screenshot straight away, by 30 minutes past the start at the latest' → 'Out of goodwill, up to 3 no-show replacements a week; if approved, we aim to deliver within 14 days'. Chip: 'Late or missing proof: the lead stands as delivered.'",
+                  "Rescheduled": "The row shows 'Rescheduled'."
+                }
+              },
+              "callout": {
+                "mark_asked": "A qualified lead must attend, and if attendance drops below 70% in a cycle, replace leads until it's back above 70%.",
+                "answer": "Attendance isn't part of the lead definition, because nobody can control who turns up. A no-show can be replaced out of goodwill, up to 3 a week.",
+                "clause": "5.5, 7.1, 7.2"
+              }
+            }
+          ]
+        },
+        {
+          "id": "c2s2",
+          "title": "Sipho's lead record",
+          "screen": "mark",
+          "beats": [
+            {
+              "id": "c2s2b1",
+              "say": "Open the lead and it's all there: tier, name, numbers, email, reasons, age, budget, and any optional answers he gave.",
+              "caption": "Open the lead and it's all there: tier, name, numbers, email, reasons, age, budget, and any optional answers he gave.",
+              "action": "Lead record card labelled 'A-tier' and 'Sample data'. Rows: 'Sipho Ndlovu' · 'WhatsApp 082 555 0101' · 'Call on: same as WhatsApp' · 'Email sipho@example.co.za' · 'Alternative email: same as above' · 'Reasons: Life cover · Investments · I feel like I'm paying too much' · 'Age band 35 to 44' · 'Budget band R1,500 or more' · 'Pays now R1,000 to R1,500' · 'Income R40,000 to R59,999' · 'Smoker: No' · 'Appointment: Tue 20 Oct 10:00 · Microsoft Teams · link in your calendar'. This layout is the film's own illustration of the data the contract says Mark receives; do not label it as a named portal page.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c2s2b2",
+              "say": "Ticks show what's verified: his WhatsApp number, because he chatted from it, and his email, once he tapped the link.",
+              "caption": "Ticks show what's verified: his WhatsApp number, because he chatted from it, and his email, once he tapped the link.",
+              "action": "Green ticks animate onto the WhatsApp row ('✓ verified'), the call-number row ('✓ same as WhatsApp') and then the email row ('✓ confirmed'). The callout pops.",
+              "interactive": null,
+              "callout": {
+                "mark_asked": "If more than 25% of leads have invalid or unreachable details, replace them or refund.",
+                "answer": "No threshold: a lead with invalid contact details never counts toward your 20, from the very first one. A valid number that just doesn't answer isn't covered: see requests 6 and 1b in Part 3.",
+                "clause": "5.8(d)"
+              }
+            },
+            {
+              "id": "c2s2b3",
+              "say": "Say investments is outside your licence: it's flagged, so you can handle it or refer him. You don't need to worry about it.",
+              "caption": "Say investments is outside your licence: it's flagged, so you can handle it or refer him. You don't need to worry about it.",
+              "action": "An amber flag attaches to 'Investments' and pulses. Tapped (Play mode: after 2 seconds) it opens: 'Outside your licence: handle or refer'. Small grey note under it: 'Until your licence categories are on file, this reads: Licence check needed.'",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tap the amber flag",
+                "options": [
+                  "Investments"
+                ],
+                "branches": {
+                  "Investments": "The flag opens: 'Outside your licence: handle or refer'."
+                }
+              },
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c2s3",
+          "title": "A B-tier lead: Accept or Decline",
+          "screen": "mark",
+          "beats": [
+            {
+              "id": "c2s3b1",
+              "say": "Now a B-tier lead: Thandi, another sample client, said seven hundred and fifty to twelve forty-nine rand. You get this first.",
+              "caption": "Now a B-tier lead: Thandi, another sample client, said R750 to R1,249. You get this first.",
+              "action": "Mark's phone, WhatsApp template: 'Hi Mark, a new SortMyCover enquiry is available to you: Thandi, age 35 to 44, budget R750 to R1,249 a month, interested in Life cover, Funeral cover. This lead is below R1,500 a month, so it only counts if you accept it. Please accept or decline by Wed 21 Oct at 09:00. If you don't reply by then, it goes to another adviser.' Footer 'SortMyCover'. Buttons 'Accept' · 'Decline'. WhatsApp only: the portal has no offer row (script-sources.md, contradiction 9), so never show one. 'Sample data' badge.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c2s3b2",
+              "say": "You have two working hours: eight to five, weekdays, not public holidays. This came in at four, so the deadline is nine next morning.",
+              "caption": "You have 2 working hours: 08:00 to 17:00, weekdays, not public holidays. This came in at 16:00, so the deadline is 09:00 next morning.",
+              "action": "Clock strip under the phone, driven by the viewer's choice (Play mode: 'Tue 20 Oct 16:00', matching the narration): 'Offered Tue 20 Oct 16:00' → the first hour fills to 17:00 → the night is shaded 'paused' → the second hour fills 08:00 to 09:00 on Wed 21 Oct → pin 'Deadline: Wed 21 Oct at 09:00'.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Move the offer time",
+                "options": [
+                  "Tue 20 Oct 10:00",
+                  "Tue 20 Oct 16:00",
+                  "Fri 23 Oct 16:30"
+                ],
+                "branches": {
+                  "Tue 20 Oct 10:00": "Two hours fill from 10:00: pin 'Deadline: Tue 20 Oct at 12:00' (the same day).",
+                  "Tue 20 Oct 16:00": "One hour to 17:00, the night paused, one hour from 08:00: pin 'Deadline: Wed 21 Oct at 09:00'.",
+                  "Fri 23 Oct 16:30": "Half an hour to 17:00, the weekend paused, 90 minutes from Monday 08:00: pin 'Deadline: Mon 26 Oct at 09:30'."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c2s3b3",
+              "say": "Try it. Accept, or Decline.",
+              "caption": "Try it. Accept, or Decline.",
+              "action": "The 'Accept' and 'Decline' buttons pulse. Play mode plays Accept (beat 4), then Decline (beat 5).",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Thandi said R750 to R1,249 a month. Accept or Decline?",
+                "options": [
+                  "Accept",
+                  "Decline"
+                ],
+                "branches": {
+                  "Accept": "Mark's chat shows 'Accepted. Thandi is now your lead and gets your booking card.' → beat 4.",
+                  "Decline": "Mark's chat shows 'Declined. Thandi will not be sent to you and does not count.' → beat 5."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c2s3b4",
+              "say": "Accept, and she gets your welcome card with a Pick a time button. Once she books and confirms, she counts toward your twenty.",
+              "caption": "Accept, and she gets your welcome card with a Pick a time button. Once she books and confirms, she counts toward your 20.",
+              "action": "Mark's chat: 'Accepted. Thandi is now your lead and gets your booking card.' Thandi's phone slides in (SortMyCover brand), image header = Mark's intro card (initials disc 'MW'): 'Hi Thandi, thanks for your insurance and financial planning enquiry. Your details have been passed to *{PRACTICE} (FSP 28418)*, an authorised financial services provider. *Mark Weston* can do a 30-minute call. Pick a time below. Our WhatsApp assistant uses AI. Reply STOP to opt out.' Footer 'SortMyCover'. Button 'Pick a time'. Counter chip: 'Counts once she books and confirms'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c2s3b5",
+              "say": "Decline, and she doesn't count and isn't charged. She may go to another adviser with her consent, but never back to you.",
+              "caption": "Decline, and she doesn't count and isn't charged. She may go to another adviser with her consent, but never back to you.",
+              "action": "Mark's chat: 'Declined. Thandi will not be sent to you and does not count.' The counter stays at '1 of 20'. Thandi's card slides off Mark's side with the tag 'Never re-offered to you'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c2s3b6",
+              "say": "No answer by the deadline counts as a decline.",
+              "caption": "No answer by the deadline counts as a decline.",
+              "action": "The clock strip reaches 09:00 with no tap: chip 'No answer = declined'. Small in the corner, Thandi's phone shows the line she got when the offer was made: 'Thanks Thandi. We're matching you with an authorised adviser now. We'll message you here shortly so you can pick a time.' with the chip 'She's told an adviser is being matched'. Not narrated: Part 1 already said it.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "Part 3 · Your requests, and what v0.2 says",
+      "scenes": [
+        {
+          "id": "c3s1",
+          "title": "Your nine points",
+          "screen": "amend",
+          "beats": [
+            {
+              "id": "c3s1b1",
+              "say": "You sent nine points, the first in two parts. Here's what the updated agreement says on each, with clause numbers.",
+              "caption": "You sent nine points, the first in two parts. Here's what the updated agreement (v0.2) says on each, with clause numbers.",
+              "action": "Header chip 'Lead Generation Services Agreement v0.2 · 7 October 2026 · every change marked'. A grid of ten tiles, each with Mark's request in a few words and a status chip: '1a Budget floor R1,500+ · Changed' · '1b Contactable and attends · Partly' · '2 Replacements as a right · Not changed' · '3 Verify age, income, affordability · Partly' · '4 Force majeure and day 44 · Changed' · '5 Replacement within 14 days · Not changed' · '6 Invalid numbers and no-replies · Partly' · '7 Attendance under 70% · Not changed' · '8 Over 25% invalid · Changed for invalid details (better than asked)' · '9 Dispute evidence · Changed'. Every amendment card in Part 3 opens with Mark's own request ('You asked: …') and carries two chips at the bottom: 'Next request' and 'Back to all requests'. Part 3 has no callout bubbles: each card is the answer.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tap any request to jump to its card",
+                "options": [
+                  "1a",
+                  "1b",
+                  "2",
+                  "3",
+                  "4",
+                  "5",
+                  "6",
+                  "7",
+                  "8",
+                  "9"
+                ],
+                "branches": {
+                  "2": "Jump to c3s4b1.",
+                  "3": "Jump to c3s4b5.",
+                  "4": "Jump to c3s2b5.",
+                  "5": "Jump to c3s4b2.",
+                  "6": "Jump to c3s2b3.",
+                  "7": "Jump to c3s4b3.",
+                  "8": "Jump to c3s2b2.",
+                  "9": "Jump to c3s2b4.",
+                  "1a": "Jump to c3s2b1.",
+                  "1b": "Jump to c3s4b4."
+                }
+              },
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c3s2",
+          "title": "What changed",
+          "screen": "amend",
+          "beats": [
+            {
+              "id": "c3s2b1",
+              "say": "One A, the budget: fifteen hundred rand or more is now every campaign's minimum target. Between seven fifty and fourteen ninety-nine, a lead counts only if you accept it.",
+              "caption": "1a, the budget: R1,500 or more is now every campaign's minimum target. Between R750 and R1,499, a lead counts only if you accept it.",
+              "action": "Amendment card '1a · Budget floor' with status 'Changed'. Top line 'You asked: Make R1,500 a month the minimum budget, not R750.' Quoted v0.2 lines with the 'Changed in v0.2' marker: '(a) A-tier: R1,500 or more a month. This is the minimum target of every Campaign.' · '(b) B-tier: R750 to R1,499 a month… counts only if the Client accepts it.' · '(c) Under R750 a month. Filtered out. Never sent to the Client and never counted.' Clause chips '5.6' '5.7'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s2b2",
+              "say": "Eight: you asked for a fix above a quarter of bad leads. Better than that, a lead with invalid details never counts, from the very first one.",
+              "caption": "8: you asked for a fix above a quarter of bad leads. Better than that, a lead with invalid details never counts, from the very first one.",
+              "action": "Amendment card '8 · Invalid details' with status 'Changed for invalid details (better than asked)'. Top line 'You asked: If more than 25% of leads have invalid or unreachable details, replace them or refund.' Quoted v0.2 line: 'a lead whose contact details fail these checks, or are later shown to be wrong, disconnected or someone else's, is automatically disqualified… does not count toward the Committed Leads.' A '25%' threshold bar dissolves into a single crossed-out lead icon labelled 'from lead 1'. Footnote: 'A valid number that doesn't answer isn't covered: see 6 and 1b.' Clause chip '5.8(d)'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s2b3",
+              "say": "Six: a wrong or disconnected number never counts, so nothing needs replacing. A booked client who doesn't join is a no-show.",
+              "caption": "Six: a wrong or disconnected number never counts, so nothing needs replacing. A booked client who doesn't join is a no-show.",
+              "action": "Amendment card '6 · Invalid numbers and no-replies' with status 'Partly'. Top line 'You asked: An invalid or disconnected number, or no reply after 3 attempts in 72 hours, must not qualify and must be replaced.' Two columns: 'Wrong or disconnected → never counts (5.8(d)); needs no replacement (7.2)' · 'Booked but doesn't join → a no-show (see card 2)'. Clause chips '5.8(d)' '7.2'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s2b4",
+              "say": "Nine: ask in writing about any lead, and within two working days you get its consent record, booking confirmation and answers.",
+              "caption": "9: ask in writing about any lead, and within 2 working days you get its consent record, booking confirmation and answers.",
+              "action": "Amendment card '9 · Dispute evidence' with status 'Changed'. Top line 'You asked: For a disputed lead, give me evidence of consent, the appointment confirmation and how they qualified.' Three document icons fan out: 'Consent record' · 'Booking confirmation' · 'The lead's own answers', under a '2 working days' timer. Clause chip '7.8'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s2b5",
+              "say": "Four: force majeure can't stretch delivery any more. A delay, such as a Meta outage, gets fourteen extra days at most, so a cycle's delivery ends by day forty-four.",
+              "caption": "4: force majeure can't stretch delivery any more. A delay, such as a Meta outage, gets 14 extra days at most, so a cycle's delivery ends by day 44.",
+              "action": "Amendment card '4 · Force majeure and day 44' with status 'Changed'. Top line 'You asked: Force majeure shouldn't let Meta delays stretch delivery past 44 days.' Quoted v0.2 lines: 'A force majeure event never extends delivery beyond day 44 of a Billing Cycle.' (20.2) · 'The Rollover Period is never longer than 14 days, so delivery for a Billing Cycle ends on day 44 at the latest.' (6.1). Clause chips '20.2' '6.1'. Never write 'only for delays outside our control' in the film unless 6.1 is amended to say so (script-sources.md, contradiction 14).",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c3s3",
+          "title": "After day 44: your choice",
+          "screen": "amend",
+          "beats": [
+            {
+              "id": "c3s3b1",
+              "say": "After day forty-four, your choice: anything still owed rolls into your next cycle, on top of your twenty, or you ask for a refund.",
+              "caption": "After day 44, your choice: anything still owed rolls into your next cycle, on top of your 20, or you ask for a refund.",
+              "action": "Timeline bar: 'Day 1 to 30: your cycle' → 'Day 31 to 44: up to 14 extra days if delivery is delayed (e.g. a Meta or WhatsApp outage)' → a hard wall at 'Day 44'. Sample: 3 leads still owed sit at the wall. A two-way toggle below.",
+              "interactive": {
+                "type": "toggle",
+                "prompt": "After day 44, what would you choose?",
+                "options": [
+                  "Roll over on top",
+                  "Refund instead"
+                ],
+                "branches": {
+                  "Roll over on top": "The 3 leads slide into cycle 2: '20 + 3'. Clause chip '6.2'.",
+                  "Refund instead": "The 3 leads turn into 'R825 × 3 = R2,475, paid within 7 working days'. Clause chip '6.3'."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c3s3b2",
+              "say": "A refund is eight hundred and twenty-five rand a lead, your Bronze price, paid within seven working days of asking.",
+              "caption": "A refund is R825 a lead, your Bronze price, paid within 7 working days of asking.",
+              "action": "Card: 'R16,500 ÷ 20 = R825 per lead' · 'Paid within 7 working days of your request'. Clause chips '6.3' 'Schedule 1'.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c3s4",
+          "title": "What stays the same, and why",
+          "screen": "amend",
+          "beats": [
+            {
+              "id": "c3s4b1",
+              "say": "Two: no-show replacements remain a goodwill gesture, up to three a week. We nurture clients through consistent WhatsApp messages and notifications, and they can opt in or out at any time. That helps us know well in advance when someone cannot attend. Even so, nobody can guarantee attendance. If a client misses the call, our first priority is to do our best to reschedule. If we cannot reschedule, we will replace the lead through our goodwill process.",
+              "caption": "2: goodwill means supporting you beyond delivery. Consistent WhatsApp nurturing and opt-in or opt-out help us spot attendance problems early. For a no-show, reschedule first; if that cannot be arranged, replace through our goodwill process, up to 3 a week.",
+              "action": "Goodwill explanation: consistent WhatsApp nurturing; opt in or out at any time; early notice when possible; attendance cannot be guaranteed; reschedule first, then replace through goodwill, up to 3 a week. No website-update reference.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s4b2",
+              "say": "Five: we aim to deliver an approved replacement within fourteen days. To ask, wait ten minutes in the Teams call, then send a screenshot straight away, by thirty minutes past the start at the latest.",
+              "caption": "5: we aim to deliver an approved replacement within 14 days. To ask, wait 10 minutes in the Teams call, then send a screenshot straight away, by 30 minutes past the start at the latest.",
+              "action": "Amendment card '5 · Replacement within 14 days' with status 'Not changed'. Top line 'You asked: Replace any verified no-show within 14 days.' Mini timeline: 'Start 10:00' → 'Wait to 10:10' → 'Screenshot of the call showing the time and only you, straight away, by 10:30 at the latest' → 'If approved: aim to deliver within 14 days'. Footnote: 'Late or missing proof: the lead stands as delivered.' Clause chips '7.3' '7.5' 'Schedule 3'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s4b3",
+              "say": "Seven: there's no attendance trigger, because attendance isn't part of the lead definition: nobody can control who turns up.",
+              "caption": "7: there's no attendance trigger, because attendance isn't part of the lead definition: nobody can control who turns up.",
+              "action": "Amendment card '7 · Attendance under 70%' with status 'Not changed'. Top line 'You asked: If attendance drops below 70% in a cycle, replace leads automatically until it's back above 70%.' Quoted v0.2 line: 'Lead Velocity does not guarantee that a Qualified Lead will attend, is suitable for any Financial Product, or will buy anything.' Footnote: 'No-shows are handled by the goodwill replacements instead (card 2).' Clause chips '5.5' '15.1'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s4b4",
+              "say": "One B: valid contact details, yes; attending, no. Tying pay to sales outcomes would push a lead seller toward being an intermediary under F A I S, so your fee stays flat.",
+              "caption": "1b: valid contact details, yes; attending, no. Tying pay to sales outcomes would push a lead seller toward being an intermediary under FAIS, so your fee stays flat.",
+              "action": "Amendment card '1b · Contactable and attends' with status 'Partly'. Top line 'You asked: A qualified lead must be contactable and must attend; no-answers, people who disappear and \"just curious\" people shouldn't count.' Left column 'Changed: valid contact details' → 'Invalid, fake or wrong-person details never count (5.8(d))'. Right column 'Not changed: attends' → 'A lead counts once booked and confirmed (5.2). The fee is flat per cycle, never linked to any outcome (8.2, 8.3)'. Footnotes: 'A no-show can be replaced out of goodwill (card 2).' · 'Attends but isn't interested? That's not a no-show (Schedule 3, S3.7).' Clause chips '5.2' '5.8(d)' '8.2' 'S3.7'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c3s4b5",
+              "say": "Three: age, income and budget stay the client's own answers, and affordability is part of your needs analysis.",
+              "caption": "3: age, income and budget stay the client's own answers, and affordability is part of your needs analysis.",
+              "action": "Amendment card '3 · Verify age, income, affordability' with status 'Partly'. Top line 'You asked: Verify age, income and affordability, and disqualify invalid contact details automatically.' Left 'Changed: invalid contact details are disqualified automatically (5.8(d))'. Right 'Not changed: age, income and affordability are self-declared; your needs analysis covers them (5.3, 14.2)'. Clause chips '5.3' '5.8(d)' '14.2'.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "Part 4 · Getting set up",
+      "scenes": [
+        {
+          "id": "c4s1",
+          "title": "The Lead Velocity broker portal",
+          "screen": "portal",
+          "beats": [
+            {
+              "id": "c4s1b1",
+              "say": "We'll send you login details for the Lead Velocity broker portal. Here's the setup journey you'll follow.",
+              "caption": "We'll send you login details for the Lead Velocity broker portal. Here's the setup journey you'll follow.",
+              "action": "Browser at leadvelocity.co.za/broker. Card 'Broker Sign In'. The 'Email' field (placeholder 'Use the email from your invite') fills with markw@oraclebrokers.com; the password shows as dots only; Mark taps the sign-in button. Lands on the Start here page: header '{PRACTICE} · FSP 28418', title 'Welcome, Mark', progress bar '0 of 7 done' (the count only; leave out the bar's minutes label, see c4s1b2). RELEASE GATE (script-sources.md, contradiction 15): today the button reads 'Initiate Access' ('Decrypting...' while loading), every broker is sent to /broker/orders (or /broker-elite) after sign-in, and /broker/start exists only when VITE_SMC_ENABLED=true (default off). Do not render this shot until SortMyCover brokers land on /broker/start and the flag is confirmed on in production; render the button label exactly as deployed (a rename to 'Sign in' is requested).",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c4s1b2",
+              "say": "Start here lists seven steps, starting with a three-minute video. About twelve minutes, video included, gets you ready to go live; the optional intro can wait.",
+              "caption": "Start here lists seven steps, starting with a 3-minute video. About 12 minutes, video included, gets you ready to go live; the optional intro can wait.",
+              "action": "Card 'Start here: 3 minutes, then you're set' with the explainer video and its chapter list. Card 'Your 7 steps': 'About 12 minutes to be ready to go live. Your video takes 10 more, any time.' List exactly as the code has it: '1. Watch the 3-minute video' (3 min) · '2. Your details and FSP number' (3 min) · '3. Connect your Outlook calendar' (1 min) · '4. Your hours and how you meet' (1 min) · '5. Sign your agreement' (3 min) · '6. Approve your intro card' (1 min) · '7. Record your 25-second intro' (10 min, 'Not needed to go live'). Card 'What we need before you go live': 'FSP checked', 'calendar connected', 'agreement signed', plus the intro card approved. The header bar shows '0 of 7 done' only: do not show its 'about 9 minutes to go live' label (it counts required steps only, without the video, so it reads as a contradiction of the card's 12).",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c4s2",
+          "title": "Your details and FSP number",
+          "screen": "portal",
+          "beats": [
+            {
+              "id": "c4s2b1",
+              "say": "First, your details: practice, F S P number, adviser name, WhatsApp and email. Tap Save, and the number is checked on the F S C A register automatically.",
+              "caption": "First, your details: practice, FSP number, adviser name, WhatsApp and email. Tap Save, and the number is checked on the FSCA register automatically.",
+              "action": "Page 'Your details', card 'Tell us who you are': fields 'Practice name' ({PRACTICE}), 'FSP number' (28418), 'Adviser name' (Mark Weston), 'Your WhatsApp number' (shown blurred), 'Email' (markw@oraclebrokers.com). Button 'Save and check my FSP' → pill 'Checking the FSCA register. This takes a few seconds.' → '✓ Found on the FSCA register: {register name}' / 'Authorised financial services provider · checked'. Step chip '3 min'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c4s2b2",
+              "say": "Then a headshot, two lines about you, languages and years advising. With no photo yet, your card uses your initials until you add one.",
+              "caption": "Then a headshot, two lines about you, languages and years advising. With no photo yet, your card uses your initials until you add one.",
+              "action": "Card 'Your photo and two lines' / 'Leads see these before they meet you.' 'Headshot' picker with the hint 'Plain background, you looking at the camera. We crop it square. No photo yet? Your card uses your initials for now.' 'Two lines about you, in your own words' (hint 'Who you help and how you work. No product names, no \"best\", no promises.'). 'Languages you speak' chips. 'Years advising'. Button 'Save my photo and lines'. The initials disc 'MW' appears.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c4s3",
+          "title": "Connect your Outlook calendar: try it",
+          "screen": "portal",
+          "beats": [
+            {
+              "id": "c4s3b1",
+              "say": "Next, connect your Outlook calendar: tap Sign in with Microsoft, with your normal work login. No app to set up, and we never read your email.",
+              "caption": "Next, connect your Outlook calendar: tap Sign in with Microsoft, with your normal work login. No app to set up, and we never read your email.",
+              "action": "Card 'Connect your Outlook calendar': 'One tap. We only look at when you are free, and we add your meetings. We never read your emails.' Button with the Microsoft logo 'Sign in with Microsoft'. On tap: Microsoft's own sign-in page with markw@oraclebrokers.com, then Microsoft's permissions screen for the app 'SortMyCover calendar' listing calendar and online-meeting access, sign-in and profile, and staying connected; no mail access. Until Microsoft publisher verification is done, this screen shows 'unverified' under the app name: render it, with a viewer-only chip beside it: 'Expected for now. It's our SortMyCover calendar app, and it asks for your calendar and meetings, never your email.' If verification is complete before rendering, drop the label and the chip. Step chip '1 min'.",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Does your company's IT let you add outside apps?",
+                "options": [
+                  "Yes",
+                  "No, or not sure"
+                ],
+                "branches": {
+                  "Yes": "Microsoft shows the permissions screen; Mark taps Accept → beat 2.",
+                  "No, or not sure": "Microsoft shows 'Need admin approval' → beat 3, then beat 4."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c4s3b2",
+              "say": "Tap Accept, and you're back in the portal, connected as your own address, with your next free slot showing.",
+              "caption": "Tap Accept, and you're back in the portal, connected as your own address, with your next free slot showing.",
+              "action": "Portal banner 'Microsoft says yes. We're checking your calendar now.' → pill 'Connected as markw@oraclebrokers.com' → '✓ Calendar connected. Your next free slot: Thu 22 Oct, 09:00. Found from your real calendar just now.' Mark's phone: WhatsApp header 'Calendar connected', 'Hi Mark, your calendar is connected. Your next free slot is Thu 22 Oct, 09:00. Leads are only ever booked into free times like this one.' Button 'Next step'.",
+              "interactive": null,
+              "callout": null
+            },
+            {
+              "id": "c4s3b3",
+              "say": "If your company's I T blocks outside apps, Microsoft asks for admin approval, and the portal gives you a ready-made link and note for your admin.",
+              "caption": "If your company's IT blocks outside apps, Microsoft asks for admin approval, and the portal gives you a ready-made link and note for your admin.",
+              "action": "Microsoft page 'Need admin approval'. Back in the portal, the panel opens: 'Microsoft says \"Need admin approval\"?' / 'Your IT admin has switched off new apps. Two easy ways forward.' The ready note: 'Hi, I'd like to connect my Outlook calendar to SortMyCover (Lead Velocity (Pty) Ltd) so clients can book meetings with me. The app only checks when I'm free and creates meetings in my own calendar, with a Teams link. It cannot read my email or anyone else's calendar. Microsoft is asking for administrator approval because user consent is switched off for our organisation. Please open this link, sign in as an administrator and choose Accept: [link] . It takes about two minutes. Thanks, Mark Weston.' Then '1. Ask your admin to approve us (2 minutes for them). Send them this link. They sign in, tap \"Accept\", and you try again.' Buttons 'Copy the admin approval link' · 'Email this to my IT admin'. Option '2. Or skip it.' (shared calendar) stays visible below, not narrated.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Send it to IT",
+                "options": [
+                  "Copy the admin approval link",
+                  "Email this to my IT admin"
+                ],
+                "branches": {
+                  "Copy the admin approval link": "The button reads 'Copied'.",
+                  "Email this to my IT admin": "A mail draft opens with the subject 'Please approve the SortMyCover calendar app' and the note as its body."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c4s3b4",
+              "say": "Your admin signs in and taps Accept, and that's all they do. You tap Sign in with Microsoft again, and you're connected.",
+              "caption": "Your admin signs in and taps Accept, and that's all they do. You tap Sign in with Microsoft again, and you're connected.",
+              "action": "The IT admin's screen: Microsoft's admin approval page for 'SortMyCover calendar' with the same permissions and an 'Accept' button; tap. Back to Mark: 'Sign in with Microsoft' → Accept → pill 'Connected as markw@oraclebrokers.com'.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c4s4",
+          "title": "Hours, agreement, intro card",
+          "screen": "portal",
+          "beats": [
+            {
+              "id": "c4s4b1",
+              "say": "Then your hours and how you meet: we start you on a normal week. Change anything, or just tap Looks right.",
+              "caption": "Then your hours and how you meet: we start you on a normal week. Change anything, or just tap Looks right.",
+              "action": "Card 'Your hours and how you meet': 'We started you on a normal week. Change anything, or just tap Looks right.' Days Mon to Fri on; 'From' 09:00, 'Until' 17:00; 'How you can meet' chips 'Teams' and 'Phone' on; 'Most meetings a day' 3; 'Most a week' 12. Button 'Looks right' → 'Saved. Your next free slot updates above.' Step chip '1 min'.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tap Looks right",
+                "options": [
+                  "Looks right"
+                ],
+                "branches": {
+                  "Looks right": "'Saved. Your next free slot updates above.'"
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c4s4b2",
+              "say": "Next, sign the updated agreement, with every change marked, and return the signed P D F by email. Copies go to you and to us.",
+              "caption": "Next, sign the updated agreement (v0.2), with every change marked, and return the signed PDF by email. Copies go to you and to us.",
+              "action": "Card 'Sign your agreement': 'It is written in plain words. Flat price per 30-day cycle, month to month, no lock-in. Read it, tick the boxes, type your name. Done.' A scrollable 'Lead Generation Services Agreement · version 0.2' with green 'Changed in v0.2' / 'New in v0.2' markers; button 'Open the full agreement (PDF)'. Tick box 'I have read and agree to…'. 'Your full name': Mark Weston. Button 'Sign agreement' → '✓ Signed by Mark Weston. A copy is on its way to your email and to howzit@leadvelocity.co.za.' Step chip '3 min'. Do not show the page's five-bullet summary (it predates v0.2's refund wording; see script-sources.md). The signing method is Jonathan's open decision (contract 24.1 says a signed PDF returned by email; script-sources.md, contradiction 7): re-check this beat once he decides.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tick the box, then sign",
+                "options": [
+                  "I have read and agree",
+                  "Sign agreement"
+                ],
+                "branches": {
+                  "I have read and agree": "The tick box fills, 'Your full name' fills with Mark Weston, and 'Sign agreement' wakes up.",
+                  "Sign agreement": "'✓ Signed by Mark Weston. A copy is on its way to your email and to howzit@leadvelocity.co.za.'"
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c4s4b3",
+              "say": "Then approve your intro card: exactly what clients see the moment they book.",
+              "caption": "Then approve your intro card: exactly what clients see the moment they book.",
+              "action": "Card 'Your intro card': 'This is the picture leads get on WhatsApp the moment they book. Check it is right, then approve.' Preview: initials disc 'MW', 'Mark Weston', '{PRACTICE}', 'Authorised financial services provider · FSP 28418', his two lines, languages and years, '30-min Teams, Phone call · No obligation'. Tick 'Use my initials for now.' Tick 'I have read my card and the disclosure wording. I approve both.' Button 'Approve my intro card' → 'Approved. Leads will see this card. You can change it any time: just edit your details and approve the new one.' Step chip '1 min'.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Tick, then approve the card",
+                "options": [
+                  "I approve both",
+                  "Approve my intro card"
+                ],
+                "branches": {
+                  "I approve both": "The tick 'I have read my card and the disclosure wording. I approve both.' fills and 'Approve my intro card' wakes up.",
+                  "Approve my intro card": "'Approved. Leads will see this card. You can change it any time: just edit your details and approve the new one.'"
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c4s4b4",
+              "say": "The last step, a twenty-five-second intro video or voice note, is optional: about ten minutes, and not needed to go live.",
+              "caption": "The last step, a 25-second intro video or voice note, is optional: about 10 minutes, and not needed to go live.",
+              "action": "Card 'Record your 25-second intro'. Buttons 'Start: 10 minutes' · 'Voice note only' · 'Skip for now'. Step chip '10 min · Not needed to go live'. Do not show the page's hint line that cites 'clause 11.2' (stale: that clause is now 17.3).",
+              "interactive": {
+                "type": "choice",
+                "prompt": "Record now, or later?",
+                "options": [
+                  "Start: 10 minutes",
+                  "Voice note only",
+                  "Skip for now"
+                ],
+                "branches": {
+                  "Start: 10 minutes": "The video recorder opens; the film moves on (not needed to go live).",
+                  "Voice note only": "The voice-note recorder opens; the film moves on.",
+                  "Skip for now": "'Skipped. Come back any time.' (Play mode default.)"
+                }
+              },
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c4s5",
+          "title": "Pay and go live",
+          "screen": "portal",
+          "beats": [
+            {
+              "id": "c4s5b1",
+              "say": "Then pay your first cycle by E F T, in advance, with your invoice reference: sixteen thousand five hundred rand for twenty qualified leads. We're not V A T registered, so none is charged.",
+              "caption": "Then pay your first cycle by EFT, in advance, with your invoice reference: R16,500 for 20 Qualified Leads. We're not VAT registered, so none is charged.",
+              "action": "Lead with the invoice chip: 'Bronze · billing cycle 1 · one 30-day cycle · 20 Qualified Leads · R16,500.00 · Lead Velocity is not registered for VAT — no VAT is charged · Reference: as on your invoice', with a small line under it: 'If we register for VAT, you get at least 30 days' written notice first (8.5).' Beside it, cropped from the portal card 'Your cycle and how you pay' (leave out its 'Next cycle' heading): 'Same price. No lock-in. Payment is by EFT, in advance, per 30-day cycle. The payment details are on your invoice.' and the button 'Pay by EFT with a reference (no fee)'. Never show bank account numbers.",
+              "interactive": {
+                "type": "tap",
+                "prompt": "Pay by EFT",
+                "options": [
+                  "Pay by EFT with a reference (no fee)"
+                ],
+                "branches": {
+                  "Pay by EFT with a reference (no fee)": "The chip's 'Reference: as on your invoice' line highlights. No bank details are shown."
+                }
+              },
+              "callout": null
+            },
+            {
+              "id": "c4s5b2",
+              "say": "Once payment is made, we start working on your campaign. We complete the final checks, Jonathan switches you live, and we confirm it on WhatsApp.",
+              "caption": "Once payment is made, we start working on your campaign. After the final checks, Jonathan switches you live and we confirm it on WhatsApp.",
+              "action": "Start here banner: 'Everything is checked. Jonathan will switch you on shortly. We'll message you on WhatsApp.' Then Mark's phone: header 'You're live', 'Hi Mark, you're live. New leads can now be booked into your calendar. Each one reaches you as a WhatsApp message with the time and method. You'll get a morning list at 07:30, a short brief 15 minutes before each call, and your first report on Mon 2 Nov at 07:00.' Footer 'SortMyCover by Lead Velocity'. Button 'Open my leads'. (Report date is sample data.)",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        },
+        {
+          "id": "c4s6",
+          "title": "That's everything",
+          "screen": "card",
+          "beats": [
+            {
+              "id": "c4s6b1",
+              "say": "That's the whole picture: if anything isn't clear, WhatsApp us and we'll answer it. We look forward to working with you, Mark.",
+              "caption": "That's the whole picture: if anything isn't clear, WhatsApp us and we'll answer it. We look forward to working with you, Mark.",
+              "action": "Closing card, Lead Velocity wordmark. 'Questions? WhatsApp us, or email howzit@leadvelocity.co.za'. The four chapter chips return as replay buttons; the request tiles from Part 3 (1a, 1b, 2 to 9) sit in a row beneath for quick re-checking.",
+              "interactive": null,
+              "callout": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

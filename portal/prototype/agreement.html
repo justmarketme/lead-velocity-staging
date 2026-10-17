@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Agreement & billing | SortMyCover broker portal (prototype)</title>
+<link rel="stylesheet" href="portal.css">
+</head><body>
+<div class="app">
+<header class="top"><div class="who">Mark Williams Financial Planning &middot; FSP 00000 (example data)</div><h1>Your agreement</h1><div class="bar"><i style="width:57%"></i></div><div class="bar-l"><span>4 of 7 done</span><span>about 4 minutes to go live</span></div></header>
+<main class="main">
+
+<section class="card">
+  <h2>Sign your agreement</h2>
+  <p class="muted">It is written in plain words. Flat price per 30-day cycle, month to month, no lock-in. Read it, tick the boxes, type your name. Done.</p>
+  <div class="scroll-doc" tabindex="0" aria-label="Broker Services Agreement, scrollable">
+    <b>Broker Services Agreement</b> (draft for practitioner review)<br>
+    1 &middot; Who we are. 2 &middot; Words we use. 3 &middot; What you get: committed, verified, qualified leads. 4 &middot; Price and cycles: flat price, paid in advance, never linked to policies. 5 &middot; Replacements. 6 &middot; Your leads are yours to use exclusively. Lead Velocity keeps the campaign data, pages and ad account. ... 16.5 Signing electronically in the portal is valid. The portal records who signed, when, and from which device. <br><i>(Full text renders here from deliverables/contracts-drafter/broker-services-agreement.md, with Schedules A to D and Annex 1.)</i>
+  </div>
+  <p style="margin:8px 0 0"><a href="#">Open the full agreement</a> &middot; <a href="#">Download PDF</a></p>
+
+  <div class="sig" style="margin-top:12px">
+    <label class="chip" style="display:flex"><input type="checkbox" class="need"> I have read clauses 1 to 16 and Schedules A to D.</label>
+    <label class="chip" style="display:flex;margin-top:8px"><input type="checkbox"> I agree to clause 11.2: you may use my photo, voice and video to introduce me to leads. <span class="small">(Optional. You can change your mind later in the portal.)</span></label>
+    <label class="chip" style="display:flex;margin-top:8px"><input type="checkbox" class="need"> I sign Annex 1: you may run ads from my Facebook Page if Meta needs that. I approve every ad first and I can withdraw it any time.</label>
+    <div id="annex" style="margin:8px 0 0"><label for="pg">Your Facebook Page name (for Annex 1)</label><input id="pg" type="text" placeholder="e.g. Mark Williams Financial Planning"><label class="chip" style="display:flex;margin-top:6px"><input type="checkbox"> I do not have a Facebook Page yet</label><label for="pgid">Page ID <span class="small">(optional)</span></label><input id="pgid" type="text" inputmode="numeric"></div>
+    <div class="row2"><div><label for="sn">Your full name</label><input id="sn" type="text" value="Mark Williams"></div><div><label for="sr">Your role</label><input id="sr" type="text" value="Director"></div></div>
+    <p class="hint">By tapping Sign you sign for your practice. We record your name, the date and time, your device and a fingerprint of the exact document. Copies go to you and to howzit@leadvelocity.co.za.</p>
+    <div style="height:10px"></div>
+    <button class="btn" id="sign" disabled>Sign agreement</button>
+    <div id="signed" class="next-slot" hidden role="status"><span style="font-size:26px">&#10003;</span><div><b>Signed</b>Copy sent to your email and to howzit@leadvelocity.co.za. Document fingerprint (SHA-256) saved.</div></div>
+  </div>
+</section>
+<a class="step-clip" href="#"><span class="play"></span><span>Watch: signing and paying<small>0:35 &middot; captions on</small></span></a>
+
+<section class="card">
+  <h2>Your cycle and how you pay</h2>
+  <table class="tbl"><tr><th>Cycle</th><th>Tier</th><th>Price (excl. VAT)</th><th>Status</th></tr>
+  <tr><td>Oct 2026 &middot; ends 31 Oct</td><td>Bronze &middot; 20 leads committed</td><td data-pricing="price_zar" data-tier="SMC_BRONZE">[price from pricing]</td><td><span class="pill ok">Paid</span></td></tr></table>
+  <p class="small">Invoice and receipt: <a href="#">LV-0001-BRZ-202610 (PDF)</a>. Paid cycles never renew by themselves unless you choose card.</p>
+  <h3 style="margin-top:12px">Next cycle: pick how you want to pay</h3>
+  <p class="muted" style="margin:0 0 8px">Same price. No lock-in. You pick again each cycle. We show the renewal offer 7 days before your cycle ends.</p>
+  <a class="btn" href="../../checkout/index.html?pay=instant_eft&amp;cycle=next">Pay by Instant EFT <span class="small" style="color:inherit">(recommended)</span></a>
+  <a class="btn ghost" style="margin-top:8px" href="../../checkout/index.html?pay=manual_eft&amp;cycle=next">Pay by EFT with a reference (no fee)</a>
+  <a class="btn ghost" style="margin-top:8px" href="../../checkout/index.html?pay=card_autorenew&amp;cycle=next">Pay by card and renew automatically (optional)</a>
+  <p class="hint">Card renewal is a choice, not a requirement. Switch it off here at any time.</p>
+</section>
+
+</main>
+</div>
+<nav class="tabs" aria-label="Portal"><div><a href="start.html">Start</a><a href="leads.html">My leads</a><a href="calendar.html">Calendar</a><a href="reports.html">Reports</a><a href="help.html" class=cur>Help</a></div></nav>
+<script>
+
+// Prototype only. Real flow: POST /api/broker/agreement/sign -> admin_documents(signed_at, signed_by_name, signer_ip, signed_user_agent, doc_sha256)
+// -> n8n W20 "agreement.signed" -> copy from howzit@ to the broker, bcc howzit@.
+var needs=[].slice.call(document.querySelectorAll(".need")),btn=document.getElementById("sign"),nm=document.getElementById("sn");
+function chk(){btn.disabled=!(needs.every(function(n){return n.checked})&&nm.value.trim().length>2);}
+needs.forEach(function(n){n.addEventListener("change",chk)});nm.addEventListener("input",chk);
+btn.addEventListener("click",function(){btn.hidden=true;document.getElementById("signed").hidden=false;});
+
+</script>
+</body></html>

@@ -1,0 +1,10 @@
+# /etc/cron.d/lv-backup  (installed by automation/vps/provision.sh step 10). VPS clock is UTC; times shown in SAST.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# 02:30 SAST nightly: CRM + n8n DB, encrypted, off-server (30-day 'pg/' prefix)
+30 0 * * * root /opt/lead-velocity/automation/backup/pg_dump_nightly.sh >> /var/log/lv-backup.log 2>&1
+# 03:30 SAST on the 1st: consent-evidence archive (5-year 'consent/' prefix)
+30 1 1 * * root /opt/lead-velocity/automation/backup/pg_dump_nightly.sh --consent >> /var/log/lv-backup.log 2>&1
+# The MONTHLY RESTORE TEST runs on the operator laptop, where the age private key is (never on the VPS):
+#   first Monday 09:00:  AGE_KEY_FILE=… automation/backup/restore.sh --test --key-path pg/<latest>/crm-….dump.age
+#   W22 raises `restore_test_overdue` (amber) after 35 days without a passing test.

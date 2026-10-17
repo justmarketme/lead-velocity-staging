@@ -1,0 +1,1 @@
+{ "name": "smc-optimisation", "private": true, "type": "commonjs", "scripts": { "test": "node --test spc.test.js workflows.test.js" } }

@@ -1,0 +1,77 @@
+/* GENERATED from tokens.json by scripts/build-tokens.mjs. Do not edit by hand.
+   SortMyCover brand tokens v1.0.0. The only file (with tokens.json) that holds hex values. */
+@font-face{font-family:"DM Sans";font-style:normal;font-weight:500;font-display:swap;src:url("fonts/dm-sans-latin-500-normal.woff2") format("woff2"),url("fonts/dm-sans-latin-500-normal.woff") format("woff")}
+@font-face{font-family:"DM Sans";font-style:normal;font-weight:800;font-display:swap;src:url("fonts/dm-sans-latin-800-normal.woff2") format("woff2"),url("fonts/dm-sans-latin-800-normal.woff") format("woff")}
+:root{
+  /* palette */
+  --sm-amber: #F5A623;
+  --sm-charcoal: #1F2933;
+  --sm-off-white: #FBF8F2;
+  --sm-accent-text: #2A1B02;
+  --sm-black: #000000;
+  --sm-white: #FFFFFF;
+  --sm-charcoal-2: #2B3845;
+  --sm-off-white-2: #F1ECE2;
+  --sm-muted: #5C6672;
+  --sm-rule: #DCD6CB;
+  --sm-amber-dark: #B86E0A;
+  --sm-dark-bg: #15181C;
+  --sm-dark-card: #1C2027;
+  --sm-dark-muted: #A9AFB7;
+  --sm-dark-text: #F1EDE5;
+  --sm-test-teal-accent: #0F6E6A;
+  --sm-test-teal-ink: #F6EFE0;
+  --sm-test-cream: #F6EFE0;
+  --sm-scrim: rgb(31 41 51 / 0.72);
+  /* semantic roles */
+  --sm-bg: var(--sm-off-white);
+  --sm-text: var(--sm-charcoal);
+  --sm-bg-inverse: var(--sm-charcoal);
+  --sm-text-inverse: var(--sm-off-white);
+  --sm-accent: var(--sm-amber);
+  --sm-surface: var(--sm-white);
+  --sm-surface-raised: var(--sm-off-white-2);
+  --sm-text-muted: var(--sm-muted);
+  --sm-border: var(--sm-rule);
+  --sm-bg-dark: var(--sm-dark-bg);
+  --sm-surface-dark: var(--sm-dark-card);
+  --sm-text-dark: var(--sm-dark-text);
+  --sm-text-muted-dark: var(--sm-dark-muted);
+  /* type */
+  --sm-font: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sm-weight-headline: 800;
+  --sm-weight-body: 500;
+  --sm-text-xl: 32px;
+  --sm-text-lg: 24px;
+  --sm-text-md: 18px;
+  --sm-text-base: 16px;
+  --sm-text-sm: 14px;
+  --sm-canvas-xl: 96px;
+  --sm-canvas-lg: 72px;
+  --sm-canvas-md: 54px;
+  --sm-canvas-base: 48px;
+  --sm-canvas-sm: 42px;
+  --sm-lh-headline: 1.05;
+  --sm-lh-body: 1.4;
+  --sm-ls-headline: -0.015em;
+  /* space, radius, safe zones */
+  --sm-space-1: 4px;
+  --sm-space-2: 8px;
+  --sm-space-3: 12px;
+  --sm-space-4: 16px;
+  --sm-space-5: 24px;
+  --sm-space-6: 32px;
+  --sm-space-7: 48px;
+  --sm-space-8: 64px;
+  --sm-space-9: 96px;
+  --sm-radius-sm: 8px;
+  --sm-radius-md: 12px;
+  --sm-radius-lg: 16px;
+  --sm-radius-xl: 24px;
+  --sm-radius-pill: 999px;
+  --sm-safe-top: 250px;
+  --sm-safe-bottom: 340px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card);--sm-text-muted:var(--sm-dark-muted)}}
+:root[data-theme="dark"]{--sm-bg:var(--sm-dark-bg);--sm-text:var(--sm-dark-text);--sm-surface:var(--sm-dark-card);--sm-surface-raised:var(--sm-dark-card);--sm-text-muted:var(--sm-dark-muted)}
+.sm-font{font-family:var(--sm-font);font-weight:var(--sm-weight-body);font-variant-numeric:tabular-nums}

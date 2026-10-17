@@ -1,0 +1,10 @@
+what_to_expect (UTILITY, en)
+
+[header] What to expect
+Hi Lerato, here is what to expect on your call with Mark Smith:
+- It takes about 30 minutes, by Microsoft Teams.
+- The adviser will ask a few simple questions to understand what matters to you.
+- There is no obligation to buy anything on the call.
+Reply STOP to opt out.
+[footer] SortMyCover
+[button] Add to calendar -> https://sortmycover.co.za/c/bk_8f3a2c

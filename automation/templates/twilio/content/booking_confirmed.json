@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "key": "booking_confirmed",
+    "source": "automation/templates/booking_confirmed.json",
+    "approval": {
+      "name": "smc_booking_confirmed",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 8,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      },
+      {
+        "n": 9,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 3
+      }
+    ],
+    "core": true
+  },
+  "content": {
+    "friendly_name": "smc_booking_confirmed",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Tue 7 Oct",
+      "4": "10:00",
+      "5": "phone call",
+      "6": "bk_8f3a2c",
+      "7": "confirm:sample",
+      "8": "reschedule:sample",
+      "9": "cancel:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, you are booked. *{{2}}* will meet you on *{{3}} at {{4}}* by {{5}}. Please reply with the day and time so we know it is in your diary. Reply STOP to opt out.",
+        "header_text": "Booking confirmed",
+        "footer": "SortMyCover",
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Add to calendar",
+            "url": "https://sortmycover.co.za/c/{{6}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Confirm",
+            "id": "{{7}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{8}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Cancel",
+            "id": "{{9}}"
+          }
+        ]
+      }
+    }
+  }
+}

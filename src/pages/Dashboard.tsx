@@ -17,6 +17,9 @@ import AICallRequests from "@/components/dashboard/AICallRequests";
 import WorkflowManagement from "@/components/dashboard/WorkflowManagement";
 import MarketingHub from "@/components/dashboard/MarketingHub";
 import BrokerAnalysisDashboard from "@/components/dashboard/BrokerAnalysisDashboard";
+import AdminOrdersActivity from "@/components/dashboard/AdminOrdersActivity";
+import BrokerManagement from "@/components/dashboard/BrokerManagement";
+import ContactEnquiries from "@/components/dashboard/ContactEnquiries";
 import type { Session } from "@supabase/supabase-js";
 import SEO from "@/components/SEO";
 
@@ -74,6 +77,7 @@ const Dashboard = () => {
 
       if (!session) {
         setLoading(false);
+        navigate("/admin");
       } else {
         setSession(session);
         checkUserRole(session.user.id);
@@ -86,6 +90,7 @@ const Dashboard = () => {
 
         if (event === 'SIGNED_OUT') {
           setSession(null);
+          navigate("/admin");
         } else if (event === 'SIGNED_IN' && session) {
           setSession(session);
           // Do not await the checkUserRole here to prevent hangs
@@ -102,13 +107,14 @@ const Dashboard = () => {
     };
   }, [navigate]);
 
-  // TEMPORARY BYPASS FOR DEVELOPMENT
-  if (loading && !session) {
+  // Require an authenticated (admin) session before rendering the dashboard.
+  // While the session/role check resolves — or when there is no session (redirecting to /admin) — show a loader.
+  if (loading || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Initializing bypass...</p>
+          <p className="text-muted-foreground">Verifying access…</p>
         </div>
       </div>
     );
@@ -123,6 +129,9 @@ const Dashboard = () => {
       {activeTab === "referrals" && <AdminReferrals />}
       {activeTab === "calendar" && <AdminCalendar />}
       {activeTab === "broker-analysis" && <BrokerAnalysisDashboard />}
+      {activeTab === "broker-management" && <BrokerManagement />}
+      {activeTab === "enquiries" && <ContactEnquiries />}
+      {activeTab === "orders" && <AdminOrdersActivity />}
       {activeTab === "upload" && <LeadUploadForm />}
       {activeTab === "documents" && <AdminDocuments />}
       {activeTab === "templates" && <MessageTemplates />}

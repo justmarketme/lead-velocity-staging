@@ -1,0 +1,22 @@
+{
+  "name": "SortMyCover",
+  "short_name": "SortMyCover",
+  "description": "Sort your cover. 30 minutes. A real adviser.",
+  "start_url": "/",
+  "display": "standalone",
+  "lang": "en-ZA",
+  "theme_color": "#F5A623",
+  "background_color": "#FBF8F2",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

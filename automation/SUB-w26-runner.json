@@ -1,0 +1,515 @@
+{
+  "id": "smc-w26",
+  "name": "W26 Go-live runner (n8n side: first payment + signed status)",
+  "nodes": [
+    {
+      "name": "Called by W16 (first payment)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "smc-w26-1",
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "name": "Normalise first payment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subW26;\nreturn { json: L.normaliseFirstPayment($json) };"
+      },
+      "id": "smc-w26-2",
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "name": "Has broker_id?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-w26-3",
+      "position": [
+        660,
+        380
+      ]
+    },
+    {
+      "name": "Plan go-live signal (GATE-VPS or readiness)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// VPS_HOST set -> a VPS exists: skip to readiness. Otherwise GATE-VPS: one to-do for Jonathan (batched with other gates).\nconst L = require('lv-automation').subW26;\nreturn { json: L.firstPaymentPlan($json, $env) };"
+      },
+      "id": "smc-w26-4",
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "name": "Record go_live notification + to-do (once per broker)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH n AS (\n  INSERT INTO ops.notifications (kind, recipient, channel, source, status, signal_key, ref_table, ref_id, dedupe_key, what, payload)\n  SELECT 'go_live', 'jonathan', 'whatsapp', 'W26', 'queued', $2, 'brokers', $1, $3, $4, $5::jsonb\n   WHERE NOT EXISTS (SELECT 1 FROM ops.notifications x WHERE x.dedupe_key = $3)\n  RETURNING id\n), p AS (\n  INSERT INTO ops.proposals (source, faculty, title, owner_agent, status, evidence)\n  SELECT 'manual', 'build', $6, 'devops-security', 'proposed', $3 FROM n\n  RETURNING id\n)\nUPDATE ops.notifications SET proposal_id = (SELECT id FROM p), updated_at = now()\n WHERE id = (SELECT id FROM n)\nRETURNING id::text AS notification_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.signal_key, $json.dedupe_key, $json.what, $json.payload, $json.proposal_title ] }}"
+        }
+      },
+      "id": "smc-w26-5",
+      "position": [
+        1100,
+        340
+      ]
+    },
+    {
+      "name": "POST /webhook/w26/status (provision.sh, HMAC)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "smc-w26-status",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w26/status",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "smc-w26-6",
+      "position": [
+        1320,
+        380
+      ]
+    },
+    {
+      "name": "Verify HMAC (X-LV-Timestamp / X-LV-Signature)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// HMAC-SHA256(\"<ts>.<raw body>\", INTERNAL_HMAC_SECRET), 5-min window (verifyWebhooks.timingSafeEqualStr + checkReplayWindow).\nconst L = require('lv-automation').subW26;\nconst it = $input.first();\nlet raw = null;\ntry { if (this && this.helpers && it.binary && it.binary.data) raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = null; }\nif (raw == null) raw = JSON.stringify(it.json.body ?? {});\nreturn [{ json: L.verifyStatus({ headers: it.json.headers || {}, raw, body: it.json.body, secret: $env.INTERNAL_HMAC_SECRET, nowMs: Date.now() }) }];"
+      },
+      "id": "smc-w26-7",
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "name": "Signature valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-w26-8",
+      "position": [
+        1760,
+        340
+      ]
+    },
+    {
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\":\"unauthorised\"}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "smc-w26-9",
+      "position": [
+        1980,
+        380
+      ]
+    },
+    {
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"ok\":true}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "smc-w26-10",
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "name": "Route status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subW26;\nreturn { json: L.routeStatus($('Verify HMAC (X-LV-Timestamp / X-LV-Signature)').item.json.body) };"
+      },
+      "id": "smc-w26-11",
+      "position": [
+        2420,
+        340
+      ]
+    },
+    {
+      "name": "Step failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.action === 'failed' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-w26-12",
+      "position": [
+        2640,
+        380
+      ]
+    },
+    {
+      "name": "Alert ops: W22 signal (provision step failed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// I-47g: W22 producer contract (automation/W22.md section 3), handed over by Execute Workflow smc-w22.\nconst L = require('lv-automation').subW26;\nreturn { json: L.failedSignal($('Route status').item.json) };"
+      },
+      "id": "smc-w26-13",
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "name": "Alert ops (provision step failed)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-w26-14",
+      "position": [
+        3080,
+        340
+      ]
+    },
+    {
+      "name": "Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Route status').item.json.action === 'ready' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-w26-15",
+      "position": [
+        3300,
+        380
+      ]
+    },
+    {
+      "name": "Mark ready_for_go_live + go_live_ready + Go-live to-do",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH b AS (\n  UPDATE public.brokers br SET status = 'ready_for_go_live', status_changed_at = now(), updated_at = now()\n   WHERE br.status = 'onboarded'\n     AND EXISTS (SELECT 1 FROM ops.notifications n WHERE n.kind = 'go_live' AND n.ref_table = 'brokers' AND n.ref_id = br.id::text\n                   AND n.signal_key IN ('go_live_vps_gate', 'go_live_pending'))\n     AND NOT EXISTS (SELECT 1 FROM ops.notifications r WHERE r.kind = 'go_live' AND r.ref_table = 'brokers' AND r.ref_id = br.id::text\n                   AND r.signal_key = 'go_live_ready')\n  RETURNING br.id\n), p AS (\n  INSERT INTO ops.proposals (source, faculty, title, owner_agent, status, evidence)\n  SELECT 'manual', 'build', 'VPS live, all checks green: tap Go live for broker ' || b.id::text, 'devops-security', 'proposed', $1 FROM b\n  RETURNING id, title\n)\nINSERT INTO ops.notifications (kind, recipient, channel, source, status, signal_key, ref_table, ref_id, dedupe_key, what, payload, proposal_id)\nSELECT 'go_live', 'jonathan', 'whatsapp', 'W26', 'queued', 'go_live_ready', 'brokers', b.id::text, 'go_live:go_live_ready:' || b.id::text,\n       'VPS live, all checks green', $1::jsonb, (SELECT p.id FROM p WHERE p.title LIKE '%' || b.id::text)\n  FROM b\nRETURNING ref_id AS broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Route status').item.json.evidence ] }}"
+        }
+      },
+      "id": "smc-w26-16",
+      "position": [
+        3520,
+        300
+      ]
+    },
+    {
+      "name": "Note: smc-w26",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## smc-w26 (LOCAL-STAGING §7, vps/W26.md)\n- **First payment** (W16): `{ op: first_payment, broker_id, cycle_id }`. Records one `ops.notifications` go_live row (`go_live_vps_gate`, or `go_live_pending` when VPS_HOST is set) and one `ops.proposals` to-do (faculty build). Does not require `onboarded`.\n- **POST /webhook/w26/status**: provision.sh notify() `{ step, name, ok, vps }`, HMAC `X-LV-Timestamp` / `X-LV-Signature`. ok:false -> W22 workflow_failed. `ready` -> brokers onboarded with a pending go-live row -> `ready_for_go_live`, `go_live_ready` notification + Go-live to-do.\n- Never provisions, buys, unpauses or calls Meta: going live is Jonathan's tap.",
+        "width": 520,
+        "height": 300
+      },
+      "id": "smc-w26-17"
+    }
+  ],
+  "connections": {
+    "Called by W16 (first payment)": {
+      "main": [
+        [
+          {
+            "node": "Normalise first payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise first payment": {
+      "main": [
+        [
+          {
+            "node": "Has broker_id?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has broker_id?": {
+      "main": [
+        [
+          {
+            "node": "Plan go-live signal (GATE-VPS or readiness)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan go-live signal (GATE-VPS or readiness)": {
+      "main": [
+        [
+          {
+            "node": "Record go_live notification + to-do (once per broker)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /webhook/w26/status (provision.sh, HMAC)": {
+      "main": [
+        [
+          {
+            "node": "Verify HMAC (X-LV-Timestamp / X-LV-Signature)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify HMAC (X-LV-Timestamp / X-LV-Signature)": {
+      "main": [
+        [
+          {
+            "node": "Signature valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature valid?": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        [
+          {
+            "node": "Route status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route status": {
+      "main": [
+        [
+          {
+            "node": "Step failed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Step failed?": {
+      "main": [
+        [
+          {
+            "node": "Alert ops: W22 signal (provision step failed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert ops: W22 signal (provision step failed)": {
+      "main": [
+        [
+          {
+            "node": "Alert ops (provision step failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready?": {
+      "main": [
+        [
+          {
+            "node": "Mark ready_for_go_live + go_live_ready + Go-live to-do",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "sub-workflow"
+    }
+  ],
+  "meta": {
+    "generatedBy": "automation/build-sub-workflows.mjs"
+  }
+}

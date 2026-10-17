@@ -1,0 +1,13 @@
+{
+  "dry": {
+    "fais": 1,
+    "tone": 1,
+    "stop": 1,
+    "state_machine": 1,
+    "prefilter_fp": 0,
+    "person_recall": 1,
+    "at": "2026-10-02T12:46:45.342Z",
+    "golden": 238,
+    "redteam": 122
+  }
+}

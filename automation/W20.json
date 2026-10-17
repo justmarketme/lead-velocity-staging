@@ -1,0 +1,4009 @@
+{
+  "id": "smc-w20",
+  "name": "W20 Onboarding wizard",
+  "nodes": [
+    {
+      "id": "w20-01",
+      "name": "About W20",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -560
+      ],
+      "parameters": {
+        "content": "## W20 Onboarding wizard (broker-success)\nSpec: portal/spec/README.md (state machine, events) and portal/spec/10-nudges-and-go-live.md (copy). Timezone Africa/Johannesburg.\nLanes: A broker events (signed webhook) | B pre-flight result | C Approve & go live (HUMAN GATE, console tap) | D 30-min sweep (24 h / 72 h nudges, availability defaults, 48-h SLA stamp).\nEvery send goes through ONE channel router: WhatsApp via Meta Cloud API (templates in portal/spec/proposed-templates.json until automation-engineer adds them to automation/templates), email via Graph sendMail from HOWZIT_MAILBOX with bcc to HOWZIT_MAILBOX (one audit trail, 4.10 item 0).\nCredentials by name only. Config from env: INTERNAL_HMAC_SECRET, FSCA_REGISTER_URL, SLOTS_API_URL, COMPLIANCE_PREFLIGHT_URL, GO_LIVE_HANDOFF_URL, PORTAL_URL, SUPABASE_URL, META_GRAPH_VERSION, PHONE_NUMBER_ID, WHATSAPP_TEST_PHONE_NUMBER_ID, WHATSAPP_TEST_RECIPIENTS, DRY_RUN_SENDS, HOWZIT_MAILBOX, BRAND_ID. Sub-calls and errorWorkflow reference W22 by its id smc-w22 (I-44b).\nStale pass (> 24 h) at go-live: 409 preflight_stale AND the pre-flight is re-run in the background (Stale pre-flight? lane); Jonathan taps again when the fresh card lands.\nBroker audio routing (portal/spec/04): a broker voice note while status is pre-live (onboarding, onboarded, ready_for_go_live) is an intro-voice recording for W23; once status = active it is a W29 feedback voice note. W20 never handles audio itself.\nHuman gates: the only one is Jonathan's Approve & go live. Nothing here publishes ads or touches payment.",
+        "height": 420,
+        "width": 640
+      }
+    },
+    {
+      "id": "w20-02",
+      "name": "W20 broker event",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w20/broker-event",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w20-broker-event"
+    },
+    {
+      "id": "w20-03",
+      "name": "Verify signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Verify X-LV-Signature = sha256 HMAC of the RAW body with INTERNAL_HMAC_SECRET (constant-time), then parse.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W22).\nconst crypto = require('crypto');\nconst first = $input.first();\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst sig = String((first.json.headers || {})['x-lv-signature'] || '').replace(/^sha256=/, '');\nconst want = crypto.createHmac('sha256', $env.INTERNAL_HMAC_SECRET || '').update(raw).digest('hex');\nlet valid = false, ev = null, reason = '';\ntry { valid = sig.length === want.length && crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(want, 'hex')); } catch (e) { valid = false; }\nif (!valid) reason = 'bad_signature';\ntry { ev = JSON.parse(raw.toString('utf8')); } catch (e) { valid = false; reason = 'bad_json'; }\nif (valid && 900000 > 0) { const age = Math.abs(Date.now() - Date.parse(ev.occurred_at || '')); if (!(age < 900000)) { valid = false; reason = 'stale_or_replayed'; } }\nreturn [{ json: { valid, reason, event: valid ? ev : null } }];"
+      }
+    },
+    {
+      "id": "w20-04",
+      "name": "Signature valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-05",
+      "name": "Respond 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        -120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.reason || 'unauthorised' }) }}",
+        "options": {
+          "responseCode": "401"
+        }
+      }
+    },
+    {
+      "id": "w20-06",
+      "name": "Respond 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        60
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": {
+          "responseCode": "202"
+        }
+      }
+    },
+    {
+      "id": "w20-07",
+      "name": "Dedupe event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Idempotency (crm-gap A1 webhook_events). Zero rows back = replay: the lane stops here.\ninsert into public.webhook_events (source, external_id, received_at, signature_ok, payload_hash)\nvalues ('w20', $1, now(), true, $2)\non conflict (source, external_id) do nothing\nreturning external_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Verify signature').first().json.event.event_id, $('Verify signature').first().json.event.type + ':' + $('Verify signature').first().json.event.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-08",
+      "name": "Load broker",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.broker_id, b.adviser_name, b.practice_name, b.fsp_number, b.email, b.adviser_whatsapp, b.status,\n       b.onboarding_step, coalesce(b.onboarding_progress,'{}'::jsonb) as onboarding_progress,\n       b.last_seen_at, b.first_login_at, b.onboarding_last_progress_at, b.brand_id,\n       (b.last_seen_at is not null and b.last_seen_at > now() - interval '10 minutes') as in_portal\nfrom public.brokers b where b.broker_id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [ $('Verify signature').first().json.event.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-09",
+      "name": "Derive state",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        60
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Pure function of the broker row + event. Mirrors portal/spec/README.md (7 steps, 5 blocking).\nconst b = $('Load broker').first().json;\nconst ev = $('Verify signature').first().json.event;\nconst P = b.onboarding_progress || {};\nconst STEPS = [\n  { key: 'profile', title: 'Your details and FSP number', minutes: '3 minutes', blocking: true },\n  { key: 'calendar', title: 'Connect your Outlook calendar', minutes: '1 minute', blocking: true },\n  { key: 'availability', title: 'Check your hours', minutes: '1 minute', blocking: true },\n  { key: 'agreement', title: 'Sign your agreement', minutes: '3 minutes', blocking: true },\n  { key: 'card', title: 'Approve your intro card', minutes: '1 minute', blocking: true },\n  { key: 'media', title: 'Record your 25-second intro', minutes: '10 minutes', blocking: false },\n];\nconst isDone = (k) => ['done', 'skipped', 'defaulted'].includes((P[k] || {}).status);\nconst next = STEPS.find((s) => !isDone(s.key)) || null;\nconst doneStep = STEPS.find((s) => s.key === ev.step) || null;\nconst first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\nreturn [{ json: { broker: b, event: ev, first_name: first, next_step: next, done_step: doneStep, in_portal: !!b.in_portal } }];"
+      }
+    },
+    {
+      "id": "w20-10",
+      "name": "Route by event type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1540,
+        60
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ $json.event.type }}",
+                    "rightValue": "broker.created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "created"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.event.type }}",
+                    "rightValue": "fsp.submitted",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "fsp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r3",
+                    "leftValue": "={{ $json.event.type }}",
+                    "rightValue": "calendar.connected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "calendar_connected"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r4",
+                    "leftValue": "={{ $json.event.type }}",
+                    "rightValue": "calendar.failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "calendar_failed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r5",
+                    "leftValue": "={{ $json.event.type }}",
+                    "rightValue": "agreement.signed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "agreement_signed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r6",
+                    "leftValue": "={{ ['step.completed','card.approved'].includes($json.event.type) }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "step"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "w20-11",
+      "name": "Make magic link",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        -300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/admin/generate_link",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ type: 'magiclink', email: $json.broker.email, options: { redirect_to: $env.PORTAL_URL + '/broker/start' } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Supabase service role (n8n, W20)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "notes": "Supabase admin generate_link (service role). The portal route /m/:token exchanges hashed_token with verifyOtp({type:'magiclink', token_hash}). The raw link is never logged."
+    },
+    {
+      "id": "w20-12",
+      "name": "Build welcome",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const s = $('Derive state').first().json;\nconst link = $json;\nconst token = link.hashed_token || (link.properties && link.properties.hashed_token) || '';\nconst first = s.first_name;\nconst portal = String($env.PORTAL_URL || '').replace(/\\/$/, '');\nconst out = [];\nout.push({ json: { channel: 'wa', broker_id: s.broker.broker_id, to: s.broker.adviser_whatsapp, template: 'broker_onb_welcome',\n  params: [first], buttons: [{ index: 0, suffix: token }, { index: 1, suffix: 'start' }], log_type: 'welcome', idem: 'welcome:' + s.broker.broker_id } });\nout.push({ json: { channel: 'email', broker_id: s.broker.broker_id, to: s.broker.email, log_type: 'welcome', idem: 'welcome-email:' + s.broker.broker_id,\n  subject: 'Welcome to SortMyCover: 3 minutes to see what to do next',\n  paragraphs: [\n    'Hi ' + first + ', your account is ready.',\n    '1. Open your portal with the link below (no password needed).',\n    '2. Watch the 3-minute video. It has captions, so you can watch it on mute.',\n    '3. Follow the seven steps. Most people finish in about 12 minutes.',\n    'If you get stuck, reply to this email or message us on WhatsApp. You do not need a call.'],\n  cta: { text: 'Open my portal', url: portal + '/m/' + token }, cta2: { text: 'Watch the 3-minute video', url: portal + '/v/start' } } });\nreturn out;"
+      }
+    },
+    {
+      "id": "w20-13",
+      "name": "FSCA register lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        -60
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.FSCA_REGISTER_URL }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fsp",
+              "value": "={{ $json.broker.fsp_number }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput",
+      "notes": "Expects the NORMALISED shape {found:boolean, status:string, register_name:string, categories:string[], checked_at:ISO}. How the FSCA register is queried is unknown offline: FSCA_REGISTER_URL may point at an adapter we host. needs_human NH-BS-09. No auth header by default (public register); add a credential here if the adapter needs one."
+    },
+    {
+      "id": "w20-14",
+      "name": "Evaluate FSCA result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -60
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Verdicts: verified | blocked | pending_manual. Rules in portal/spec/02-profile.md.\nconst s = $('Derive state').first().json;\nconst b = s.broker;\nconst res = $json || {};\nconst body = res.body && typeof res.body === 'object' ? res.body : {};\nconst attempts = 1;\nconst norm = (t) => String(t || '').toLowerCase().replace(/\\(pty\\)|\\bltd\\b|\\bcc\\b|\\binc\\b|\\bt\\/a\\b/g, ' ').replace(/&/g, ' and ').replace(/[^a-z0-9 ]/g, ' ').split(/\\s+/).filter((w) => w && w !== 'and' && w !== 'the');\nconst jac = (a, b2) => { const A = new Set(a), B = new Set(b2); if (!A.size || !B.size) return 0; let i = 0; A.forEach((x) => { if (B.has(x)) i++; }); return i / (A.size + B.size - i); };\nconst httpOk = Number(res.statusCode || 0) >= 200 && Number(res.statusCode || 0) < 300 && typeof body === 'object' && 'found' in body;\nlet verdict, reason, score = 0;\nconst ACTIVE = /^(authori[sz]ed|active)$/i;\nconst LIFE = new RegExp($env.FSCA_LIFE_CATEGORY_PATTERN || 'long.?term|life', 'i');   // ASSUMPTION: confirm against the register (needs_human NH-BS-09)\nif (!httpOk) { verdict = 'pending_manual'; reason = 'lookup_error'; }\nelse if (!body.found) { verdict = 'blocked'; reason = 'not_found'; }\nelse if (!ACTIVE.test(String(body.status || ''))) { verdict = 'blocked'; reason = 'not_active:' + String(body.status || '').slice(0, 40); }\nelse {\n  const reg = norm(body.register_name);\n  score = Math.max(jac(reg, norm(b.practice_name)), jac(reg, norm(b.practice_legal_name || '')));\n  const cats = (body.categories || []).join(' ');\n  if (score < 0.6) { verdict = 'blocked'; reason = 'name_mismatch'; }\n  else if (!LIFE.test(cats)) { verdict = 'blocked'; reason = 'not_authorised_for_life'; }\n  else { verdict = 'verified'; reason = 'ok'; }\n}\nconst fsp_check = { status: verdict, reason, checked_at: new Date().toISOString(), register_name: body.register_name || null, register_status: body.status || null, categories: body.categories || [], name_score: Math.round(score * 100) / 100, attempts, source: 'FSCA_REGISTER_URL', by: 'system' };\nreturn [{ json: { broker_id: b.broker_id, verdict, reason, fsp_check, fsp_number: b.fsp_number, practice_name: b.practice_name, register_name: body.register_name || null, first_name: s.first_name, to_wa: b.adviser_whatsapp, to_email: b.email } }];"
+      }
+    },
+    {
+      "id": "w20-15",
+      "name": "Save fsp_check",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2220,
+        -60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- attempts accumulate across re-submits; fsp_verified_at only on verified. Never touches routing_on.\n-- I-42b: on verified, verified_credentials gets ONE {type:'fsp', number, register_name, verified_at} entry (any earlier\n-- fsp entry is replaced, other entries kept in order); any other verdict leaves the column untouched.\nupdate public.brokers set\n  fsp_check = $2::jsonb || jsonb_build_object('attempts', coalesce((fsp_check->>'attempts')::int, 0) + 1),\n  fsp_verified_at = case when $3 = 'verified' then now() else fsp_verified_at end,\n  verified_credentials = case when $3 = 'verified' then\n    coalesce((select jsonb_agg(e order by o) from jsonb_array_elements(coalesce(verified_credentials, '[]'::jsonb)) with ordinality as x(e, o)\n              where not (jsonb_typeof(e) = 'object' and e->>'type' = 'fsp')), '[]'::jsonb)\n    || jsonb_build_array(jsonb_build_object('type', 'fsp', 'number', $4::text, 'register_name', $5::text, 'verified_at', now()))\n  else verified_credentials end\nwhere broker_id = $1::uuid\nreturning broker_id, (fsp_check->>'attempts')::int as attempts;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, JSON.stringify($json.fsp_check), $json.verdict, $json.fsp_number, $json.register_name ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-16",
+      "name": "FSP verified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2440,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Evaluate FSCA result').first().json.verdict }}",
+              "rightValue": "verified",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-17",
+      "name": "Complete profile step",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2660,
+        -160
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Profile is done only when the required fields are saved AND the FSP is verified (headshot is not required).\nupdate public.brokers set onboarding_progress = jsonb_set(coalesce(onboarding_progress,'{}'::jsonb), '{profile}', jsonb_build_object('status','done','done_at',now(),'by','system')),\n       onboarding_last_progress_at = now()\nwhere broker_id = $1::uuid and fsp_verified_at is not null\n  and practice_name is not null and adviser_name is not null and adviser_whatsapp is not null and email is not null\n  and bio_short is not null and coalesce(array_length(languages,1),0) > 0 and years_advising is not null\nreturning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Evaluate FSCA result').first().json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-18",
+      "name": "Block profile step",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2660,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.brokers set onboarding_progress = jsonb_set(coalesce(onboarding_progress,'{}'::jsonb), '{profile}', jsonb_build_object('status','blocked','done_at',null,'by','system')) where broker_id = $1::uuid returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Evaluate FSCA result').first().json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-19",
+      "name": "Build FSP block messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        60
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Soft wording to the broker, factual alert to Jonathan/KG (via W22: 'FSCA check mismatch', 6.3 alerts).\nconst r = $('Evaluate FSCA result').first().json;\nconst pending = r.verdict === 'pending_manual';\nconst what = pending ? 'We could not reach the FSCA register just now.' : 'We could not match your FSP number to your practice name.';\nconst fix = pending ? 'We are checking it by hand and will message you today. Nothing for you to do.' : 'Check the number and try again. After three tries we will check it by hand.';\nreturn [\n { json: { channel: 'wa', broker_id: r.broker_id, to: r.to_wa, template: 'broker_onb_issue', params: [r.first_name, what, fix], buttons: [{ index: 0, suffix: 'profile' }], log_type: 'fsp_issue', idem: 'fsp-issue:' + r.broker_id + ':' + r.fsp_check.checked_at } },\n { json: { channel: 'w22', kind: 'signal', signal_key: 'fsca_check_' + (pending ? 'pending_manual' : 'mismatch'), scope: 'broker:' + r.broker_id, severity: pending ? 'amber' : 'red', source: 'W20',\n   what: 'FSCA check ' + (pending ? 'could not complete' : 'failed') + ' for FSP ' + r.fsp_number + ' (' + r.reason + ')',\n   impact: 'Broker cannot go live; no leads are routed until verified', first_action: 'Open the broker in the console, check the FSCA register, tap Verified or ask the broker to correct the number',\n   register_name: r.register_name, since: new Date().toISOString() } }\n];"
+      }
+    },
+    {
+      "id": "w20-20",
+      "name": "Verify slots (W04 GET /slots)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        260
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SLOTS_API_URL }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "broker_id",
+              "value": "={{ $json.broker.broker_id }}"
+            },
+            {
+              "name": "limit",
+              "value": "3"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-lv-internal",
+              "value": "={{ $env.INTERNAL_HMAC_SECRET }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "W04 returns {slots:[{start,end}]} in Africa/Johannesburg. Internal auth header is a placeholder: swap for the signed-request scheme automation-engineer ships with W04 (INTERNAL_HMAC_SECRET signs page->n8n calls, 6B.5)."
+    },
+    {
+      "id": "w20-21",
+      "name": "Evaluate slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const s = $('Derive state').first().json;\nconst slots = Array.isArray($json.slots) ? $json.slots : [];\nconst first = slots[0] || null;\nlet label = null;\nif (first) { label = DateTime.fromISO(first.start, { zone: 'Africa/Johannesburg' }).toFormat(\"ccc d LLL, HH:mm\"); }\nreturn [{ json: { broker_id: s.broker.broker_id, first_name: s.first_name, to_wa: s.broker.adviser_whatsapp, in_portal: s.in_portal, slot_count: slots.length, next_free_slot_at: first ? first.start : null, next_free_slot_label: label } }];"
+      }
+    },
+    {
+      "id": "w20-22",
+      "name": "Slots found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2220,
+        260
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.slot_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-23",
+      "name": "Complete calendar step",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2440,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.brokers set calendar_status = 'ok', next_free_slot_at = $2::timestamptz,\n  onboarding_progress = jsonb_set(coalesce(onboarding_progress,'{}'::jsonb), '{calendar}', jsonb_build_object('status','done','done_at',now(),'by','system')),\n  onboarding_last_progress_at = now()\nwhere broker_id = $1::uuid returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Evaluate slots').first().json.broker_id, $('Evaluate slots').first().json.next_free_slot_at ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-24",
+      "name": "Build calendar messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $('Evaluate slots').first().json;\nif (r.slot_count > 0) {\n  // Async path only: if he is in the portal he already sees the green 'next free slot' box.\n  if (r.in_portal) return [];\n  return [{ json: { channel: 'wa', broker_id: r.broker_id, to: r.to_wa, template: 'broker_onb_calendar_ok', params: [r.first_name, r.next_free_slot_label], buttons: [{ index: 0, suffix: 'availability' }], log_type: 'calendar_ok', idem: 'cal-ok:' + r.broker_id + ':' + r.next_free_slot_at } }];\n}\nreturn [{ json: { channel: 'wa', broker_id: r.broker_id, to: r.to_wa, template: 'broker_onb_issue', params: [r.first_name, 'Your calendar is connected, but we cannot see any free time in the next 14 days.', 'Check your hours in the portal, or your Outlook working hours.'], buttons: [{ index: 0, suffix: 'calendar' }], log_type: 'calendar_no_slots', idem: 'cal-noslots:' + r.broker_id + ':' + new Date().toISOString().slice(0, 13) } }];"
+      }
+    },
+    {
+      "id": "w20-25",
+      "name": "Build calendar failure message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        460
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const s = $('Derive state').first().json;\nconst reason = (s.event.payload || {}).reason || 'unknown';\nconst map = {\n  admin_consent: ['Microsoft needs your IT admin to approve the calendar connection.', 'The portal has a link you can send them, or you can use a shared calendar instead.'],\n  disconnected: ['Your calendar has disconnected.', 'Reconnect it so leads can keep booking. It takes one tap.'],\n  unknown: ['Your calendar did not connect.', 'Tap below to try once more, or reply here and we will sort it.'],\n};\nconst m = map[reason] || map.unknown;\nreturn [{ json: { channel: 'wa', broker_id: s.broker.broker_id, to: s.broker.adviser_whatsapp, template: 'broker_onb_issue', params: [s.first_name, m[0], m[1]], buttons: [{ index: 0, suffix: 'calendar' }], log_type: 'calendar_' + reason, idem: 'cal-fail:' + s.event.event_id } }];"
+      }
+    },
+    {
+      "id": "w20-26",
+      "name": "Fetch signed PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1780,
+        640
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.event.payload.signed_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "pdf"
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "notes": "Short-lived signed URL from the private admin-documents bucket (payload.signed_url). The PDF is attached to the email only; never logged."
+    },
+    {
+      "id": "w20-27",
+      "name": "Build agreement email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        640
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const s = $('Derive state').first().json;\nconst p = s.event.payload || {};\nconst pdf = await this.helpers.getBinaryDataBuffer(0, 'pdf');\nconst next = s.next_step;\nreturn [{ json: { channel: 'email', broker_id: s.broker.broker_id, to: s.broker.email, log_type: 'agreement_copy', idem: 'agreement-copy:' + s.event.event_id,\n  subject: 'Your signed SortMyCover agreement',\n  paragraphs: ['Hi ' + s.first_name + ', thanks. Your signed agreement is attached.',\n    'Signed by ' + (p.signed_by_name || '') + ' on ' + (p.signed_at_label || '') + '. Document fingerprint (SHA-256): ' + (p.doc_sha256 || '') + '.',\n    'We keep a copy for both of us. A copy also went to howzit@leadvelocity.co.za.',\n    next ? 'Next: ' + next.title + ' (about ' + next.minutes + ').' : 'That was the last step on your list.'],\n  cta: next ? { text: 'Next step', url: String($env.PORTAL_URL || '').replace(/\\/$/, '') + '/s/' + next.key } : null,\n  attachments: [{ name: 'SortMyCover-agreement-signed.pdf', contentType: 'application/pdf', contentBytes: pdf.toString('base64') }] } }];"
+      }
+    },
+    {
+      "id": "w20-28",
+      "name": "Broker away from portal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        880
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.in_portal }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-29",
+      "name": "Build next-step prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        880
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Intercom's lesson: do not talk over the product. Only reached when he left the portal (> 10 min).\nconst s = $json;\nif (!s.next_step || s.broker.status !== 'onboarding') return [];\nconst done = s.done_step ? s.done_step.title : 'That step';\nreturn [{ json: { channel: 'wa', broker_id: s.broker.broker_id, to: s.broker.adviser_whatsapp, template: 'broker_onb_next', params: [s.first_name, done, s.next_step.title, s.next_step.minutes], buttons: [{ index: 0, suffix: s.next_step.key }], log_type: 'next_prompt', idem: 'next:' + s.event.event_id } }];"
+      }
+    },
+    {
+      "id": "w20-30",
+      "name": "Check onboarded (hard steps)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2660,
+        880
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- onboarded = steps 2-6 done (profile+FSP verified, calendar, availability done|defaulted, agreement, card). Video never blocks.\nupdate public.brokers set status = 'onboarded', onboarding_completed_at = now(), onboarding_last_progress_at = now()\nwhere broker_id = $1::uuid and status = 'onboarding' and fsp_verified_at is not null\n  and onboarding_progress->'profile'->>'status' = 'done'\n  and onboarding_progress->'calendar'->>'status' = 'done'\n  and onboarding_progress->'availability'->>'status' in ('done','defaulted')\n  and onboarding_progress->'agreement'->>'status' = 'done'\n  and onboarding_progress->'card'->>'status' = 'done'\nreturning broker_id, practice_name, extract(epoch from (now() - first_login_at))/3600 as hours_from_first_login;",
+        "options": {
+          "queryReplacement": "={{ [ $('Derive state').first().json.broker.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-31",
+      "name": "Start compliance pre-flight",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2880,
+        880
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.COMPLIANCE_PREFLIGHT_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ broker_id: $json.broker_id, run_id: 'pf-' + $json.broker_id + '-' + Date.now(), callback_url: $env.N8N_PUBLIC_URL + '/webhook/w20/preflight-result', checks: ['fsp_verified','consent_mode_set','intro_card_gate','calendar_slots','test_lead_e2e'] }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "notes": "compliance-qa owns the checks (6.1 step 3). Async: the card comes back on /webhook/w20/preflight-result. test_lead_e2e uses an is_synthetic lead delivered only to Jonathan's test number. Auth header: internal signed request, same scheme as W04.",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "w20-32",
+      "name": "Save preflight run",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3100,
+        880
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.brokers set preflight_run_id = $2, preflight_card = null where broker_id = $1::uuid returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Check onboarded (hard steps)').first().json.broker_id, $json.run_id || '' ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-33",
+      "name": "W20 preflight result",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w20/preflight-result",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w20-preflight-result"
+    },
+    {
+      "id": "w20-34",
+      "name": "Verify signature (preflight)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Verify X-LV-Signature = sha256 HMAC of the RAW body with INTERNAL_HMAC_SECRET (constant-time), then parse.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W22).\nconst crypto = require('crypto');\nconst first = $input.first();\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst sig = String((first.json.headers || {})['x-lv-signature'] || '').replace(/^sha256=/, '');\nconst want = crypto.createHmac('sha256', $env.INTERNAL_HMAC_SECRET || '').update(raw).digest('hex');\nlet valid = false, ev = null, reason = '';\ntry { valid = sig.length === want.length && crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(want, 'hex')); } catch (e) { valid = false; }\nif (!valid) reason = 'bad_signature';\ntry { ev = JSON.parse(raw.toString('utf8')); } catch (e) { valid = false; reason = 'bad_json'; }\nif (valid && 900000 > 0) { const age = Math.abs(Date.now() - Date.parse(ev.occurred_at || '')); if (!(age < 900000)) { valid = false; reason = 'stale_or_replayed'; } }\nreturn [{ json: { valid, reason, event: valid ? ev : null } }];"
+      }
+    },
+    {
+      "id": "w20-35",
+      "name": "Signature valid? (preflight)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        1300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-36",
+      "name": "Respond 401 (preflight)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        1200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false }) }}",
+        "options": {
+          "responseCode": "401"
+        }
+      }
+    },
+    {
+      "id": "w20-37",
+      "name": "Respond 200 (preflight)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        1360
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      }
+    },
+    {
+      "id": "w20-38",
+      "name": "Save preflight card",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        1360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Card shape: {run_id, ran_at, checks:[{id,label,pass,detail}], all_pass}. Ignore results for a stale run_id.\nupdate public.brokers set preflight_card = $2::jsonb\nwhere broker_id = $1::uuid and preflight_run_id = $3\nreturning broker_id, adviser_name, adviser_whatsapp, practice_name, status, preflight_card;",
+        "options": {
+          "queryReplacement": "={{ [ $('Verify signature (preflight)').first().json.event.broker_id, JSON.stringify($('Verify signature (preflight)').first().json.event.payload.card), $('Verify signature (preflight)').first().json.event.payload.card.run_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-39",
+      "name": "All checks passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        1360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.preflight_card.all_pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-40",
+      "name": "Set ready_for_go_live",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        1300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.brokers set status = 'ready_for_go_live' where broker_id = $1::uuid and status = 'onboarded' returning broker_id, adviser_name, adviser_whatsapp, practice_name;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-41",
+      "name": "Build ready messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $json;\nconst first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\nreturn [\n { json: { channel: 'wa', broker_id: b.broker_id, to: b.adviser_whatsapp, template: 'broker_onb_ready', params: [first], buttons: [{ index: 0, suffix: '' }], log_type: 'ready', idem: 'ready:' + b.broker_id + ':' + Date.now() } },\n { json: { channel: 'w22', kind: 'w20_go_live_ready', to: ['jonathan'], severity: 'info', source: 'W20', scope: 'broker:' + b.broker_id,\n   what: 'Go live for ' + b.practice_name + ': 5 of 5 pre-flight checks passed',\n   first_action: 'Open the console card and tap Approve & go live', default_if_ignored: 'waits (never auto-approves)',\n   deep_link: 'gates/go_live_' + b.broker_id } } ];"
+      }
+    },
+    {
+      "id": "w20-42",
+      "name": "Build pre-flight failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1440
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $json; const card = b.preflight_card || {};\nconst failed = (card.checks || []).filter((c) => !c.pass);\nconst first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\nconst out = [{ json: { channel: 'w22', kind: 'signal', signal_key: 'preflight_failed', scope: 'broker:' + b.broker_id, severity: 'red', source: 'W20',\n  what: 'Go-live pre-flight failed for ' + b.practice_name + ': ' + failed.map((c) => c.id).join(', '),\n  impact: 'Broker stays onboarded, not live', first_action: 'Open the pre-flight card in the console and fix the failed check', since: new Date().toISOString() } }];\nif (failed.some((c) => c.id === 'calendar_slots')) out.push({ json: { channel: 'wa', broker_id: b.broker_id, to: b.adviser_whatsapp, template: 'broker_onb_issue', params: [first, 'Your calendar does not show any free time to book.', 'Check your hours in the portal, or your Outlook working hours.'], buttons: [{ index: 0, suffix: 'calendar' }], log_type: 'preflight_calendar', idem: 'pf-cal:' + b.broker_id + ':' + new Date().toISOString().slice(0, 13) } });\nreturn out;"
+      }
+    },
+    {
+      "id": "w20-43",
+      "name": "W20 approve and go live",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "w20/go-live",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w20-go-live"
+    },
+    {
+      "id": "w20-44",
+      "name": "Verify signature (go-live)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Verify X-LV-Signature = sha256 HMAC of the RAW body with INTERNAL_HMAC_SECRET (constant-time), then parse.\n// Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false (same as W22).\nconst crypto = require('crypto');\nconst first = $input.first();\nconst raw = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst sig = String((first.json.headers || {})['x-lv-signature'] || '').replace(/^sha256=/, '');\nconst want = crypto.createHmac('sha256', $env.INTERNAL_HMAC_SECRET || '').update(raw).digest('hex');\nlet valid = false, ev = null, reason = '';\ntry { valid = sig.length === want.length && crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(want, 'hex')); } catch (e) { valid = false; }\nif (!valid) reason = 'bad_signature';\ntry { ev = JSON.parse(raw.toString('utf8')); } catch (e) { valid = false; reason = 'bad_json'; }\nif (valid && 300000 > 0) { const age = Math.abs(Date.now() - Date.parse(ev.occurred_at || '')); if (!(age < 300000)) { valid = false; reason = 'stale_or_replayed'; } }\nreturn [{ json: { valid, reason, event: valid ? ev : null } }];"
+      }
+    },
+    {
+      "id": "w20-45",
+      "name": "Signature valid? (go-live)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        1800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-46",
+      "name": "Respond 401 (go-live)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        1700
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'unauthorised' }) }}",
+        "options": {
+          "responseCode": "401"
+        }
+      }
+    },
+    {
+      "id": "w20-47",
+      "name": "Check gate preconditions",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        1900
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Admin-only action: the console signs the request with the admin's uid. Preconditions: status ready_for_go_live and a pre-flight pass no older than 24 h.\nselect b.broker_id, b.status, b.practice_name, b.adviser_name, b.adviser_whatsapp, b.email,\n       (b.status = 'ready_for_go_live' and coalesce((b.preflight_card->>'all_pass')::boolean,false)\n        and (b.preflight_card->>'ran_at')::timestamptz > now() - interval '24 hours'\n        and exists (select 1 from public.user_roles r where r.user_id = $2::uuid and r.role = 'admin')) as ok,\n       case when b.status <> 'ready_for_go_live' then 'not_ready' when (b.preflight_card->>'ran_at')::timestamptz <= now() - interval '24 hours' then 'preflight_stale' else 'not_allowed' end as why\nfrom public.brokers b where b.broker_id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [ $('Verify signature (go-live)').first().json.event.broker_id, $('Verify signature (go-live)').first().json.event.payload.actor_uid ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-48",
+      "name": "Gate preconditions met?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        1900
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-49",
+      "name": "Respond 409 (go-live)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        1800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.why }) }}",
+        "options": {
+          "responseCode": "409"
+        }
+      }
+    },
+    {
+      "id": "w20-50",
+      "name": "Activate broker",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        2000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.brokers set status = 'active', routing_on = true, approved_live_by = $2::uuid, approved_live_at = now()\nwhere broker_id = $1::uuid and status = 'ready_for_go_live'\nreturning broker_id, adviser_name, adviser_whatsapp, email, practice_name;",
+        "options": {
+          "queryReplacement": "={{ [ $('Verify signature (go-live)').first().json.event.broker_id, $('Verify signature (go-live)').first().json.event.payload.actor_uid ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-51",
+      "name": "Hand off to go-live step (W26/W16)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        2000
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GO_LIVE_HANDOFF_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ broker_id: $json.broker_id, action: 'go_live', request_id: $('Verify signature (go-live)').first().json.event.event_id }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput",
+      "notes": "Raises the media budget by the broker's media_share_zar via the Meta Marketing API, applies routing capacity, confirms CAPI/offline sets (6.1 step 5; ads-api-engineer + automation-engineer). Must be idempotent on request_id."
+    },
+    {
+      "id": "w20-52",
+      "name": "Revert to ready_for_go_live",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        2120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update public.brokers set status = 'ready_for_go_live', routing_on = false, approved_live_at = null where broker_id = $1::uuid returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Activate broker').first().json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-53",
+      "name": "Build hand-off failure alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        2120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('Activate broker').first().json;\nreturn [{ json: { channel: 'w22', kind: 'signal', signal_key: 'go_live_handoff_failed', scope: 'broker:' + b.broker_id, severity: 'red', source: 'W20', what: 'Go-live hand-off failed for ' + b.practice_name, impact: 'Broker reverted to ready_for_go_live; nothing was announced to the broker', first_action: 'Check the media-budget / routing step in W26, then tap Approve & go live again', since: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "w20-54",
+      "name": "Respond 502 (go-live)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        2120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'handoff_failed' }) }}",
+        "options": {
+          "responseCode": "502"
+        }
+      }
+    },
+    {
+      "id": "w20-55",
+      "name": "Build live messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1960
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const b = $('Activate broker').first().json;\nconst first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\nconst now = DateTime.now().setZone('Africa/Johannesburg');\nlet mon = now.plus({ days: 1 }); while (mon.weekday !== 1) mon = mon.plus({ days: 1 });\nconst day = mon.toFormat('cccc d LLL');\nconst portal = String($env.PORTAL_URL || '').replace(/\\/$/, '');\nreturn [\n { json: { channel: 'wa', broker_id: b.broker_id, to: b.adviser_whatsapp, template: 'broker_onb_live', params: [first, day], buttons: [], log_type: 'live', idem: 'live:' + b.broker_id } },\n { json: { channel: 'email', broker_id: b.broker_id, to: b.email, log_type: 'live', idem: 'live-email:' + b.broker_id,\n   subject: \"You're live on SortMyCover: what to expect in week 1\",\n   paragraphs: ['Hi ' + first + ', you are live. What to expect:',\n     '1. Bookings appear in your Outlook calendar on their own.',\n     '2. After each meeting we ask for three quick taps: what happened, how the lead was, a score. It takes about 20 seconds.',\n     '3. Replacements: a no-show, a number we cannot reach, or a lead outside the age or budget we agreed can be replaced, up to your limit.',\n     '4. Your weekly report arrives on Monday at 07:00.',\n     'Questions? Reply to this email.'],\n   cta: { text: 'Open my leads', url: portal + '/broker/leads' } } } ];"
+      }
+    },
+    {
+      "id": "w20-56",
+      "name": "Respond 200 (go-live)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        1900
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, status: 'active' }) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      }
+    },
+    {
+      "id": "w20-57",
+      "name": "Every 30 min sweep",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        2600
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w20-58",
+      "name": "Within send hours (08:00-19:00 SAST)?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Quiet hours: nothing is sent 19:00-08:00 SAST; due nudges go at 08:00. Defaults and SLA stamps still run (other branches).\nconst h = DateTime.now().setZone('Africa/Johannesburg').hour;\nreturn h >= 8 && h < 19 ? [{ json: { go: true } }] : [];"
+      }
+    },
+    {
+      "id": "w20-59",
+      "name": "Find due nudges",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        2480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Clock = onboarding_last_progress_at. since is compared at ms precision: n8n hands timestamps to Mark as JS Dates (ms), the column has microseconds. Nudges are idempotent per stall via onboarding_nudges.since. Broker #1 (assisted) is suppressed until suppress_until.\n-- ready_for_go_live brokers are waiting on Jonathan, not on themselves: never nudged. After onboarded only the optional media step is nudged.\nwith b as (\n  select *, case when date_trunc('milliseconds', (onboarding_nudges->>'since')::timestamptz) is not distinct from date_trunc('milliseconds', onboarding_last_progress_at) then coalesce(onboarding_nudges,'{}'::jsonb) else '{}'::jsonb end as n\n  from public.brokers\n  where brand_id = $1 and status in ('onboarding','onboarded')\n    and (last_seen_at is null or last_seen_at < now() - interval '10 minutes')\n    and (onboarding_nudges->>'suppress_until' is null or (onboarding_nudges->>'suppress_until')::timestamptz < now())\n    and not (status = 'onboarded' and coalesce(onboarding_progress->'media'->>'status','todo') in ('done','skipped'))\n)\nselect broker_id, adviser_name, adviser_whatsapp, email, status, onboarding_progress, onboarding_last_progress_at, practice_name,\n  case when now() - onboarding_last_progress_at >= interval '72 hours' and n->>'72h' is null then '72h'\n       when now() - onboarding_last_progress_at >= interval '24 hours' and n->>'24h' is null then '24h' end as due\nfrom b\nwhere onboarding_last_progress_at is not null\n  and ( (now() - onboarding_last_progress_at >= interval '72 hours' and n->>'72h' is null)\n     or (now() - onboarding_last_progress_at >= interval '24 hours' and n->>'24h' is null) );",
+        "options": {
+          "queryReplacement": "={{ [ $env.BRAND_ID ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-60",
+      "name": "Build nudge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        2480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Copy bank: portal/spec/10-nudges-and-go-live.md. One nudge, one stalled step, no third nudge ever.\nconst REASON24 = { profile: \"It also shows leads you're on the FSCA register.\", calendar: 'One tap. It lets leads book real free times with you.', availability: \"We've used standard hours (Mon-Fri 9 to 5, 3 a day). Change them any time.\", agreement: \"It's in plain words, and you get a copy straight away.\", card: \"It's the picture leads see before they meet you.\", media: 'We are testing whether a 25-second intro helps people turn up. Not needed to go live.' };\nconst REASON72 = { profile: 'We check every FSP number before any lead is sent to you.', calendar: 'If Microsoft asks for admin approval, the portal has a link for your IT person, or a shared-calendar option.', availability: \"We've used standard hours, so this can wait.\", agreement: \"You can read it first. It's month to month, with no contract.\", card: 'Leads see this on WhatsApp the moment they book.', media: 'No rush. You can go live without it and add it later.' };\nconst STEPS = [['profile','Your details and FSP number','3 minutes'],['calendar','Connect your Outlook calendar','1 minute'],['availability','Check your hours','1 minute'],['agreement','Sign your agreement','3 minutes'],['card','Approve your intro card','1 minute'],['media','Record your 25-second intro','10 minutes']];\nconst portal = String($env.PORTAL_URL || '').replace(/\\/$/, '');\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json; const P = b.onboarding_progress || {};\n  const done = (k) => ['done','skipped','defaulted'].includes((P[k] || {}).status);\n  const step = STEPS.find((s) => !done(s[0])); if (!step) continue;\n  const first = String(b.adviser_name || 'there').trim().split(/\\s+/)[0];\n  const [key, title, minutes] = step;\n  const blocking = key !== 'media';\n  const use72 = b.due === '72h' && blocking;     // media never gets the \"leads can't be sent\" wording\n  out.push({ json: { channel: 'wa', broker_id: b.broker_id, to: b.adviser_whatsapp, template: use72 ? 'broker_onb_nudge_72h' : 'broker_onb_nudge_24h',\n    params: use72 ? [first, title, REASON72[key]] : [first, title, minutes, REASON24[key]], buttons: [{ index: 0, suffix: key }], log_type: 'nudge_' + b.due, idem: 'nudge:' + b.due + ':' + b.broker_id + ':' + b.onboarding_last_progress_at,\n    mark: { due: b.due, since: b.onboarding_last_progress_at } } });\n  if (b.due === '72h') {\n    out.push({ json: { channel: 'email', broker_id: b.broker_id, to: b.email, log_type: 'nudge_72h_email', idem: 'nudge-email:' + b.broker_id + ':' + b.onboarding_last_progress_at,\n      subject: 'Your SortMyCover setup: one step left (' + title + ')',\n      paragraphs: ['Hi ' + first + \", you're nearly there. The one thing left is: \" + title + '. It takes about ' + minutes + '.', REASON72[key], 'Prefer to ask something first? Reply to this email or WhatsApp us. We answer the same day. No call needed.'],\n      cta: { text: 'Finish setup', url: portal + '/s/' + key } } });\n    out.push({ json: { channel: 'w22', kind: 'signal', signal_key: 'broker_onboarding_stalled', scope: 'broker:' + b.broker_id, severity: 'amber', source: 'W20', what: b.practice_name + ' has not progressed for 72 h (stalled at: ' + title + ')', impact: 'Not live yet; delays first leads', first_action: 'Send a short WhatsApp offering help (a call only if the broker prefers)', since: new Date().toISOString() } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w20-61",
+      "name": "Mark nudge sent (at-most-once)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        2400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Marked BEFORE sending: a duplicate nudge is worse than a missed one (the 72-h and Jonathan's to-do cover a miss).\nupdate public.brokers set onboarding_nudges = coalesce(onboarding_nudges,'{}'::jsonb) || jsonb_build_object('since', $2::timestamptz, $3, now()) || case when $3 = '72h' then jsonb_build_object('24h', coalesce(onboarding_nudges->>'24h', to_char(now(),'YYYY-MM-DD\"T\"HH24:MI:SSOF'))) else '{}'::jsonb end\nwhere broker_id = $1::uuid returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.mark.since, $json.mark.due ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "notes": "Runs only for the WhatsApp item that carries .mark (see IF below)."
+    },
+    {
+      "id": "w20-62",
+      "name": "Item carries a nudge mark?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        2560
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.mark }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-63",
+      "name": "Default untouched availability (24 h after calendar)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        2760
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Step 4 pre-fills from the defaults (README). If untouched 24 h after the calendar step, it counts as defaulted so it can never stall go-live.\nupdate public.brokers set onboarding_progress = jsonb_set(coalesce(onboarding_progress,'{}'::jsonb), '{availability}', jsonb_build_object('status','defaulted','done_at',now(),'by','system')), onboarding_last_progress_at = now()\nwhere brand_id = $1 and status = 'onboarding' and onboarding_progress->'calendar'->>'status' = 'done'\n  and (onboarding_progress->'calendar'->>'done_at')::timestamptz < now() - interval '24 hours'\n  and coalesce(onboarding_progress->'availability'->>'status','todo') in ('todo','doing')\nreturning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $env.BRAND_ID ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-64",
+      "name": "Emit step.completed (availability)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        2760
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Re-enters lane A through the signed webhook so there is one code path for 'step done'.\nconst crypto = require('crypto');\nconst out = [];\nfor (const it of $input.all()) {\n  const body = JSON.stringify({ event_id: 'avail-default:' + it.json.broker_id + ':' + new Date().toISOString().slice(0, 10), type: 'step.completed', broker_id: it.json.broker_id, step: 'availability', occurred_at: new Date().toISOString(), payload: { by: 'system', defaulted: true } });\n  const sig = crypto.createHmac('sha256', $env.INTERNAL_HMAC_SECRET || '').update(body).digest('hex');\n  await this.helpers.httpRequest({ method: 'POST', url: $env.N8N_PUBLIC_URL + '/webhook/w20/broker-event', headers: { 'content-type': 'application/json', 'x-lv-signature': 'sha256=' + sig }, body });\n  out.push({ json: { broker_id: it.json.broker_id, emitted: true } });\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "w20-65",
+      "name": "Stamp 48-h SLA miss",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        2960
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Measure: onboarding complete within 48 h of first login. Stamped once; Jonathan sees it, the broker does not.\nupdate public.brokers set onboarding_nudges = coalesce(onboarding_nudges,'{}'::jsonb) || jsonb_build_object('sla_48h_missed_at', now())\nwhere brand_id = $1 and status = 'onboarding' and first_login_at < now() - interval '48 hours' and onboarding_nudges->>'sla_48h_missed_at' is null\nreturning broker_id, practice_name;",
+        "options": {
+          "queryReplacement": "={{ [ $env.BRAND_ID ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-66",
+      "name": "Build SLA signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        2960
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().map((i) => ({ json: { channel: 'w22', kind: 'signal', signal_key: 'onboarding_48h_missed', scope: 'broker:' + i.json.broker_id, severity: 'amber', source: 'W20', what: i.json.practice_name + ' passed 48 h since first login without finishing setup', impact: 'Misses the onboarding target (48 h, zero support calls)', first_action: 'Check where the broker is stuck; see the 72-h to-do', since: new Date().toISOString() } }));"
+      }
+    },
+    {
+      "id": "w20-67",
+      "name": "Channel router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3400,
+        1500
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "wa",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "w22",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "alert"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "notes": "Every builder in lanes A-D feeds this one router (a node may have many inputs)."
+    },
+    {
+      "id": "w20-68",
+      "name": "Compose WhatsApp payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3640,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Template send. Staging safety: with DRY_RUN_SENDS=true only WHATSAPP_TEST_RECIPIENTS get a real send; others are logged as skipped.\nconst allow = String($env.WHATSAPP_TEST_RECIPIENTS || '').split(',').map((x) => x.trim().replace(/^\\+/, '')).filter(Boolean);\nreturn $input.all().map((it) => {\n  const j = it.json; const to = String(j.to || '').replace(/[^0-9]/g, '');\n  const clean = (t) => String(t == null ? '' : t).replace(/[\\n\\t]+/g, ' ').replace(/ {5,}/g, '    ').trim();\n  const components = [];\n  if ((j.params || []).length) components.push({ type: 'body', parameters: j.params.map((t) => ({ type: 'text', text: clean(t) })) });\n  for (const bt of (j.buttons || [])) if (bt.suffix) components.push({ type: 'button', sub_type: 'url', index: String(bt.index), parameters: [{ type: 'text', text: String(bt.suffix) }] });\n  const dry = String($env.DRY_RUN_SENDS || 'false') === 'true' && !allow.includes(to);\n  return { json: { ...j, send: !dry && !!to, skip_reason: dry ? 'dry_run_not_allow_listed' : (!to ? 'no_number' : null),\n    payload: { messaging_product: 'whatsapp', to, type: 'template', template: { name: j.template, language: { code: 'en' }, components } } } };\n});"
+      }
+    },
+    {
+      "id": "w20-69",
+      "name": "Send for real?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3860,
+        1400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-70",
+      "name": "WhatsApp: send template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4080,
+        1340
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION || 'v23.0' }}/{{ $env.NODE_ENV === 'production' ? $env.PHONE_NUMBER_ID : ($env.WHATSAPP_TEST_PHONE_NUMBER_ID || $env.PHONE_NUMBER_ID) }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lv-meta-system-user",
+          "name": "Meta system user token (Bearer)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "Same pattern as W22. Templates are UTILITY. A 4xx (template not approved yet) is logged, not retried, and never blocks the workflow: the portal still shows the next step."
+    },
+    {
+      "id": "w20-71",
+      "name": "Compose email (Graph sendMail)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3640,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// From HOWZIT_MAILBOX, bcc HOWZIT_MAILBOX (one audit trail, 4.10 item 0). Plain, near-text email on purpose (founder-style, no brand colours needed).\nconst mailbox = $env.HOWZIT_MAILBOX || 'howzit@leadvelocity.co.za';\nconst esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nreturn $input.all().map((it) => {\n  const j = it.json;\n  const cta = (c) => c ? '<p><a href=\"' + esc(c.url) + '\"><b>' + esc(c.text) + '</b></a></p>' : '';\n  const html = '<div style=\"font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:16px;line-height:1.5;max-width:560px\">' + (j.paragraphs || []).map((p) => '<p>' + esc(p) + '</p>').join('') + cta(j.cta) + cta(j.cta2) + '<p style=\"font-size:13px\">Lead Velocity (Pty) Ltd &middot; SortMyCover &middot; ' + esc(mailbox) + '</p></div>';\n  const message = { subject: j.subject, body: { contentType: 'HTML', content: html }, toRecipients: [{ emailAddress: { address: j.to } }], bccRecipients: [{ emailAddress: { address: mailbox } }], replyTo: [{ emailAddress: { address: mailbox } }] };\n  if ((j.attachments || []).length) message.attachments = j.attachments.map((a) => ({ '@odata.type': '#microsoft.graph.fileAttachment', name: a.name, contentType: a.contentType, contentBytes: a.contentBytes }));\n  const dry = String($env.DRY_RUN_SENDS || 'false') === 'true';\n  return { json: { ...j, attachments: undefined, send: !dry && !!j.to, skip_reason: dry ? 'dry_run' : null, graph_url: 'https://graph.microsoft.com/v1.0/users/' + encodeURIComponent(mailbox) + '/sendMail', graph_body: { message, saveToSentItems: true } } };\n});"
+      }
+    },
+    {
+      "id": "w20-72",
+      "name": "Send email for real?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3860,
+        1600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.send }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-73",
+      "name": "Email: send via Graph (howzit@)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4080,
+        1540
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.graph_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.graph_body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 20000
+        }
+      },
+      "credentials": {
+        "oAuth2Api": {
+          "name": "Microsoft Graph (howzit mailbox, app-only)"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "notes": "Graph Mail.Send application permission on HOWZIT_MAILBOX only (NH-13). Bounces are read on the same mailbox by W05/W17."
+    },
+    {
+      "id": "w20-74",
+      "name": "Log send (timeline)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        4300,
+        1500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- crm-gap A1: lead_activities as the single timeline (broker_id, workflow, actor_type, payload, idempotency_key). Needs lead_id nullable for broker rows (needs_human NH-BS-03).\ninsert into public.lead_activities (broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nvalues ($1::uuid, 'W20', 'system', $2, $3::jsonb, now(), $4)\non conflict (idempotency_key) do nothing returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.channel + '_' + $json.log_type, JSON.stringify({ channel: $json.channel, template: $json.template || null, subject: $json.subject || null, sent: !!$json.send, skip_reason: $json.skip_reason || null }), $json.idem + ':' + $json.channel ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-75",
+      "name": "Raise alert (W22)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        3640,
+        1800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "notes": "W22 input: {kind:'signal'|'w20_go_live_ready', signal_key, scope:'broker:<id>', severity, what, impact, first_action, since} (same shape as W22's own signals). W22 owns dedupe (<=1 per 24 h per signal_key+scope), DND and the WhatsApp ops_alert / ops_gate templates. 'w20_go_live_ready' must map to the ops_gate template (needs W22 change: needs_human NH-BS-10)."
+    },
+    {
+      "id": "w20-stale-if",
+      "name": "Stale pre-flight?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1920
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "s1",
+              "leftValue": "={{ $json.why }}",
+              "rightValue": "preflight_stale",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-stale-run",
+      "name": "Re-run pre-flight (stale)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        1860
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.COMPLIANCE_PREFLIGHT_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ broker_id: $json.broker_id, run_id: 'pf-' + $json.broker_id + '-' + Date.now(), callback_url: $env.N8N_PUBLIC_URL + '/webhook/w20/preflight-result', checks: ['fsp_verified','consent_mode_set','intro_card_gate','calendar_slots','test_lead_e2e'] }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-stale-save",
+      "name": "Save preflight run (re-run)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        1860
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Stale pass re-run: keep the old card (the gate still explains itself) and only point at the new run_id; the callback replaces the card. Status stays ready_for_go_live (Set ready_for_go_live only moves onboarded rows), so the broker is not messaged twice.\nupdate public.brokers set preflight_run_id = $2 where broker_id = $1::uuid and status = 'ready_for_go_live' returning broker_id;",
+        "options": {
+          "queryReplacement": "={{ [ $('Check gate preconditions').first().json.broker_id, $json.run_id || '' ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-01",
+      "name": "About W20 MS connect",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        3140
+      ],
+      "parameters": {
+        "content": "## W20 Microsoft calendar connect (I-40c, GAPS G-06, 0.3 #4)\nGET ms/connect (broker JWT; 302, or JSON {authorize_url} with Accept: application/json) -> Microsoft sign-in -> GET ms/callback (state HMAC, 10 min) -> code exchange (client secret ONLY in credential \"Microsoft Graph broker-connect client secret (W20)\", httpCustomAuth body {client_secret}) -> refresh token ONLY via smc_vault_store_ms_refresh() -> smc_set_calendar_status(connected) -> signed calendar.connected onto lane A.\nAdmin-consent AADSTS errors -> consent_pending + admin_consent_url in calendar_status_detail, portal opens with ?error=admin_consent. A failed re-connect never downgrades a working calendar. POST ms/disconnect (JWT) -> disconnected.\nEnv: MS_GRAPH_CLIENT_ID, MS_GRAPH_TENANT (default organizations), MS_GRAPH_REDIRECT_URI (= {N8N_PUBLIC_URL}/webhook/ms/callback), PORTAL_URL, SUPABASE_JWT_SECRET, MS_OAUTH_STATE_SECRET (falls back to INTERNAL_HMAC_SECRET), REPO_DIR. Scopes: automation/lib/w20-ms.mjs SCOPES (no Mail.*).\nI-43e: the code exchange, plan and vault store run in sub-workflow smc-w20-ms-token (saveDataErrorExecution and saveDataSuccessExecution both none), called by id from the \"MS token sub-workflow\" node. This workflow never holds the refresh token; the sub returns the public plan + token_ref only. A vault failure returns a no-downgrade plan, so a callback run never becomes an error execution.\nI-41i: AADSTS7000215/7000222/700016 / invalid_client -> calendar_status_detail.reason app_credentials + W22 red alert ms_client_secret_invalid (both phones).",
+        "height": 240,
+        "width": 760
+      }
+    },
+    {
+      "id": "w20-ms-02",
+      "name": "W20 MS connect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        3400
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ms/connect",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w20-ms-connect"
+    },
+    {
+      "id": "w20-ms-03",
+      "name": "MS connect: verify broker JWT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        3400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nconst c = M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET });\nreturn [{ json: { ...c, json: M.wantsJson(it.headers || {}, it.query || {}) } }];"
+      }
+    },
+    {
+      "id": "w20-ms-04",
+      "name": "JWT valid? (connect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        3400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-05",
+      "name": "Respond 401 (connect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        3280
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'unauthorised' }) }}",
+        "options": {
+          "responseCode": 401,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-06",
+      "name": "Load broker by user (connect)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        3440
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Broker path per automation/CONTRACTS.md: the broker comes from the JWT, never from the query.\nselect b.id as broker_id, b.ms_tenant_id, b.calendar_status\nfrom public.brokers b where b.user_id = $1::uuid and b.brand_id is not null limit 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.user_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w20-ms-07",
+      "name": "MS connect: mint state + authorize URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        3440
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst row = $input.first().json;\nconst broker = row && row.broker_id ? row : null;\nconst p = M.planConnect({ broker, cfg: CFG, json: $('MS connect: verify broker JWT').first().json.json });\nreturn [{ json: p }];"
+      }
+    },
+    {
+      "id": "w20-ms-08",
+      "name": "Redirect? (connect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        3440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.status === 302 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-09",
+      "name": "Respond 302 to Microsoft",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        3380
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 302,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ $json.location }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-10",
+      "name": "Respond JSON (connect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        3520
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-11",
+      "name": "W20 MS callback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        3800
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ms/callback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w20-ms-callback"
+    },
+    {
+      "id": "w20-ms-12",
+      "name": "MS callback: check state",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        3800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst q = $input.first().json.query || {};\nlet state;\ntry { state = M.verifyState(q.state, { secret: STATE_SECRET, previousSecret: $env.MS_OAUTH_STATE_SECRET_PREVIOUS }); } catch (e) { state = { ok: false, reason: 'not_configured' }; }\n// Only these keys continue; the code is single-use and never logged elsewhere.\nconst query = { code: q.code ? String(q.code).slice(0, 4000) : '', error: q.error ? String(q.error).slice(0, 100) : '', error_description: q.error_description ? String(q.error_description).slice(0, 1000) : '' };\nreturn [{ json: { state, broker_id: state.ok ? state.broker_id : null, query, has_code: !!(state.ok && query.code && !query.error) } }];"
+      }
+    },
+    {
+      "id": "w20-ms-13",
+      "name": "State valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        3800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.state.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-14",
+      "name": "MS callback: bad state redirect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        3660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nreturn [{ json: M.planCallback({ state: $input.first().json.state, cfg: CFG }) }];"
+      }
+    },
+    {
+      "id": "w20-ms-15",
+      "name": "Load broker (callback)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        3800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.id as broker_id, b.calendar_status from public.brokers b where b.id = $1::uuid and b.brand_id is not null limit 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w20-ms-19",
+      "name": "Callback action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1540,
+        3800
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "store",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "store"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "status"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "none"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-21",
+      "name": "Set calendar_status connected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2000,
+        3660
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.smc_set_calendar_status($1::uuid, 'connected', $2::jsonb) as calendar_status;",
+        "options": {
+          "queryReplacement": "={{ [ $('MS token sub-workflow').first().json.broker_id, JSON.stringify($('MS token sub-workflow').first().json.detail) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-22",
+      "name": "Build calendar.connected event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        3660
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst p = $('MS token sub-workflow').first().json;\nconst ref = p.token_ref;\nconst e = M.connectedEvent({ brokerId: p.broker_id, tokenRef: ref, secret: $env.INTERNAL_HMAC_SECRET });\nreturn [{ json: e }];"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-23",
+      "name": "Post calendar.connected (lane A)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        3660
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_PUBLIC_URL + '/webhook/w20/broker-event' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-LV-Signature",
+              "value": "={{ $json.signature }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.raw }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-24",
+      "name": "Set calendar_status (callback)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1780,
+        3800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select public.smc_set_calendar_status($1::uuid, $2, $3::jsonb) as calendar_status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.status, JSON.stringify($json.detail) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-25",
+      "name": "Respond 302 to portal",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2660,
+        3800
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 302,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ ($('MS token sub-workflow').isExecuted ? $('MS token sub-workflow').first().json.redirect : $('MS callback: bad state redirect').first().json.redirect) || (($env.PORTAL_URL || '') + '/broker/calendar?error=calendar') }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-26",
+      "name": "W20 MS disconnect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        4200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ms/disconnect",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w20-ms-disconnect"
+    },
+    {
+      "id": "w20-ms-27",
+      "name": "MS disconnect: verify broker JWT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        4200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst it = $input.first().json;\nreturn [{ json: M.brokerCaller(it.headers || {}, { jwtSecret: $env.SUPABASE_JWT_SECRET }) }];"
+      }
+    },
+    {
+      "id": "w20-ms-28",
+      "name": "JWT valid? (disconnect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        4200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-29",
+      "name": "Respond 401 (disconnect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        4080
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'unauthorised' }) }}",
+        "options": {
+          "responseCode": 401,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-30",
+      "name": "Load broker by user (disconnect)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        4240
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select b.id as broker_id from public.brokers b where b.user_id = $1::uuid and b.brand_id is not null limit 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.user_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "w20-ms-31",
+      "name": "Broker found? (disconnect)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        4240
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.broker_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w20-ms-32",
+      "name": "Respond 403 (disconnect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        4360
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: 'not_a_broker' }) }}",
+        "options": {
+          "responseCode": 403,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-33",
+      "name": "Set calendar_status disconnected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        4200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- smc_vault_ms_refresh() returns nothing once status leaves 'ok', so W04/W05 stop using the token at once.\nselect public.smc_set_calendar_status($1::uuid, 'disconnected', jsonb_build_object('by', 'broker', 'at', now())) as calendar_status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w20-ms-34",
+      "name": "Respond 200 (disconnect)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        4200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, calendar_status: $json.calendar_status }) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "w20-ms-38",
+      "name": "MS callback: secret alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        4000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41i: AADSTS7000215 / 7000222 / 700016 (bad or expired secret, unknown app) -> W22 red alert (kind: M.SECRET_ALERT_KIND).\n// Fresh object only (no plan fields copied); nothing is emitted for any other outcome.\nconst a = M.secretAlert($input.first().json);\nreturn a ? [{ json: a }] : [];"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-39",
+      "name": "Raise alert (W22, MS callback)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        4000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w20-ms-40",
+      "name": "MS callback: sub input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        3800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-43e: builds the sub-workflow input. No token exists in this workflow; the exchange happens in smc-w20-ms-token.\nconst s = $('MS callback: check state').first().json;\nlet row = {}; try { row = $input.first().json || {}; } catch (e) {}\nreturn [{ json: { state: s.state, query: s.query, has_code: !!s.has_code, broker_id: row.broker_id || null, current_status: row.calendar_status || null } }];"
+      }
+    },
+    {
+      "id": "w20-ms-41",
+      "name": "MS token sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        3800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w20-ms-token"
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "I-43e: token exchange + vault store run in smc-w20-ms-token (error and success execution data off). Returns the public plan only."
+    }
+  ],
+  "connections": {
+    "W20 broker event": {
+      "main": [
+        [
+          {
+            "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature": {
+      "main": [
+        [
+          {
+            "node": "Signature valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedupe event": {
+      "main": [
+        [
+          {
+            "node": "Load broker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker": {
+      "main": [
+        [
+          {
+            "node": "Derive state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Derive state": {
+      "main": [
+        [
+          {
+            "node": "Route by event type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature valid?": {
+      "main": [
+        [
+          {
+            "node": "Respond 202",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 202": {
+      "main": [
+        [
+          {
+            "node": "Dedupe event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by event type": {
+      "main": [
+        [
+          {
+            "node": "Make magic link",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FSCA register lookup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verify slots (W04 GET /slots)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build calendar failure message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch signed PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Broker away from portal?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check onboarded (hard steps)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Make magic link": {
+      "main": [
+        [
+          {
+            "node": "Build welcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FSCA register lookup": {
+      "main": [
+        [
+          {
+            "node": "Evaluate FSCA result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate FSCA result": {
+      "main": [
+        [
+          {
+            "node": "Save fsp_check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save fsp_check": {
+      "main": [
+        [
+          {
+            "node": "FSP verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FSP verified?": {
+      "main": [
+        [
+          {
+            "node": "Complete profile step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Block profile step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Block profile step": {
+      "main": [
+        [
+          {
+            "node": "Build FSP block messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify slots (W04 GET /slots)": {
+      "main": [
+        [
+          {
+            "node": "Evaluate slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate slots": {
+      "main": [
+        [
+          {
+            "node": "Slots found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slots found?": {
+      "main": [
+        [
+          {
+            "node": "Complete calendar step",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build calendar messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete calendar step": {
+      "main": [
+        [
+          {
+            "node": "Build calendar messages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check onboarded (hard steps)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch signed PDF": {
+      "main": [
+        [
+          {
+            "node": "Build agreement email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check onboarded (hard steps)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker away from portal?": {
+      "main": [
+        [
+          {
+            "node": "Build next-step prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete profile step": {
+      "main": [
+        [
+          {
+            "node": "Check onboarded (hard steps)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check onboarded (hard steps)": {
+      "main": [
+        [
+          {
+            "node": "Start compliance pre-flight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start compliance pre-flight": {
+      "main": [
+        [
+          {
+            "node": "Save preflight run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 preflight result": {
+      "main": [
+        [
+          {
+            "node": "Verify signature (preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature (preflight)": {
+      "main": [
+        [
+          {
+            "node": "Signature valid? (preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature valid? (preflight)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (preflight)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200 (preflight)": {
+      "main": [
+        [
+          {
+            "node": "Save preflight card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save preflight card": {
+      "main": [
+        [
+          {
+            "node": "All checks passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All checks passed?": {
+      "main": [
+        [
+          {
+            "node": "Set ready_for_go_live",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build pre-flight failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set ready_for_go_live": {
+      "main": [
+        [
+          {
+            "node": "Build ready messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 approve and go live": {
+      "main": [
+        [
+          {
+            "node": "Verify signature (go-live)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature (go-live)": {
+      "main": [
+        [
+          {
+            "node": "Signature valid? (go-live)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature valid? (go-live)": {
+      "main": [
+        [
+          {
+            "node": "Check gate preconditions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (go-live)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check gate preconditions": {
+      "main": [
+        [
+          {
+            "node": "Gate preconditions met?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate preconditions met?": {
+      "main": [
+        [
+          {
+            "node": "Activate broker",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 409 (go-live)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Stale pre-flight?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activate broker": {
+      "main": [
+        [
+          {
+            "node": "Hand off to go-live step (W26/W16)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hand off to go-live step (W26/W16)": {
+      "main": [
+        [
+          {
+            "node": "Build live messages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Revert to ready_for_go_live",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Revert to ready_for_go_live": {
+      "main": [
+        [
+          {
+            "node": "Build hand-off failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build hand-off failure alert": {
+      "main": [
+        [
+          {
+            "node": "Respond 502 (go-live)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build live messages": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (go-live)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 30 min sweep": {
+      "main": [
+        [
+          {
+            "node": "Within send hours (08:00-19:00 SAST)?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Default untouched availability (24 h after calendar)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Stamp 48-h SLA miss",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Within send hours (08:00-19:00 SAST)?": {
+      "main": [
+        [
+          {
+            "node": "Find due nudges",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find due nudges": {
+      "main": [
+        [
+          {
+            "node": "Build nudge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default untouched availability (24 h after calendar)": {
+      "main": [
+        [
+          {
+            "node": "Emit step.completed (availability)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stamp 48-h SLA miss": {
+      "main": [
+        [
+          {
+            "node": "Build SLA signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build nudge": {
+      "main": [
+        [
+          {
+            "node": "Item carries a nudge mark?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Item carries a nudge mark?": {
+      "main": [
+        [
+          {
+            "node": "Mark nudge sent (at-most-once)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Channel router": {
+      "main": [
+        [
+          {
+            "node": "Compose WhatsApp payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose email (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Raise alert (W22)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose WhatsApp payload": {
+      "main": [
+        [
+          {
+            "node": "Send for real?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send for real?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: send template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log send (timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp: send template": {
+      "main": [
+        [
+          {
+            "node": "Log send (timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose email (Graph sendMail)": {
+      "main": [
+        [
+          {
+            "node": "Send email for real?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email for real?": {
+      "main": [
+        [
+          {
+            "node": "Email: send via Graph (howzit@)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log send (timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: send via Graph (howzit@)": {
+      "main": [
+        [
+          {
+            "node": "Log send (timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build welcome": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build FSP block messages": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build calendar messages": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build calendar failure message": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build agreement email": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build next-step prompt": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build ready messages": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build pre-flight failure": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SLA signal": {
+      "main": [
+        [
+          {
+            "node": "Channel router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stale pre-flight?": {
+      "main": [
+        [
+          {
+            "node": "Re-run pre-flight (stale)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Re-run pre-flight (stale)": {
+      "main": [
+        [
+          {
+            "node": "Save preflight run (re-run)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 MS connect": {
+      "main": [
+        [
+          {
+            "node": "MS connect: verify broker JWT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS connect: verify broker JWT": {
+      "main": [
+        [
+          {
+            "node": "JWT valid? (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT valid? (connect)": {
+      "main": [
+        [
+          {
+            "node": "Load broker by user (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker by user (connect)": {
+      "main": [
+        [
+          {
+            "node": "MS connect: mint state + authorize URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS connect: mint state + authorize URL": {
+      "main": [
+        [
+          {
+            "node": "Redirect? (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redirect? (connect)": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to Microsoft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond JSON (connect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 MS callback": {
+      "main": [
+        [
+          {
+            "node": "MS callback: check state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: check state": {
+      "main": [
+        [
+          {
+            "node": "State valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "State valid?": {
+      "main": [
+        [
+          {
+            "node": "Load broker (callback)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MS callback: bad state redirect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: bad state redirect": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker (callback)": {
+      "main": [
+        [
+          {
+            "node": "MS callback: sub input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback action": {
+      "main": [
+        [
+          {
+            "node": "Set calendar_status connected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set calendar_status (callback)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set calendar_status connected": {
+      "main": [
+        [
+          {
+            "node": "Build calendar.connected event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build calendar.connected event": {
+      "main": [
+        [
+          {
+            "node": "Post calendar.connected (lane A)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post calendar.connected (lane A)": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set calendar_status (callback)": {
+      "main": [
+        [
+          {
+            "node": "Respond 302 to portal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W20 MS disconnect": {
+      "main": [
+        [
+          {
+            "node": "MS disconnect: verify broker JWT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS disconnect: verify broker JWT": {
+      "main": [
+        [
+          {
+            "node": "JWT valid? (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT valid? (disconnect)": {
+      "main": [
+        [
+          {
+            "node": "Load broker by user (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 401 (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load broker by user (disconnect)": {
+      "main": [
+        [
+          {
+            "node": "Broker found? (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Broker found? (disconnect)": {
+      "main": [
+        [
+          {
+            "node": "Set calendar_status disconnected",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 403 (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set calendar_status disconnected": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (disconnect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: secret alert": {
+      "main": [
+        [
+          {
+            "node": "Raise alert (W22, MS callback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: sub input": {
+      "main": [
+        [
+          {
+            "node": "MS token sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS token sub-workflow": {
+      "main": [
+        [
+          {
+            "node": "Callback action",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "MS callback: secret alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false,
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "owner": "broker-success",
+    "spec": "portal/spec/README.md + portal/spec/10-nudges-and-go-live.md"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "broker-onboarding"
+    },
+    {
+      "name": "W20"
+    }
+  ]
+}

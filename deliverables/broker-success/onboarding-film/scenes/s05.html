@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>05 How we keep improving</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .top { position: absolute; left: 140px; top: 168px; }
+  .top h1 { margin-top: 14px; }
+  .ab { position: absolute; left: 140px; top: 330px; width: 900px; height: 560px; }
+  .timer { position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 10px 24px 10px 12px; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); z-index: 3; }
+  .timer svg { width: 44px; height: 44px; transform: rotate(-90deg); }
+  .timer b { font-size: 24px; color: var(--navy); }
+  .timer span { font-size: 18px; color: var(--muted); font-weight: 600; }
+  .ad { position: absolute; top: 76px; width: 420px; height: 470px; padding: 18px; }
+  .ad.A { left: 0; } .ad.B { right: 0; }
+  .ad .img { position: relative; height: 230px; border-radius: 14px; overflow: hidden; }
+  .ad .img > div { position: absolute; inset: 0; }
+  .ad .img .lay2 { opacity: 0; }
+  .shape { position: absolute; border-radius: 50%; }
+  .ad .who { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+  .ad .av { width: 40px; height: 40px; border-radius: 50%; background: var(--grad); }
+  .sk { height: 14px; border-radius: 7px; background: var(--soft); }
+  .ad .ln { margin-top: 16px; display: grid; gap: 12px; }
+  .ad .cta { margin-top: 20px; height: 48px; border-radius: 12px; background: var(--soft); display: grid; place-items: center; }
+  .ad .cta i { width: 120px; height: 12px; border-radius: 6px; background: #cbd5e1; }
+  .ad .name { position: absolute; left: 18px; top: -46px; font-size: 22px; font-weight: 700; color: var(--navy); letter-spacing: .02em; }
+  .ad .name em { font-style: normal; display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: #fff; margin-right: 10px; font-size: 18px; }
+  .badge { position: absolute; right: -16px; top: -18px; display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: var(--grad); color: #fff; font-size: 22px; font-weight: 700; box-shadow: 0 14px 30px -12px rgba(219,39,119,.75); z-index: 2; }
+  .badge svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .fresh { position: absolute; left: 14px; bottom: 14px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.94); font-size: 17px; font-weight: 700; color: var(--green); }
+  .fatigue { position: absolute; left: 14px; bottom: 14px; padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.94); font-size: 17px; font-weight: 700; color: #c2410c; }
+  .dash { position: absolute; left: 1110px; top: 330px; width: 670px; padding: 28px 32px 18px; }
+  .dash .hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .live { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; color: var(--green); letter-spacing: .08em; text-transform: uppercase; }
+  .live i { width: 10px; height: 10px; border-radius: 50%; background: var(--green); }
+  .met { display: flex; align-items: center; justify-content: space-between; height: 96px; border-top: 1.5px solid var(--soft); }
+  .met .a { font-size: 28px; font-weight: 700; color: var(--navy); }
+  .met svg { width: 230px; height: 56px; overflow: visible; }
+  .met path { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+  .note { position: absolute; left: 1110px; top: 742px; width: 670px; padding: 22px 30px; display: flex; align-items: center; gap: 24px; border-radius: 22px; background: var(--pink-wash); border: 1.5px solid var(--pink-soft); }
+  .note .num { font-size: 64px; font-weight: 700; line-height: 1; background: var(--grad); -webkit-background-clip: text; color: transparent; letter-spacing: -.03em; }
+  .note .a { font-size: 25px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+  .note .b { font-size: 19px; color: var(--muted); margin-top: 4px; }
+</style></head>
+<body data-scene="s05"><div class="stage">
+  <div class="top"><div class="eyebrow">Step four</div><h1 class="h"><i></i>How we keep improving</h1></div>
+  <div class="ab">
+    <div class="timer"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="#e2e8f0" stroke-width="5"/><circle id="tarc" cx="22" cy="22" r="18" fill="none" stroke="#db2777" stroke-width="5" stroke-linecap="round" stroke-dasharray="113.1" stroke-dashoffset="113.1"/></svg><b>1 week</b><span id="tday">side by side</span></div>
+    <div class="card ad A"><div class="name"><em>A</em>Ad A</div>
+      <div class="img"><div style="background:linear-gradient(135deg,#e0e7ff,#f5f3ff)"><div class="shape" style="width:190px;height:190px;left:-30px;top:60px;background:#c7d2fe"></div><div class="shape" style="width:120px;height:120px;right:40px;top:30px;background:#a5b4fc"></div></div></div>
+      <div class="who"><div class="av" style="background:#cbd5e1"></div><div class="sk" style="width:150px"></div></div>
+      <div class="ln"><div class="sk" style="width:92%"></div><div class="sk" style="width:74%"></div></div>
+      <div class="cta"><i></i></div></div>
+    <div class="card ad B"><div class="name"><em>B</em>Ad B</div>
+      <div class="badge"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>Winner</div>
+      <div class="img">
+        <div class="lay1" style="background:linear-gradient(135deg,#fce7f3,#fbcfe8)"><div class="shape" style="width:220px;height:220px;right:-40px;top:-50px;background:#f9a8d4"></div><div class="shape" style="width:110px;height:110px;left:50px;bottom:-20px;background:#f472b6;opacity:.6"></div><div class="fatigue">Seen too often</div></div>
+        <div class="lay2" style="background:linear-gradient(135deg,#f5d0fe,#ddd6fe)"><div class="shape" style="width:240px;height:240px;left:-50px;top:-70px;background:#e879f9;opacity:.55"></div><div class="shape" style="width:140px;height:140px;right:30px;bottom:-30px;background:#a78bfa"></div><div class="fresh">Fresh creative</div></div>
+      </div>
+      <div class="who"><div class="av"></div><div class="sk" style="width:150px"></div></div>
+      <div class="ln"><div class="sk" style="width:88%"></div><div class="sk" style="width:66%"></div></div>
+      <div class="cta" style="background:var(--pink-wash)"><i style="background:var(--pink-soft)"></i></div></div>
+  </div>
+  <div class="card dash">
+    <div class="hdr"><div class="lbl">Watched every day</div><div class="live"><i></i>Daily</div></div>
+    <div class="met"><div class="a">Cost per lead</div><svg viewBox="0 0 230 56"><path d="M0 30 C20 22,40 22,60 30 S100 40,120 30 S160 20,180 28 S215 36,230 30" stroke="#db2777"/></svg></div>
+    <div class="met"><div class="a">Booked</div><svg viewBox="0 0 230 56"><path d="M0 26 C22 36,42 36,64 28 S104 18,126 26 S166 38,188 30 S220 22,230 26" stroke="#9333ea"/></svg></div>
+    <div class="met"><div class="a">Attended</div><svg viewBox="0 0 230 56"><path d="M0 32 C18 26,38 24,56 32 S94 40,114 32 S152 22,172 30 S214 36,230 28" stroke="#7c3aed"/></svg></div>
+  </div>
+  <div class="note"><div class="num">~50</div><div><div class="a">About 50 results a week to settle</div><div class="b">So we make changes on purpose, not on impulse</div></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const paths = $$('.met path'); paths.forEach(p => { const L = p.getTotalLength(); p.dataset.l = L; p.style.strokeDasharray = L; p.style.strokeDashoffset = L; });
+  const tTest = cue('test'), tWeek = cue('week'), tWin = cue('winner'), tWatch = cue('watch');
+  const tMet = [cue('cost'), cue('book'), cue('show')], tSeen = cue('seen'), tRefresh = cue('refreshing'), tFifty = cue('fifty'), tPurpose = cue('purpose');
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.ad.A', t, tTest - .3, { y: 40, dur: 1 });
+    rv('.ad.B', t, tTest - .1, { y: 40, dur: 1 });
+    rv('.timer', t, tWeek - .6, { y: -12, dur: .8 });
+    // timer runs over the test week, then the winner is called
+    const run = P(t, tWeek - .4, tWin - tWeek + .4, E.inOut);
+    $('#tarc').style.strokeDashoffset = (113.1 * (1 - run)).toFixed(2);
+    $('#tday').textContent = run >= 1 ? 'winner picked' : 'side by side';
+    const w = P(t, tWin, .7, E.back);
+    const bd = $('.badge'); bd.style.opacity = clamp(w * 1.5); bd.style.transform = `scale(${lerp(.4, 1, clamp(w, 0, 1.2)).toFixed(4)}) rotate(${((1 - clamp(w)) * -8).toFixed(2)}deg)`;
+    const dim = P(t, tWin + .2, .8);
+    $('.ad.A').style.opacity = (Number($('.ad.A').style.opacity) * (1 - .5 * dim)).toFixed(3);
+    $('.ad.A').style.filter = `grayscale(${dim.toFixed(3)})`;
+    $('.ad.B').style.boxShadow = `0 2px 4px rgba(15,23,42,.05), 0 ${(30 * dim).toFixed(1)}px 60px -24px rgba(219,39,119,${(.45 * dim).toFixed(3)})`;
+    $('.ad.B').style.borderColor = dim > .5 ? 'var(--pink-soft)' : '';
+    // creative fatigue, then a refresh
+    rv('.fatigue', t, tSeen, { y: 10, dur: .6 });
+    $('.fatigue').style.opacity = (P(t, tSeen, .6) * (1 - P(t, tRefresh, .5))).toFixed(3);
+    const rf = P(t, tRefresh - .1, 1, E.inOut);
+    $('.lay2').style.opacity = rf.toFixed(3);
+    $('.lay2').style.clipPath = `inset(0 ${((1 - rf) * 100).toFixed(2)}% 0 0 round 14px)`;
+    // daily dashboard
+    rv('.dash', t, tWatch - .3, { y: 34, dur: 1 });
+    $$('.met').forEach((m, i) => {
+      rv(m, t, tMet[i] - .2, { x: 20, y: 0, dur: .7 });
+      const p = P(t, tMet[i], 1.6, E.inOut), L = +paths[i].dataset.l;
+      paths[i].style.strokeDashoffset = (L * (1 - p)).toFixed(2);
+    });
+    $('.live i').style.opacity = (.55 + .45 * Math.sin(t * 4)).toFixed(3);
+    rv('.note', t, tFifty - .2, { y: 24, dur: .9 });
+    rv('.note .b', t, tPurpose - .3, { y: 8, dur: .7 });
+  };
+</script></body></html>

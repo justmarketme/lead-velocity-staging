@@ -1,0 +1,56 @@
+{
+  "name": "booking_confirmed",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Booking confirmed"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, you are booked. *{{2}}* will meet you on *{{3}} at {{4}}* by {{5}}. Please reply with the day and time so we know it is in your diary. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith",
+            "Tue 7 Oct",
+            "10:00",
+            "phone call"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Add to calendar",
+          "url": "https://sortmycover.co.za/c/{{1}}",
+          "example": [
+            "https://sortmycover.co.za/c/bk_8f3a2c"
+          ]
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Confirm"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Reschedule"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Cancel"
+        }
+      ]
+    }
+  ]
+}

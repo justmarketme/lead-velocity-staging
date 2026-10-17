@@ -1,0 +1,75 @@
+{
+  "_meta": {
+    "key": "broker_new_booking",
+    "source": "automation/templates/broker_new_booking.json",
+    "approval": {
+      "name": "smc_broker_new_booking",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "body"
+      },
+      {
+        "n": 7,
+        "kind": "body"
+      },
+      {
+        "n": 8,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_new_booking",
+    "language": "en",
+    "variables": {
+      "1": "Mark",
+      "2": "Lerato M.",
+      "3": "Tue 7 Oct",
+      "4": "10:00",
+      "5": "Microsoft Teams",
+      "6": "35-44",
+      "7": "R750-R1,250",
+      "8": "l/ld_51c9"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "New booking for you, {{1}}: *{{2}}* on *{{3}} at {{4}}* by {{5}}. Age band {{6}}, budget band {{7}}. It is in your Outlook calendar, and the pre-call brief will follow 15 minutes before the call.",
+        "header_text": "New booking",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Open in portal",
+            "url": "https://leadvelocity.co.za/{{8}}"
+          }
+        ]
+      }
+    }
+  }
+}

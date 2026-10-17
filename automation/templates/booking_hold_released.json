@@ -1,0 +1,33 @@
+{
+  "name": "booking_hold_released",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, we couldn't confirm your email in time, so we've released the time we were holding for you ({{2}} at {{3}}). Tap below to pick a new time. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Thu 15 Oct",
+            "10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "See open times"
+        }
+      ]
+    }
+  ]
+}

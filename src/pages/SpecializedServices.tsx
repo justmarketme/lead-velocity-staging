@@ -50,7 +50,7 @@ const SpecializedServices = () => {
       icon: RefreshCw,
       title: "Retentions & Arrears",
       description: "Reinstate lapsed policies efficiently",
-      price: "R200 per case or 10% of commission",
+      price: "R200 per case",
       features: [
         "Professional policy reinstatement",
         "Client outreach and follow-up",

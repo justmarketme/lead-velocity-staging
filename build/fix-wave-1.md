@@ -1,0 +1,37 @@
+# Fix wave 1 — from compliance-qa phase4-review-2 (dispatched by the orchestrator after wave 3 lands, to avoid file conflicts)
+
+| Owner | Fixes |
+|---|---|
+| creative-strategist | C01 "Most bonds" → "Many bonds"; C03 cut the unsourced "most new owners skip…" clause; C14 drop "photo"; C02 replaced by H12 payslip checklist for cycle 1 (keep C02 in reserve); C12 held, C13 in; DStv anchor removed from any mention; website-wording: FAQ "Is there a contract? — No." → honest answer (agreement, no lock-in/minimum term), "pre-call brief for every booked call", "no contract" → "no lock-in" everywhere; Promotions page: Option A text (take-down note) pending NH-14. Regenerate concepts.csv. |
+| performance-creative-director | fold the same into hook-library-v2 / briefs (C02→H12, C12→C13). |
+| visual-producer | re-render C01, C03, C14 stills + motion and the new C02/C12 replacements after the copy fixes. |
+| landing-page-builder | H1s for new-bond, turned-40, self-employed, virtual, myth-bust from hook-library-v2; FAQ data from faq.md v1.0.1; remove l.144 "No products, prices or paperwork on the call"; add `#opt-out` anchor target (privacy page) ; rebuild dist; W01 note: consent text rebuilt server-side from `consent_version`. |
+| conversation-designer | faq.md v1.0.1 (FAQ-05/23 "only to {practice}", FAQ-09 flat-fee wording, FAQ-25 lead pulse, FAQ-11 unsourced stat, FAQ-02/10/16 "no selling" → "no obligation to buy"; Part B add claims, investments/RAs/medical aid, wills/estate, adviser commission); red-team +12 cases (other states, multi-turn, switching/suitability, out-of-scope money, claims, commission, self-harm/bereavement → person, volunteered ID/bank/health, policy-schedule photo, voice note, disguised numbers/slang/isiZulu/Sesotho, injection in lead name → brief, injection in CTWA referral, harmless near-misses); guardrail prompt sees the lead's question + explicit switching/claims + personal-attributes check for public replies; script-generator.md l.25 + script-gate.md l.13 → day-neutral close; re-run dry run. |
+| community-response-lead | "nothing is sold on the call" → "no obligation to buy"; privacy line "only to the adviser" fix; sensitive human template must not pitch a call. |
+| search-findability-lead | remove the "Reviewed by a licensed adviser" line until a real review exists; reviewer never a routed broker. |
+| broker-success + billing-automation | "no contract" → "no lock-in / no minimum term" on agreement screens and checkout; checkout title without the consumer brand (NH-27 d); CI test that billing code never reads policies-written/commission. |
+| intro-media-producer | rubric rules I-1…I-7 from phase4-review-2 §5. |
+| automation-engineer | W01 test: consent text rebuilt server-side from version (not trusted from the browser). |
+| creative-strategist (from PCD) | adopt hook-library-v2 wording: H1 beat 2 "The bond and the bills don't", H3 "Bond approved. Champagne open. Cover checked?", H5 "Cover set up at 28. Life at 40.", H12 "3 lines on a payslip worth a look."; primary-text edits for C01/C03/C05/C12 listed in hook-library-v2.md; C12 uses H18 until sourced. |
+| media-buyer (from PCD + meta-operator) | campaign-spec §4.4–4.5 concept numbers → test-matrix.md table; A2 carousel "Most bonds don't." → PCD wording; split `SMC_EXC_leads_90d` into `_pix` and `_list`; note Meta does not split delivery evenly between the colour pair. |
+| visual-producer (from PCD) | add teal/cream test tokens + teal tick/wordmark variants; 4:5 end card + 9:16 motion template; fix `brand/templates/feed.html` default "Check yours…" (second person) and remove the R1 420 000 / "3× annual salary" figures. |
+| compliance-qa (fix wave 2) | check the sample "FSP 12345" is not a real FSP number (use an obviously invalid placeholder like FSP 00000 if in doubt); file the 2–4× source URL in deliverables/verified-facts.md when Jonathan supplies the guide. |
+
+## Fix wave 3 (from compliance-qa phase4-review-3, 2026-10-02) — owner items still open
+| Owner | Items |
+|---|---|
+| search-findability-lead + contracts-drafter | `landing/holding/privacy.html` is a "[Pending approval]" placeholder: name the Pixel, list processors, add a visible control that calls `smc.adsOff()` (M; H before any Pixel test traffic) |
+| landing-page-builder | review-2 carry-overs: `template/index.html:186`, `:166` + `strings.json:23`, `strings.json:32`, `index.html:51` (M); `index.html:142` + `strings.json:27`, `config/site.json:9` absolute opt-out URL, `self-employed.json:10` "often have none" (L); myth-bust page: agree with creative-strategist whether the page serves C12 (H18) or C13 and give C13 its own H1 |
+| automation-engineer | W01 test must rebuild the consent text server-side from `consent_version` (after GATE-TEST-W01) |
+| platform-architect | `Profile.tsx:139` unsourced show-rate claim; `Calendar.tsx:153` promises leads something on the broker's behalf; add `policies_reported` to the billing boundary test |
+| intro-media-producer / visual-producer | confirm the SAMPLE tag on the intro-video lower third is visible on the frame Meta sees (opacity 0 at start) |
+| compliance-qa (review 4) | "lifts show rate" in `src/lib/smc.ts` STEPS step 7 and "far less likely to no-show" in `src/pages/portal/IntroMedia.tsx` — source (4.10b show-rate test is the only planned evidence) or reword to "we measure whether it helps" |
+
+## Fix wave 4 (from compliance-qa phase4-review-4, 2026-10-02)
+| Owner | Items |
+|---|---|
+| attribution-analyst | #27: drop hashed email from CAPI (`automation/capi/capi.js:46,136-138`, event-spec.md, tests) and from `privacy.html:72,84`; email is used only for the Teams/Zoom/Meet invite (0.1) |
+| automation-engineer | W03 named consent → `ctwa-named-v2` (responsible party + STOP + privacy link); W08 "No thanks" adds the number hash to `suppression`; one owner for unfinished-CTWA nudges (W03 keeps them, W08 skips pre-routing); W19 reminder states the amount and how to switch auto-renew off; `scripts/build-broker-report-email.mjs` drops the close-rate/policies section from the emailed PDF; I-37d W23 trigger → sub-call; I-37e W07 loop guard + W32 tap routes |
+| contracts-drafter | PN-v1: adviser rating/note about the lead, voice-note transcription provider (named by env, no email to Meta); Schedule C1 options (NH-42); cookie notice aligned with `adsOff()` |
+| visual-producer | re-run `brand/exports/render.mjs` + `build-logos.mjs` so the intro-card PNGs and cobrand sample carry FSP 00000 (SAMPLE); confirm the SAMPLE tag is visible on the intro-video first frame (#11) |
+| landing-page-builder + creative-strategist | C13 landing variant (H16) before any C13 traffic (#25) |

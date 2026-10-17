@@ -1,0 +1,59 @@
+{
+ "W15": [
+  "-> W15"
+ ],
+ "W03": [
+  "-> W03"
+ ],
+ "W05": [
+  "-> W05"
+ ],
+ "W09": [
+  "-> W09"
+ ],
+ "W10": [
+  "-> W10"
+ ],
+ "W12": [
+  "-> W12"
+ ],
+ "W29": [
+  "-> W29"
+ ],
+ "W35": [
+  "-> W35"
+ ],
+ "W04_list": [
+  "-> W04_list"
+ ],
+ "W08": [
+  "-> W08"
+ ],
+ "W28": [
+  "-> W28"
+ ],
+ "W07_contact": [
+  "Contact step (call number / alt / best time)"
+ ],
+ "paused": [
+  "Paused / opted out: log only"
+ ],
+ "ignore_opted_out": [
+  "Paused / opted out: log only"
+ ],
+ "nlu": [
+  "Media only? (never sent to a model)"
+ ],
+ "W32_decision": [
+  "W32 tap -> decision item"
+ ],
+ "W23": [
+  "W23 media -> trigger item"
+ ],
+ "ignore_loop": [
+  "Paused / opted out: log only"
+ ],
+ "fallback": [
+  "Paused / opted out: log only"
+ ]
+}

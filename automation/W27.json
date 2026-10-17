@@ -1,0 +1,516 @@
+{
+  "id": "smc-w27",
+  "name": "W27 Meta asset health (hourly + webhooks)",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -260
+      ],
+      "parameters": {
+        "width": 680,
+        "height": 300,
+        "content": "W27 Meta asset health. Hourly at :17 and on Meta webhook events (page / whatsapp_business_account / ad account). One batched Graph call per brand (<= 50). Writes brands health fields; any NEW restriction / rejection / quality drop -> W22 urgent (both phones). Template status is synced into message_templates. Read-only against Meta. Needs env META_SYSTEM_USER_TOKEN, META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN. ASSUMPTION: brands.health_alerts jsonb + health_json jsonb columns exist (add them); EMQ edge (dataset_quality) is unverified: emq stays null if it fails. Writes: brands health fields + health_alerts (jsonb), message_templates.meta_status / meta_category / rejected_reason / status_synced_at (never legacy status/category), ops.notifications console row with body jsonb for new alerts."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "Every hour :17",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "17 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n03",
+      "name": "Meta webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-health",
+        "responseMode": "onReceived",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "w27-meta-health-post"
+    },
+    {
+      "id": "n04",
+      "name": "Verify X-Hub-Signature-256",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\nconst raw = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : (it.json.rawBody || JSON.stringify(it.json.body));\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) throw new Error('bad Meta webhook signature: dropped');\nreturn [{ json: { trigger: 'webhook' } }];"
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Meta webhook verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "meta-health",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w27-meta-health-get"
+    },
+    {
+      "id": "n06",
+      "name": "Check hub.verify_token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const q = $json.query || {};\nconst ok = q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === $env.META_WEBHOOK_VERIFY_TOKEN;\nreturn [{ json: { ok, challenge: ok ? String(q['hub.challenge']) : 'forbidden' } }];"
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Respond hub.challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": "={{ $json.ok ? 200 : 403 }}"
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "Load brands with Meta IDs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        440,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id AS brand_id, business_id, page_id, ig_user_id, waba_id, phone_number_id, ad_account_id, pixel_id, waba_quality, health_alerts FROM public.brands WHERE is_active;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n09",
+      "name": "Pull health (one batch per brand) + diff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    const h = await client.getAssetHealth({ businessId: b.business_id, pageId: b.page_id, igUserId: b.ig_user_id, wabaId: b.waba_id, phoneNumberId: b.phone_number_id, adAccountId: b.ad_account_id, pixelId: b.pixel_id });\n    const d = M.diffHealth({ waba_quality: b.waba_quality, alerts: b.health_alerts || [] }, h);\n    out.push({ json: { brand_id: b.brand_id, ok: true, health: h, urgent: d.urgent, new_alerts: d.new_alerts, templates: (h.template_status && h.template_status.items) || [] } });\n  } catch (e) {\n    // API error -> retry next run; a rate-limit back-off is not an alert.\n    out.push({ json: { brand_id: b.brand_id, ok: false, code: e.code || 'ERR', message: String(e.message).slice(0, 300), urgent: false, retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Health pulled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Write brands health fields",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.brands SET page_status = $2, ig_status = $3, bv_status = $4, ad_account_status = $5, waba_quality = $6, template_status = $7::jsonb, emq = $8::numeric, health_alerts = $9::jsonb, health_checked_at = now()\nWHERE id = $1::uuid RETURNING id AS brand_id;",
+        "options": {
+          "queryReplacement": "={{ [$json.brand_id, $json.health.page_status || null, $json.health.ig_status || null, $json.health.bv_status || null, $json.health.ad_account_status || null, $json.health.waba_quality || null, JSON.stringify($json.health.template_status || {}), $json.health.emq, JSON.stringify($json.health.alerts || [])] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Sync template statuses",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        160
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- UPDATE only: submission is submit.sh / meta-operator. Writes the Meta-assigned state (meta_status / meta_category); the legacy status / category columns are never touched.\n-- Match by brand + WhatsApp template name (wa_name), falling back to the legacy name column.\nWITH up AS (\nUPDATE public.message_templates t SET meta_status = x.status, meta_category = x.category, rejected_reason = x.rejected_reason, status_synced_at = now(),\n  approved_at = CASE WHEN x.status = 'APPROVED' THEN coalesce(t.approved_at, now()) ELSE t.approved_at END\nFROM jsonb_to_recordset($1::jsonb) AS x(name text, status text, category text, rejected_reason text)\nWHERE (t.wa_name = x.name OR (t.wa_name IS NULL AND t.name = x.name)) AND (t.brand_id = $2::uuid OR t.brand_id IS NULL)\nRETURNING t.id)\nSELECT count(*)::int AS synced FROM up;",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json.templates), $json.brand_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n13",
+      "name": "New urgent alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Pull health (one batch per brand) + diff').item.json.urgent) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "W22 Alerts: URGENT to both phones",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        -80
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w22",
+          "cachedResultName": "W22 Alerts"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Quiet: nothing new",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1540,
+        140
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n16",
+      "name": "API error: retry next run",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        320
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "n17",
+      "name": "Record alerts (ops.notifications.body)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Console feed row: one per brand per distinct set of NEW alerts (24 h dedupe). Delivery/escalation is W22's job (separate row, signal_key meta_asset_health). Always returns one row.\nWITH ins AS (\nINSERT INTO ops.notifications (kind, \"to\", channel, severity, status, source, ref_table, ref_id, dedupe_key, what, body)\nSELECT 'alert', 'console', 'console', CASE WHEN $3::boolean THEN 'red' ELSE 'amber' END, 'sent', 'W27', 'brands', $1::text, $2::text,\n       'Meta asset health: ' || jsonb_array_length($4::jsonb) || ' new alert(s)', jsonb_build_object('brand_id', $1::text, 'urgent', $3::boolean, 'alerts', $4::jsonb)\nWHERE jsonb_array_length($4::jsonb) > 0\n  AND NOT EXISTS (SELECT 1 FROM ops.notifications n WHERE n.dedupe_key = $2::text AND n.created_at > now() - interval '24 hours')\nRETURNING 1)\nSELECT count(*)::int AS recorded FROM ins;",
+        "options": {
+          "queryReplacement": "={{ (() => { const h = $('Pull health (one batch per brand) + diff').item.json; const a = h.new_alerts || []; return [h.brand_id, 'w27:' + h.brand_id + ':' + a.map((x) => x.code).sort().join(','), !!h.urgent, JSON.stringify(a)]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Shape W22 signal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -80
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const h = $('Pull health (one batch per brand) + diff').item.json;\nconst urgent = (h.new_alerts || []).filter((a) => a.severity === 'urgent');\nconst codes = urgent.map((a) => a.code).sort();\n// Producer contract (W22.md s3). No PII: codes and asset ids only.\nreturn { json: { signal_key: codes.some((c) => c.startsWith('WABA_')) ? 'waba_restriction' : 'meta_asset_health', scope: 'brand:' + h.brand_id, severity: 'red',\n  what: 'Meta asset health: ' + (codes.join(', ') || 'WABA quality drop'), impact: 'Ads, WhatsApp or lead capture may be affected',\n  first_action: 'Open the console Ads screen, then Business Settings for the failing asset', since: new Date().toISOString(), source: 'W27' } };"
+      }
+    }
+  ],
+  "connections": {
+    "Every hour :17": {
+      "main": [
+        [
+          {
+            "node": "Load brands with Meta IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta webhook (POST)": {
+      "main": [
+        [
+          {
+            "node": "Verify X-Hub-Signature-256",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify X-Hub-Signature-256": {
+      "main": [
+        [
+          {
+            "node": "Load brands with Meta IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta webhook verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Check hub.verify_token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check hub.verify_token": {
+      "main": [
+        [
+          {
+            "node": "Respond hub.challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load brands with Meta IDs": {
+      "main": [
+        [
+          {
+            "node": "Pull health (one batch per brand) + diff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pull health (one batch per brand) + diff": {
+      "main": [
+        [
+          {
+            "node": "Health pulled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health pulled?": {
+      "main": [
+        [
+          {
+            "node": "Write brands health fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sync template statuses",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API error: retry next run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write brands health fields": {
+      "main": [
+        [
+          {
+            "node": "Record alerts (ops.notifications.body)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New urgent alert?": {
+      "main": [
+        [
+          {
+            "node": "Shape W22 signal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quiet: nothing new",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record alerts (ops.notifications.body)": {
+      "main": [
+        [
+          {
+            "node": "New urgent alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape W22 signal": {
+      "main": [
+        [
+          {
+            "node": "W22 Alerts: URGENT to both phones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "ads"
+    },
+    {
+      "name": "meta"
+    }
+  ],
+  "meta": {
+    "notes": "ads-api-engineer. Asset health. W22 input: {brand_id, urgent, new_alerts[], health}; severity urgent -> WhatsApp both phones (DND exception: WABA restriction)."
+  }
+}

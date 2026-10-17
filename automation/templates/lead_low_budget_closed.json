@@ -1,0 +1,22 @@
+{
+  "name": "lead_low_budget_closed",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, thank you for waiting. We checked with the authorised advisers we work with, and none of them can take on an enquiry at the monthly budget you chose right now, so we won't pass your details on. You're welcome to message us again at any time. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

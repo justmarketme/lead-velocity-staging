@@ -1,0 +1,36 @@
+{
+  "name": "reschedule_offer_v2",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, no problem. Tap below to pick a new time with {{2}}. Your current booking on {{3}} at {{4}} stays in place until you choose a new one. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith",
+            "Tue 7 Oct",
+            "10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "FLOW",
+          "text": "Pick a new time",
+          "flow_id": "__RESCHEDULE_FLOW_ID__",
+          "flow_action": "data_exchange"
+        }
+      ]
+    }
+  ]
+}

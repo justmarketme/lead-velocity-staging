@@ -1,0 +1,184 @@
+{
+  "_comment": "Capital Legacy pages the wills and estate (theme B) pages rely on. Each source lists the evidence ids (config/evidence.json) it backs; the angles a change affects are worked out from those ids (angle sources/proof, and config/site.json -> will_provider.evidence for every theme B page). hash = sha256 of the normalised visible text when the pages were last checked against our copy; only hashes are committed (this repo is public, Capital Legacy's text is not ours to republish). Re-run: node scripts/check-capital-legacy.mjs (add --update after the pages are brought in line). The n8n workflow automation/W36.json reads this file and runs the same check weekly.",
+  "site": "https://capitallegacy.co.za",
+  "content_api": "https://capital-legacy.cdn.prismic.io/api/v2",
+  "checked": "2026-10-11",
+  "sources": [
+    {
+      "id": "home",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/",
+      "evidence": [
+        "cl-provider-identity"
+      ],
+      "hash": "8767ff6c91f3f8e59541c288ad8347931745711af41de4397106481487508c49"
+    },
+    {
+      "id": "wills",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/wills",
+      "evidence": [
+        "cl-will-names-guardian",
+        "cl-intestate",
+        "cl-wills-act",
+        "cl-no-charge-will"
+      ],
+      "hash": "c20a62d9669708fb6c6e1e81217a889997de4a0f65a8e0a99efe119adb7c6fa2"
+    },
+    {
+      "id": "why-us",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/why-us",
+      "evidence": [
+        "cl-no-charge-will",
+        "cl-safe-custody",
+        "cl-consultant-meetings",
+        "cl-company-stats"
+      ],
+      "hash": "1f363cd4c0894d214c5a2a494f8bfb2ff97d9607be807690a5668d9137544351"
+    },
+    {
+      "id": "existing-clients",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/existing-clients",
+      "evidence": [
+        "cl-no-charge-will",
+        "cl-safe-custody"
+      ],
+      "hash": "a319a25d667577f229f47f5c24d66b3436f5ec53057eac87ce9989415cd5682f"
+    },
+    {
+      "id": "wills-draft",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/wills-draft",
+      "evidence": [
+        "cl-consultant-meetings"
+      ],
+      "hash": "47d6ae2bd573bb26f6f68f737210d2c51c8cee0dea6d6d5f6fe74b6ca5810200"
+    },
+    {
+      "id": "trusts",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/trusts",
+      "evidence": [
+        "cl-testamentary-trust"
+      ],
+      "hash": "04dcbd034725b740767dfa4af2488ba81124048ce80db9e57f824603bd7e04b0"
+    },
+    {
+      "id": "estate-administration",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/estate-administration",
+      "evidence": [
+        "cl-estate-admin",
+        "cl-will-names-guardian"
+      ],
+      "hash": "85b2139974e796da89cff4b231cccf8df4dc8bcdd1624db504b96d667ed291c3"
+    },
+    {
+      "id": "legacy-protection-plan",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/legacy-protection-plan",
+      "evidence": [
+        "cl-lpp"
+      ],
+      "hash": "f6e1adca4bed8aaa38eecc3b02e4004e752e173612a643b0e261963c689de9a9"
+    },
+    {
+      "id": "estate-readiness-index",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/estate-readiness-index",
+      "evidence": [
+        "cl-eri-2026"
+      ],
+      "hash": "70b8e3d724333f1a667751251fc6db81935601fc38b04a8a11718cc6f284d763"
+    },
+    {
+      "id": "media-eri-launch",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/media/south-africa-scores-just-50-out-of-100",
+      "evidence": [
+        "cl-eri-2026"
+      ],
+      "hash": "0a02a7c40ad42098433b7927c53a2e71f8d081b2121d65ce761f3564569a1a8d"
+    },
+    {
+      "id": "media-will-and-life-cover",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/media/why-your-will-means-nothing-without-adequate-life-cover",
+      "evidence": [
+        "cl-will-no-cash"
+      ],
+      "hash": "eef4455ea3f1e7bd887e8de26acce2a27536e0ea7c75a371ae4a9025b210f7ad"
+    },
+    {
+      "id": "media-online-will",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/media/can-i-draft-my-will-online",
+      "evidence": [
+        "cl-consultant-meetings",
+        "cl-safe-custody"
+      ],
+      "hash": "e56eab80d97d4b9906ecbc869b162f2b1c9a81d2d8493feadd8181ae5cb3a604"
+    },
+    {
+      "id": "complaints-procedure",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/complaints-procedure",
+      "evidence": [
+        "cl-complaints",
+        "cl-provider-identity"
+      ],
+      "hash": "81fa11c5fef0281a7d4355bf9924a584941c641d0a7e2fe93fd1f3d6728ad530"
+    },
+    {
+      "id": "privacy-notice",
+      "kind": "page",
+      "url": "https://capitallegacy.co.za/privacy/privacy-notice",
+      "evidence": [
+        "cl-group-entities"
+      ],
+      "hash": "2c6a27df472cc621239f22b7e0318c6b0a6f3cb38b8397c5247f4cb89276d510"
+    },
+    {
+      "id": "faq-no-assets",
+      "kind": "faq",
+      "uid": "do-i-need-a-will-if-i-have-no-assets",
+      "url": "https://capitallegacy.co.za/faqs",
+      "evidence": [
+        "cl-will-any-estate"
+      ],
+      "hash": "428c129491c3fd5ca4366c49c7e1b4259fa81ad8c83c71adb58a000fba7a9303"
+    },
+    {
+      "id": "faq-life-cover",
+      "kind": "faq",
+      "uid": "why-must-life-cover-be-part-of-my-estate-plan",
+      "url": "https://capitallegacy.co.za/faqs",
+      "evidence": [
+        "cl-will-no-cash"
+      ],
+      "hash": "cbc18b5a415a8e40983c55be829a4a03f78a6918c226ce3a6320d22e0e46df21"
+    },
+    {
+      "id": "faq-what-is-a-will",
+      "kind": "faq",
+      "uid": "what-is-a-will",
+      "url": "https://capitallegacy.co.za/faqs",
+      "evidence": [
+        "cl-will-names-guardian"
+      ],
+      "hash": "1762d1963f5a39c6e2fab2f3584f754cd8025338a1a7ad1c2d203992029a68b7"
+    },
+    {
+      "id": "faq-update-will",
+      "kind": "faq",
+      "uid": "how-do-i-update-my-will",
+      "url": "https://capitallegacy.co.za/faqs",
+      "evidence": [
+        "cl-no-charge-will"
+      ],
+      "hash": "16cadc98675c9f6b9bb15eb79b27e7c16ddcff073e354d5a8d69094ada5f0145"
+    }
+  ]
+}

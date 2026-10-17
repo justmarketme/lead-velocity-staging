@@ -1,0 +1,133 @@
+{
+ "version": "briefs-v1.0.0",
+ "note": "Pre-call brief privacy checks (2.1.7). briefCheck() must pass the good and block the bad.",
+ "cases": [
+  {
+   "id": "B1",
+   "expect": "pass",
+   "facts": {
+    "last_name": "Mokoena",
+    "age_exact": 41
+   },
+   "brief": {
+    "template_vars": {
+     "1": "Lerato M.",
+     "2": "11:00",
+     "3": "Teams",
+     "4": "Teams link in the event",
+     "5": "afternoons",
+     "6": "35-44",
+     "7": "R750 to R1,250 a month",
+     "8": "\"Will he try sell me something though?\"; \"roughly what would cover cost for someone my age?\" (deferred to you)",
+     "9": "English"
+    },
+    "portal": {
+     "who": "35-44, has a bond, people depend on her income.",
+     "asked": [
+      "\"Will he try sell me something though?\""
+     ],
+     "mattered": "Reassurance that it is not a sales call.",
+     "practical": "Teams. Afternoons. English.",
+     "suggested_opening": ""
+    }
+   }
+  },
+  {
+   "id": "B2",
+   "expect": "pass",
+   "facts": {
+    "last_name": "Dlamini",
+    "age_exact": 47
+   },
+   "brief": {
+    "template_vars": {
+     "1": "Sipho D.",
+     "2": "14:30",
+     "3": "phone call",
+     "4": "083 555 0199 (not the WhatsApp number)",
+     "5": "mornings",
+     "6": "45-50",
+     "7": "R1,250 or more a month",
+     "8": "has a health question for you",
+     "9": "isiZulu, English"
+    },
+    "portal": {
+     "who": "45-50, has a bond, one dependant.",
+     "asked": [
+      "has a health question for you"
+     ],
+     "mattered": "Not enough to say yet.",
+     "practical": "Phone 083 555 0199, mornings.",
+     "suggested_opening": ""
+    }
+   }
+  },
+  {
+   "id": "B3",
+   "expect": "block",
+   "why": "health detail leaked",
+   "facts": {
+    "last_name": "Dlamini"
+   },
+   "brief": {
+    "template_vars": {
+     "1": "Sipho D.",
+     "2": "14:30",
+     "3": "phone call",
+     "4": "083 555 0199",
+     "5": "mornings",
+     "6": "45-50",
+     "7": "R1,250 or more",
+     "8": "asked if being diabetic is a problem",
+     "9": "English"
+    },
+    "portal": {}
+   }
+  },
+  {
+   "id": "B4",
+   "expect": "block",
+   "why": "surname + email",
+   "facts": {
+    "last_name": "Mokoena"
+   },
+   "brief": {
+    "template_vars": {
+     "1": "Lerato Mokoena",
+     "2": "11:00",
+     "3": "Teams",
+     "4": "lerato.m@gmail.com",
+     "5": "afternoons",
+     "6": "35-44",
+     "7": "R750 to R1,250",
+     "8": "nothing yet",
+     "9": "English"
+    },
+    "portal": {}
+   }
+  },
+  {
+   "id": "B5",
+   "expect": "block",
+   "why": "newline in a template var + exact age",
+   "facts": {
+    "last_name": "van der Merwe",
+    "age_exact": 44
+   },
+   "brief": {
+    "template_vars": {
+     "1": "Anel v.",
+     "2": "09:30",
+     "3": "Teams",
+     "4": "Teams link",
+     "5": "any time",
+     "6": "44 years old",
+     "7": "R750 to R1,250",
+     "8": "asked about the call\nand privacy",
+     "9": "Afrikaans"
+    },
+    "portal": {}
+   }
+  }
+ ]
+}

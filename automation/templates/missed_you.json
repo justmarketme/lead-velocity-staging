@@ -1,0 +1,47 @@
+{
+  "name": "missed_you",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, sorry we missed you today. No stress, things happen. {{2}} can still do a 30-minute call. Here are 3 new times:\n1. {{3}}\n2. {{4}}\n3. {{5}}\nReply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith",
+            "Thu 9 Oct, 10:00",
+            "Thu 9 Oct, 15:00",
+            "Fri 10 Oct, 09:30"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Time 1"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Time 2"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Time 3"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Other times"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "name": "broker_feedback_thanks",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Logged, thank you. {{1}} Your feedback shapes the next leads we send you.",
+      "example": {
+        "body_text": [
+          [
+            "That ad angle is now rated 4.2 from 6 of your calls, so we are putting more behind it."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    }
+  ]
+}

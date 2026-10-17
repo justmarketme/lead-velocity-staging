@@ -1,0 +1,28 @@
+{
+  "name": "broker_dsr_erase",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Erasure request"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a person you received through us, first name {{2}}, has asked us to erase their details. Their record will disappear from your portal. Under clause 9.6, please delete any copy you hold within 30 days, unless a law such as FAIS record-keeping requires you to keep it. No reply is needed.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Lerato"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity"
+    }
+  ]
+}

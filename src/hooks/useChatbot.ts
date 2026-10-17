@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { pricingSummaryText, QUALIFIED_LEAD_TEXT } from "@/lib/pricing";
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export interface Message {
     id: string;
@@ -27,16 +27,15 @@ Lead Velocity is structured and intentional. We're not another lead vendor hopin
 1. Define Ideal Client: establish geographic area, income bracket, product focus.
 2. Targeted Generation: campaigns designed to attract fresh matching prospects.
 3. Qualified Against Criteria: checked against the defined profile. Quality over volume.
-4. Weekly Delivery: predictable schedule.
+4. Consistent Delivery: leads arrive as they qualify, each with a pre-call brief; a set number every 30-day cycle.
 **KEY DIFFERENTIATOR: We don't just sell leads — we book confirmed appointments and place them directly into the broker's calendar.**
 
 ### WHAT "QUALIFIED" MEANS
-A lead qualifies if it matches geographic/demographic criteria, has expressed interest, provided verified contact details, opted in, and is reachable.
+${QUALIFIED_LEAD_TEXT}
 
-### PRICING TIERS
-- Bronze (R8,500/mo): ~17 leads p/mo.
-- Silver (R10,500/mo) - RECOMMENDED: ~23-26 leads p/mo.
-- Gold (R16,500+/mo): 33-40+ leads p/mo.
+### PRICING (from the pricing source; quote exactly, never round or discount)
+${pricingSummaryText()}
+Never promise attendance, sales, policies or results, and never link the fee to policies or commission. Point brokers to /pricing or the contact page.
 
 ### BROKER READINESS ASSESSMENT (Onboarding)
 A 6-step diagnostic to tailor recommendations. Meeting becomes an alignment call.
@@ -133,7 +132,6 @@ export function useChatbot() {
             const { data, error } = await supabase.functions.invoke('einstein-ai', {
                 body: { query: content, history: currentHistory },
                 headers: {
-                    'x-gemini-key': import.meta.env.VITE_GEMINI_API_KEY,
                     'x-openrouter-key': import.meta.env.VITE_OPENROUTER_API_KEY
                 }
             });

@@ -1,0 +1,1 @@
+{ "name": "smc-capi", "private": true, "type": "commonjs", "scripts": { "test": "node --test capi.test.js" } }

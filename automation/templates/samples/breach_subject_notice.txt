@@ -1,0 +1,5 @@
+breach_subject_notice (UTILITY, en)
+
+[header] Notice about your details
+Hi Lerato. This is Lead Velocity, who run SortMyCover. On 3 October some of your details (your name, mobile number and the cover enquiry answers you gave) were shown on a public web page by mistake. We took it down at 13:00 and have no sign that anyone misused them. Please be careful with unexpected messages that mention your enquiry, and never share a code or PIN. We have told the Information Regulator. If you have questions, want to object, or want your details deleted, write to privacy@example.test. We are sorry. Reply STOP to opt out.
+[footer] Lead Velocity

@@ -1,0 +1,47 @@
+{
+  "name": "intro_media",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "VIDEO",
+      "example": {
+        "header_handle": [
+          "__UPLOAD_HANDLE__:intro_video_sample.mp4"
+        ]
+      }
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, {{2}} recorded this short video so you know who you will be speaking to. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark Smith",
+            "Tue 7 Oct",
+            "10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Looking forward to it"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Reschedule"
+        }
+      ]
+    }
+  ]
+}

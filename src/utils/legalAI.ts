@@ -1,9 +1,8 @@
 /**
- * Shared utility for calling the Gemini AI API directly from the frontend.
- * This bypasses the need for a Supabase Edge Function secret.
+ * Shared utility for the legal/document AI assistant.
+ * Calls the `gemini-proxy` Supabase Edge Function (auth required); GEMINI_API_KEY stays server-side (I-32c).
  */
-
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { supabase } from "@/integrations/supabase/client";
 
 interface AIAssistantResult {
     response: string;
@@ -14,12 +13,10 @@ interface AIAssistantResult {
 export async function callLegalAI(
     command: string,
     currentState: Record<string, any>,
-    documentType: string = "Document"
+    documentType: string = "Document",
+    /** Document-specific rules the model must follow (e.g. fixed contract wording, flat-fee model). */
+    guidance?: string
 ): Promise<AIAssistantResult> {
-    if (!GEMINI_API_KEY) {
-        throw new Error("VITE_GEMINI_API_KEY is not set in your .env file.");
-    }
-
     const modelConfigs = [
         { name: "gemini-2.0-flash", version: "v1beta" },
         { name: "gemini-1.5-flash", version: "v1" },
@@ -30,7 +27,6 @@ export async function callLegalAI(
 
     for (const config of modelConfigs) {
         try {
-            const url = `https://generativelanguage.googleapis.com/${config.version}/models/${config.name}:generateContent?key=${GEMINI_API_KEY}`;
             const prompt = `You are an expert AI assistant who specialises in business documentation and South African law.
 You are helping a user draft/refine a ${documentType}. The user will provide the current ${documentType} state and a command, request, or general "vibe" they want to achieve.
 
@@ -45,42 +41,42 @@ The JSON object must have exactly three keys:
 2. "changes": A flat object of key-value pairs representing ONLY the fields in the document state that should be updated. The keys must match the existing keys in the data, and the values should be the newly drafted text. Do NOT include fields that do not need to change. If no changes make sense, return an empty object for "changes".
 3. "suggestions": An array of 2 to 3 strings, each containing a short, actionable follow-up prompt suggestion for the user (e.g., "Add a confidentiality clause", "Ensure NCA compliance", "Make the tone more formal"). These should be highly contextual to the current draft.
 
-Current ${documentType} State:
+${guidance ? `Rules for this ${documentType} (these override anything above):\n${guidance}\n\n` : ""}Current ${documentType} State:
 ${JSON.stringify(currentState, null, 2)}
 
 User Command/Intent:
 "${command}"`;
 
-            const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+            const { data: proxied, error: proxyError } = await supabase.functions.invoke('gemini-proxy', {
+                body: {
+                    action: 'generate',
+                    model: config.name,
+                    version: config.version,
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.2,
                         responseMimeType: "application/json",
                     },
-                }),
+                },
             });
+            if (proxyError) throw proxyError;
 
-            if (response.status === 429) {
+            const status = proxied?.upstream_status;
+            if (status === 429) {
                 console.warn(`Model ${config.name} rate limited (429). Trying fallback...`);
                 lastError = new Error("429");
                 continue;
             }
-
-            if (response.status === 404) {
+            if (status === 404) {
                 console.warn(`Model ${config.name} not found on ${config.version} (404). Trying next...`);
                 lastError = new Error("404");
                 continue;
             }
-
-            if (!response.ok) {
-                const errText = await response.text();
-                throw new Error(`Gemini API error: ${response.status} - ${errText}`);
+            if (status !== 200) {
+                throw new Error(`Gemini API error: ${status} - ${JSON.stringify(proxied?.data ?? proxied)}`);
             }
 
-            const data = await response.json();
+            const data = proxied.data;
             const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
             if (!aiText) {

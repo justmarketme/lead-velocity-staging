@@ -1,0 +1,225 @@
+// W26 Go-live runner: offline acceptance checks for the provisioning + backup scripts (4C.2).
+// Nothing is provisioned: provision.sh runs in its default DRY-RUN mode against a dummy env file.
+//   node --test automation/tests/W26.test.mjs
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, utimesSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { execFileSync, spawnSync } from 'node:child_process';
+
+const A = join(dirname(fileURLToPath(import.meta.url)), '..');
+const SCRIPTS = ['vps/provision.sh', 'vps/apply-analytics.sh', 'backup/pg_dump_nightly.sh', 'backup/restore.sh'];
+const SECRETISH = /sk-ant-|sk_(live|test)_[A-Za-z0-9]{10}|EAA[A-Za-z0-9]{40}|AC[0-9a-f]{32}|BEGIN [A-Z ]*PRIVATE KEY|sb_secret_|eyJhbGci|AGE-SECRET-KEY-1/;
+const has = (cmd) => spawnSync('sh', ['-c', `command -v ${cmd}`]).status === 0;
+
+test('scripts parse (bash -n) and carry no secrets', () => {
+  for (const s of SCRIPTS) {
+    execFileSync('bash', ['-n', join(A, s)]);
+    assert.doesNotMatch(readFileSync(join(A, s), 'utf8'), SECRETISH, s);
+  }
+  for (const f of ['vps/traefik/docker-compose.traefik.yml', 'backup/cron.lv-backup', 'vps/W26.md', 'vps/UPTIME.md', 'dns/DNS.md']) {
+    assert.doesNotMatch(readFileSync(join(A, f), 'utf8'), SECRETISH, f);
+  }
+});
+
+test('provision.sh: default is a dry run that lists the 14 W26 steps in order and changes nothing', () => {
+  const d = mkdtempSync(join(tmpdir(), 'w26-'));
+  try {
+    const env = join(d, 'env'); writeFileSync(env, 'VPS_HOST=203.0.113.10\n');
+    const out = execFileSync('bash', [join(A, 'vps/provision.sh')], { env: { ...process.env, PROVISION_ENV_FILE: env }, encoding: 'utf8' });
+    assert.match(out, /^DRY RUN \(no changes\)/);
+    const steps = [...out.matchAll(/step (\d+) ([a-z0-9-]+): PLAN: (.+)/g)];
+    assert.deepEqual(steps.map((m) => m[2]), ['preflight', 'harden', 'retire-template', 'ship-code', 'ship-env', 'compose-up',
+      'restore-n8n', 'dns', 'tls', 'backups', 'webhooks', 'analytics', 'edge-functions', 'synthetic-suite', 'ready']);
+    assert.deepEqual(steps.map((m) => Number(m[1])), Array.from({ length: 15 }, (_, i) => i + 1), 'steps numbered 1..15');
+    const ef = steps.find((m) => m[2] === 'edge-functions')[3];
+    assert.match(ef, /W34_MEDIA_ERASE_SECRET/); assert.match(ef, /--env-file/); assert.match(ef, /functions deploy w34-media-erase --no-verify-jwt/);
+    assert.doesNotMatch(out, /supabase (secrets|functions) .*(sb_secret_|eyJ)/, 'no secret values in the plan');
+    assert.ok(steps.every((m) => m[3].trim().length > 10), 'every step has a description');
+    assert.doesNotMatch(out, /203\.0\.113\.10.*->/, 'dry run performs no DNS actions');
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+test('provision.sh: safety properties', () => {
+  const s = readFileSync(join(A, 'vps/provision.sh'), 'utf8');
+  assert.match(s, /APPLY=""/, 'dry run unless --apply');
+  assert.match(s, /trap 'say "HALT/, 'halts on the first failing step and names it');
+  assert.match(s, /SUPABASE_SERVICE_ROLE_KEY/, 'service-role key is stripped before shipping .env');
+  assert.match(s, /umask 077/);
+  assert.match(s, /07\.done/, 'n8n restore cannot silently overwrite a live VPS');
+  assert.doesNotMatch(s, /\/(campaigns|adsets|ads)\b|status=ACTIVE|daily_budget|routing.*(on|true)/i, 'provisioning never touches budgets, campaign status or routing');
+  assert.match(s, /git -C "\$REPO" archive/, 'no git credentials on the VPS');
+  assert.doesNotMatch(s, /kubectl|helm|swarm/i, 'single server, no orchestrator');
+});
+
+test('Traefik overlay: TLS on every router, editor allow-listed, api host limited to webhooks + healthz', () => {
+  const y = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  for (const r of ['n8n-ui', 'n8n-api', 'n8n-link']) {
+    assert.match(y, new RegExp(`routers\\.${r}\\.tls\\.certresolver=le`));
+    assert.match(y, new RegExp(`routers\\.${r}\\.entrypoints=websecure`));
+  }
+  assert.match(y, /ipallowlist\.sourcerange=\$\{N8N_UI_ALLOW_IPS:-127\.0\.0\.1\/32\}/);
+  assert.match(y, /n8n-api\.rule=Host\(`\$\{API_HOST\}`\) && \(PathPrefix\(`\/webhook\/`\) \|\| PathPrefix\(`\/healthz`\)\)/);
+  assert.match(y, /exposedbydefault=false/);
+  assert.match(y, /redirections\.entrypoint\.scheme=https/);
+  assert.match(y, /EXECUTIONS_DATA_SAVE_ON_SUCCESS: none/);
+});
+
+test('backup: encryption round trip (selftest) and fail-closed without config', { skip: !has('age-keygen') && 'age not installed' }, () => {
+  const out = execFileSync('bash', [join(A, 'backup/pg_dump_nightly.sh'), '--selftest'], { encoding: 'utf8' });
+  assert.match(out, /round trip OK/);
+  const r = spawnSync('bash', [join(A, 'backup/pg_dump_nightly.sh')], { env: { PATH: process.env.PATH, BACKUP_ENV_FILE: '/nonexistent' }, encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /FATAL: BACKUP_DB_URL not set/);
+  const c = readFileSync(join(A, 'backup/cron.lv-backup'), 'utf8');
+  assert.match(c, /^30 0 \* \* \* root .*pg_dump_nightly\.sh/m);
+  assert.match(c, /--consent/);
+});
+
+test('Code-node runtime (I-35b/I-36e/I-46d): repo mounted read-only at /repo, same builtins in local and VPS compose, only lv-automation external', () => {
+  const base = readFileSync(join(A, 'docker-compose.yml'), 'utf8');
+  const vps = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  assert.match(base, /^\s+- \.\.:\/repo:ro$/m, 'repo root mounted read-only');
+  for (const y of [base, vps]) {
+    assert.match(y, /^\s+REPO_DIR: \/repo$/m);
+    assert.match(y, /^\s+NODE_FUNCTION_ALLOW_BUILTIN: crypto,dns,url,fs,path$/m);
+    assert.match(y, /^\s+NODE_FUNCTION_ALLOW_EXTERNAL: lv-automation$/m, 'the one allowed module is the repo loader (automation/index.cjs)');
+    assert.ok(y.includes('ln -sfn /repo/automation /home/node/.node_modules/lv-automation'), 'entrypoint links the loader from the repo mount');
+  }
+  const s = readFileSync(join(A, 'vps/provision.sh'), 'utf8');
+  assert.match(s, /SHIP_DIRS=\(automation conversation knowledge/, 'step 4 ships what the mount needs');
+  assert.match(s, /SHIP_DIRS=\([^)]*\blanding\/config\b[^)]*\bdata\b/, 'step 4 ships landing/config (w01 consent) and data (w04 holidays), reached through index.cjs');
+  const s7 = s.slice(s.indexOf('s7() {'), s.indexOf('\n}', s.indexOf('s7() {')));
+  assert.ok(s7.indexOf('check-credentials.mjs') > s7.lastIndexOf('pg_restore') && s7.indexOf('$DC start n8n') > s7.indexOf('check-credentials.mjs'),
+    'step 7 (I-44f): restore, then verify every referenced credential exists, then start n8n (activation)');
+  assert.match(s, /ANALYTICS_DB_URL\|/, 'step 5 strips the DDL URL from the VPS .env');
+});
+
+test('CORS (I-34c): browser endpoints on API_HOST allow X-Lead-Token + Authorization from the four origins only', () => {
+  const y = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  const rule = y.match(/routers\.n8n-cors\.rule=(.+)/)[1];
+  for (const p of ['lead', 'slots', 'book', 'billing-autorenew']) assert.ok(rule.includes(`Path(\`/webhook/${p}\`)`), p);
+  assert.match(rule, /^Host\(`\$\{API_HOST\}`\)/);
+  assert.match(y, /routers\.n8n-cors\.tls\.certresolver=le/);
+  assert.match(y, /routers\.n8n-cors\.middlewares=api-cors,api-ratelimit,sec-headers/);
+  const origins = y.match(/accessControlAllowOriginList=\$\{PUBLIC_ALLOWED_ORIGINS:-([^}]+)\}/)[1].split(',');
+  assert.deepEqual(origins, ['https://sortmycover.co.za', 'https://www.sortmycover.co.za', 'https://leadvelocity.co.za', 'https://www.leadvelocity.co.za'], 'I-37i: production default (the CRM is served on apex and www)');
+  assert.ok(!origins.some((o) => /leadvelocity\.co\.za$/.test(o) && o.includes('sortmycover')), 'staging subdomain never in the production default');
+  const ex = readFileSync(join(A, '.env.example'), 'utf8');
+  assert.match(ex, /#\s+Production[^\n]*https:\/\/sortmycover\.co\.za,https:\/\/www\.sortmycover\.co\.za,https:\/\/leadvelocity\.co\.za,https:\/\/www\.leadvelocity\.co\.za\s*$/m);
+  assert.match(ex, /#\s+Staging[^\n]*https:\/\/www\.sortmycover\.co\.za,https:\/\/sortmycover\.leadvelocity\.co\.za,https:\/\/leadvelocity\.co\.za,https:\/\/www\.leadvelocity\.co\.za\s*$/m);
+  assert.match(ex, /^PUBLIC_ALLOWED_ORIGINS=$/m, 'value empty in the example');
+  assert.match(y, /accessControlAllowHeaders=Content-Type,X-Lead-Token,Authorization/);
+  assert.match(y, /accessControlAllowCredentials=false/);
+  assert.doesNotMatch(y, /accessControlAllowOriginList=\*/);
+});
+
+test('backup step 6 (I-38b): DSR export files older than 7 days are deleted, newer kept; dry run and bad dir are safe', () => {
+  const S = join(A, 'backup/pg_dump_nightly.sh');
+  const src = readFileSync(S, 'utf8');
+  assert.match(src, /\ndsr_exports \|\| log "WARN: DSR export clean-up failed/, 'nightly run calls step 6 best-effort');
+  assert.match(src, /-mmin \+"?\$mins"?/);
+  const d = mkdtempSync(join(tmpdir(), 'dsr-'));
+  try {
+    const old = join(d, 'dsr-old.json'); const fresh = join(d, 'dsr-new.json');
+    writeFileSync(old, '{}'); writeFileSync(fresh, '{}');
+    const t = Date.now() / 1000 - 8 * 86400; utimesSync(old, t, t);
+    const env = { PATH: process.env.PATH, BACKUP_ENV_FILE: '/nonexistent', DSR_EXPORT_HOST_DIR: d };
+    let r = spawnSync('bash', [S, '--dsr-exports'], { env: { ...env, DRY_RUN: '1' }, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /1 file\(s\) older than 7 days would be deleted/);
+    assert.ok(existsSync(old), 'dry run deletes nothing');
+    r = spawnSync('bash', [S, '--dsr-exports'], { env, encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr); assert.doesNotMatch(r.stdout, /dsr-old|dsr-new/, 'counts only, no file names');
+    assert.ok(!existsSync(old), 'older than 7 days: deleted'); assert.ok(existsSync(fresh), 'newer: kept');
+    r = spawnSync('bash', [S, '--dsr-exports'], { env: { ...env, W34_EXPORT_DIR: "/x'; rm -rf /" }, encoding: 'utf8' });
+    assert.notEqual(r.status, 0); assert.match(r.stdout, /not a plain absolute path/);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+test('app. hosting (I-37j): /s/* and /broker/* reach the SPA on Hostinger and Vercel; sub-apps excluded', () => {
+  const h = readFileSync(join(A, '..', 'deploy/hostinger-app/.htaccess'), 'utf8');
+  const rules = h.split('\n').filter((l) => /^Rewrite(Rule|Cond)/.test(l));
+  const idx = (re) => rules.findIndex((l) => re.test(l));
+  const excl = idx(/\^\(media\|checkout\|portal\/intro-media\)/), s = idx(/RewriteRule \^s\(\/\.\*\)\?\$ \/index\.html/),
+    b = idx(/RewriteRule \^broker\(\/\.\*\)\?\$ \/index\.html/), all = idx(/RewriteRule \^ \/index\.html \[L\]/);
+  assert.ok(excl >= 0 && s > excl && b > excl && all > Math.max(s, b), 'exclusions first, then /s and /broker, then catch-all');
+  assert.doesNotMatch(h, /QSD|\?\s*\[/, 'query string kept (/s/calendar?day=)');
+  assert.match(h, /X-Frame-Options "DENY"/);
+  assert.doesNotMatch(h, /sb_secret_|eyJhbGci|sk_live_/);
+  const v = JSON.parse(readFileSync(join(A, '..', 'vercel.json'), 'utf8')).rewrites.map((r) => r.source);
+  assert.ok(v.indexOf('/s/:path*') >= 0 && v.indexOf('/s/:path*') < v.indexOf('/(.*)'));
+  assert.ok(v.indexOf('/broker/:path*') >= 0 && v.indexOf('/broker/:path*') < v.indexOf('/(.*)'));
+  const routes = readFileSync(join(A, '..', 'src/App.tsx'), 'utf8').match(/path="\/s\/[a-z]+"/g) || [];
+  assert.ok(routes.length >= 2, 'the SPA defines the /s/* short links');
+});
+
+test('apply-analytics.sh (I-35k): fixed order, one transaction, dry run rolls back, halts before migrations', () => {
+  const S = join(A, 'vps/apply-analytics.sh');
+  const order = ['params.sql', 'watchlist.sql', 'kill-scale.sql', 'W14-broker.sql', 'W14-lv.sql'];
+  const listed = [...execFileSync('bash', [S, '--print'], { encoding: 'utf8' }).matchAll(/analytics\/(\S+)/g)].map((m) => m[1]);
+  assert.deepEqual(listed, order);
+  const d = mkdtempSync(join(tmpdir(), 'w26a-'));
+  try { // fake psql: answers the precondition query with $READY, records the streamed script
+    const bin = join(d, 'bin'); execFileSync('mkdir', [bin]);
+    writeFileSync(join(bin, 'psql'), `#!/usr/bin/env bash\nfor a in "$@"; do [[ "$a" == -c ]] && { echo "$READY"; exit 0; }; done\ncat > "${d}/script.sql"\n`, { mode: 0o755 });
+    const env = join(d, 'env'); writeFileSync(env, 'ANALYTICS_DB_URL=postgres://x@127.0.0.1:1/none\n');
+    const run = (args, READY) => spawnSync('bash', [S, ...args], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, PROVISION_ENV_FILE: env, READY }, encoding: 'utf8' });
+    let r = run([], '0');
+    assert.equal(r.status, 3); assert.match(r.stdout, /HALT: migrations not applied/);
+    r = run([], '1'); assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /dry-run OK/);
+    let sql = readFileSync(join(d, 'script.sql'), 'utf8');
+    assert.deepEqual([...sql.matchAll(/^\\i '.*\/analytics\/(\S+)'$/gm)].map((m) => m[1]), order);
+    assert.match(sql, /^\\set ON_ERROR_STOP on\nBEGIN;/); assert.match(sql, /ROLLBACK;\n$/); assert.doesNotMatch(sql, /COMMIT/);
+    r = run(['--apply'], '1'); assert.equal(r.status, 0, r.stderr);
+    sql = readFileSync(join(d, 'script.sql'), 'utf8');
+    assert.match(sql, /COMMIT;\n$/); assert.doesNotMatch(sql, /ROLLBACK/);
+    assert.doesNotMatch(r.stdout + r.stderr, /postgres:\/\//, 'never prints the URL');
+  } finally { rmSync(d, { recursive: true, force: true }); }
+  for (const f of order) assert.doesNotMatch(readFileSync(join(A, '..', 'analytics', f), 'utf8'), /^\s*(begin|commit)\s*;/im, `${f} has no own transaction control`);
+  const p = readFileSync(join(A, 'vps/provision.sh'), 'utf8');
+  assert.match(p, /--analytics-dry-run\) ANALYTICS_MODE=--dry-run/);
+});
+
+test('I-06: Execute Command enabled for W23 in both compose files (only localFileTrigger excluded), documented', () => {
+  const base = readFileSync(join(A, 'docker-compose.yml'), 'utf8');
+  const vps = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  for (const y of [base, vps]) {
+    assert.match(y, /^\s+NODES_EXCLUDE: '\["n8n-nodes-base\.localFileTrigger"\]'$/m);
+    assert.doesNotMatch(y, /NODES_EXCLUDE:.*executeCommand/);
+  }
+  const w23 = readFileSync(join(A, 'W23.json'), 'utf8');
+  assert.ok((w23.match(/n8n-nodes-base\.executeCommand/g) || []).length >= 2, 'W23 really uses Execute Command');
+  assert.match(readFileSync(join(A, 'security/SECURITY.md'), 'utf8'), /5a\. \*\*Execute Command is enabled for W23/);
+  assert.match(readFileSync(join(A, 'local/LOCAL-STAGING.md'), 'utf8'), /NODES_EXCLUDE/);
+});
+
+test('I-37b: W23/W19/W04 browser webhooks take Allowed Origins from PUBLIC_ALLOWED_ORIGINS, never a hard-coded list', () => {
+  const expr = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}";
+  const want = { 'W23.json': 8, 'W19.json': 1, 'W04.json': 1 };
+  for (const [f, n] of Object.entries(want)) {
+    const wf = JSON.parse(readFileSync(join(A, f), 'utf8'));
+    const withCors = wf.nodes.filter((x) => x.type === 'n8n-nodes-base.webhook' && x.parameters.options && x.parameters.options.allowedOrigins);
+    assert.ok(withCors.length >= n, `${f}: ${n} browser webhooks`);
+    for (const x of withCors) assert.equal(x.parameters.options.allowedOrigins, expr, `${f} ${x.name}`);
+  }
+  assert.ok(!/"allowedOrigins": "https:/.test(readFileSync(join(A, 'W23.json'), 'utf8')), 'no literal origin left in W23');
+});
+
+test('I-44e / I-55e: Traefik maps /wa/:ref and /c/:id to the webhookId-prefixed n8n paths, same ids as W03/W05', () => {
+  const y = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
+  const wh = (f, path) => JSON.parse(readFileSync(join(A, f), 'utf8')).nodes.find((n) => n.type === 'n8n-nodes-base.webhook' && n.parameters.path === path).webhookId;
+  const c = wh('W05.json', 'c/:booking_id'), wa = wh('W03.json', 'wa/:ref');
+  assert.equal(c, 'w05-ics-get'); assert.equal(wa, 'w03-ctwa-redirect');
+  assert.match(y, new RegExp(`link-rewrite-c\\.replacepathregex\\.replacement=/webhook/${c}/c/\\$\\$1`));
+  assert.match(y, new RegExp(`link-rewrite-wa\\.replacepathregex\\.replacement=/webhook/${wa}/wa/\\$\\$1`));
+  for (const r of ['n8n-link', 'n8n-link-c', 'n8n-link-wa']) {
+    assert.match(y, new RegExp(`routers\\.${r}\\.tls\\.certresolver=le`));
+    assert.match(y, new RegExp(`routers\\.${r}\\.entrypoints=websecure`));
+    assert.ok(y.includes(`routers.${r}.rule=Host(\`\${LINK_HOST:-link.invalid}\`) && PathPrefix`), `${r} rule on LINK_HOST`);
+  }
+  assert.match(y, /n8n-link-c\.rule=.*PathPrefix\(`\/c\/`\)/);
+  assert.match(y, /n8n-link-wa\.rule=.*PathPrefix\(`\/wa\/`\)/);
+  assert.doesNotMatch(y, /regex=\^\/\(c\|j\)/, 'the old shared c|j rewrite (gives /webhook/c/{id}, 404) is gone');
+});

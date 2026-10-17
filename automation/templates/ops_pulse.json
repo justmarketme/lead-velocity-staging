@@ -1,0 +1,46 @@
+{
+  "name": "ops_pulse",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Pulse {{1}}",
+      "example": {
+        "header_text": [
+          "Thu 2 Oct"
+        ]
+      }
+    },
+    {
+      "type": "BODY",
+      "text": "Status: *{{1}}*. Do today: {{2}}. Open Today in the console for the detail.",
+      "example": {
+        "body_text": [
+          [
+            "Amber",
+            "1) Approve page headline test 2) Mark has 2 unmarked outcomes"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "Lead Velocity ops"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open Today",
+          "url": "https://leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/today"
+          ]
+        }
+      ]
+    }
+  ]
+}

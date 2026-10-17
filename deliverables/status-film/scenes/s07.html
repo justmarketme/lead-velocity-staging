@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>07 What we need from you</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .count { position: absolute; right: 140px; top: 196px; }
+  .grid8 { position: absolute; left: 140px; right: 140px; top: 316px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; grid-template-rows: repeat(4, 1fr); gap: 18px 26px; height: 612px; }
+  .it { display: flex; align-items: center; gap: 24px; padding: 0 30px; }
+  .it .no { width: 56px; height: 56px; border-radius: 16px; background: var(--grad); color: #fff; display: grid; place-items: center; font-size: 26px; font-weight: 700; flex: none; }
+  .it .tx { font-size: 29px; font-weight: 700; color: var(--navy); line-height: 1.15; }
+  .it .sb { font-size: 19px; color: var(--muted); margin-top: 4px; }
+</style></head>
+<body data-scene="s07"><div class="stage">
+  <div class="top"><div class="eyebrow">Only you can do these</div><h1 class="h"><i></i>What we need from you</h1></div>
+  <div class="count pill pink"><i></i>8 items</div>
+  <div class="grid8">
+    <div class="card it"><div class="no">1</div><div><div class="tx">Send the email to Mark</div><div class="sb">It's in your Drafts</div></div></div>
+    <div class="card it"><div class="no">2</div><div><div class="tx">Ask Mark how he's licensed</div><div class="sb">Confirm his licensing</div></div></div>
+    <div class="card it"><div class="no">3</div><div><div class="tx">Approve the Vercel GitHub app</div><div class="sb">On your phone</div></div></div>
+    <div class="card it"><div class="no">4</div><div><div class="tx">Add one DNS record in GoDaddy</div><div class="sb">Gives n8n a permanent address</div></div></div>
+    <div class="card it"><div class="no">5</div><div><div class="tx">Apply three database updates</div><div class="sb">Three migrations</div></div></div>
+    <div class="card it"><div class="no">6</div><div><div class="tx">Send the contract to your attorney</div><div class="sb">For review</div></div></div>
+    <div class="card it"><div class="no">7</div><div><div class="tx">Resubmit the budget question template</div><div class="sb">To Meta</div></div></div>
+    <div class="card it"><div class="no">8</div><div><div class="tx">Business address + Meta code</div><div class="sb">Verification code for the website</div></div></div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const its = $$('.it');
+  const tI = [cue('send'), cue('ask'), cue('approve'), cue('add'), cue('apply'), cue('send', 2), cue('resubmit'), cue('give')];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.count', t, cue('only') - .1, { scale: .8, y: 0, dur: .6, ease: E.back });
+    its.forEach((c, i) => {
+      rv(c, t, tI[i] - .35, { y: 26, scale: .96, dur: .7 });
+      const hot = P(t, tI[i] - .2, .3) * (1 - (i < 7 ? P(t, tI[i + 1] - .2, .5) : 0));
+      c.style.borderColor = `rgba(219,39,119,${(hot * .6).toFixed(3)})`;
+    });
+  };
+</script></body></html>

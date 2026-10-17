@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /staging/
+
+Sitemap: https://sortmycover.co.za/sitemap.xml

@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "key": "flow:__BOOKING_FLOW_ID__",
+    "approval": {
+      "name": "smc_flow_booking",
+      "category": "UTILITY"
+    }
+  },
+  "content": {
+    "friendly_name": "smc_flow_booking",
+    "language": "en",
+    "variables": {
+      "1": "Tap below to pick a new time with your adviser.",
+      "2": "ft1.sample"
+    },
+    "types": {
+      "whatsapp/flows": {
+        "body": "{{1}}",
+        "button_text": "Pick a time",
+        "flow_id": "__BOOKING_FLOW_ID__",
+        "flow_token": "{{2}}",
+        "flow_first_page_id": "METHOD",
+        "is_flow_first_page_endpoint": true
+      }
+    }
+  }
+}

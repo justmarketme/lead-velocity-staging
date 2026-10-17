@@ -1,0 +1,451 @@
+{
+ "version": 1,
+ "as_of": "today (the fixture is shifted so its cycle day 14 is the run day; facts.as_of() unset)",
+ "dataset": "analytics/tests/synthetic-seed.sql",
+ "min_n_rule": "Any ratio, average or comparison with n < 20 is answered 'Not enough data yet (n = X, need 20)' with the raw counts only.",
+ "questions": [
+  {
+   "id": "Q01",
+   "question": "Which ad gave Mark the best leads this cycle?",
+   "metric_ref": "4 broker good-fit rate",
+   "tables": [
+    "facts.fact_outcome",
+    "facts.fact_ad_day"
+   ],
+   "sql": "select o.ad_id, max(a.ad_name) as ad_name, count(*) filter (where facts.disp_class(o.disposition_code) in ('fit','nofit')) as n,\n       round(count(*) filter (where facts.disp_class(o.disposition_code)='fit')::numeric / nullif(count(*) filter (where facts.disp_class(o.disposition_code) in ('fit','nofit')),0),2) as good_fit_rate,\n       round(avg(o.quality_score),2) as quality_index\nfrom facts.fact_outcome o join (select distinct ad_id, ad_name from facts.fact_ad_day) a using (ad_id)\nwhere o.broker_id = 'B-MARK' and o.cycle_id = (select cycle_id from facts.fact_cycle where broker_id='B-MARK' and status in ('active','extended') limit 1)\ngroup by o.ad_id order by good_fit_rate desc nulls last, n desc limit 10",
+   "n_rule": "ratio: every ad needs n >= 20 to be called the winner; below that, list the ads with their counts and say 'not enough data yet'",
+   "answer_shape": {
+    "headline": "Name the ad (plain name, not the id) with its good-fit rate and quality score out of 5",
+    "comparison": "Compare with the all-ads good-fit rate for the same cycle",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Dispositions arrive after the call, so recent leads are not in yet",
+    "next_question": "Which angle does that ad belong to, and can we make more of it?"
+   },
+   "expected_on_synthetic": [
+    "A1|SMC-A1 Bond|3|0.67|3.33",
+    "A2|SMC-A2 Work cover|2|0.50|3.50",
+    "A3|SMC-A3 Family|0||",
+    "A4|SMC-A4 Bond (b)|0||"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q02",
+   "question": "What is our cost per good-fit meeting over the last 28 days, and how does it compare with the target?",
+   "metric_ref": "1 cost per good-fit meeting",
+   "tables": [
+    "facts.v_watchlist_1_cost_per_good_fit"
+   ],
+   "sql": "select value, target, status, n, last_period from facts.v_watchlist_1_cost_per_good_fit where scope = 'ALL'",
+   "n_rule": "ratio: n = good-fit meetings behind the number; below 20 show the number as 'early read' only",
+   "answer_shape": {
+    "headline": "One number in rand, the target and last week's value",
+    "comparison": "Target is a placeholder (needs_human: model implies about R1,300-R1,550 at full-cycle volumes)",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Fewer than 20 good-fit meetings in 28 days is normal with one adviser",
+    "next_question": "Which ad is carrying the cost?"
+   },
+   "expected_on_synthetic": [
+    "1633.333|1300|grey|3|816.667"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q03",
+   "question": "What does each ad cost us per attended meeting?",
+   "metric_ref": "cost per attended meeting",
+   "tables": [
+    "facts.v_w14_lv_creative"
+   ],
+   "sql": "select ad_name, angle, spend, attended, cost_per_attended, cost_per_good_fit, attended as n from facts.v_w14_lv_creative order by cost_per_attended asc nulls last",
+   "n_rule": "ratio: need n >= 20 attended per ad to rank; otherwise show counts only",
+   "answer_shape": {
+    "headline": "The cheapest and the dearest ad per attended meeting, with spend and attended counts",
+    "comparison": "Spend is ex VAT; cumulative since launch",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Cumulative figures hide recent change",
+    "next_question": "Is the cheapest ad also rated best by the adviser?"
+   },
+   "expected_on_synthetic": [
+    "SMC-A1 Bond|bond|1400.00|4|350|700|4",
+    "SMC-A2 Work cover|work_cover|1120.00|2|560|1120|2",
+    "SMC-A3 Family|family|980.00|0|||0",
+    "SMC-A4 Bond (b)|bond_b|700.00|0|||0",
+    "SMC-A5 Income|income|700.00|0|||0"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q04",
+   "question": "What share of our leads could we actually reach?",
+   "metric_ref": "2 leads we could reach",
+   "tables": [
+    "facts.v_watchlist_2_leads_we_could_reach"
+   ],
+   "sql": "select value, target, status, n, last_period from facts.v_watchlist_2_leads_we_could_reach where scope = 'ALL'",
+   "n_rule": "ratio: n = leads old enough to have had 72 hours",
+   "answer_shape": {
+    "headline": "Percentage with target and last week",
+    "comparison": "Leads under 3 days old are left out because they have not had time to reply",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Window is 14 days",
+    "next_question": "Is the gap the phone-number check or first-message speed?"
+   },
+   "expected_on_synthetic": [
+    "0.708|0.85|amber|24|0.706"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q05",
+   "question": "What is Mark's show rate this cycle, and is it better or worse than the 14 days before?",
+   "metric_ref": "3 booked to attended",
+   "tables": [
+    "facts.fact_outcome"
+   ],
+   "sql": "with o as (select outcome, (marked_at at time zone 'Africa/Johannesburg')::date d from facts.fact_outcome where broker_id = 'B-MARK' and outcome in ('attended','no_show'))\nselect 'last 14 days' as period, count(*) as n, round(count(*) filter (where outcome='attended')::numeric / nullif(count(*),0),3) as show_rate from o where d > (select as_of from facts.v_params) - 14\nunion all select 'the 14 days before', count(*), round(count(*) filter (where outcome='attended')::numeric / nullif(count(*),0),3) from o where d <= (select as_of from facts.v_params) - 14 and d > (select as_of from facts.v_params) - 28",
+   "n_rule": "ratio: n = meetings held in each period; both periods need n >= 20 to claim a change",
+   "answer_shape": {
+    "headline": "Percentage now vs before, with target 65%",
+    "comparison": "Meetings the adviser never marked are counted as attended after 24 h (flagged unconfirmed)",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "One adviser means small numbers",
+    "next_question": "Do the no-shows share one angle or one time of day?"
+   },
+   "expected_on_synthetic": [
+    "last 14 days|10|0.600",
+    "the 14 days before|0|"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q06",
+   "question": "Which ad angle has the best qualify rate?",
+   "metric_ref": "qualify rate",
+   "tables": [
+    "facts.fact_ad_day",
+    "facts.fact_lead"
+   ],
+   "sql": "select a.angle, a.raw as raw_leads, coalesce(q.qualified,0) as qualified, a.raw as n, round(coalesce(q.qualified,0)::numeric / nullif(a.raw,0),3) as qualify_rate\nfrom (select angle, sum(leads_raw) as raw from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14 group by angle) a\nleft join (select angle, count(*) filter (where qualified and verified_at is not null) as qualified from facts.fact_lead where created_at::date > (select as_of from facts.v_params) - 14 group by angle) q using (angle)\norder by qualify_rate desc nulls last",
+   "n_rule": "ratio: n = raw leads per angle, need 20",
+   "answer_shape": {
+    "headline": "Angle names in plain English with qualify rate; target 60% minimum",
+    "comparison": "Leads under 3 days old have not had time to verify",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Raw leads are the ones Meta reports",
+    "next_question": "Which angles do we make more of?"
+   },
+   "expected_on_synthetic": [
+    "bond|10|8|10|0.800",
+    "work_cover|7|4|7|0.571",
+    "bond_b|4|2|4|0.500",
+    "family|6|2|6|0.333",
+    "income|3|0|3|0.000"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q07",
+   "question": "Which angle gets the most 'not a fit' ratings?",
+   "metric_ref": "nofit rate",
+   "tables": [
+    "facts.fact_outcome"
+   ],
+   "sql": "select angle, count(*) filter (where facts.disp_class(disposition_code) in ('fit','nofit')) as n,\n       count(*) filter (where facts.disp_class(disposition_code)='nofit') as not_a_fit,\n       round(count(*) filter (where facts.disp_class(disposition_code)='nofit')::numeric / nullif(count(*) filter (where facts.disp_class(disposition_code) in ('fit','nofit')),0),3) as nofit_rate\nfrom facts.fact_outcome group by angle order by nofit_rate desc nulls last",
+   "n_rule": "ratio: n = rated meetings per angle, need 20; the pause rule uses n >= 5 and is separate",
+   "answer_shape": {
+    "headline": "Not-a-fit rate per angle against the 40% limit",
+    "comparison": "'Unreachable' leads are not counted as not-a-fit",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Cumulative since launch",
+    "next_question": "Is the not-a-fit reason budget or already covered?"
+   },
+   "expected_on_synthetic": [
+    "work_cover|2|1|0.500",
+    "bond|3|1|0.333",
+    "bond_b|0|0|",
+    "family|0|0|"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q08",
+   "question": "How much did we spend on ads in the last 14 days, and what did a lead cost?",
+   "metric_ref": "raw CPL, qualified CPL",
+   "tables": [
+    "facts.fact_ad_day",
+    "facts.fact_lead"
+   ],
+   "sql": "select (select sum(spend_zar) from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14) as spend_ex_vat,\n       (select sum(leads_raw) from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14) as raw_leads,\n       (select count(*) from facts.fact_lead where qualified and verified_at is not null and created_at::date > (select as_of from facts.v_params) - 14) as qualified_leads,\n       round((select sum(spend_zar) from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14) / nullif((select sum(leads_raw) from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14),0),0) as raw_cpl,\n       round((select sum(spend_zar) from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14) / nullif((select count(*) from facts.fact_lead where qualified and verified_at is not null and created_at::date > (select as_of from facts.v_params) - 14),0),0) as cost_per_qualified,\n       (select sum(leads_raw) from facts.fact_ad_day where day > (select as_of from facts.v_params) - 14) as n",
+   "n_rule": "mixed: spend is a sum (no n needed); the two cost-per-lead figures need n >= 20 raw leads",
+   "answer_shape": {
+    "headline": "Spend in rand, leads, cost of a lead and of a qualified lead against R250 and R400",
+    "comparison": "Spend excludes 15% VAT; recent leads may not be verified yet",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Do not read a verdict before 14 days and R3,000",
+    "next_question": "Which ads are above the cost limit?"
+   },
+   "expected_on_synthetic": [
+    "4900.00|30|16|163|306|30"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q09",
+   "question": "What is Mark's margin this cycle?",
+   "metric_ref": "5 margin this cycle",
+   "tables": [
+    "facts.v_w14_lv_margin"
+   ],
+   "sql": "select cycle_id, committed, delivered_net, margin_to_date, margin_projected, margin_at_stress, clears_30_at_stress, (select count(*) from facts.fact_lead l where l.cycle_id = facts.v_w14_lv_margin.cycle_id) as n from facts.v_w14_lv_margin where broker_id = 'B-MARK'",
+   "n_rule": "ratio: n = leads in the cycle; below 20 label as 'early projection'",
+   "answer_shape": {
+    "headline": "Projected margin, margin if cost per lead hits R250, and the 30% floor",
+    "comparison": "Projection assumes the rest of the cycle costs what the first part did per lead",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Costs allocated to the adviser by platform-architect",
+    "next_question": "What is driving the gap, qualify rate or cost per lead?"
+   },
+   "expected_on_synthetic": [
+    "00000000-0000-4000-8000-0000000c0002|20|16|0.611|0.437|0.163|f|30"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q10",
+   "question": "How many leads have we delivered against what Mark was promised?",
+   "metric_ref": "delivered vs committed",
+   "tables": [
+    "facts.v_cycle_progress"
+   ],
+   "sql": "select committed, verified as delivered, days_left, committed - verified as still_to_deliver from public.v_cycle_progress where broker_id = 'B-MARK'",
+   "n_rule": "count: no n needed",
+   "answer_shape": {
+    "headline": "Delivered of committed and days left; mention the 14-day extension if short at the end",
+    "comparison": "Delivered counts verified qualified leads minus replaced ones",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Extension and credit apply only after the cycle end",
+    "next_question": "Are we on pace for the end date?"
+   },
+   "expected_on_synthetic": [
+    "20|16|17|4"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q11",
+   "question": "How many replacements has Mark used this cycle?",
+   "metric_ref": "replacements used / cap",
+   "tables": [
+    "facts.v_cycle_progress"
+   ],
+   "sql": "select replacements_used, replacement_cap as cap, replacement_cap - replacements_used as left_to_use from public.v_cycle_progress where broker_id = 'B-MARK'",
+   "n_rule": "count: no n needed",
+   "answer_shape": {
+    "headline": "Used of cap",
+    "comparison": "Only unreachable and outside-criteria leads qualify",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Which angle did they come from?"
+   },
+   "expected_on_synthetic": [
+    "1|4|3"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q12",
+   "question": "How many days of capacity does Mark have left?",
+   "metric_ref": "6 days of broker capacity left",
+   "tables": [
+    "facts.v_watchlist_6_capacity_days_left"
+   ],
+   "sql": "select value as days_left, target, status, next_7_days_booked_share, trim_ad_share_now, n from facts.v_watchlist_6_capacity_days_left where scope = 'B-MARK'",
+   "n_rule": "point-in-time: no n needed (n = open slots)",
+   "answer_shape": {
+    "headline": "Days left against 5 and share of next 7 days booked",
+    "comparison": "Based on the last 7 days of booking pace",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "Calendar changes by the adviser move this number at once",
+    "next_question": "Should we trim his ad share?"
+   },
+   "expected_on_synthetic": [
+    "50.8|5|green|0.133|f|29"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q13",
+   "question": "What share of qualified leads book a meeting?",
+   "metric_ref": "booking rate",
+   "tables": [
+    "facts.fact_lead",
+    "facts.fact_booking"
+   ],
+   "sql": "select count(*) filter (where l.qualified and l.verified_at is not null) as n,\n       count(*) filter (where l.qualified and l.verified_at is not null and exists (select 1 from facts.fact_booking b where b.lead_key = l.lead_key and b.status <> 'cancelled')) as booked,\n       round(count(*) filter (where l.qualified and l.verified_at is not null and exists (select 1 from facts.fact_booking b where b.lead_key = l.lead_key and b.status <> 'cancelled'))::numeric\n             / nullif(count(*) filter (where l.qualified and l.verified_at is not null),0),3) as booking_rate\nfrom facts.fact_lead l where l.created_at::date > (select as_of from facts.v_params) - 14",
+   "n_rule": "ratio: n = verified qualified leads, need 20",
+   "answer_shape": {
+    "headline": "Percentage against the 60% target",
+    "comparison": "Recent leads may still book",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Where in the WhatsApp chat do we lose the rest?"
+   },
+   "expected_on_synthetic": [
+    "16|12|0.750"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q14",
+   "question": "How fast do we send the first message?",
+   "metric_ref": "first-message time",
+   "tables": [
+    "facts.fact_lead"
+   ],
+   "sql": "select count(first_message_seconds) as n, round(percentile_cont(0.5) within group (order by first_message_seconds)::numeric,0) as median_seconds,\n       round(count(*) filter (where first_message_seconds <= 60)::numeric / nullif(count(first_message_seconds),0),3) as share_within_60s\nfrom facts.fact_lead where created_at::date > (select as_of from facts.v_params) - 14",
+   "n_rule": "ratio: n = leads messaged, need 20",
+   "answer_shape": {
+    "headline": "Share within 60 seconds (target 100%) and the median",
+    "comparison": "The target is every lead",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Which step of the workflow is slow?"
+   },
+   "expected_on_synthetic": [
+    "30|38|0.967"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q15",
+   "question": "What are leads asking about before their calls?",
+   "metric_ref": "lead themes",
+   "tables": [
+    "facts.fact_lead_theme"
+   ],
+   "sql": "select theme, count(*) as leads, count(*) as n from facts.fact_lead_theme where created_at::date > (select as_of from facts.v_params) - 28 group by theme order by leads desc limit 5",
+   "n_rule": "count: no n needed for a ranking; say so when fewer than 20 leads",
+   "answer_shape": {
+    "headline": "Top five themes in plain English with counts",
+    "comparison": "Themes come from what leads typed before the call, not from advice",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Which ad angle brings the leads who ask about bonds?"
+   },
+   "expected_on_synthetic": [],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q16",
+   "question": "How many leads came from comments on our ads?",
+   "metric_ref": "comment-origin leads",
+   "tables": [
+    "facts.fact_lead",
+    "facts.fact_comment"
+   ],
+   "sql": "select count(*) filter (where origin = 'comment') as comment_origin_leads, count(*) as all_leads, count(*) as n,\n       (select count(*) from facts.fact_comment where date > facts.as_of() - 14) as comments_answered, (select round(percentile_cont(0.5) within group (order by sla_seconds)) from facts.fact_comment where date > facts.as_of() - 14) as median_reply_seconds\nfrom facts.fact_lead where created_date > facts.as_of() - 14",
+   "n_rule": "mixed: counts need no n; any share needs n >= 20",
+   "answer_shape": {
+    "headline": "Count and share of leads from comments, and how fast we replied (target under 15 minutes)",
+    "comparison": "Origin is stamped when the lead is created",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Which post attracts the most comment leads?"
+   },
+   "expected_on_synthetic": [
+    "1|30|30|0|"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q17",
+   "question": "What do WhatsApp and the AI cost us per lead this cycle?",
+   "metric_ref": "WhatsApp cost/lead, LLM cost/lead",
+   "tables": [
+    "facts.fact_cost",
+    "facts.fact_lead"
+   ],
+   "sql": "select round(sum(amount_zar) filter (where kind='whatsapp') / nullif((select count(*) from facts.fact_lead),0),2) as whatsapp_per_lead,\n       round(sum(amount_zar) filter (where kind='llm') / nullif((select count(*) from facts.fact_lead),0),2) as ai_per_lead,\n       (select count(*) from facts.fact_lead) as n\nfrom facts.fact_cost",
+   "n_rule": "ratio: n = leads, need 20",
+   "answer_shape": {
+    "headline": "Rand per lead for each, against about R2 and R0.50-R2",
+    "comparison": "Message prices change; checked against the invoice monthly",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Is the AI cost rising with longer chats?"
+   },
+   "expected_on_synthetic": [
+    "2.00|1.00|30"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q18",
+   "question": "Is the system up and fast enough?",
+   "metric_ref": "uptime, p95 webhook latency",
+   "tables": [
+    "facts.fact_system_day"
+   ],
+   "sql": "select round(avg(uptime_pct),2) as uptime_pct, round(max(webhook_p95_ms),0) as worst_p95_ms, count(*) as n from facts.fact_system_day where day > (select as_of from facts.v_params) - 14",
+   "n_rule": "ratio: n = days, show as is",
+   "answer_shape": {
+    "headline": "Uptime against 99.5% and the worst daily p95 delay",
+    "comparison": "p95 means 19 in 20 messages arrive faster than this",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Which day dipped and why?"
+   },
+   "expected_on_synthetic": [
+    "||0"
+   ],
+   "expected_kind_on_synthetic": "not_enough_data"
+  },
+  {
+   "id": "Q19",
+   "question": "Is Mark likely to renew?",
+   "metric_ref": "7 renewal risk",
+   "tables": [
+    "facts.v_w14_lv_renewal"
+   ],
+   "sql": "select broker_id, level, score, reasons, show_rate, marked_rate, quality_avg, todos_open, report_unopened_2wk, 1 as n from facts.v_w14_lv_renewal where broker_id = 'B-MARK'",
+   "n_rule": "point-in-time: no n needed; the weights are an assumption, say 'early guide' in cycle 1",
+   "answer_shape": {
+    "headline": "Green, amber or red with each reason in a sentence",
+    "comparison": "Weights are not yet calibrated against real renewals",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "What would Jonathan say on a call about it?"
+   },
+   "expected_on_synthetic": [
+    "B-MARK|green|1|[\"Show rate 60% is under target\"]|0.600|0.900|3.40|1|f|1"
+   ],
+   "expected_kind_on_synthetic": "number"
+  },
+  {
+   "id": "Q20",
+   "question": "Which ads should we pause or scale this week?",
+   "metric_ref": "kill/scale rules",
+   "tables": [
+    "facts.v_kill_scale_candidates"
+   ],
+   "sql": "select rule_id, scope_name, proposed_action, proposed_pct, title, n from facts.v_kill_scale_candidates order by rule_id, scope_name",
+   "n_rule": "candidate list: each row carries its own n; show 'no candidates' when empty",
+   "answer_shape": {
+    "headline": "One line per candidate: what, why, the number that triggered it",
+    "comparison": "Read-only: nothing is applied until Approve",
+    "how_computed": "expandable: the SQL plus the metric dictionary definition",
+    "caveat": "",
+    "next_question": "Do you want these sent to the Do today list?"
+   },
+   "expected_on_synthetic": [
+    "K1_NEW_CONCEPT_BATCH|CMP-A|launch_new_concept_batch||Launch a new concept batch for CMP-A|24",
+    "K1_PAUSE_BOTTOM_HALF|SMC-A3 Family|pause_ad||Pause SMC-A3 Family (bottom half on cost per qualified lead)|2",
+    "K1_PAUSE_BOTTOM_HALF|SMC-A5 Income|pause_ad||Pause SMC-A5 Income (bottom half on cost per qualified lead)|0",
+    "K1_TIGHTEN_QUESTIONS|CMP-A|tighten_qualifying_questions||Tighten the qualifying questions on CMP-A|24"
+   ],
+   "expected_kind_on_synthetic": "number"
+  }
+ ],
+ "note": "expected_on_synthetic = rows returned by each SQL on the synthetic cycle on the pass-3 fixture (read from the real smc_04/06 views, run by analytics/tests/ask-questions.test.py) (pipe-separated). expected_kind_on_synthetic = what the assistant must say: 'not_enough_data' when the n column is under 20 (6A2 item 4), else the number. Q15, Q16 and Q18 read feeders the fixture does not fill (lead themes, comments, ops.infra_day): they return empty or null and the assistant must answer \"not enough data yet\"."
+}

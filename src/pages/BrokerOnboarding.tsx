@@ -119,7 +119,7 @@ const BrokerOnboarding = () => {
             }
             setStep(6);
         } else if (step === 6) {
-            if (!goalsTargetsForm.monthlySalesTarget || !goalsTargetsForm.growthGoals) {
+            if (!goalsTargetsForm.growthGoals) {
                 setStepErrors("Please fill out all fields.");
                 return;
             }
@@ -172,7 +172,7 @@ const BrokerOnboarding = () => {
             return;
         }
 
-        if (!goalsTargetsForm.monthlySalesTarget || !goalsTargetsForm.growthGoals) {
+        if (!goalsTargetsForm.growthGoals) {
             setStepErrors("Please fill out all Goals & Targets fields before submitting.");
             return;
         }
@@ -228,7 +228,7 @@ const BrokerOnboarding = () => {
                 geographic_focus_clarity: scoringData.geographicFocusClarity,
                 growth_goal_clarity: scoringData.growthGoalClarity,
                 timeline_to_start: scoringData.timeline,
-                monthly_sales_target: parseFloat(goalsTargetsForm.monthlySalesTarget) || null,
+                monthly_sales_target: null, // no longer collected (clause 8.4); column kept
                 product_focus: targetMarketForm.productFocus || [],
             };
 
@@ -311,8 +311,12 @@ const BrokerOnboarding = () => {
 
             console.log("Analysis saved successfully");
 
-            // 4. Trigger AI Analysis (placeholder)
-            console.log("Triggering AI analysis for:", newResponseId);
+            // 4. Fire-and-forget: confirmation email to the broker + internal
+            // alert to howzit@. Never block the success UX on email delivery.
+            supabase.functions
+                .invoke("send-onboarding-notification", { body: { responseId: newResponseId } })
+                .then(({ error }) => { if (error) console.error("onboarding email error:", error); })
+                .catch((e) => console.error("onboarding email invoke failed:", e));
 
 
             setSubmitted(true);
@@ -587,7 +591,7 @@ const BrokerOnboarding = () => {
                                         { title: "Define Ideal Client", desc: "We establish exactly who you want to reach. Geographic area, income bracket, product focus." },
                                         { title: "Targeted Generation", desc: "Campaigns designed to attract prospects matching your criteria. Fresh, targeted contacts." },
                                         { title: "Qualified Against Criteria", desc: "Checked against defined profile. Quality over volume." },
-                                        { title: "Weekly Delivery", desc: "Predictable schedule. No surprises." }
+                                        { title: "Consistent Delivery", desc: "Leads arrive as they qualify. A set number every 30-day cycle. No surprises." }
                                     ].map((step, i) => (
                                         <div key={i} className="flex gap-4">
                                             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-primary font-bold border border-primary/20">
@@ -1240,22 +1244,12 @@ const BrokerOnboarding = () => {
                                                 <p className="text-slate-400 text-sm">What are you working towards?</p>
                                             </div>
                                             <div className="space-y-6">
-                                                <div className="space-y-2">
-                                                    <Label className="text-sm font-medium text-slate-200">Monthly Sales Target (R)</Label>
-                                                    <Input
-                                                        type="number"
-                                                        className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
-                                                        placeholder="100000"
-                                                        value={goalsTargetsForm.monthlySalesTarget}
-                                                        onChange={(e) => setGoalsTargetsForm(p => ({ ...p, monthlySalesTarget: e.target.value }))}
-                                                    />
-                                                    <p className="text-xs text-muted-foreground">in premium value or commission, whichever you track</p>
-                                                </div>
+                                                {/* Monthly sales target (premium / commission) removed: Lead Velocity never collects sales, premium or commission data (agreement clause 8.4). */}
                                                 <div className="space-y-2">
                                                     <Label className="text-sm font-medium text-slate-200 block">Growth Goals (Next 3-6 Months)</Label>
                                                     <Textarea
                                                         className="bg-background/50 border-border/50 focus:border-primary/50 rounded-md min-h-[100px]"
-                                                        placeholder="What does success look like for you in the next 3-6 months? (e.g., double my client base, hire another advisor, reach R200k monthly premium)"
+                                                        placeholder="What does success look like for you in the next 3-6 months? (e.g., double my client base, hire another advisor)"
                                                         value={goalsTargetsForm.growthGoals}
                                                         onChange={(e) => setGoalsTargetsForm(p => ({ ...p, growthGoals: e.target.value }))}
                                                     />
@@ -1293,7 +1287,7 @@ const BrokerOnboarding = () => {
                                                 <ArrowRight className="h-4 w-4" />
                                             </Button>
                                         ) : (
-                                            <Button type="submit" className="gap-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white border-0" disabled={isSubmitting || !goalsTargetsForm.monthlySalesTarget || !goalsTargetsForm.growthGoals}>
+                                            <Button type="submit" className="gap-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white border-0" disabled={isSubmitting || !goalsTargetsForm.growthGoals}>
                                                 {isSubmitting ? "Submitting..." : "Submit Snapshot"}
                                                 <ArrowRight className="h-4 w-4" />
                                             </Button>

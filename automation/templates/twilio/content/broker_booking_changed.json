@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "key": "broker_booking_changed",
+    "source": "automation/templates/broker_booking_changed.json",
+    "approval": {
+      "name": "smc_broker_booking_changed",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_booking_changed",
+    "language": "en",
+    "variables": {
+      "1": "Mark",
+      "2": "Lerato M.",
+      "3": "Microsoft Teams",
+      "4": "Tue 13 Oct, 11:30",
+      "5": "Wed 14 Oct, 14:00",
+      "6": "calendar?day=2026-10-14"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, a SortMyCover booking has changed. *{{2}}* ({{3}}) was booked for {{4}}. Now: *{{5}}*. Your calendar has been updated, so there is nothing for you to do.",
+        "header_text": "Booking changed",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Open the day",
+            "url": "https://leadvelocity.co.za/s/{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

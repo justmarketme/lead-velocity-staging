@@ -1,0 +1,43 @@
+{
+  "name": "reminder_24h",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "See you tomorrow"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a quick reminder: your {{2}} call with *{{3}}* is tomorrow at *{{4}}*. Most people find 30 minutes is all it takes. Tap Confirm to let us know you can make it. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Microsoft Teams",
+            "Mark Smith",
+            "10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Confirm"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "Reschedule"
+        }
+      ]
+    }
+  ]
+}

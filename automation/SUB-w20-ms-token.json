@@ -1,0 +1,370 @@
+{
+  "id": "smc-w20-ms-token",
+  "name": "W20 Microsoft token exchange (sub-workflow, no execution data saved)",
+  "nodes": [
+    {
+      "id": "smc-w20-ms-token-1",
+      "name": "Called by W20 MS callback",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "smc-w20-ms-token-2",
+      "name": "Has code?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Called by W20 MS callback').first().json.has_code && !!$('Called by W20 MS callback').first().json.broker_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "smc-w20-ms-token-3",
+      "name": "MS token exchange",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://login.microsoftonline.com/' + ($env.MS_GRAPH_TENANT || 'organizations') + '/oauth2/v2.0/token' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $env.MS_GRAPH_CLIENT_ID }}"
+            },
+            {
+              "name": "grant_type",
+              "value": "authorization_code"
+            },
+            {
+              "name": "code",
+              "value": "={{ $('Called by W20 MS callback').first().json.query.code }}"
+            },
+            {
+              "name": "redirect_uri",
+              "value": "={{ $env.MS_GRAPH_REDIRECT_URI }}"
+            },
+            {
+              "name": "scope",
+              "value": "openid offline_access User.Read Calendars.ReadWrite OnlineMeetings.ReadWrite"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpCustomAuth": {
+          "name": "Microsoft Graph broker-connect client secret (W20)"
+        }
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "smc-w20-ms-token-4",
+      "name": "MS callback: plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\nconst s = $('Called by W20 MS callback').first().json;\nconst row = { broker_id: s.broker_id, calendar_status: s.current_status };\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nconst state = row.broker_id ? s.state : { ok: false, reason: 'unknown_broker' };\nconst plan = M.planCallback({ state, query: s.query, token, currentStatus: row.calendar_status, cfg: CFG });\n// I-41j: the refresh token never leaves this node; only \"Vault: prepare input\" reads it, straight from the token response.\nreturn [{ json: M.publicPlan({ broker_id: row.broker_id || null, ...plan }) }];"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "smc-w20-ms-token-5",
+      "name": "Store?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.action === 'store' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "id": "smc-w20-ms-token-6",
+      "name": "Vault: prepare input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: the ONLY node output that carries the refresh token, and its only consumer is the vault RPC.\nconst p = $input.first().json;\nlet token = null; try { const t = $('MS token exchange').first().json; token = { statusCode: t.statusCode, body: t.body }; } catch (e) {}\nreturn [{ json: M.vaultInput({ plan: p, token }) }];"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "smc-w20-ms-token-7",
+      "name": "Vault: store MS refresh token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The ONLY place the refresh token goes (migration 13, n8n_app only). Never in a column, a log or a response.\nselect public.smc_vault_store_ms_refresh($1::uuid, $2, $3, $4) as token_ref;",
+        "options": {
+          "queryReplacement": "={{ [ $json.broker_id, $json.refresh_token, $json.tenant_id, $json.scopes ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "name": "Result: stored",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-43e: the ONLY output of this sub-workflow on success: the public plan (no refresh token) plus the vault reference.\nconst p = $('MS callback: plan').first().json;\nreturn [{ json: { ...p, token_ref: $input.first().json.token_ref || null, vault: 'stored' } }];"
+      },
+      "onError": "continueRegularOutput",
+      "id": "smc-w20-ms-token-8",
+      "position": [
+        1540,
+        140
+      ]
+    },
+    {
+      "name": "Result: vault failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// I-41j: vault RPC failed after a good exchange. Built fresh (no input fields are copied, so nothing secret flows on).\nconst p = $('MS callback: plan').first().json;\nconst row = { calendar_status: $('Called by W20 MS callback').first().json.current_status };\nreturn [{ json: { ...M.planVaultFailure({ brokerId: p.broker_id, currentStatus: row.calendar_status, cfg: CFG }), vault: 'failed' } }];"
+      },
+      "onError": "continueRegularOutput",
+      "id": "smc-w20-ms-token-9",
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "name": "Result: no vault step",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// I-40c. Logic: automation/lib/w20-ms.mjs (tested in automation/tests/W20.test.mjs). Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation, NODE_FUNCTION_ALLOW_BUILTIN=crypto and N8N_BLOCK_ENV_ACCESS_IN_NODE=false.\nconst M = require('lv-automation').w20ms;\nconst STATE_SECRET = $env.MS_OAUTH_STATE_SECRET || $env.INTERNAL_HMAC_SECRET;\nconst CFG = { clientId: $env.MS_GRAPH_CLIENT_ID, redirectUri: $env.MS_GRAPH_REDIRECT_URI, tenant: $env.MS_GRAPH_TENANT, stateSecret: STATE_SECRET, portalUrl: $env.PORTAL_URL, adminConsentRedirectUri: $env.MS_ADMIN_CONSENT_REDIRECT_URI || $env.PORTAL_URL };\n// Nothing to store (error, cancel, consent pending, no code): pass the public plan on.\nreturn [{ json: { ...$input.first().json, vault: 'n/a' } }];"
+      },
+      "onError": "continueRegularOutput",
+      "id": "smc-w20-ms-token-10",
+      "position": [
+        1100,
+        420
+      ]
+    },
+    {
+      "id": "smc-w20-ms-token-11",
+      "name": "About this sub-workflow",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        560
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 220,
+        "content": "## W20 Microsoft token exchange (I-43e)\nOnly W20's callback calls this (by id `smc-w20-ms-token`). It exchanges the authorisation code, plans, stores the refresh token in the vault RPC and returns the PUBLIC plan + `token_ref` only. `saveDataErrorExecution` and `saveDataSuccessExecution` are both `none`, so a crash mid-run cannot persist the token in execution data (the parent never holds it). Input `{ state, query, broker_id, current_status }`. Same credentials as before (no new names)."
+      }
+    }
+  ],
+  "connections": {
+    "Called by W20 MS callback": {
+      "main": [
+        [
+          {
+            "node": "Has code?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has code?": {
+      "main": [
+        [
+          {
+            "node": "MS token exchange",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MS callback: plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS token exchange": {
+      "main": [
+        [
+          {
+            "node": "MS callback: plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MS callback: plan": {
+      "main": [
+        [
+          {
+            "node": "Store?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store?": {
+      "main": [
+        [
+          {
+            "node": "Vault: prepare input",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result: no vault step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vault: prepare input": {
+      "main": [
+        [
+          {
+            "node": "Vault: store MS refresh token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vault: store MS refresh token": {
+      "main": [
+        [
+          {
+            "node": "Result: stored",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Result: vault failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": []
+}

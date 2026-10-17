@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Profile | SortMyCover broker portal (prototype)</title>
+<link rel="stylesheet" href="portal.css">
+</head><body>
+<div class="app">
+<header class="top"><div class="who">Mark Williams Financial Planning &middot; FSP 00000 (example data)</div><h1>Your details</h1><div class="bar"><i style="width:14%"></i></div><div class="bar-l"><span>1 of 7 done</span><span>about 9 minutes to go live</span></div></header>
+<main class="main">
+
+<section class="card">
+  <h2>Tell us who you are</h2>
+  <p class="muted">Three questions. We check your FSP number against the public FSCA register. It also shows leads you are the real thing.</p>
+  <form id="f" onsubmit="return false">
+    <label for="pn">Practice name</label>
+    <input id="pn" type="text" value="Mark Williams Financial Planning" autocomplete="organization">
+    <p class="hint">As it appears on your FSP licence. Saved to your profile; never asked again.</p>
+    <label for="fsp">FSP number</label>
+    <input id="fsp" type="text" inputmode="numeric" value="00000" maxlength="6" autocomplete="off">
+    <p class="hint">Digits only. We check it when you tap Save.</p>
+    <div id="fscaOK" class="next-slot" hidden role="status"><span>&#10003;</span><div><b>Found on the FSCA register</b>Authorised financial services provider &middot; checked just now</div></div>
+    <div id="fscaBad" class="alert" hidden role="alert">We could not match that number to your practice name. Check the number and try again. Nothing is wrong yet; this takes one more try. After three tries we check it by hand and tell you on WhatsApp.</div>
+    <label for="an">Adviser name</label>
+    <input id="an" type="text" value="Mark Williams" autocomplete="name">
+    <div class="row2">
+      <div><label for="wa">Your WhatsApp number</label><input id="wa" type="tel" inputmode="tel" value="+27 82 000 0000"></div>
+      <div><label for="em">Email</label><input id="em" type="email" value="mark@example.co.za"></div>
+    </div>
+    <p class="hint">Leads' reminders and your daily list come here. Your email is used for the calendar and our copies.</p>
+    <div style="height:12px"></div>
+    <button class="btn" id="save">Save and check my FSP</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Your photo and two lines</h2>
+  <p class="muted">Leads see these before they meet you. A real face lifts show rate.</p>
+  <label for="ph">Headshot</label>
+  <input id="ph" type="file" accept="image/*" capture="user">
+  <p class="hint">Plain background, you looking at the camera. We crop it square.</p>
+  <label for="bio">Two lines about you, in your own words</label>
+  <textarea id="bio" maxlength="220">I help families with a bond and children make sure the people who depend on them are looked after. I keep it simple and I never pressure anyone.</textarea>
+  <p class="hint">Who you help and how you work. No product names, no "best", no promises.</p>
+  <label>Languages you speak</label>
+  <div class="chips"><label class="chip on"><input type="checkbox" checked> English</label><label class="chip on"><input type="checkbox" checked> Afrikaans</label><label class="chip"><input type="checkbox"> isiZulu</label><label class="chip"><input type="checkbox"> isiXhosa</label><label class="chip"><input type="checkbox"> Sesotho</label><label class="chip"><input type="checkbox"> Other</label></div>
+  <label for="yrs">Years advising</label>
+  <input id="yrs" type="number" inputmode="numeric" min="0" max="60" value="12" style="max-width:120px">
+  <div style="height:12px"></div>
+  <button class="btn">Save my photo and lines</button>
+</section>
+
+<section class="card" id="card">
+  <h2>Your intro card</h2>
+  <p class="muted">This is the picture leads get on WhatsApp the moment they book. Check it is right, then approve.</p>
+  <div style="aspect-ratio:1/1;border-radius:var(--sm-radius-lg);background:var(--sm-bg-inverse);color:var(--sm-text-inverse);padding:18px;display:flex;flex-direction:column;gap:8px;justify-content:center" aria-label="Intro card preview (1080 x 1080 rendered image)">
+    <div style="width:72px;height:72px;border-radius:50%;background:var(--sm-charcoal-2);border:3px solid var(--sm-accent)"></div>
+    <b style="font-size:22px;font-weight:800">Mark Williams</b>
+    <span>Mark Williams Financial Planning</span>
+    <span style="font-size:13px;opacity:.85">Authorised financial services provider &middot; FSP 00000</span>
+    <span style="font-size:14px">I help families with a bond and children make sure the people who depend on them are looked after.</span>
+    <span style="font-size:13px;opacity:.85">English &middot; Afrikaans &middot; 12 years advising</span>
+    <span style="font-size:13px;color:var(--sm-accent);font-weight:800">30-min WhatsApp call, Teams or phone &middot; No obligation</span>
+  </div>
+  <label class="chip" style="margin-top:12px;display:flex"><input type="checkbox" id="ap"> I have read my card and the disclosure wording. I approve both.</label>
+  <p class="hint">Your approval is saved with the date and time and copied to howzit@leadvelocity.co.za.</p>
+  <div style="height:10px"></div>
+  <button class="btn" id="apb" disabled>Approve my intro card</button>
+  <a class="btn ghost" style="margin-top:8px" href="#">Something is wrong: fix it</a>
+</section>
+<a class="step-clip" href="#"><span class="play"></span><span>Watch: your details and FSP check<small>0:35 &middot; captions on</small></span></a>
+
+</main>
+</div>
+<nav class="tabs" aria-label="Portal"><div><a href="start.html">Start</a><a href="leads.html">My leads</a><a href="calendar.html">Calendar</a><a href="reports.html">Reports</a><a href="help.html" class=cur>Help</a></div></nav>
+<script>
+
+// Prototype only. Real behaviour: POST /api/broker/profile writes the brokers row, then the W20 FSCA check runs.
+var ap=document.getElementById("ap"),apb=document.getElementById("apb");
+ap.addEventListener("change",function(){apb.disabled=!ap.checked;});
+document.getElementById("save").addEventListener("click",function(){
+  var v=document.getElementById("fsp").value.trim(),ok=/^\d{3,6}$/.test(v);
+  document.getElementById("fscaOK").hidden=!ok; document.getElementById("fscaBad").hidden=ok;
+});
+
+</script>
+</body></html>

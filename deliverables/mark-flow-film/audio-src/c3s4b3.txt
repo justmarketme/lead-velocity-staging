@@ -1,0 +1,1 @@
+Seven: there's no attendance trigger, because attendance isn't part of the lead definition: nobody can control who turns up.

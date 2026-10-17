@@ -1,0 +1,15 @@
+/* Shared by every template. Imports the brand tokens; no hex values live here. */
+@import url("../tokens.css");
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%}
+body{position:relative;overflow:hidden;font-family:var(--sm-font);font-weight:var(--sm-weight-body);color:var(--sm-text);background:var(--sm-bg);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;line-height:var(--sm-lh-body)}
+.hd{font-weight:var(--sm-weight-headline);letter-spacing:var(--sm-ls-headline);line-height:var(--sm-lh-headline)}
+.dark{background:var(--sm-charcoal);color:var(--sm-off-white)}
+em.hl{font-style:normal;color:var(--sm-amber)}
+.pill{display:inline-flex;align-items:center;background:var(--sm-amber);color:var(--sm-accent-text);font-weight:800;border-radius:var(--sm-radius-pill)}
+.abs{position:absolute}
+[hidden]{display:none!important}
+.sil{display:block;width:100%;height:100%}
+.sil .bg{fill:var(--sm-off-white-2)}.sil .fg{fill:var(--sm-muted)}
+.cobrand{display:flex;align-items:center}
+.cobrand img{flex:none}

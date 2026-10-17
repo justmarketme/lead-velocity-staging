@@ -1,0 +1,219 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SortMyCover Ad Mockup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;0,9..40,800&display=swap">
+<style>
+/* Layout: a review board — two phone frames (Feed post, Reels frame 1) + a WhatsApp header + the brand kit strip, each with the "why" beside it. */
+:root{
+  --bg:#F3EFE8; --fg:#1F2933; --muted:#5C6672; --rule:#DCD6CB;
+  --amber:#F5A623; --amber-dk:#B86E0A; --char:#1F2933; --off:#FBF8F2;
+  --fb-bg:#F0F2F5; --fb-card:#FFFFFF; --fb-text:#050505; --fb-sub:#65676B; --fb-btn:#E4E6EB;
+  --font:"DM Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15181C;--fg:#F1EDE5;--muted:#A3A9B1;--rule:#2B3138;--off:#1C2027;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#15181C;--fg:#F1EDE5;--muted:#A3A9B1;--rule:#2B3138;--off:#1C2027;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);margin:0;padding-block:28px;padding-inline:16px;line-height:1.5}
+.wrap{max-width:1040px;margin:0 auto;display:grid;gap:40px}
+h1{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance}
+.lede{color:var(--muted);margin:0;max-width:62ch}
+.row{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){.row{grid-template-columns:1fr}}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 10px}
+.why h3{margin:0 0 8px;font-size:18px;font-weight:700}
+.why ul{margin:0;padding-left:18px;display:grid;gap:8px}
+.why li b{font-weight:700}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--amber);color:#2A1B02;margin-left:6px;vertical-align:middle}
+
+/* Phone frame */
+.phone{width:100%;max-width:340px;aspect-ratio:9/19;background:#000;border-radius:38px;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,.25);position:relative;margin:0 auto}
+.screen{background:var(--fb-bg);border-radius:30px;height:100%;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:110px;height:26px;background:#000;border-radius:0 0 16px 16px;z-index:3}
+
+/* Facebook feed post */
+.fb-top{height:52px;background:var(--fb-card);display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid #E4E6EB;font-weight:800;color:#1877F2;font-size:22px;margin-top:0}
+.fb-top span{color:var(--fb-sub);font-size:12px;font-weight:500}
+.post{background:var(--fb-card);margin-top:8px}
+.ph{display:flex;gap:10px;padding:12px 12px 8px;align-items:center}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--char);display:grid;place-items:center;color:var(--amber);font-weight:800;font-size:18px}
+.pname{font-weight:700;color:var(--fb-text);font-size:14px;line-height:1.1}
+.pmeta{color:var(--fb-sub);font-size:12px}
+.ptext{padding:0 12px 10px;color:var(--fb-text);font-size:14px;line-height:1.35}
+.ptext b{font-weight:700}
+.creative{position:relative;aspect-ratio:4/5;background:var(--char);overflow:hidden}
+.creative .scene{position:absolute;inset:0;background:
+  radial-gradient(120% 70% at 20% 10%,#2C3A48 0%,transparent 60%),
+  linear-gradient(180deg,#1F2933 0%,#161D25 100%)}
+.table{position:absolute;left:0;right:0;bottom:0;height:34%;background:linear-gradient(180deg,#7A5A3A,#5D4229);}
+.paper{position:absolute;background:#FBF8F2;border-radius:3px;box-shadow:0 6px 16px rgba(0,0,0,.35);padding:8px 10px;font-size:9px;color:#2B2B2B;line-height:1.35}
+.paper small{display:block;color:#8A8A8A;font-size:7px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.paper .amt{font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+.p1{left:8%;bottom:22%;width:40%;transform:rotate(-5deg)}
+.p2{right:7%;bottom:18%;width:44%;transform:rotate(4deg)}
+.mug{position:absolute;right:16%;bottom:40%;width:34px;height:30px;border-radius:4px 4px 8px 8px;background:#D9D2C3}
+.mug:after{content:"";position:absolute;right:-9px;top:6px;width:12px;height:14px;border:4px solid #D9D2C3;border-left:0;border-radius:0 8px 8px 0}
+.hook{position:absolute;left:18px;right:18px;top:18px;color:var(--off);font-weight:800;font-size:26px;line-height:1.05;letter-spacing:-.015em;text-wrap:balance}
+.hook em{font-style:normal;color:var(--amber)}
+.sub{position:absolute;left:18px;right:18px;top:118px;color:#D7D2C8;font-size:14px;font-weight:500}
+.cap{position:absolute;left:18px;right:18px;bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.logo{display:inline-flex;align-items:baseline;font-weight:800;font-size:16px;letter-spacing:-.01em;color:var(--off)}
+.logo .tick{display:inline-grid;place-items:center;width:.95em;height:.95em;border-radius:50%;background:var(--amber);margin:0 1px;position:relative;top:.12em}
+.logo .tick svg{width:70%;height:70%}
+.aiLabel{font-size:9px;color:#A9A399;letter-spacing:.06em;text-transform:uppercase}
+.cta{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--fb-bg);border-top:1px solid #E4E6EB}
+.cta .l small{display:block;color:var(--fb-sub);font-size:11px}
+.cta .l b{font-size:13px;color:var(--fb-text)}
+.cta .btn{background:var(--fb-btn);color:var(--fb-text);font-weight:700;font-size:13px;padding:8px 14px;border-radius:6px}
+.react{display:flex;justify-content:space-around;padding:8px 0;color:var(--fb-sub);font-size:13px;border-top:1px solid #E4E6EB;background:var(--fb-card)}
+
+/* Reels */
+.reel{position:absolute;inset:0;background:
+  radial-gradient(90% 60% at 50% 30%,#2E3C4B 0%,transparent 70%),
+  linear-gradient(180deg,#1A222B 0%,#0F151B 100%)}
+.face{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);width:150px;height:190px;border-radius:50% 50% 46% 46%;background:linear-gradient(180deg,#6B4A36,#4B3324);box-shadow:inset 0 -30px 40px rgba(0,0,0,.35)}
+.face:before,.face:after{content:"";position:absolute;top:44%;width:16px;height:9px;border-radius:50%;background:#1A1410}
+.face:before{left:28%}.face:after{right:28%}
+.shoulders{position:absolute;left:50%;top:62%;transform:translateX(-50%);width:260px;height:160px;border-radius:120px 120px 0 0;background:#2B2F36}
+.rhook{position:absolute;left:16px;right:16px;top:60px;color:var(--off);font-weight:800;font-size:30px;line-height:1.02;letter-spacing:-.02em;text-shadow:0 2px 14px rgba(0,0,0,.5);text-wrap:balance}
+.rhook em{font-style:normal;background:var(--amber);color:#2A1B02;padding:0 6px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.caption{position:absolute;left:16px;right:70px;bottom:96px;color:#fff;font-weight:700;font-size:15px;background:rgba(0,0,0,.55);padding:6px 10px;border-radius:6px;width:max-content;max-width:calc(100% - 86px)}
+.rmeta{position:absolute;left:16px;right:70px;bottom:28px;color:#fff;font-size:13px}
+.rmeta b{display:block;font-size:14px}
+.rail{position:absolute;right:12px;bottom:40px;display:grid;gap:18px;color:#fff;font-size:11px;text-align:center}
+.rail i{display:block;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.18);margin:0 auto 3px}
+.prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.25)}
+.prog:after{content:"";position:absolute;left:0;top:0;bottom:0;width:4%;background:var(--amber)}
+.frameTag{position:absolute;top:44px;right:14px;font-size:10px;font-weight:700;letter-spacing:.1em;color:#fff;background:rgba(0,0,0,.5);padding:3px 7px;border-radius:4px}
+
+/* WhatsApp header + brand kit */
+.kit{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.card{background:var(--off);border:1px solid var(--rule);border-radius:12px;padding:16px}
+.card h4{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.swatches{display:flex;gap:8px}
+.sw{flex:1;height:54px;border-radius:8px;display:flex;align-items:flex-end;padding:6px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums}
+.wa{display:flex;gap:12px;align-items:center;background:#075E54;border-radius:10px;padding:10px 12px;color:#fff}
+.wa .pic{width:44px;height:44px;border-radius:50%;background:var(--char);display:grid;place-items:center}
+.wa .pic .tick{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--amber)}
+.wa .pic svg{width:16px;height:16px}
+.wa b{display:block;font-size:14px}
+.wa small{opacity:.8;font-size:12px}
+.bigmark{font-size:34px;font-weight:800;letter-spacing:-.02em;color:var(--fg)}
+.bigmark .tick{display:inline-grid;place-items:center;width:.9em;height:.9em;border-radius:50%;background:var(--amber);position:relative;top:.1em;margin:0 1px}
+.bigmark .tick svg{width:68%;height:68%}
+.line{margin:8px 0 0;color:var(--muted);font-size:14px;font-weight:500}
+.foot{color:var(--muted);font-size:13px;border-top:1px solid var(--rule);padding-top:14px}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Review board · Hook H1 · Employer-cover gap</p>
+    <h1>This is what the SortMyCover ad looks like in the feed</h1>
+    <p class="lede">Hook H1 rendered three ways: a Facebook Feed post as a 35–50 parent scrolls past it, frame 1 of the Reels version, and the WhatsApp header the lead sees sixty seconds after tapping. Every choice on screen maps to a line in the master prompt.</p>
+  </header>
+
+  <!-- 1. Facebook feed -->
+  <section class="row">
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="fb-top">facebook <span>Feed</span></div>
+      <article class="post">
+        <div class="ph">
+          <div class="avatar">✓</div>
+          <div><div class="pname">SortMyCover</div><div class="pmeta">Sponsored · <span style="font-size:11px">🌐</span></div></div>
+        </div>
+        <div class="ptext">Most work life cover stops at <b>2–4× salary</b>. Most bonds run <b>20 years</b>. A licensed adviser can check if the two line up — 30 minutes on WhatsApp or video, no obligation.</div>
+        <div class="creative">
+          <div class="scene"></div>
+          <div class="hook">Most work life cover stops at <em>2–4× salary.</em><br>Most bonds don’t.</div>
+          <div class="sub">Check yours in 30 minutes with a licensed adviser.</div>
+          <div class="table"></div>
+          <div class="mug"></div>
+          <div class="paper p1"><small>Payslip · Group life</small>Life cover<br><span class="amt">3× annual salary</span></div>
+          <div class="paper p2"><small>Home loan statement</small>Balance outstanding<br><span class="amt">R 1 420 000</span></div>
+          <div class="cap">
+            <span class="logo">SortMyC<span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</span>
+            <span class="aiLabel">AI-generated imagery</span>
+          </div>
+        </div>
+        <div class="cta"><div class="l"><small>SORTMYCOVER.CO.ZA</small><b>Sort your cover. 30 minutes. A real adviser.</b></div><div class="btn">Learn more</div></div>
+        <div class="react"><span>👍 Like</span><span>💬 Comment</span><span>↗ Share</span></div>
+      </article>
+    </div></div>
+
+    <div class="why">
+      <p class="eyebrow">Facebook Feed · 4:5 static or 6-second motion</p>
+      <h3>Why it looks like this</h3>
+      <ul>
+        <li><b>The number is the hook.</b> “2–4× salary” sits in the first line of both the image and the primary text. Finance ads with a concrete figure in the first 3 seconds hooked 31% above category average. <span class="tag">Meta 2025 benchmark</span></li>
+        <li><b>Third person throughout.</b> “Most work life cover…”, never “your cover is too small”. That keeps it inside Meta’s personal-attributes policy and off the FAIS advice line. <span class="tag">2.1.8</span></li>
+        <li><b>Payslip and bond statement, not a stock family.</b> The gap is shown, not claimed. The amounts on the paper are illustrative props, and no premium or cover figure is ever promised. <span class="tag">4D.4a</span></li>
+        <li><b>Amber on charcoal.</b> Every SA insurer in this feed is blue or green. Amber is the one warm colour that pops against Facebook’s own blue-white UI, and it isn’t owned by anyone in the category. <span class="tag">Romaniuk: ~4% of brands own a colour</span></li>
+        <li><b>The tick is the logo.</b> One device, drawn as the “o” in Cover, legible at avatar size. No shield, umbrella or silhouette. <span class="tag">Logos rank highest for recall</span></li>
+        <li><b>The CTA says “check”, never “quote”.</b> The destination is a conversation with a licensed adviser, and the footer line is the same seven words on every asset. <span class="tag">Tagline rule</span></li>
+        <li><b>“AI-generated imagery” in small type.</b> Not required in SA, but it costs nothing and reads as honest. <span class="tag">4D.1</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2. Reels frame 1 -->
+  <section class="row">
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="reel"></div>
+      <div class="frameTag">FRAME 1 · 0.0 s</div>
+      <div class="face"></div><div class="shoulders"></div>
+      <div class="rhook">Just got <em>bond approval?</em><br>Read this before the champagne.</div>
+      <div class="caption">“Okay so nobody tells you this part…”</div>
+      <div class="rmeta"><b>sortmycover</b>Sort your cover. 30 minutes. A real adviser.</div>
+      <div class="rail"><div><i></i>1.2K</div><div><i></i>84</div><div><i></i>Share</div></div>
+      <div class="prog"></div>
+    </div></div>
+
+    <div class="why">
+      <p class="eyebrow">Instagram Reels · 9:16 video · Hook H3</p>
+      <h3>Why frame 1 is built this way</h3>
+      <ul>
+        <li><b>Text on screen at 0.0 seconds.</b> Over 80% of plays are sound-off. Text in the first half-second lifts hook rate 4–9 points. <span class="tag">AdLibrary audit data</span></li>
+        <li><b>A face, close up, eye contact.</b> The single strongest opener in the data, +4–10 points. This is an AI-rendered everyday South African, never presented as a client or adviser. The real adviser appears only in the WhatsApp intro video. <span class="tag">Meta AI rules</span></li>
+        <li><b>Payoff promised in frame 1.</b> “Read this before the champagne” sets up the reveal, delivered by second 6. <span class="tag">+5–12 pts</span></li>
+        <li><b>Burned-in caption</b> doubles as the spoken line, so the sound-off viewer and the sound-on viewer see the same beat.</li>
+        <li><b>Amber highlight on the key phrase</b> is the brand asset doing the work inside a vertical video where the logo is tiny.</li>
+        <li><b>Life event as the entry point.</b> New bond is one of the five moments the brand is tied to. The creative selects the audience, not the age slider. <span class="tag">Sharp · Andromeda</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3. WhatsApp header + brand kit -->
+  <section>
+    <p class="eyebrow">What the lead sees 60 seconds later · and the kit behind it</p>
+    <div class="kit">
+      <div class="card">
+        <h4>WhatsApp header</h4>
+        <div class="wa">
+          <div class="pic"><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+          <div><b>SortMyCover</b><small>Thandi · booking assistant for Mark</small></div>
+        </div>
+        <p class="line">Same tick, same amber, 1:1. Disclosure of the practice and FSP number follows in the first message.</p>
+      </div>
+      <div class="card">
+        <h4>Wordmark</h4>
+        <div class="bigmark">SortMyC<span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="#2A1B02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>ver</div>
+        <p class="line">One device: the tick as the “o”. Reads as “done” before the word is read.</p>
+      </div>
+      <div class="card">
+        <h4>Colour system</h4>
+        <div class="swatches">
+          <div class="sw" style="background:#F5A623;color:#2A1B02">Amber F5A623</div>
+          <div class="sw" style="background:#1F2933;color:#F1EDE5">Charcoal 1F2933</div>
+          <div class="sw" style="background:#FBF8F2;color:#1F2933;border:1px solid #DCD6CB">Off-white FBF8F2</div>
+        </div>
+        <p class="line">Week-1 test: this amber set against a teal-on-cream twin, same ads. Winner stays. Never navy.</p>
+      </div>
+      <div class="card">
+        <h4>The line</h4>
+        <p class="bigmark" style="font-size:18px;line-height:1.3;margin:0">Sort your cover.<br>30 minutes.<br>A real adviser.</p>
+        <p class="line">Seven words, identical on every asset. Taglines only work with ruthless repetition.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">Mockup for review. Imagery placeholders stand in for Google Flow renders; copy, colour, logo device and layout are the production decisions from the master prompt (4D.2, 4D.4a). SortMyCover is a service of Lead Velocity (Pty) Ltd. It connects people with authorised financial services providers and does not give financial advice, compare products or quote premiums.</p>
+</div>
+
+</body></html>

@@ -1,0 +1,47 @@
+{
+  "name": "broker_quality",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Last one: how would you rate {{1}} as a lead, from 1 (poor) to 5 (excellent)? You can also send a short voice note if there is anything we should know.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato M."
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "1"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "2"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "3"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "4"
+        },
+        {
+          "type": "QUICK_REPLY",
+          "text": "5"
+        }
+      ]
+    }
+  ]
+}

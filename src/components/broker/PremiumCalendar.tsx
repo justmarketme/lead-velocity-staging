@@ -103,20 +103,21 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
         a.appointment_date && format(new Date(a.appointment_date), 'yyyy-MM-dd') === (date ? format(date, 'yyyy-MM-dd') : '')
     );
 
+    // The month needs ~330 px (7 x 40 px days + padding): a fixed first column, never a quarter of the width (that clipped Thu-Sat).
     return (
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-10 animate-in slide-in-from-bottom-10 duration-1000">
+        <div className="grid grid-cols-1 xl:grid-cols-[22rem_minmax(0,1fr)] gap-10 animate-in slide-in-from-bottom-10 duration-1000">
             {/* Calendar Control */}
-            <Card className="xl:col-span-1 bg-[#020617] border-white/5 backdrop-blur-3xl overflow-hidden h-fit sticky top-32 rounded-[40px] shadow-2xl">
+            <Card className="min-w-0 bg-[#020617] border-white/5 backdrop-blur-3xl overflow-hidden h-fit sticky top-32 rounded-[40px] shadow-2xl">
                 <CardContent className="p-0">
                     <Calendar
                         mode="single"
                         selected={date}
                         onSelect={setDate}
-                        className="p-6 bg-transparent text-white"
+                        className="p-6 mx-auto w-fit bg-transparent text-white"
                         classNames={{
                             day_selected: "bg-gradient-to-br from-pink-500 to-rose-600 text-white hover:bg-pink-700 focus:bg-pink-600 rounded-2xl shadow-xl shadow-pink-500/20",
                             day_today: "bg-white/5 text-pink-400 font-black",
-                            head_cell: "text-slate-600 font-black uppercase text-[9px] tracking-[0.2em] pb-4",
+                            head_cell: "w-10 text-slate-600 font-black uppercase text-[9px] tracking-[0.2em] pb-4",
                             nav_button: "border-white/5 hover:bg-white/5 rounded-xl transition-all",
                             day: "h-10 w-10 p-0 font-bold aria-selected:opacity-100 rounded-2xl",
                         }}
@@ -138,7 +139,7 @@ const PremiumCalendar = ({ appointments, onUpdateStatus }: PremiumCalendarProps)
             </Card>
 
             {/* Appointment Feed */}
-            <div className="xl:col-span-3 space-y-8">
+            <div className="min-w-0 space-y-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 gap-6">
                     <div>
                         <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase mb-1">{date ? format(date, 'MMMM do, yyyy') : 'Select timing'}</h2>

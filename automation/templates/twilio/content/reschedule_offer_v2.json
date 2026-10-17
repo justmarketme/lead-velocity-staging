@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "key": "reschedule_offer_v2",
+    "source": "automation/templates/reschedule_offer_v2.json",
+    "approval": {
+      "name": "smc_reschedule_offer_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "flow",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_reschedule_offer_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Tue 7 Oct",
+      "4": "10:00",
+      "5": "ft1.sample"
+    },
+    "types": {
+      "whatsapp/flows": {
+        "body": "Hi {{1}}, no problem. Tap below to pick a new time with {{2}}. Your current booking on {{3}} at {{4}} stays in place until you choose a new one. Reply STOP to opt out.",
+        "button_text": "Pick a new time",
+        "flow_id": "__RESCHEDULE_FLOW_ID__",
+        "flow_token": "{{5}}",
+        "flow_first_page_id": "METHOD",
+        "is_flow_first_page_endpoint": true,
+        "subtitle": "SortMyCover"
+      }
+    }
+  }
+}

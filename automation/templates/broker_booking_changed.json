@@ -1,0 +1,44 @@
+{
+  "name": "broker_booking_changed",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "Booking changed"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a SortMyCover booking has changed. *{{2}}* ({{3}}) was booked for {{4}}. Now: *{{5}}*. Your calendar has been updated, so there is nothing for you to do.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Lerato M.",
+            "Microsoft Teams",
+            "Tue 13 Oct, 11:30",
+            "Wed 14 Oct, 14:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open the day",
+          "url": "https://leadvelocity.co.za/s/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/s/calendar?day=2026-10-14"
+          ]
+        }
+      ]
+    }
+  ]
+}
