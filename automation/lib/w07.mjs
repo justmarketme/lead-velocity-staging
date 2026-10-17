@@ -601,7 +601,7 @@ export function explodeDelegations(items = []) {
 // When W07 hands a message to W03 / W04 / W05 / W10 it sends nothing itself, so a failed or inactive delegate meant total
 // silence (every 17 Oct test). A parallel guard waits NEVER_SILENT_WAIT_S, checks communications for any outbound to the number
 // since the inbound, and if there is none (and the number is not opted out) sends ONE fallback and opens a console escalation.
-export const NEVER_SILENT_WAIT_S = 25;
+export const NEVER_SILENT_WAIT_S = 45; // 17 Oct: a W05 booking (Graph free-check + event) can run past 25 s; the guard must not fire mid-booking
 export const NEVER_SILENT_ROUTES = ['W03', 'W04', 'W04_list', 'W05', 'W10'];
 export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
   const first = sanitiseField('first_name', first_name || '').value;

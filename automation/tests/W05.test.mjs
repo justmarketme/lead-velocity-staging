@@ -835,6 +835,6 @@ test('parseSub: a W07 hand-off is recognised by route W05 + msg (W07 never sets 
   const r = L.parseSub(j, {}, Date.parse('2026-10-17T12:00:00Z'));
   assert.equal(r.op, 'book');
   assert.equal(r.lead_id, j.lead.id);
-  assert.equal(Date.parse(r.slot_start), Date.parse('2026-10-23T07:00:00Z'));
+  assert.equal(Date.parse(r.slot_start), Date.parse('2026-10-23T08:00:00Z')); // 10:00 SAST
   assert.equal(r.booked_via, 'list');
 });
