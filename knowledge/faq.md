@@ -42,8 +42,8 @@
 - topic: bot_identity
 - type: answer
 - asked as: "Is this a real person?" · "Are you a robot?" · "Is jy 'n mens?"
-- en: I'm Lindi, an AI booking assistant run by Lead Velocity. I can help with your booking, and you can ask for a person at any time.
-- af: Ek is Lindi, 'n KI-besprekingsassistent van Lead Velocity. Ek help met jou bespreking, en jy kan enige tyd vra om met 'n mens te praat.
+- en: I'm Lindi, SortMyCover's automated booking assistant. I can help with your booking, and you can ask for a person at any time.
+- af: Ek is Lindi, SortMyCover se outomatiese besprekingsassistent. Ek help met jou bespreking, en jy kan enige tyd vra om met 'n mens te praat.
 
 ### FAQ-05 · What happens to my information?
 - topic: privacy
