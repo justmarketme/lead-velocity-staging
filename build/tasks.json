@@ -338,7 +338,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W01 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W01 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W02",
@@ -352,7 +353,9 @@
       "acceptance_test": "node automation/tests/W02.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W03",
@@ -366,7 +369,9 @@
       "acceptance_test": "node automation/tests/W03.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W04",
@@ -381,7 +386,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W04 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W04 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W05",
@@ -397,7 +403,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W05 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W05 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W06",
@@ -413,7 +420,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W06 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W06 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W07",
@@ -427,7 +435,9 @@
       "acceptance_test": "node automation/tests/W07.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W08",
@@ -441,7 +451,9 @@
       "acceptance_test": "node automation/tests/W08.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W09",
@@ -457,7 +469,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W09 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W09 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W10",
@@ -471,7 +484,9 @@
       "acceptance_test": "node automation/tests/W10.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W11",
@@ -485,7 +500,9 @@
       "acceptance_test": "node automation/tests/W11.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W12",
@@ -501,7 +518,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W12 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W12 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W13",
@@ -517,7 +535,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W13 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W13 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W14",
@@ -531,7 +550,9 @@
       "acceptance_test": "node automation/tests/W14.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W15",
@@ -547,7 +568,8 @@
       "human_gate": false,
       "status": "in_progress",
       "section": "4.6 inventory",
-      "note": "DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W15 approves the test and it passes on the draft"
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live. [2026-10-17] — earlier: DRAFT being built against the drafted acceptance test (Jonathan: \"complete what can be done without me\", 2026-10-02 23:5x UTC); turns green only after GATE-TEST-W15 approves the test and it passes on the draft",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W16",
@@ -615,7 +637,9 @@
       "acceptance_test": "node automation/tests/W20.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W21",
@@ -722,7 +746,9 @@
       "acceptance_test": "node automation/tests/W28.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W29",
@@ -736,7 +762,9 @@
       "acceptance_test": "node automation/tests/W29.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W30",
@@ -803,7 +831,9 @@
       "acceptance_test": "node automation/tests/W34.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "W35",
@@ -817,7 +847,9 @@
       "acceptance_test": "node automation/tests/W35.test.mjs  # synthetic-lead suite; must exist before implementation (4C.2)",
       "human_gate": false,
       "status": "in_progress",
-      "section": "4.6 inventory"
+      "section": "4.6 inventory",
+      "note": "Built and shipped to the n8n on the VPS (11 Oct); runs in dry-run (no real sends) until go-live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "LP01",
@@ -1044,8 +1076,10 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "0.1 / 4D.4"
+      "status": "green",
+      "section": "0.1 / 4D.4",
+      "note": "Done: sortmycover.co.za bought at Hostinger 5 Oct; holding site live on Vercel (apex 200, www 301, TLS). Not bought: sortmycover.com and coverklaar (optional defensive buys). hello@ mailbox not confirmed (no MX recorded).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-TERM-SHEET",
@@ -1056,7 +1090,9 @@
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
       "status": "pending",
-      "section": "5 Phase 0"
+      "section": "5 Phase 0",
+      "note": "Not needed: the full agreement (LGSA) replaced the term sheet. Closes when GATE-AGREEMENT is signed.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-META-PORTFOLIO",
@@ -1066,8 +1102,10 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "4.7 ★1"
+      "status": "in_progress",
+      "section": "4.7 ★1",
+      "note": "Portfolio \"Lead Velocity\" exists (KG invited, verification details entered). Business Verification not submitted yet — with KG (docs/KG-HANDOFF-META-VERIFICATION.md).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-META-PAGE-IG",
@@ -1079,8 +1117,10 @@
       ],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "4.7 ★2-3"
+      "status": "in_progress",
+      "section": "4.7 ★2-3",
+      "note": "Facebook Page \"Sort My Cover\" exists with posts live. Not yet in the portfolio; Instagram not linked.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-WABA",
@@ -1092,8 +1132,10 @@
       ],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "4.7 ★4"
+      "status": "in_progress",
+      "section": "4.7 ★4",
+      "note": "WhatsApp account SortMyCover with its own number, linked to Twilio. Waiting only on Meta Business Verification.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-AD-ACCOUNT",
@@ -1226,8 +1268,10 @@
       "depends_on": [],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "6.7"
+      "status": "green",
+      "section": "6.7",
+      "note": "Done another way: hosting moved to Vercel + Hostinger DNS (A @ 76.76.21.21, CNAME www; n8n.sortmycover.co.za -> VPS). GoDaddy go./app./api./staging records no longer needed.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-ENTRA",
@@ -1298,7 +1342,9 @@
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
       "status": "pending",
-      "section": "4.10 / 4.13"
+      "section": "4.10 / 4.13",
+      "note": "v0.1 went to Mark ~5 Oct; he asked for changes. v0.3 drafted 10 Oct, waiting on your approval (NH-67).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-USABILITY",
@@ -1321,8 +1367,10 @@
       ],
       "acceptance_test": "human approval recorded in build/gates.jsonl",
       "human_gate": true,
-      "status": "pending",
-      "section": "W26 / 6.6"
+      "status": "green",
+      "section": "W26 / 6.6",
+      "note": "Done another way: n8n runs on the existing EMMA VPS at https://n8n.sortmycover.co.za since 11 Oct (laptop n8n retired, nightly pg_dump). No Hostinger KVM 2 bought.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "GATE-GO-LIVE",
@@ -1471,9 +1519,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "7 / Acquisition",
-      "note": "Brand bible v1 published (`/brand/`): SVG logo system, favicon set verified light/dark, every 4D.4b.3 placement exported, tokens.css the only colour source, trust layer live on the site (About, How we make money, Privacy, complaints)."
+      "note": "Favicon checked; trust pages live on sortmycover.co.za. /brand/ not live yet. [2026-10-17] — earlier: Brand bible v1 published (`/brand/`): SVG logo system, favicon set verified light/dark, every 4D.4b.3 placement exported, tokens.css the only colour source, trust layer live on the site (About, How we make money, Privacy, complaints).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-03",
@@ -1588,9 +1637,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "7 / Acquisition",
-      "note": "SortMyCover Facebook Page + Instagram live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified (or verification submitted); all Meta IDs stored in the `brands` row and visible in the CRM (W27 health green)."
+      "note": "Page exists and posts are live; not in the portfolio, Instagram not linked, verification pending. [2026-10-17] — earlier: SortMyCover Facebook Page + Instagram live, linked, disclosure in About, 7-day warm-up done; Business Portfolio verified (or verification submitted); all Meta IDs stored in the `brands` row and visible in the CRM (W27 health green).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-13",
@@ -1622,8 +1672,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
-      "section": "7 / Acquisition"
+      "status": "in_progress",
+      "section": "7 / Acquisition",
+      "note": "Holding site live on sortmycover.co.za (Vercel). Quiz pages not public yet; Lighthouse 99–100 only measured locally.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-16",
@@ -1633,9 +1685,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "7 / Conversation & booking",
-      "note": "WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, missed-you; the rest submitted and tracked; standby number registered on the same WABA; quality-rating alert in W22; display name approved."
+      "note": "WhatsApp account + number exist and are linked to Twilio; waiting on Business Verification; templates not submitted. [2026-10-17] — earlier: WhatsApp Business number live on Cloud API; Business Verification complete; the 6 core templates approved (any category — category cost logged): intro booked/slots, booking confirmed, 24 h, 2 h, missed-you; the rest submitted and tracked; standby number registered on the same WABA; quality-rating alert in W22; display name approved.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-17",
@@ -1745,9 +1798,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "7 / Platform & money",
-      "note": "VPS provisioned (bought after first payment — W26 step 1), nightly `pg_dump` copied off-server (consent records are legal evidence), backups on, secrets in `.env`, uptime monitor pinging `api.`; webhook signature verification on for Meta, WhatsApp, Paystack. *Pre-payment, this line shows amber \"ready to provision\" — it goes green inside W26 and is the last line before the button.*"
+      "note": "n8n on the EMMA VPS with nightly pg_dump (kept 14), but the copy stays on the same server — needs an off-server copy. [2026-10-17] — earlier: VPS provisioned (bought after first payment — W26 step 1), nightly `pg_dump` copied off-server (consent records are legal evidence), backups on, secrets in `.env`, uptime monitor pinging `api.`; webhook signature verification on for Meta, WhatsApp, Paystack. *Pre-payment, this line shows amber \"ready to provision\" — it goes green inside W26 and is the last line before the button.*",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "S7-27",
@@ -1768,9 +1822,10 @@
       "depends_on": [],
       "acceptance_test": "console readiness check (auto) — line must be green",
       "human_gate": false,
-      "status": "pending",
+      "status": "in_progress",
       "section": "7 / Compliance",
-      "note": "Information Officer registered; PAIA manual + privacy notice published; NCC direct-marketer registration submitted; W24 cleanse scheduled; obligations register populated; external opinion commissioned (not blocking)."
+      "note": "Information Officer named on the privacy and terms pages; not registered with the Regulator; NCC not submitted. [2026-10-17] — earlier: Information Officer registered; PAIA manual + privacy notice published; NCC direct-marketer registration submitted; W24 cleanse scheduled; obligations register populated; external opinion commissioned (not blocking).",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "NH-01",
@@ -1891,7 +1946,9 @@
       "acceptance_test": "decision recorded in build/decisions.md",
       "human_gate": true,
       "status": "needs_human",
-      "section": "build/crm-gap.md §E"
+      "section": "build/crm-gap.md §E",
+      "note": "Looks largely overtaken: commit 1f52048 (11 Oct) says smc_08 was applied live, and the marketing-media bucket (smc_20) exists. Confirm the full smc chain is live, then close.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "NH-12",
@@ -1935,7 +1992,9 @@
       "acceptance_test": "decision recorded in build/decisions.md",
       "human_gate": true,
       "status": "needs_human",
-      "section": "build/inventory.md §11"
+      "section": "build/inventory.md §11",
+      "note": "May be closed by the live smc chain (smc_24 security sweep) — confirm whether smc_24 was applied live.",
+      "reconciled": "2026-10-17"
     },
     {
       "id": "NH-16",
@@ -2650,7 +2709,9 @@
       "acceptance_test": "decision recorded in build/decisions.md; seed + agreement agree",
       "human_gate": true,
       "status": "needs_human",
-      "section": "0.1 Replacement cap / 3.3 / 4.13"
+      "section": "0.1 Replacement cap / 3.3 / 4.13",
+      "note": "Now LGSA v0.3 (10 Oct), not v0.2. Approve, then the Mark copy is rebuilt and sent.",
+      "reconciled": "2026-10-17"
     }
   ]
 }

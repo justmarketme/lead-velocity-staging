@@ -1,0 +1,3 @@
+{"id":"GATE-DOMAINS","status":"green","at":"2026-10-17","by":"jonathan","why":"Jonathan confirmed in chat 17 Oct: domain already bought (deploy.md: bought 5 Oct, live on Vercel)"}
+{"id":"GATE-DNS","status":"green","at":"2026-10-17","by":"orchestrator (evidence)","why":"superseded: Vercel + Hostinger DNS (landing/holding/deploy.md)"}
+{"id":"GATE-VPS","status":"green","at":"2026-10-17","by":"orchestrator (evidence)","why":"superseded: n8n on the EMMA VPS (commit e69991e)"}
