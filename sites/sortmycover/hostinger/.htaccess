@@ -100,7 +100,7 @@ RewriteRule ^thanks/?$ /_c/where-is-the-will/thanks/index.html [L]
 RewriteCond %{HTTP_HOST} ^[a-z0-9-]+\.sortmycover\.co\.za$ [NC]
 RewriteRule ^sitemap\.xml$ - [R=404,L]
 RewriteCond %{HTTP_HOST} ^[a-z0-9-]+\.sortmycover\.co\.za$ [NC]
-RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\.(webp|avif|jpg|png)$)
+RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|img/|robots\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\.(webp|avif|jpg|png)$)
 RewriteRule ^(.+)$ https://sortmycover.co.za/$1 [L,R=307]
 </IfModule>
 

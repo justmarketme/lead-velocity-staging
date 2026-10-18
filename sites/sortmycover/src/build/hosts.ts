@@ -67,7 +67,7 @@ export function vercelConfig() {
     routes.push({ src: "^/thanks/?$", has: h, dest: `/_c/${a.slug}/thanks/index.html` });
   }
   routes.push({
-    src: "^/(?!assets/|fonts/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
+    src: "^/(?!assets/|fonts/|img/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
     has: [{ type: "host", value: ".+" + esc(CAMPAIGN_SUFFIX) }],
     status: 307,
     headers: { Location: `${site.site_url}/$1` },
@@ -131,8 +131,8 @@ export function htaccess(): string {
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
   p("RewriteRule ^sitemap\\.xml$ - [R=404,L]");
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
-  // top-level images stay on the campaign host: a redirect to the apex would be blocked by the CSP (img-src 'self')
-  p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\\.(webp|avif|jpg|png)$)");
+  // images (top level and /img/) stay on the campaign host: a redirect to the apex would be blocked by the CSP (img-src 'self')
+  p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|img/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\\.(webp|avif|jpg|png)$)");
   p(`RewriteRule ^(.+)$ ${site.site_url}/$1 [L,R=307]`);
   p("</IfModule>");
   p("");
