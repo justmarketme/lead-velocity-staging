@@ -21,7 +21,9 @@ export function readTokenFromHash(hash: string): string | null {
 /* ---------------- answers and steps ---------------- */
 export type Intent = "life" | "income" | "illness" | "review" | "will" | "other";
 export type AgeBand = "lt35" | "35_44" | "45_50" | "51plus";
-export type HasCover = "yes" | "no" | "unsure";
+/** Step 3 (Jono, 18 Oct 2026): four options. "yes" is the legacy value (stored answers from before the change, still accepted by
+    W39) and takes the same path as yes_work / yes_own. */
+export type HasCover = "yes_work" | "yes_own" | "no" | "unsure" | "yes";
 export type BudgetBand = "lt750" | "750_1250" | "1250_1499" | "1500_plus";
 export type Want = "family" | "bond" | "income" | "illness" | "unsure";
 
@@ -63,6 +65,8 @@ export const isWillsRef = (ref: string | null | undefined) => !!ref && (/^w-(?:[
 export const isChatIntent = (i?: Intent) => i === "will" || i === "other";
 /** The "what would you want cover to do" follow-up is asked only when there is no cover now (or they are not sure). */
 export const asksWant = (a: Answers) => a.has_cover === "no" || a.has_cover === "unsure";
+/** Has cover now (through work, their own, or the legacy "yes"): the pay-band question, no "want" step. */
+export const hasCoverNow = (a: Answers) => a.has_cover === "yes_work" || a.has_cover === "yes_own" || a.has_cover === "yes";
 
 export function nextStep(step: StepId, a: Answers): Next {
   switch (step) {
@@ -149,7 +153,8 @@ export const INTRO_DISCLOSURE = "Introduced by SortMyCover. SortMyCover gives no
 /** Changing an earlier answer drops the ones that depended on it (the band question and the follow-up differ by cover path). */
 export function setAnswer<K extends keyof Answers>(a: Answers, key: K, value: Answers[K]): Answers {
   const out: Answers = { ...a, [key]: value };
-  if (key === "has_cover" && a.has_cover !== value) { delete out.budget_band; delete out.want; }
+  // the band question differs by path (what you pay vs what you could put towards cover): clear it only when the path changes
+  if (key === "has_cover" && a.has_cover !== value && asksWant(a) !== asksWant(out)) { delete out.budget_band; delete out.want; }
   return out;
 }
 

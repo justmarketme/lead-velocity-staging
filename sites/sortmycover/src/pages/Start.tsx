@@ -14,7 +14,7 @@ import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
 import { createStartApi, postLead, type BookedInfo, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
 import {
-  TOKEN_KEY, adviserDisclosure, firstScreen, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
+  TOKEN_KEY, adviserDisclosure, firstScreen, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, hasCoverNow, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
   methodLabel, nextStep, prevStep, readTokenFromHash, requestId, resumeAt, setAnswer, suggestEmail, validEmail, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
@@ -53,7 +53,7 @@ const INTENTS: Opt<NonNullable<Answers["intent"]>>[] = [
   { v: "other", t: "Something else", d: "Tell Lindi in your own words" },
 ];
 const AGES: Opt<NonNullable<Answers["age_band"]>>[] = [{ v: "lt35", t: "Under 35" }, { v: "35_44", t: "35 to 44" }, { v: "45_50", t: "45 to 50" }, { v: "51plus", t: "Over 50" }];
-const COVER: Opt<NonNullable<Answers["has_cover"]>>[] = [{ v: "yes", t: "Yes" }, { v: "no", t: "No" }, { v: "unsure", t: "Not sure" }];
+const COVER: Opt<NonNullable<Answers["has_cover"]>>[] = [{ v: "yes_work", t: "Yes, through work" }, { v: "yes_own", t: "Yes, my own" }, { v: "no", t: "No" }, { v: "unsure", t: "Not sure" }];
 const BANDS: Opt<NonNullable<Answers["budget_band"]>>[] = [{ v: "lt750", t: "Under R750" }, { v: "750_1250", t: "R750 to R1,250" }, { v: "1250_1499", t: "R1,250 to R1,499" }, { v: "1500_plus", t: "R1,500 or more" }];
 const WANTS: Opt<NonNullable<Answers["want"]>>[] = [
   { v: "family", t: "Look after my family" }, { v: "bond", t: "Cover the bond or rent" }, { v: "income", t: "Pay me if I can't work" },
@@ -454,7 +454,7 @@ function StartFlow() {
           body = (<><Q ref={headRef}>Do you have any life, disability or income cover <em>now?</em></Q><p className="st-sub">Your own or through work.</p>{options(COVER, answers.has_cover, (v) => choose("cover", "has_cover", v))}{optionFoot}</>);
           break;
         case "budget":
-          body = answers.has_cover === "yes"
+          body = hasCoverNow(answers)
             ? (<><Q ref={headRef}>Roughly what do you pay for it <em>each month?</em></Q><p className="st-sub">All policies together. A band is enough.</p>{options(BANDS, answers.budget_band, (v) => choose("budget", "budget_band", v), true)}{optionFoot}</>)
             : (<><Q ref={headRef}>Roughly what could you put towards cover <em>each month?</em></Q><p className="st-sub">A band is enough.</p>{options(BANDS, answers.budget_band, (v) => choose("budget", "budget_band", v), true)}{optionFoot}</>);
           break;

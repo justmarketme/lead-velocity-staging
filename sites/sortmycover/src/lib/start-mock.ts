@@ -49,6 +49,8 @@ export function createMockApi(): StartApi {
     async postAnswers(body: any) {
       await wait();
       const { confirm_adviser, request_id: _rid, ...rest } = body;
+      // like W39: the four step 3 values, plus the legacy "yes"
+      if (rest.has_cover && !["yes_work", "yes_own", "no", "unsure", "yes"].includes(rest.has_cover)) return { kind: "error" };
       answers = { ...answers, ...rest };
       if (body.intent === "will" || body.intent === "other") return { kind: "ok", next: "chat" };
       routed = true;

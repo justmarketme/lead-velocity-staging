@@ -10,7 +10,7 @@ import { createMockApi, mockPostLead } from "../src/lib/start-mock";
 import consentJson from "../config/consent.json";
 import {
   INTRO_DISCLOSURE, START_ADVISER, adviserDisclosure, afterAnswers, answersPayload, firstScreen, leadAttribution, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, availableMethods, defaultMethod, formatDay, formatTime, formatWhen, groupSlots, initials, limitGroups, methodLabel,
-  nextStep, prevStep, readTokenFromHash, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink, type AdviserInfo, type Answers, type StepId,
+  hasCoverNow, nextStep, prevStep, readTokenFromHash, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink, type AdviserInfo, type Answers, type StepId,
 } from "../src/lib/start";
 import { interpretAnswers, interpretBook, interpretLead, postLead } from "../src/lib/start-api";
 
@@ -366,4 +366,48 @@ describe("step 0 (no token: desktop visits from a site CTA)", () => {
       expect(c).not.toMatch(/\bAI\b|licensed|costs? (you )?nothing|\bfree\b/i);
     }
   });
+});
+
+describe("step 3: four cover options (Jono, 18 Oct 2026), legacy yes still accepted", () => {
+  const walk = (a: Answers) => {
+    const path: string[] = ["intent"];
+    let s: StepId = "intent";
+    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit" || n === "lead") return path; s = n; }
+  };
+  it("yes through work and yes my own: the pay band, then submit", () => {
+    for (const v of ["yes_work", "yes_own"] as const) {
+      expect(walk({ intent: "life", has_cover: v }), v).toEqual(["intent", "age", "cover", "budget", "submit"]);
+      expect(hasCoverNow({ has_cover: v })).toBe(true);
+      expect(prevStep("adviser", { has_cover: v })).toBe("budget");
+    }
+  });
+  it("no and not sure: the could-put-towards band, then the want step", () => {
+    for (const v of ["no", "unsure"] as const) {
+      expect(walk({ intent: "life", has_cover: v }), v).toEqual(["intent", "age", "cover", "budget", "want", "submit"]);
+      expect(hasCoverNow({ has_cover: v })).toBe(false);
+      expect(prevStep("adviser", { has_cover: v })).toBe("want");
+    }
+  });
+  it("a legacy stored yes resumes on the yes path", () => {
+    expect(hasCoverNow({ has_cover: "yes" })).toBe(true);
+    expect(walk({ intent: "life", has_cover: "yes" })).toEqual(["intent", "age", "cover", "budget", "submit"]);
+    expect(resumeAt({ intent: "life", age_band: "35_44", has_cover: "yes" })).toBe("budget");
+    expect(resumeAt({ intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250" })).toBe("adviser"); // no want step
+    expect(answersPayload({ intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250", want: "family" }, "r")).toEqual({ intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250", request_id: "r" });
+  });
+  it("switching within a path keeps the band; switching path clears it", () => {
+    expect(setAnswer({ has_cover: "yes_work", budget_band: "lt750" }, "has_cover", "yes_own").budget_band).toBe("lt750");
+    expect(setAnswer({ has_cover: "no", budget_band: "lt750", want: "bond" }, "has_cover", "unsure")).toMatchObject({ budget_band: "lt750", want: "bond" });
+    const a = setAnswer({ has_cover: "yes_own", budget_band: "lt750" }, "has_cover", "no");
+    expect(a.budget_band).toBeUndefined();
+  });
+  it("the page offers the four options and the mock accepts them (and the legacy yes), rejecting anything else", async () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "../src/pages/Start.tsx"), "utf8");
+    for (const [v, t] of [["yes_work", "Yes, through work"], ["yes_own", "Yes, my own"], ["no", "No"], ["unsure", "Not sure"]]) expect(src).toContain(`{ v: "${v}", t: "${t}" }`);
+    expect(src).not.toMatch(/\{ v: "yes", t: "Yes" \}/);
+    const api = createMockApi();
+    const base = { intent: "life", age_band: "35_44", budget_band: "lt750", request_id: "r" };
+    for (const v of ["yes_work", "yes_own", "no", "unsure", "yes"]) expect((await api.postAnswers({ ...base, has_cover: v })).kind, v).toBe("ok");
+    expect((await api.postAnswers({ ...base, has_cover: "maybe" })).kind).toBe("error");
+  }, 15000);
 });
