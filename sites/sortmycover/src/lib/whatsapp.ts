@@ -29,7 +29,7 @@ const LEARN: Record<string, ChatContext> = {
   "life-cover-and-a-home-loan": COVER("life cover and my home loan", "w-learn-bond"),
   "income-protection-vs-disability-cover": COVER("income protection and disability cover", "w-learn-income"),
   "cover-for-business-owners-and-directors": COVER("cover as a business owner", "w-learn-owner"),
-  "questions-to-ask-a-financial-adviser": COVER("a call with an authorised adviser", "w-learn-adviser"),
+  "questions-to-ask-a-financial-adviser": COVER("booking a 30-minute call with an adviser", "w-learn-adviser"),
   "what-is-credit-life-insurance": COVER("credit life and life cover", "w-learn"),
 };
 const COVER_TYPES: Record<string, string> = {
@@ -49,7 +49,7 @@ export function contextFor(pathname: string): ChatContext {
 
 /** Campaign landing pages: one topic per ad angle, ref = the angle's neutral meta code. */
 const ANGLE_TOPICS: Record<string, string> = {
-  "adviser-conversation": "a call with an authorised adviser",
+  "adviser-conversation": "booking a 30-minute call with an adviser",
   "new-bond": "cover and my new bond",
   "salary-stops": "income protection",
   "cover-gap": "my life cover",

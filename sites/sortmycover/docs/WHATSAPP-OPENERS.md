@@ -77,7 +77,7 @@ utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&u
 
 | Angle | Code | Topic |
 |---|---|---|
-| adviser-conversation | a01 | a call with an authorised adviser |
+| adviser-conversation | a01 | booking a 30-minute call with an adviser |
 | new-bond | a02 | cover and my new bond |
 | salary-stops | a03 | income protection |
 | cover-gap | a04 | my life cover |
