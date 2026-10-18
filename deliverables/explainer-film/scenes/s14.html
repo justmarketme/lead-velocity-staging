@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>14 Safety and compliance</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .tiles { position: absolute; left: 120px; top: 300px; width: 1100px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .tile { display: flex; gap: 18px; align-items: flex-start; padding: 22px 24px; }
+  .tile .tick { margin-top: 2px; }
+  .tile b { display: block; font-size: 24px; color: var(--ink); }
+  .tile span { display: block; font-size: 16.5px; color: var(--muted); font-weight: 600; margin-top: 4px; line-height: 1.35; }
+  .mail { position: absolute; left: 1270px; top: 300px; width: 530px; padding: 0; overflow: hidden; }
+  .mail .h2 { padding: 14px 18px; background: var(--soft); border-bottom: 1.5px solid var(--line); }
+  .mail .h2 b { font-size: 16px; color: var(--ink); display: block; }
+  .mail .h2 span { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .mail .bd { padding: 16px 18px; font-size: 15px; line-height: 1.55; color: var(--slate); white-space: pre-line; font-family: Consolas, "Cascadia Mono", monospace; }
+  .cap { position: absolute; left: 1270px; top: 262px; }
+  .once { position: absolute; left: 1270px; top: 780px; }
+  .cap0 { position: absolute; left: 1270px; top: 262px; }
+  .rec { position: absolute; left: 1270px; top: 300px; width: 530px; padding: 10px 20px; }
+  .rec .r { display: flex; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--soft); font-size: 16px; color: var(--ink); font-weight: 600; line-height: 1.4; }
+  .rec .r:last-child { border-bottom: 0; }
+  .rec .r i { font-style: normal; width: 120px; flex: none; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding-top: 2px; }
+</style></head>
+<body data-scene="s14"><div class="stage">
+  <div class="top"><div class="eyebrow">Safety and compliance</div><h1 class="h">Built in, <em>not bolted on</em></h1></div>
+  <div class="tiles">
+    <div class="card tile t1"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>Every opt-in recorded</b><span>Where it came from, the exact words agreed to, in a log that can't be edited</span></div></div>
+    <div class="card tile t2"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>Email confirmed by link</b><span>Never a code. Nothing reaches the adviser until it's confirmed</span></div></div>
+    <div class="card tile t3"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>STOP means stop</b><span>One confirmation, every message ends, any booking is cancelled</span></div></div>
+    <div class="card tile t4"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>ID and bank numbers masked</b><span>Before any AI or log sees them; photos and files are never opened</span></div></div>
+    <div class="card tile t5"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>Information Officer registered</b><span>2026-069309 · on the About and Privacy pages</span></div></div>
+    <div class="card tile t6"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><b>One alert, not a flood</b><span>Any failure, at most once in 24 hours, by email and WhatsApp</span></div></div>
+  </div>
+  <span class="pill ink cap0"><i style="background:var(--y)"></i>One opt-in record (lead_optins)</span>
+  <div class="card rec"><div class="r"><i>Door</i>Click-to-WhatsApp ad · new-bond</div><div class="r"><i>Consent</i>ctwa-named-v3</div><div class="r"><i>Words agreed</i>“Before we start: if it’s a fit, we’ll share your details with Oracle Private Wealth (FSP 28418)…”</div><div class="r"><i>First message</i>Hi, I’d like to check my life cover</div><div class="r"><i>When</i>Tue 20 Oct · 08:41 · message SM…e2f</div><div class="r"><i>Editing</i>Not possible: append-only</div></div>
+  <span class="pill ink cap"><i style="background:var(--y)"></i>This morning's test alert</span>
+  <div class="card mail"><div class="h2"><b>SortMyCover red alert: W22 smoke test (signal path)</b><span>SortMyCover &lt;hello@sortmycover.co.za&gt; → jono@vantagestack.co.za · 07:15</span></div>
+    <div class="bd">Red alert: W22 smoke test (signal path)
+
+What happened: W22 smoke test (signal path)
+Impact: None, this is a test of the new alerts
+First action: No action needed
+Source: W22 smoke test · 18 Oct 07:14
+
+The same alert is sent at most once in 24 hours.</div></div>
+  <div class="once"><span class="pill green"><i></i>Sent again a minute later: nothing (deduped)</span></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    const at = [cue('opt-in'), cue('link'), cue('STOP'), cue('ID'), cue('Information'), cue('alert')];
+    $$('.tile').forEach((el, i) => { rv(el, t, at[i] - .4, { y: 18, dur: .5 }); tick(el.querySelector('.tick'), t, at[i] + .2); });
+    const r0 = P(t, cue('opt-in') - .2, .6) * (1 - P(t, cue('alert') - .8, .5));
+    ['.rec', '.cap0'].forEach(q => { $(q).style.opacity = r0.toFixed(3); });
+    $('.rec').style.transform = `translateX(${((1 - P(t, cue('opt-in') - .2, .6)) * 30).toFixed(1)}px)`;
+    rv('.cap', t, cue('alert') - .3, { y: 10, dur: .5 });
+    rv('.mail', t, cue('alert') - .2, { x: 30, y: 0, dur: .7 });
+    rv('.once', t, cue('flood') - .1, { y: 10, dur: .5 });
+  };
+</script></body></html>

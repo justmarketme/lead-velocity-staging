@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>16 Close</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .logo { position: absolute; left: 50%; top: 190px; height: 96px; transform: translateX(-50%); }
+  .flow { position: absolute; left: 0; right: 0; top: 400px; display: flex; justify-content: center; align-items: center; }
+  .chip { display: flex; align-items: center; gap: 16px; padding: 22px 30px; background: #fff; border: 2px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); }
+  .chip .ic { width: 56px; height: 56px; border-radius: 16px; }
+  .chip b { font-size: 29px; color: var(--ink); }
+  .ln { width: 110px; height: 4px; background: var(--ink); border-radius: 2px; margin: 0 16px; transform-origin: left; }
+  .crm { position: absolute; left: 50%; top: 560px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 16px 26px; border-radius: 18px; background: var(--ink); color: #fff; font-size: 24px; font-weight: 700; }
+  .crm i { width: 12px; height: 12px; border-radius: 50%; background: var(--y); }
+  .final { position: absolute; left: 0; right: 0; top: 690px; display: flex; justify-content: center; gap: 16px; }
+  .final .pill { font-size: 24px; padding: 12px 26px; }
+</style></head>
+<body data-scene="s16" data-header="0"><div class="stage">
+  <img class="logo" src="assets/content/logo-wordmark-charcoal-1440.png" alt="">
+  <div class="flow">
+    <div class="chip c1"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg></div><b>An ad</b></div>
+    <div class="ln l1"></div>
+    <div class="chip c2"><div class="ic"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-4A8 8 0 1 1 20 12z"/></svg></div><b>A WhatsApp chat</b></div>
+    <div class="ln l2"></div>
+    <div class="chip c3"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M9 15l2 2 4-4"/></svg></div><b>A booked call in Mark's calendar</b></div>
+  </div>
+  <div class="crm"><i></i>The CRM keeps score</div>
+  <div class="final"><span class="pill green f1"><i></i>Built</span><span class="pill green f2"><i></i>Tested</span><span class="pill ink f3"><i style="background:var(--y)"></i>Waiting on the last few switches</span></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  window.update = t => {
+    rv('.logo', t, .2, { y: 0, scale: .9, dur: .9 });
+    $('.logo').style.transform = `translateX(-50%) scale(${lerp(.9, 1, P(t, .2, .9)).toFixed(3)})`;
+    rv('.c1', t, cue('ad') - .2, { y: 16, dur: .6 });
+    $('.l1').style.transform = `scaleX(${P(t, cue('ad') + .2, .5).toFixed(3)})`;
+    rv('.c2', t, cue('WhatsApp') - .2, { y: 16, dur: .6 });
+    $('.l2').style.transform = `scaleX(${P(t, cue('WhatsApp') + .4, .5).toFixed(3)})`;
+    rv('.c3', t, cue('booked') - .2, { y: 16, dur: .6 });
+    rv('.crm', t, cue('CRM') - .3, { y: 16, dur: .6 });
+    $('.crm').style.transform = `translateX(-50%) translateY(${((1 - P(t, cue('CRM') - .3, .6)) * 16).toFixed(1)}px)`;
+    rv('.f1', t, cue('built') - .2, { y: 12, dur: .5 });
+    rv('.f2', t, cue('tested') - .2, { y: 12, dur: .5 });
+    rv('.f3', t, cue('waiting') - .2, { y: 12, dur: .5 });
+  };
+</script></body></html>

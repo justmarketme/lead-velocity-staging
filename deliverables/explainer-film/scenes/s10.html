@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>10 Reminders and changes</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .ph { position: absolute; left: 1330px; top: 150px; }
+  .ph .phone { position: relative; width: 390px; height: 800px; }
+  .tl { position: absolute; left: 120px; top: 300px; width: 1080px; padding: 26px 30px 18px; }
+  .tl .lbl { margin-bottom: 8px; }
+  .rm { display: flex; align-items: center; gap: 18px; padding: 14px 0; border-bottom: 1.5px solid var(--soft); }
+  .rm:last-child { border-bottom: 0; }
+  .rm .when { width: 220px; font-size: 18px; font-weight: 800; color: var(--muted); letter-spacing: .02em; }
+  .rm .what b { display: block; font-size: 24px; color: var(--ink); }
+  .rm .what span { font-size: 16px; color: var(--muted); font-weight: 600; }
+  .rm .st { margin-left: auto; }
+  .ol { position: absolute; left: 120px; top: 798px; width: 620px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; }
+  .ol .ev { flex: 1; border-left: 5px solid var(--y); background: var(--y-wash); border-radius: 8px; padding: 10px 12px; position: relative; }
+  .ol .ev b { display: block; font-size: 18px; color: var(--ink); }
+  .ol .ev span { font-size: 14px; color: var(--muted); }
+  .ol .ev .x { position: absolute; left: 10px; right: 10px; top: 50%; height: 3px; background: var(--red); transform-origin: left; transform: scaleX(0); }
+  .ol .tag { font-size: 15px; font-weight: 800; color: #0f6cbd; }
+  .tested { position: absolute; left: 780px; top: 828px; opacity: 0; }
+</style></head>
+<body data-scene="s10"><div class="stage">
+  <div class="top"><div class="eyebrow">After booking</div><h1 class="h">Reminders, and <em>changes of plan</em></h1></div>
+  <div class="card tl"><div class="lbl">Scheduled by themselves (W09)</div>
+    <div class="rm r1"><div class="when">Morning before</div><div class="what"><b>What to expect</b><span>30 minutes, no obligation to buy</span></div><span class="pill y st"><i></i>Template pending</span></div>
+    <div class="rm r2"><div class="when">Day before</div><div class="what"><b>Reminder, with Confirm</b><span>Confirm or Reschedule in one tap</span></div><span class="pill green st"><i></i>Sending</span></div>
+    <div class="rm r3"><div class="when">Day before</div><div class="what"><b>Prep tip</b><span>A payslip or policy schedule helps, not needed</span></div><span class="pill y st"><i></i>Template pending</span></div>
+    <div class="rm r4"><div class="when">2 hours before</div><div class="what"><b>Mark has set aside 30 minutes</b><span>Today's reminder</span></div><span class="pill green st"><i></i>Sending</span></div>
+    <div class="rm r5"><div class="when">10 minutes before</div><div class="what"><b>Starting in 10 minutes</b><span>Sent even in quiet hours</span></div><span class="pill y st"><i></i>Template pending</span></div>
+  </div>
+  <div class="card ol"><span class="tag">Outlook</span><div class="ev"><b>SortMyCover call – Thabo – Phone</b><span>Tue 20 Oct · 10:00–10:30</span><i class="x"></i></div></div>
+  <div class="tested"><span class="pill ink"><i style="background:var(--y)"></i>Tested live, 18 Oct 00:02</span></div>
+  <div class="ph"><div class="phone"><div class="scr">
+    <div class="sb"><span>17:20</span><span>5G</span></div>
+    <div class="wa-head"><div class="av"><img src="assets/content/logo-tick-mark-384.png" alt=""></div><div><b>SortMyCover</b><span>Business account</span></div></div>
+    <div class="wa-body"><div class="stack"></div></div>
+    <div class="wa-in"><div class="box"></div><div class="send"></div></div>
+    <div class="shade"></div>
+  </div><div class="notch"></div></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script><script src="chat.js"></script>
+<script>
+  const T = { exp: cue('expect'), day: cue('reminder'), prep: cue('prep'), two: cue('two'), ten: cue('ten'), appr: cue('approved'), plans: cue('plans'), conf: cue('confirms'), canc: cue('cancels'), clears: cue('clears'), offers: cue('offers'), tested: cue('tested') };
+  const chat = Chat($('.ph .scr'), [
+    { dir: 'in', text: 'Hi Thabo, you are booked. *Mark Weston* will meet you on *Tue 20 Oct at 10:00* by phone call. Please reply with the day and time so we know it is in your diary. Reply STOP to opt out.', at: -9, time: '08:45', hdr: 'assets/content/wa-header-booked.jpg', btns: ['Confirm', 'Reschedule', 'Cancel'] },
+    { dir: 'out', text: 'Something came up, can we cancel please?', at: T.plans + 1.0, time: '17:20', noTyping: true },
+    { dir: 'in', text: 'Do you want me to cancel your call on 20 October at 10:00?', at: T.conf - .1, time: '17:20', btns: ['Yes, cancel', 'Keep it'] },
+    { dir: 'out', text: 'Yes, cancel', at: T.canc + .2, time: '17:21', tap: { btn: 0 } },
+    { dir: 'in', text: "Done, your call is cancelled. If you'd like another time, pick one below or just tell me.", at: T.offers - .3, time: '17:21', list: 'See times' },
+  ]);
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.tl', t, .4, { y: 30, dur: .8 });
+    const at = [T.exp, T.day, T.prep, T.two, T.ten];
+    $$('.rm').forEach((r, i) => rv(r, t, at[i] - .3, { x: -20, y: 0, dur: .5 }));
+    $$('.rm .st').forEach((s, i) => rv(s, t, T.appr - .2 + (i % 2) * .15, { y: 8, scale: .9, ease: E.back, dur: .5 }));
+    rv('.ph', t, T.plans - .6, { x: 30, y: 0, dur: .7 });
+    typed($('.wa-in .box'), 'Something came up, can we cancel please?', t, T.plans + .1, .8);
+    if (t >= T.plans + 1.0) $('.wa-in .box').textContent = '';
+    rv('.ol', t, T.conf - .4, { y: 20, dur: .6 });
+    $('.ol .x').style.transform = `scaleX(${P(t, T.clears, .5, E.inOut).toFixed(3)})`;
+    $('.ol .ev').style.opacity = (1 - .55 * P(t, T.clears + .5, .6)).toFixed(3);
+    rv('.tested', t, T.tested - .2, { y: 10, dur: .5 });
+    chat.update(t);
+  };
+</script></body></html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>05 Feed ads and Mark's own ads</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .feed { position: absolute; left: 120px; top: 296px; display: grid; grid-template-columns: repeat(2, 236px); gap: 20px; }
+  .feed img, .marks img { width: 100%; display: block; border-radius: 16px; box-shadow: var(--shadow); }
+  .feed .f { width: 236px; }
+  .cap { margin-top: 10px; font-size: 15px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .portal { position: absolute; left: 660px; top: 296px; width: 1140px; padding: 24px 30px 26px; }
+  .portal .hdr { display: flex; align-items: center; gap: 14px; }
+  .portal .hdr b { font-size: 25px; color: var(--ink); white-space: nowrap; }
+  .portal .hdr .who { margin-left: auto; }
+  .portal .sub { font-size: 18px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+  .marks { display: grid; grid-template-columns: repeat(4, 196px); justify-content: space-between; row-gap: 16px; margin-top: 18px; }
+  .marks .m { position: relative; }
+  .marks .m .st { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; justify-content: center; }
+  .marks .m .st span { font-size: 13px; font-weight: 800; background: rgba(255,255,255,.95); color: #7a5a00; padding: 5px 10px; border-radius: 999px; border: 1.5px solid #ffe08a; }
+  .wa { position: absolute; left: 120px; top: 900px; width: 520px; height: 0; }
+  .typer { position: absolute; left: 1250px; top: 168px; width: 550px; display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 999px; background: #f0f2f5; border: 1.5px solid var(--line); }
+  .typer .ic { width: 46px; height: 46px; border-radius: 50%; background: var(--wa-dark); }
+  .typer .ic svg { stroke: #fff; width: 24px; height: 24px; }
+  .typer .box { flex: 1; font-size: 21px; color: #111; font-weight: 600; white-space: nowrap; overflow: hidden; }
+  .typer .box::after { content: "|"; color: var(--wa); margin-left: 2px; }
+  .typer .send { width: 46px; height: 46px; border-radius: 50%; background: #00a884; display: grid; place-items: center; }
+  .typer .send svg { width: 22px; height: 22px; fill: #fff; }
+</style></head>
+<body data-scene="s05"><div class="stage">
+  <div class="top"><div class="eyebrow">Feed ads</div><h1 class="h">A cut for every feed, and <em>Mark's own</em></h1></div>
+  <div class="feed">
+    <div class="f"><img src="assets/ads/feed-new-bond.jpg" alt=""></div>
+    <div class="f"><img src="assets/ads/feed-salary-stops.jpg" alt=""></div>
+    <div class="f"><img src="assets/ads/feed-owners-directors.jpg" alt=""></div>
+    <div class="f"><img src="assets/ads/feed-adviser-conversation.jpg" alt=""></div>
+  </div>
+  <div class="card portal">
+    <div class="hdr"><b>Mark's portal · Ads featuring you</b><span class="who mark">Waiting for Mark</span></div>
+    <div class="sub">Four angles, with and without a photo. He approves each one before it can run.</div>
+    <div class="marks">
+      <div class="m"><img src="assets/ads/mark-new-bond-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-salary-stops-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-owners-directors-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-adviser-conversation-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-new-bond-type-only.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-salary-stops-type-only.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-owners-directors-type-only.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+      <div class="m"><img src="assets/ads/mark-adviser-conversation-type-only.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div>
+    </div>
+  </div>
+  <div class="typer"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-4A8 8 0 1 1 20 12z"/></svg></div><div class="box" id="box"></div><div class="send"><svg viewBox="0 0 24 24"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const MSG = "Hi, I'd like to check my life cover";
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.feed .f', t, cue('feeds') - .2, { y: 30, scale: .95, stagger: .15, dur: .7 });
+    rv('.portal', t, cue('eight') - .4, { x: 40, y: 0, dur: .8 });
+    rv('.marks .m', t, cue('eight') - .1, { y: 20, scale: .92, stagger: .1, dur: .6 });
+    $$('.marks .m .st').forEach((s, i) => s.style.opacity = P(t, cue('approve') - .3 + i * .06, .4));
+    rv('.typer', t, cue('Tapping') - .3, { y: 20, dur: .6 });
+    typed($('#box'), MSG, t, cue('Hi') - .1, Math.max(.8, cueEnd('cover', 1, cue('Hi')) - cue('Hi')));
+  };
+</script></body></html>
