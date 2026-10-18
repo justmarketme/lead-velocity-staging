@@ -20,7 +20,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { twilioVarPlan, defaultPayload } from '../../lib/wa-provider.mjs';
+import { twilioVarPlan, defaultPayload, START_CTA_KEY, START_PAGE_LINK, START_CTA_HEADER, START_CTA_BUTTON } from '../../lib/wa-provider.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = join(HERE, '..');
@@ -143,6 +143,19 @@ export function sessionFlow(f) {
       types: { 'whatsapp/flows': { body: '{{1}}', button_text: f.button_text, flow_id: f.flow_id, flow_token: '{{2}}', flow_first_page_id: f.first_page, is_flow_first_page_endpoint: true } } } };
 }
 
+/**
+ * The /start/ page link (W03, brand flag start_page, 18 Oct 2026): one session twilio/card, static header image, body {{1}},
+ * one URL button whose URL ends in the token {{2}} after a STATIC '#lt=' (the token rides in the fragment, CONTRACTS.md
+ * lead_token; Twilio substitutes only a URL suffix and documents no '#' encoding). Session only: no WhatsApp approval
+ * (an unapproved card in session may carry one URL button). Created once by Jonathan: submit-twilio.mjs --only smc_start_cta --submit.
+ */
+export function startCta() {
+  return { _meta: { key: START_CTA_KEY, approval: null, session_only: true },
+    content: { friendly_name: START_CTA_KEY, language: 'en',
+      variables: { 1: "Thanks Thandi. Lovely to have you here. Tap below to answer a few quick questions and pick a time with Mark. It takes about a minute. Or just reply here if you'd rather chat.", 2: 'lt1.sample' },
+      types: { 'twilio/card': { title: '{{1}}', media: [START_CTA_HEADER], actions: [{ type: 'URL', title: START_CTA_BUTTON, url: `${START_PAGE_LINK}{{2}}` }] } } } };
+}
+
 export function buildAll() {
   const out = {};
   for (const name of FLOW_TEMPLATES) {
@@ -152,6 +165,7 @@ export function buildAll() {
   for (let n = 1; n <= 3; n++) out[`smc_session_buttons_${n}.json`] = sessionButtons(n);
   for (let n = 1; n <= 10; n++) out[`smc_session_list_${n}.json`] = sessionList(n);
   for (const f of SESSION_FLOWS) out[`${f.name}.json`] = sessionFlow(f);
+  out[`${START_CTA_KEY}.json`] = startCta();
   return out;
 }
 

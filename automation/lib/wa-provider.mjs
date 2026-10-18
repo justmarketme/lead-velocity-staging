@@ -127,6 +127,26 @@ export const SESSION_LIST_KEY = (n) => `smc_session_list_${n}`;
 export const FLOW_KEY = (flowId) => `flow:${flowId}`;
 const clip = (s, n) => cleanParam(String(s || '').slice(0, n));
 
+// /start/ page link (18 Oct 2026): ONE session call-to-action (header image, body, one URL button) carrying a fresh lt1 lead
+// token in the URL FRAGMENT (CONTRACTS.md lead_token: never a query or path). Twilio's Content API only substitutes a
+// variable at the END of a URL and documents no encoding rule for '#', so the '#lt=' sits in the STATIC part of the
+// Content URL and the variable is the token alone ([A-Za-z0-9._-], nothing to encode either way). Docs read 18 Oct 2026:
+// https://www.twilio.com/docs/content/twilio-call-to-action, https://www.twilio.com/docs/content/twiliocard (an unapproved
+// card in session: one URL button, static media). Meta's in-session interactive cta_url takes the whole URL (no template).
+export const START_CTA_KEY = 'smc_start_cta';
+export const START_PAGE_LINK = 'https://sortmycover.co.za/start/#lt=';
+export const START_CTA_HEADER = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png';
+export const START_CTA_BUTTON = 'Start here';
+const TOKEN_SAFE = /^[A-Za-z0-9._-]{1,256}$/;
+/** Meta interactive cta_url (our /start/ link) -> { key, vars } for the smc_start_cta Content, or null (another URL / bad token). */
+export function startCtaContent(i = {}) {
+  const url = String((i.action && i.action.parameters && i.action.parameters.url) || '');
+  if (!url.startsWith(START_PAGE_LINK)) return null;
+  const token = url.slice(START_PAGE_LINK.length);
+  if (!TOKEN_SAFE.test(token)) return null;
+  return { key: START_CTA_KEY, vars: { 1: ((i.body && i.body.text) || '-').slice(0, 1024), 2: token } };
+}
+
 /** Interactive (buttons / list) rendered as plain text: Body + the option titles, for when no Content template exists. */
 export function interactiveAsText(i = {}) {
   const body = (i.body && i.body.text) || '';
@@ -173,7 +193,8 @@ export function sessionInteractive(i = {}) {
  *  media       -> MediaUrl (public link only; a Meta media `id` has no Twilio equivalent -> skip)
  *  template    -> ContentSid + ContentVariables (SID from TWILIO_CONTENT_SIDS[name]; none -> skip twilio_content_sid_missing)
  *  interactive -> ContentSid of the generic session template (buttons / list) or of the Flow (`flow:<flow_id>`);
- *                 an explicit `interactive.content_key` still wins; buttons / list without any SID -> text fallback.
+ *                 an explicit `interactive.content_key` still wins; buttons / list without any SID -> text fallback;
+ *                 cta_url (the /start/ link only) -> smc_start_cta with the token as {{2}}, never a text fallback.
  * opts: { statusCallback, spec (Meta template spec, for exact numbering), context: { content_key }, variables }
  */
 export function toTwilioRequest(payload = {}, env = {}, opts = {}) {
@@ -201,6 +222,13 @@ export function toTwilioRequest(payload = {}, env = {}, opts = {}) {
     const i = payload.interactive || {};
     const key = i.content_key || (opts.context && opts.context.content_key);
     if (key && sids[key]) return { form: { ...base, ContentSid: sids[key], ContentVariables: JSON.stringify(opts.variables || {}) }, via: 'content' };
+    if (i.type === 'cta_url') {
+      // never a text fallback: a Body with the link would put the lead token in Twilio's message log
+      const cta = startCtaContent(i);
+      if (!cta) return { skip: true, reason: 'twilio_cta_url_unsupported' };
+      if (!sids[cta.key]) return { skip: true, reason: 'twilio_cta_content_missing' };
+      return { form: { ...base, ContentSid: sids[cta.key], ContentVariables: JSON.stringify(cta.vars) }, via: 'session_content', content_key: cta.key };
+    }
     const s = sessionInteractive(i);
     if (s && sids[s.key]) return { form: { ...base, ContentSid: sids[s.key], ContentVariables: JSON.stringify(s.vars) }, via: 'session_content', content_key: s.key };
     if (i.type === 'flow') return { skip: true, reason: 'twilio_flow_content_missing' }; // a Flow cannot degrade to text
