@@ -162,7 +162,12 @@ RETURNING stage;`,
   n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert', 'log_no_brand', 'finalize_booking', 'escalate']));
   // I-48b/I-48k: every lead-facing W03 message takes the per-inbound reply claim (same key as W07: w07:reply:{wamid}),
   // then DRY_RUN_SENDS decides live send vs stored only; the outbound communications row is written either way (W07 parity).
-  n.push(code('Build Cloud API body', [2240, 0], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message), brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }));"));
+  // 18 Oct 2026 (KG's first-message test, execution 3421): n8n's v1 order runs a node's children top to bottom by canvas
+  // position, so this branch sat above 'Insert lead' and the reply + its communications row ran before the lead existed
+  // (communications_lead_id_fkey stopped the run, insert_lead never ran). The send branch now sits below the lead writes
+  // (insert / update / suppress) and above routing and the W07 hand-back, so the lead exists first and Lindi's reply still
+  // arrives before the adviser card; Store outbound below never fails the run.
+  n.push(code('Build Cloud API body', [2240, 490], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message), brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }));"));
   n.push(pg('Reply claim (w07:reply:{wamid})', [2460, -120],
 `-- I-48b: one inbound message -> at most one lead-facing reply (W03 and W07 share the key). Second claim -> 0 rows -> nothing sent.
 WITH c AS (
@@ -178,13 +183,16 @@ SELECT c.id AS reply_claim_id, $3::jsonb AS out FROM c;`,
     authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.out.body) }}',
     options: { timeout: 10000, retry: { maxTries: 3, waitBetweenTries: 1000 } },
   }, { credentials: WA, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
-  n.push(pg('Store outbound (W03)', [3120, -120],
+  n.push({ ...pg('Store outbound (W03)', [3120, -120],
 `-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}.
 INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)
-VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, nullif($5, '')::uuid, 'bot', 'W03', 'service', jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text))
+-- lead_id only when the lead row exists (a first message's insert may not have committed): never a foreign-key stop.
+VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4,
+        (SELECT l.id FROM public.leads l WHERE l.id = nullif($5, '')::uuid), 'bot', 'W03', 'service',
+        jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text, 'lead_id_wanted', nullif($5, '')))
 ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
 RETURNING id;`,
-    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', !($json.messages && $json.messages[0]), o.wamid]; })() }}"));
+    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', !($json.messages && $json.messages[0]), o.wamid]; })() }}"), onError: 'continueRegularOutput' });
   // 17 Oct 2026: a website opener that needs a person (wills: no wills calendar yet) opens a console escalation. Positioned
   // below 'Insert lead' so the v1 execution order writes the lead first; never fails the run.
   n.push({ ...pg('Escalate to a person (opener)', [2240, 1260],

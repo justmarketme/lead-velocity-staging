@@ -154,11 +154,12 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.\nINSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)\nSELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, NULLIF($4, '')::uuid, $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb\n WHERE $13::boolean\n   AND NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)\nRETURNING id::text AS comm_id;",
+        "query": "-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.\nINSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, broker_id, brand_id, content, status, external_id, failed_reason, template_name, workflow, metadata)\n-- brand_id falls back to BRAND_ID: an ops alert (W22 -> Jono / KG) has no lead or broker, and n8n_app may only write brand rows\n-- (RLS \"smc n8n_app brand rows\"; executions 3427 / 3432, 18 Oct 2026). Such a recipient is 'admin'.\nSELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, COALESCE(NULLIF($4, '')::uuid, NULLIF($14, '')::uuid), $5, $6, NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), 'smc-whatsapp-send', $10::jsonb\n WHERE $13::boolean\n   AND NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)\nRETURNING id::text AS comm_id;",
         "options": {
-          "queryReplacement": "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'template' && L.template ? 'template:' + L.template : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + (L.sent_as || L.kind) + ']'))), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null, caller: (Object.entries(L).find(e => e[0] === 'caller') || [])[1] || null, provider: L.provider || null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, ''), L.record !== false ]; })() }}"
+          "queryReplacement": "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : L.broker_id ? 'broker' : 'admin', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'template' && L.template ? 'template:' + L.template : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + (L.sent_as || L.kind) + ']'))), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null, caller: (Object.entries(L).find(e => e[0] === 'caller') || [])[1] || null, provider: L.provider || null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, ''), L.record !== false, $env.BRAND_ID || '' ]; })() }}"
         }
       },
+      "onError": "continueRegularOutput",
       "id": "smc-whatsapp-send-8",
       "position": [
         1760,
@@ -179,7 +180,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ (!!$json.comm_id || $('Decide (suppression, allow-list, window, template, dry run)').item.json.record === false) && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send' }}",
+              "leftValue": "={{ (!!$json.comm_id || $json.error !== undefined || $('Decide (suppression, allow-list, window, template, dry run)').item.json.record === false) && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send' }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",

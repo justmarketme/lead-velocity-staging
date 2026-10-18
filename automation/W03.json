@@ -419,7 +419,7 @@
    "typeVersion": 2,
    "position": [
     2240,
-    0
+    490
    ],
    "parameters": {
     "mode": "runOnceForAllItems",
@@ -515,7 +515,7 @@
    ],
    "parameters": {
     "operation": "executeQuery",
-    "query": "-- Same row shape as W07 \"Store outbound\"; DRY_RUN rows carry external_id dry:w03:{wamid}.\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)\nVALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, nullif($5, '')::uuid, 'bot', 'W03', 'service', jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\nRETURNING id;",
+    "query": "-- Same row shape as W07 \"Store outbound\"; DRY_RUN rows carry external_id dry:w03:{wamid}.\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)\n-- lead_id only when the lead row exists (a first message's insert may not have committed): never a foreign-key stop.\nVALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4,\n        (SELECT l.id FROM public.leads l WHERE l.id = nullif($5, '')::uuid), 'bot', 'W03', 'service',\n        jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text, 'lead_id_wanted', nullif($5, '')))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\nRETURNING id;",
     "options": {
      "queryReplacement": "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', !($json.messages && $json.messages[0]), o.wamid]; })() }}"
     }
@@ -525,7 +525,8 @@
      "id": "",
      "name": "LV Supabase - n8n_app (least privilege)"
     }
-   }
+   },
+   "onError": "continueRegularOutput"
   },
   {
    "id": "n15",
