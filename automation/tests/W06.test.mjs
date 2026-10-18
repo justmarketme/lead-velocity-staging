@@ -431,3 +431,19 @@ test('W06: a page lead routed later (W39 /start/ web lead) whose BOOKING event w
   // the existing page path is unchanged: without the booking event the 45-s hold still decides
   assert.equal(firstTouchTrigger(l, { booking }).reason, 'hold');
 });
+
+test('W06 lead-ad intro: broker_intro_slots_v3 (with the SortMyCover disclosure) only for lead-ad leads and only when configured', () => {
+  const b = { id: 'b1', practice_name: 'Oracle Private Wealth', fsp_number: '28418', adviser_name: 'Mark Smith', intro_card_url: 'https://media.sortmycover.co.za/intro/mark.png' };
+  const slots = ['2026-10-15T10:00:00+02:00', '2026-10-16T10:00:00+02:00', '2026-10-17T10:00:00+02:00'].map((s) => ({ start: s, end: s }));
+  const lead = (origin) => ({ id: 'l1', origin, broker_id: 'b1', routed_at: '2026-10-13T10:00:00+02:00', first_name: 'Thandi', phone: '+27600000191' });
+  const plan = (origin, v3) => planFirstTouch(lead(origin), b, W06.ctxFromEvent({ op: 'routed', slots, intro_v3: v3 }, Date.parse('2026-10-13T10:00:00+02:00')));
+  assert.equal(plan('lead_ad', true).template, 'broker_intro_slots_v3');
+  assert.equal(plan('lead_ad', false).template, 'broker_intro_slots', 'not configured: the current card (W01 sent the disclosure first)');
+  for (const o of ['ctwa', 'comment']) assert.equal(plan(o, true).template, 'broker_intro_slots', o);
+  const body = W06.renderBody('broker_intro_slots_v3', plan('lead_ad', true).variables);
+  assert.match(body, /Introduced by SortMyCover\. SortMyCover gives no financial advice, product comparisons or premium quotes\. Advisers pay SortMyCover a fee that does not depend on whether you buy anything\. Reply STOP to opt out\.$/);
+  assert.match(body, /\*Oracle Private Wealth \(FSP 28418\)\*, an authorised financial services provider/);
+  assert.doesNotMatch(body, /\bfree\b|\bAI\b|Lead Velocity/i);
+  assert.ok(W06.TEMPLATE_BODY.broker_intro_slots_v3.length <= 1024);
+  assert.match(WF.nodes.find((n) => n.name === 'Plan card (w06.planFirstTouch + toCloudApi)').parameters.jsCode, /intro_v3: require\('lv-automation'\)\.w01\.introV3Ready\(\$env\)/);
+});

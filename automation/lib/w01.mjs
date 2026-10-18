@@ -721,7 +721,7 @@ export function capiLead(row) {
  * pick is NOT routed (action 'skip', reason 'broker_changed'). hold_only: true records a hold (+ the tier-C notice) but
  * never routes (a broker that became free meanwhile -> 'skip', reason 'not_disclosed').
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false, require_disclosure = false } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
@@ -731,11 +731,53 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const b = r.broker;
   if (hold_only) return { action: 'skip', reason: 'not_disclosed' };
   if (expect_broker_id && String(brokerIdOf(b)) !== String(expect_broker_id)) return { action: 'skip', reason: 'broker_changed' };
+  // Lead-ad disclosure (18 Oct 2026): a form lead is handed over only after it was told who the adviser is and what SortMyCover
+  // is (adviser_disclosed on its timeline for THIS broker). Without it the route refuses and asks for the disclosure first.
+  if (require_disclosure && !(Array.isArray(lead.disclosed) && lead.disclosed.map(String).includes(String(brokerIdOf(b))))) {
+    return { action: 'disclose', broker_id: brokerIdOf(b), disclose: leadAdDisclosure(lead, b) };
+  }
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
   const wasHeld = (String(lead.routing_reason || '').startsWith('held_') || lead.routing_reason === START_PAGE_PENDING) && (lead.origin || 'ctwa') !== 'ctwa';
   return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null,
     first_touch: first_touch === false ? null : { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+}
+
+// ---------------------------------------------------------------------------------------------- 5a. lead-ad disclosure
+// Instant Form leads (origin lead_ad) are introduced by the W06 card (broker_intro_slots: adviser, practice, FSP), which lacks the
+// SortMyCover disclosure that /start/ (W39 START-DISCLOSE-v1) and the CTWA chat show. Until broker_intro_slots_v3 (the card WITH
+// the disclosure, templates/twilio/BROKER-INTRO-V3.md) is approved and its SID is in TWILIO_CONTENT_SIDS, the lead's band tap
+// (its first reply: the 24-h session is open) gets the disclosure as a session text BEFORE routing, and routeExisting refuses to
+// hand a lead-ad lead over until 'adviser_disclosed' is on its timeline for the broker it would get.
+export const LEAD_AD_DISCLOSURE_VERSION = 'LEADAD-DISCLOSE-v1';
+export const INTRO_V3_KEY = 'broker_intro_slots_v3';
+export const SORTMYCOVER_DISCLOSURE = 'Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.';
+/** True when the v3 intro card can be sent (Twilio + its Content SID): the card itself then carries the disclosure. */
+export function introV3Ready(env = {}) {
+  if (String(env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase() !== 'twilio') return false;
+  try { const s = JSON.parse(env.TWILIO_CONTENT_SIDS || '{}'); return !!(s && s[INTRO_V3_KEY]); } catch (_) { return false; }
+}
+/** Does this lead need the session disclosure before routing? Lead-ad leads only, and only while v3 is not configured. */
+export const disclosureRequired = (lead, env = {}) => !!lead && lead.origin === 'lead_ad' && !introV3Ready(env);
+/** The disclosure text + its timeline row for the broker routingFor picked (b = the W01 core broker list row). */
+export function leadAdDisclosure(lead, b) {
+  const adviser = String(b.contact_person || b.adviser_name || '').trim() || 'your adviser';
+  const practice = practiceOf(b) || 'an authorised practice';
+  const text = `Before I introduce you: ${adviser} from ${practice}, an authorised financial services provider (FSP ${b.fsp_number}), will be the one on the call with you. ${SORTMYCOVER_DISCLOSURE}`;
+  const brokerId = brokerIdOf(b);
+  return {
+    send: lead.phone ? { to: lead.phone, kind: 'text', text, lead_id: lead.id, correlation: `w01:disclosure:${lead.id}:${brokerId}` } : null,
+    activity: { activity_type: 'adviser_disclosed', idempotency_key: `w01:disclosed:${lead.id}:${brokerId}`, broker_id: brokerId,
+      payload: { broker_id: brokerId, fsp: b.fsp_number || null, firm: practice, adviser, disclosure_version: LEAD_AD_DISCLOSURE_VERSION, via: 'whatsapp_session' } },
+  };
+}
+/**
+ * After the disclosure send: route if its timeline row was written (the send returned a message id, live or dry), else hold
+ * the lead visibly (routing_reason held_disclosure_failed, nothing sent to the broker). `logged` = the row's broker id or null.
+ */
+export function routeAfterDisclosure(lead, opts = {}, logged = null) {
+  if (!logged) return { action: 'held', update: { routing_reason: 'held_disclosure_failed' }, notice: null };
+  return routeExisting({ ...lead, disclosed: [...(lead.disclosed || []), String(logged)] }, opts);
 }
 
 // ---------------------------------------------------------------------------------------------- 5b. tier C (under R750)

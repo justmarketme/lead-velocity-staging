@@ -1,0 +1,118 @@
+{
+  "_meta": {
+    "key": "broker_intro_slots_v3",
+    "source": "automation/templates/broker_intro_slots_v3.json",
+    "approval": {
+      "name": "smc_broker_intro_slots_v3",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "body"
+      },
+      {
+        "n": 7,
+        "kind": "body"
+      },
+      {
+        "n": 8,
+        "kind": "header_media"
+      },
+      {
+        "n": 9,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 10,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 11,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      },
+      {
+        "n": 12,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 3
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_intro_slots_v3",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith Financial Services",
+      "3": "00000",
+      "4": "Mark Smith",
+      "5": "Tue 7 Oct, 10:00",
+      "6": "Tue 7 Oct, 14:30",
+      "7": "Wed 8 Oct, 09:00",
+      "8": "samples/intro_card_sample.png",
+      "9": "time_1:sample",
+      "10": "time_2:sample",
+      "11": "time_3:sample",
+      "12": "other_times:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below.\n1. {{5}}\n2. {{6}}\n3. {{7}}\nIntroduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "__TWILIO_MEDIA_BASE_URL__/{{8}}"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Time 1",
+            "id": "{{9}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Time 2",
+            "id": "{{10}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Time 3",
+            "id": "{{11}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Other times",
+            "id": "{{12}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -272,7 +272,8 @@ return out;`));
        COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,
                   'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,
                   'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,
-                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))
+                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),
+                  'contact_person', b.contact_person))
                    FROM public.brokers b
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
@@ -280,7 +281,10 @@ return out;`));
        $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
-               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
+               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed,
+               -- lead-ad disclosure: the brokers this lead was already told about (W01 / W39 'adviser_disclosed')
+               (SELECT COALESCE(jsonb_agg(DISTINCT a.payload->>'broker_id'), '[]'::jsonb) FROM public.lead_activities a
+                 WHERE a.lead_id = l.id AND a.activity_type = 'adviser_disclosed') AS disclosed
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     // first_touch: false = W39 (the /start/ page shows the slots itself): route the same way, no W06 first touch
     // W39 also passes expect_broker_id (route only the adviser the lead confirmed) or hold_only (record a hold, never route)
@@ -288,11 +292,37 @@ return out;`));
   n.push(code('Route (w01.routeExisting)', pos(3, 7), prelude('w01.mjs') +
 `const out = [];
 for (const it of $input.all()) {
+  // lead-ad leads: no hand-over before the SortMyCover disclosure (action 'disclose' -> the branch below), unless the v3 card carries it
   const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,
-    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true });
+    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env) });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
 }
 return out;`));
+  // Lead-ad disclosure, in order: the session text (waits for the sender) -> its timeline row (only with a message id, live or
+  // dry) -> routing again, which now finds the row. A failed send holds the lead (held_disclosure_failed), never routes it.
+  n.push(ifTrue('Disclose first? (lead ad, before routing)', pos(4, 8), "$json.r.action === 'disclose'"));
+  n.push(code('Disclosure text (w01.leadAdDisclosure)', pos(5, 8), "return $input.all().filter((i) => i.json.r.disclose && i.json.r.disclose.send).map((i) => ({ json: i.json.r.disclose.send }));"));
+  n.push({ ...sub('WhatsApp Send (disclosure, waits)', pos(6, 9), 'WhatsApp Send', true, 'Session text inside the 24-h window the band tap opened. smc-whatsapp-send writes the communications row; correlation w01:disclosure:<lead>:<broker>.'), alwaysOutputData: true });
+  n.push(pg('Log adviser_disclosed (after the send)', pos(7, 9),
+`-- Written only when the disclosure went out (a message id: Twilio SID, wamid, or dry:...). Once per lead and broker.
+WITH ins AS (
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT l.id, l.brand_id, $2::uuid, 'W01', 'system', 'adviser_disclosed', $3::jsonb || jsonb_build_object('message_id', $4::text), now(), $5
+    FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING broker_id)
+SELECT broker_id FROM ins
+UNION ALL
+SELECT a.broker_id FROM public.lead_activities a WHERE a.idempotency_key = $5 AND NOT EXISTS (SELECT 1 FROM ins)
+LIMIT 1;`,
+    "={{ (() => { const r = $('Route (w01.routeExisting)').first().json.r; const a = r.disclose.activity; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || $json.external_id || ''; return [$('Route (w01.routeExisting)').first().json.lead_id, a.broker_id, JSON.stringify(a.payload), $json.ok === false ? '' : String(id), a.idempotency_key]; })() }}"));
+  n.at(-1).alwaysOutputData = true;
+  n.push(code('Route after the disclosure (w01.routeExisting)', pos(8, 9), prelude('w01.mjs') +
+`const x = $('Load CTWA lead + brokers').first().json;
+const logged = ($input.first() && $input.first().json && $input.first().json.broker_id) || null;
+const r = L.routeAfterDisclosure(x.lead, { brokers: x.brokers || [], now: Date.now(), first_touch: x.first_touch !== false,
+  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env) }, logged);
+return [{ json: { lead_id: x.lead && x.lead.id, r, routed: r.action === 'routed', update: r.update || null } }];`));
   n.push(ifTrue('Routed or held? (write it)', pos(4, 7), "['routed', 'held'].includes($json.r.action)"));
   n.push(pg('Write routing (only if not routed yet) + timeline', pos(5, 7),
 `WITH u AS (
@@ -310,16 +340,16 @@ RETURNING lead_id, broker_id;`,
   // I-49c: a lead W01 held at intake gets its CAPI Lead only now, when the hand-over write actually routed it.
   n.push(code('CAPI Lead at hand-over (held -> routed)', pos(6, 8),
 `const routed = new Set($input.all().filter((i) => i.json.broker_id).map((i) => String(i.json.lead_id)));
-return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))
+return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.concat($('Route after the disclosure (w01.routeExisting)').all()); } catch (e) { return a; } })().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))
   .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });`));
   n.push(sub('CAPI Send (Lead at hand-over)', pos(7, 8), 'CAPI Send', false, 'I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee.'));
   n.push(code('Low-budget held notice (CTWA / held at intake)', pos(6, 6),
 `// Tier C held at the hand-over (no broker with the standing yes and room): the honest "we are checking" message, once.
 const written = new Set($input.all().filter((i) => i.json && i.json.lead_id && !i.json.broker_id).map((i) => String(i.json.lead_id)));
-return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.notice && written.has(String(x.lead_id))).map((x) => ({ json: x.r.notice }));`));
+return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.concat($('Route after the disclosure (w01.routeExisting)').all()); } catch (e) { return a; } })().map((i) => i.json).filter((x) => x.r && x.r.notice && written.has(String(x.lead_id))).map((x) => ({ json: x.r.notice }));`));
   n.push(sub('WhatsApp Send (lead_low_budget_held, core)', pos(7, 6), 'WhatsApp Send', false, 'Tier C held at the hand-over. Correlation w01:low_budget_held:<lead>: never twice for one lead.'));
   // only the leads whose routing asked for a first touch (W39's /start/ page routes without one)
-  n.push(code('W06 input (CTWA)', pos(6, 7), "const want = new Set($('Route (w01.routeExisting)').all().filter((i) => i.json.r && i.json.r.first_touch).map((i) => String(i.json.lead_id)));\nreturn $input.all().filter((i) => i.json.broker_id && want.has(String(i.json.lead_id))).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"));
+  n.push(code('W06 input (CTWA)', pos(6, 7), "const want = new Set((() => { const a = $('Route (w01.routeExisting)').all(); try { return a.concat($('Route after the disclosure (w01.routeExisting)').all()); } catch (e) { return a; } })().filter((i) => i.json.r && i.json.r.first_touch).map((i) => String(i.json.lead_id)));\nreturn $input.all().filter((i) => i.json.broker_id && want.has(String(i.json.lead_id))).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"));
   n.push(sub('W06 First touch (CTWA)', pos(7, 7), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once.'));
   n.push(code('Unknown core call (logged, never guessed)', pos(2, 9), "return [{ json: { outcome: 'subcall_rejected', reason: 'W01 Lead core needs action=ingest or kind=route_and_first_touch', keys: Object.keys($input.first().json || {}) } }];"));
 
@@ -366,6 +396,9 @@ return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r
   link(c, 'Core action?', 'Unknown core call (logged, never guessed)', 2);
   link(c, 'Lead ad -> submission (w01.normaliseLeadAd + screen)', 'Screen passed?');
   chain(c, 'Load CTWA lead + brokers', 'Route (w01.routeExisting)', 'Routed or held? (write it)');
+  link(c, 'Route (w01.routeExisting)', 'Disclose first? (lead ad, before routing)');
+  link(c, 'Disclose first? (lead ad, before routing)', 'Disclosure text (w01.leadAdDisclosure)', 0);
+  chain(c, 'Disclosure text (w01.leadAdDisclosure)', 'WhatsApp Send (disclosure, waits)', 'Log adviser_disclosed (after the send)', 'Route after the disclosure (w01.routeExisting)', 'Routed or held? (write it)');
   link(c, 'Routed or held? (write it)', 'Write routing (only if not routed yet) + timeline', 0);
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'Low-budget held notice (CTWA / held at intake)', 'WhatsApp Send (lead_low_budget_held, core)');
@@ -570,7 +603,8 @@ const slots = j.need_slots ? (($input.first().json || {}).slots || []) : [];
 const now = Date.now();
 const l = { ...j.l, mobile: j.l.phone };
 const b = { id: j.l.broker_id, practice_name: j.l.practice_name, fsp_number: j.l.fsp_number, adviser_name: j.l.adviser_name, intro_card_url: j.l.intro_card_url };
-const ctx = L.ctxFromEvent({ op: j.ev.op, booking: j.l.booking, booking_ui: j.l.booking_ui, slots }, now);
+// lead-ad leads: broker_intro_slots_v3 (with the SortMyCover disclosure) only when its Content SID is configured (w01.introV3Ready)
+const ctx = L.ctxFromEvent({ op: j.ev.op, booking: j.l.booking, booking_ui: j.l.booking_ui, slots, intro_v3: require('lv-automation').w01.introV3Ready($env) }, now);
 // The 60-s clock runs from routed_at (CONTRACTS.md W06). hold -> trigger 'hold'; skip / booking -> that event; lead-ad / CTWA -> 'routed'.
 let plan = L.planFirstTouch(l, b, ctx);
 if (plan && plan.blocked === 'not_enough_slots') {

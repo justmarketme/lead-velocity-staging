@@ -48,6 +48,8 @@ export const FLOW_TEMPLATES = [
   'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief',
   // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
   'ops_alert',
+  // lead-ad intro card WITH the SortMyCover disclosure (2026-10-18): proposal, for Jono with the Instant Form launch (BROKER-INTRO-V3.md)
+  'broker_intro_slots_v3',
 ];
 export const CORE = FLOW_TEMPLATES.slice(0, 7);
 // Session Flow launches (inside the 24-h window, W10 flow_session): body {{1}}, flow_token {{2}}.

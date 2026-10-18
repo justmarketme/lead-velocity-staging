@@ -1167,7 +1167,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT to_jsonb(q) AS lead,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,\n                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0)))\n                   FROM public.brokers b\n                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining\n                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true\n                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,\n       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id = $1::uuid) q;",
+        "query": "SELECT to_jsonb(q) AS lead,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,\n                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),\n                  'contact_person', b.contact_person))\n                   FROM public.brokers b\n                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining\n                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true\n                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,\n       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed,\n               -- lead-ad disclosure: the brokers this lead was already told about (W01 / W39 'adviser_disclosed')\n               (SELECT COALESCE(jsonb_agg(DISTINCT a.payload->>'broker_id'), '[]'::jsonb) FROM public.lead_activities a\n                 WHERE a.lead_id = l.id AND a.activity_type = 'adviser_disclosed') AS disclosed\n          FROM public.leads l WHERE l.id = $1::uuid) q;",
         "options": {
           "queryReplacement": "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}"
         }
@@ -1194,11 +1194,122 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w01;\nconst out = [];\nfor (const it of $input.all()) {\n  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,\n    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true });\n  out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });\n}\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w01;\nconst out = [];\nfor (const it of $input.all()) {\n  // lead-ad leads: no hand-over before the SortMyCover disclosure (action 'disclose' -> the branch below), unless the v3 card carries it\n  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,\n    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env) });\n  out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });\n}\nreturn out;"
       }
     },
     {
       "id": "n47",
+      "name": "Disclose first? (lead ad, before routing)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.r.action === 'disclose') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n48",
+      "name": "Disclosure text (w01.leadAdDisclosure)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().filter((i) => i.json.r.disclose && i.json.r.disclose.send).map((i) => ({ json: i.json.r.disclose.send }));"
+      }
+    },
+    {
+      "id": "n49",
+      "name": "WhatsApp Send (disclosure, waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        1800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Session text inside the 24-h window the band tap opened. smc-whatsapp-send writes the communications row; correlation w01:disclosure:<lead>:<broker>.",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n50",
+      "name": "Log adviser_disclosed (after the send)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        1800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Written only when the disclosure went out (a message id: Twilio SID, wamid, or dry:...). Once per lead and broker.\nWITH ins AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT l.id, l.brand_id, $2::uuid, 'W01', 'system', 'adviser_disclosed', $3::jsonb || jsonb_build_object('message_id', $4::text), now(), $5\n    FROM public.leads l WHERE l.id = $1::uuid AND $4 <> ''\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING broker_id)\nSELECT broker_id FROM ins\nUNION ALL\nSELECT a.broker_id FROM public.lead_activities a WHERE a.idempotency_key = $5 AND NOT EXISTS (SELECT 1 FROM ins)\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ (() => { const r = $('Route (w01.routeExisting)').first().json.r; const a = r.disclose.activity; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || $json.external_id || ''; return [$('Route (w01.routeExisting)').first().json.lead_id, a.broker_id, JSON.stringify(a.payload), $json.ok === false ? '' : String(id), a.idempotency_key]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "n51",
+      "name": "Route after the disclosure (w01.routeExisting)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w01;\nconst x = $('Load CTWA lead + brokers').first().json;\nconst logged = ($input.first() && $input.first().json && $input.first().json.broker_id) || null;\nconst r = L.routeAfterDisclosure(x.lead, { brokers: x.brokers || [], now: Date.now(), first_touch: x.first_touch !== false,\n  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env) }, logged);\nreturn [{ json: { lead_id: x.lead && x.lead.id, r, routed: r.action === 'routed', update: r.update || null } }];"
+      }
+    },
+    {
+      "id": "n52",
       "name": "Routed or held? (write it)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1230,7 +1341,7 @@
       }
     },
     {
-      "id": "n48",
+      "id": "n53",
       "name": "Write routing (only if not routed yet) + timeline",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1257,7 +1368,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n49",
+      "id": "n54",
       "name": "CAPI Lead at hand-over (held -> routed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1267,11 +1378,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const routed = new Set($input.all().filter((i) => i.json.broker_id).map((i) => String(i.json.lead_id)));\nreturn $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))\n  .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });"
+        "jsCode": "const routed = new Set($input.all().filter((i) => i.json.broker_id).map((i) => String(i.json.lead_id)));\nreturn (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.concat($('Route after the disclosure (w01.routeExisting)').all()); } catch (e) { return a; } })().map((i) => i.json).filter((x) => x.r && x.r.capi && routed.has(String(x.lead_id)))\n  .map((x) => { const c = x.r.capi; return { json: { event_name: c.event_name, event_id: c.event_id, action_source: c.action_source, lead_id: c.lead_id, brand_id: c.brand_id, event_time: c.event_time } }; });"
       }
     },
     {
-      "id": "n50",
+      "id": "n55",
       "name": "CAPI Send (Lead at hand-over)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1294,7 +1405,7 @@
       "notes": "I-49c: { event_name: Lead, event_id, ... } for a lead held at intake (no CAPI then). Consent gate inside the callee."
     },
     {
-      "id": "n51",
+      "id": "n56",
       "name": "Low-budget held notice (CTWA / held at intake)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1304,11 +1415,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Tier C held at the hand-over (no broker with the standing yes and room): the honest \"we are checking\" message, once.\nconst written = new Set($input.all().filter((i) => i.json && i.json.lead_id && !i.json.broker_id).map((i) => String(i.json.lead_id)));\nreturn $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.notice && written.has(String(x.lead_id))).map((x) => ({ json: x.r.notice }));"
+        "jsCode": "// Tier C held at the hand-over (no broker with the standing yes and room): the honest \"we are checking\" message, once.\nconst written = new Set($input.all().filter((i) => i.json && i.json.lead_id && !i.json.broker_id).map((i) => String(i.json.lead_id)));\nreturn (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.concat($('Route after the disclosure (w01.routeExisting)').all()); } catch (e) { return a; } })().map((i) => i.json).filter((x) => x.r && x.r.notice && written.has(String(x.lead_id))).map((x) => ({ json: x.r.notice }));"
       }
     },
     {
-      "id": "n52",
+      "id": "n57",
       "name": "WhatsApp Send (lead_low_budget_held, core)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1331,7 +1442,7 @@
       "notes": "Tier C held at the hand-over. Correlation w01:low_budget_held:<lead>: never twice for one lead."
     },
     {
-      "id": "n53",
+      "id": "n58",
       "name": "W06 input (CTWA)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1341,11 +1452,11 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const want = new Set($('Route (w01.routeExisting)').all().filter((i) => i.json.r && i.json.r.first_touch).map((i) => String(i.json.lead_id)));\nreturn $input.all().filter((i) => i.json.broker_id && want.has(String(i.json.lead_id))).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"
+        "jsCode": "const want = new Set((() => { const a = $('Route (w01.routeExisting)').all(); try { return a.concat($('Route after the disclosure (w01.routeExisting)').all()); } catch (e) { return a; } })().filter((i) => i.json.r && i.json.r.first_touch).map((i) => String(i.json.lead_id)));\nreturn $input.all().filter((i) => i.json.broker_id && want.has(String(i.json.lead_id))).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"
       }
     },
     {
-      "id": "n54",
+      "id": "n59",
       "name": "W06 First touch (CTWA)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1368,7 +1479,7 @@
       "notes": "Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once."
     },
     {
-      "id": "n55",
+      "id": "n60",
       "name": "Unknown core call (logged, never guessed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1382,7 +1493,7 @@
       }
     },
     {
-      "id": "n56",
+      "id": "n61",
       "name": "Every 15 min: budget reminder sweep",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -1402,7 +1513,7 @@
       }
     },
     {
-      "id": "n57",
+      "id": "n62",
       "name": "Leads waiting on the budget tap (> 3 h, not reminded)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1427,7 +1538,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n58",
+      "id": "n63",
       "name": "Budget reminder (w01.budgetReminder)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1441,7 +1552,7 @@
       }
     },
     {
-      "id": "n59",
+      "id": "n64",
       "name": "Mark reminded (at-most-once) + delete 24 h after",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1468,7 +1579,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n60",
+      "id": "n65",
       "name": "Reminder send input (only rows just marked)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1482,7 +1593,7 @@
       }
     },
     {
-      "id": "n61",
+      "id": "n66",
       "name": "WhatsApp Send (qualify_budget reminder)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1505,7 +1616,7 @@
       "notes": "Shared sender: suppression, DRY_RUN_SENDS, allow-list, correlation w01:ask_budget_reminder:<lead> (sent once)."
     },
     {
-      "id": "n62",
+      "id": "n67",
       "name": "Every 15 min: low-budget sweep (tier C)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -1525,7 +1636,7 @@
       }
     },
     {
-      "id": "n63",
+      "id": "n68",
       "name": "Tier-C leads: assigned (hand off) or held 7 days (close)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1550,7 +1661,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n64",
+      "id": "n69",
       "name": "Plan (w01.lowBudgetHandoff / lowBudgetClose)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1564,7 +1675,7 @@
       }
     },
     {
-      "id": "n65",
+      "id": "n70",
       "name": "Hand off or close?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
@@ -1629,7 +1740,7 @@
       }
     },
     {
-      "id": "n66",
+      "id": "n71",
       "name": "Claim the hand-off (once per lead)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1656,7 +1767,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n67",
+      "id": "n72",
       "name": "W06 input (low-budget hand-off, only rows just claimed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1670,7 +1781,7 @@
       }
     },
     {
-      "id": "n68",
+      "id": "n73",
       "name": "W06 First touch (low-budget hand-off)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1693,7 +1804,7 @@
       "notes": "Called with { op: routed, lead_id, origin }: the normal booking flow for an admin-assigned tier-C lead (slots card or Flow -> W05 booking, email verification, Teams link). W06 claims w06:first:{lead_id}, so one intro card ever."
     },
     {
-      "id": "n69",
+      "id": "n74",
       "name": "Close politely (only if still held) + timeline",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1720,7 +1831,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n70",
+      "id": "n75",
       "name": "Close send input (only rows just closed)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1734,7 +1845,7 @@
       }
     },
     {
-      "id": "n71",
+      "id": "n76",
       "name": "WhatsApp Send (lead_low_budget_closed)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1757,7 +1868,7 @@
       "notes": "Polite close, once (correlation w01:low_budget_closed:<lead>). Never in quiet hours (lowBudgetClose defers to the 08:00 sweep)."
     },
     {
-      "id": "n72",
+      "id": "n77",
       "name": "Quiz v2: ask the band on WhatsApp? (web lead, budget pending)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -2282,6 +2393,66 @@
       ]
     },
     "Route (w01.routeExisting)": {
+      "main": [
+        [
+          {
+            "node": "Routed or held? (write it)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Disclose first? (lead ad, before routing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disclose first? (lead ad, before routing)": {
+      "main": [
+        [
+          {
+            "node": "Disclosure text (w01.leadAdDisclosure)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disclosure text (w01.leadAdDisclosure)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Send (disclosure, waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Send (disclosure, waits)": {
+      "main": [
+        [
+          {
+            "node": "Log adviser_disclosed (after the send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log adviser_disclosed (after the send)": {
+      "main": [
+        [
+          {
+            "node": "Route after the disclosure (w01.routeExisting)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route after the disclosure (w01.routeExisting)": {
       "main": [
         [
           {

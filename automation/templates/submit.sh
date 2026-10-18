@@ -70,7 +70,9 @@ REST=(
 
 # HELD: drafted, NOT submitted. Never in the default or --core list; --only refuses them. Release = Jonathan moves the name
 # into REST after practitioner review (GATE-TEMPLATES / GATE-OPINION). breach_subject_notice: POPIA s22 subject notice, drill P14 G3.
-HELD=(breach_subject_notice)
+# broker_intro_slots_v3: the lead-ad intro card WITH the SortMyCover disclosure, for Jono with the Instant Form launch
+# (submitted through Twilio Content: templates/twilio/BROKER-INTRO-V3.md).
+HELD=(breach_subject_notice broker_intro_slots_v3)
 
 case "$FILTER" in
   core) LIST=("${CORE[@]}") ;;
