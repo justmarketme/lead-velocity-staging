@@ -16,6 +16,8 @@ import { isPulseLine } from '../../conversation/pulse.mjs';
 import { checkEmail } from './w05.mjs';
 
 export const WORKFLOW = 'W07';
+// The CTWA ad pre-fill: "book a 30-minute call with an adviser" since 18 Oct 2026 (Jono); "check my life cover" before, still accepted.
+export const CTWA_OPENER_RE = /check my life cover|book a 30[- ]minute call with an adviser/iu;
 export const HOURS = { open: 8, close: 20 }; // handoff.md (6.8a): 08:00-20:00 SAST, every day until Jonathan says otherwise
 const SAST = 2 * 3600_000;
 
@@ -146,7 +148,7 @@ function routeCore(msg, ctx) {
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.
   if (STOP_WORDS.test(msg.text || '') || (msg.text && prefilter(msg.text).stop)) return { route: 'W15', reason: 'STOP' };
-  if (!ctx.lead) return msg.referral || /check my life cover/iu.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
+  if (!ctx.lead) return msg.referral || CTWA_OPENER_RE.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
   if (ctx.lead.opted_out_at) return { route: 'ignore_opted_out', reason: 'opted out: logged only, no reply (W15 sent the one confirmation)' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.

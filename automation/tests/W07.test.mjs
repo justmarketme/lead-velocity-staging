@@ -47,6 +47,11 @@ test('router: STOP, CTWA, opted out, broker numbers, every tap, handoff pause, f
   assert.equal(r({ text: 'STOP' }), 'W15');
   assert.equal(r({ text: 'stop' }), 'W15');
   assert.equal(r({ text: "Hi, I'd like to check my life cover", referral: { source_id: '123456' } }, { lead: null }), 'W03');
+  // the CTWA opener is recognised without a referral too: the new ad pre-fill (18 Oct 2026) and the old one
+  const why = (text) => W.routeInbound({ from: '+27600000098', text }, { lead: null }).reason;
+  assert.equal(why("Hi, I'd like to book a 30-minute call with an adviser."), 'CTWA entry');
+  assert.equal(why("Hi, I'd like to check my life cover"), 'CTWA entry');
+  assert.equal(why('hello'), 'unknown number: W03 consent first');
   assert.equal(r({ text: 'hello' }, { lead: { ...ld, opted_out_at: '2026-10-12T10:00:00Z' } }), 'ignore_opted_out');
   assert.equal(r({ from: B.adviser_whatsapp, payload: 'attended:bk1' }), 'W12');
   assert.equal(r({ from: B.adviser_whatsapp, list_id: 'nofit_budget' }), 'W29');

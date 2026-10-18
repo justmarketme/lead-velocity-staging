@@ -142,7 +142,7 @@ test('stall nudges at +1 h, +20 h, +68 h (inside the 72-h CTWA window) and cance
 test('readOrigin: W03-notes acceptance (a)-(g)', () => {
   const ref = (body, referral) => W3.readOrigin({ type: 'text', text: { body }, ...(referral ? { referral } : {}) });
   const R = { source_type: 'ad', source_id: '120212345678901234', ctwa_clid: 'ARAk_test' };
-  let o = ref("Hi, I'd like to check my life cover", R); // (a)
+  let o = ref("Hi, I'd like to book a 30-minute call with an adviser.", R); // (a) the ad pre-fill since 18 Oct 2026
   assert.deepEqual([o.origin, o.ctwa_clid, o.ad_id, o.ref], ['ctwa', 'ARAk_test', '120212345678901234', null]);
   o = ref("Hi, I'd like to check my life cover (ref cmt_120212345678901234)"); // (b)
   assert.deepEqual([o.origin, o.ad_id, o.ctwa_clid, o.text_without_ref], ['comment', '120212345678901234', null, "Hi, I'd like to check my life cover"]);
@@ -159,12 +159,12 @@ test('redirect (I-09): good ref -> 302 to wa.me with the ref prefill; bad ref ->
   const ok = W3.redirectFor('cmt_120212345678901234', '27600000099', 'Mozilla/5.0 (iPhone)');
   assert.equal(ok.status, 302);
   assert.equal(new URL(ok.headers.Location).host, 'wa.me');
-  assert.equal(new URL(ok.headers.Location).searchParams.get('text'), "Hi, I'd like to check my life cover (ref cmt_120212345678901234)");
+  assert.equal(new URL(ok.headers.Location).searchParams.get('text'), "Hi, I'd like to book a 30-minute call with an adviser. (ref cmt_120212345678901234)");
   assert.deepEqual(ok.click, { ref: 'cmt_120212345678901234', ua_class: 'ios' });
   for (const bad of ['https://evil.example', '<script>', 'cmt_1', '../x', '%0d%0aSet-Cookie:x']) {
     const r = W3.redirectFor(bad, '27600000099');
     assert.equal(new URL(r.headers.Location).host, 'wa.me');
-    assert.equal(new URL(r.headers.Location).searchParams.get('text'), "Hi, I'd like to check my life cover");
+    assert.equal(new URL(r.headers.Location).searchParams.get('text'), "Hi, I'd like to book a 30-minute call with an adviser.");
     assert.equal(r.click.ref, null);
   }
   assert.equal(ok.headers['Cache-Control'], 'no-store');

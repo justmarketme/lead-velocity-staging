@@ -9,7 +9,8 @@ const crypto = require('crypto');
 
 // ---------------------------------------------------------------- redirect (I-09, W03-notes A.2)
 const REDIRECT_REF_RE = /^(cmt_(\d{5,20}|org_\d{5,20}_\d{5,20})|dm_(messenger|instagram))$/;
-const PREFILL = "Hi, I'd like to check my life cover";
+// 18 Oct 2026 (Jono): all four ads pre-fill the booking sentence. W07 still recognises the old "check my life cover" opener.
+const PREFILL = "Hi, I'd like to book a 30-minute call with an adviser.";
 
 /** GET {CTWA_BASE_URL}/{ref} -> 302 to wa.me only. waDigits comes from the brands row, never from the URL. */
 function redirectFor(ref, waDigits, uaHeader = '') {
