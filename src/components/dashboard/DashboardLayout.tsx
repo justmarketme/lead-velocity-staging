@@ -137,7 +137,7 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
         variant: "destructive",
       });
     } else {
-      navigate("/login");
+      navigate("/admin");
     }
   };
 
