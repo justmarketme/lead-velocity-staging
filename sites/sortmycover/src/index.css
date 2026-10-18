@@ -64,7 +64,8 @@
 .menu-panel .nav-link { display: flex; font-size: 17px; padding: 0 4px; }
 
 .hero-band { background: var(--sm-charcoal); color: var(--sm-off-white); position: relative; overflow: hidden; }
-.hero-band::before { content: ""; position: absolute; inset: 0; background: radial-gradient(90% 60% at 20% 0%, var(--sm-charcoal-2) 0%, transparent 60%); }
+/* flat brand charcoal, the same #1F2933 as the ads (Jono, 18 Oct 2026: the lighter #2B3845 lift read as blue) */
+.hero-band::before { content: none; }
 .hero-band > * { position: relative; }
 .eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; color: var(--sm-amber); }
 
@@ -304,7 +305,7 @@ legend { padding: 0; width: 100%; }
 .home-hero-stage{position:relative;min-height:640px;overflow:hidden;border-radius:26px;background:#273440;color:#fff;display:flex;align-items:flex-end}
 .home-hero-stage>img,.home-hero-shade{position:absolute;inset:0;width:100%;height:100%}
 .home-hero-stage>img{object-fit:cover;object-position:center 45%}
-.home-hero-shade{background:linear-gradient(90deg,rgba(17,27,34,.85) 0%,rgba(17,27,34,.62) 39%,rgba(17,27,34,.05) 76%),linear-gradient(0deg,rgba(17,27,34,.45),transparent 36%)}
+.home-hero-shade{background:linear-gradient(90deg,rgba(31,41,51,.85) 0%,rgba(31,41,51,.62) 39%,rgba(31,41,51,.05) 76%),linear-gradient(0deg,rgba(31,41,51,.45),transparent 36%)}
 .home-hero-copy{position:relative;z-index:1;max-width:700px;padding:clamp(32px,5.5vw,76px)}
 .smc-home .home-hero-copy .eyebrow{color:var(--sm-amber)}
 .smc-home .home-hero-copy .home-headline{font-size:clamp(44px,5.5vw,72px);max-width:14ch;color:#fff}
@@ -316,7 +317,7 @@ legend { padding: 0; width: 100%; }
 .home-moments-intro h2,.home-choice-heading h2{font-size:clamp(29px,3.5vw,44px);line-height:1.08;letter-spacing:-.035em;max-width:13ch}
 .home-moments-intro p:last-child{max-width:34ch;margin-top:16px;line-height:1.6}
 .home-moment{position:relative;display:flex;align-items:flex-end;min-height:310px;overflow:hidden;border-radius:20px;color:#fff!important;text-decoration:none}
-.home-moment:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#14212de6 0%,#14212d17 65%)}
+.home-moment:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#1f2933e6 0%,#1f293317 65%)}
 .home-moment img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .45s ease}
 .home-moment:hover img,.home-moment:focus-visible img{transform:scale(1.045)}
 .home-moment span{position:relative;z-index:1;display:grid;gap:9px;padding:24px}
@@ -344,7 +345,7 @@ legend { padding: 0; width: 100%; }
 .home-how-photo{position:relative;overflow:hidden;border-radius:22px;height:310px;margin:25px 0 32px}
 .home-how-photo img{width:100%;height:100%;object-fit:cover;object-position:center 42%}
 @media(max-width:900px){.home-moments{grid-template-columns:repeat(2,1fr)}.home-moments-intro{grid-column:1/-1;padding:12px 0}.home-hero-stage{min-height:590px}}
-@media(max-width:640px){.smc-home .hero-band>.home-hero-wrap{padding-top:12px}.home-hero-stage{min-height:650px;align-items:flex-end;border-radius:18px}.home-hero-stage>img{object-position:57% center}.home-hero-shade{background:linear-gradient(0deg,#14212def 0%,#14212dcc 44%,#14212d09 91%)}.home-hero-copy{padding:30px 24px 52px}.smc-home .home-hero-copy .home-headline{font-size:clamp(42px,11vw,55px)}.smc-home .home-hero-copy p.home-intro{font-size:16px}.home-moments{grid-template-columns:1fr;gap:12px;margin:24px 0 42px}.home-moments-intro{grid-column:auto}.home-moment{min-height:260px}.smc-home .svc-photo{height:230px}.smc-home .svc-card>*:not(.svc-photo){margin-left:22px;margin-right:22px}.home-editorial{grid-template-columns:1fr;gap:10px}.home-editorial>img{height:280px}.home-editorial-reverse>img,.home-editorial-reverse>div{order:initial}.home-how-photo{height:240px}}
+@media(max-width:640px){.smc-home .hero-band>.home-hero-wrap{padding-top:12px}.home-hero-stage{min-height:650px;align-items:flex-end;border-radius:18px}.home-hero-stage>img{object-position:57% center}.home-hero-shade{background:linear-gradient(0deg,#1f2933ef 0%,#1f2933cc 44%,#1f293309 91%)}.home-hero-copy{padding:30px 24px 52px}.smc-home .home-hero-copy .home-headline{font-size:clamp(42px,11vw,55px)}.smc-home .home-hero-copy p.home-intro{font-size:16px}.home-moments{grid-template-columns:1fr;gap:12px;margin:24px 0 42px}.home-moments-intro{grid-column:auto}.home-moment{min-height:260px}.smc-home .svc-photo{height:230px}.smc-home .svc-card>*:not(.svc-photo){margin-left:22px;margin-right:22px}.home-editorial{grid-template-columns:1fr;gap:10px}.home-editorial>img{height:280px}.home-editorial-reverse>img,.home-editorial-reverse>div{order:initial}.home-how-photo{height:240px}}
 @media(prefers-reduced-motion:reduce){.home-moment img{transition:none}}
 .hub-photo{position:relative;margin:8px 0 36px;border-radius:22px;overflow:hidden;aspect-ratio:3/2;background:#ecedee;box-shadow:0 26px 50px #1f293324}
 .hub-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 40%}
@@ -376,7 +377,7 @@ legend { padding: 0; width: 100%; }
 .cta-actions,.cta-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px}
 .cta-row .hx-how-link{font-weight:800;text-decoration:underline;text-underline-offset:4px}
 .chat{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));z-index:55;display:flex;flex-direction:column;align-items:flex-end;gap:12px}
-.chat-launch{display:inline-flex;align-items:center;gap:10px;min-height:60px;padding:0 22px 0 18px;border:0;border-radius:999px;background:#25d366;color:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 18px 40px #1f293340,0 0 0 6px #25d36626}
+.chat-launch{display:inline-flex;align-items:center;gap:10px;min-height:60px;padding:0 22px 0 18px;border:0;border-radius:999px;background:var(--sm-amber);color:var(--sm-accent-text);font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 18px 40px #1f293340,0 0 0 6px #f5a62340}
 .chat-launch:hover{filter:brightness(1.04)}
 .chat-launch:focus-visible{outline:3px solid var(--sm-charcoal);outline-offset:3px}
 .chat-panel{width:min(340px,calc(100vw - 32px));max-height:calc(100vh - 110px);overflow:auto;display:grid;gap:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e4e5e7;box-shadow:0 20px 50px #1f293330}
