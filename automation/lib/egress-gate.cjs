@@ -13,7 +13,7 @@ const STUB_PREFIX = 'Dry-run stub (';
 
 const params = (n) => JSON.stringify(n.parameters || {});
 
-/** 'whatsapp' | 'twilio' | 'email' | 'messenger' | null. executeWorkflow -> SUB-whatsapp-send is not a sender here (the sub gates itself). */
+/** 'whatsapp' | 'twilio' | 'email' | 'messenger' | 'notify' | null. executeWorkflow -> SUB-whatsapp-send is not a sender here (the sub gates itself). */
 function senderKind(n) {
   const t = String(n.type || '');
   const s = params(n);
@@ -32,6 +32,7 @@ function senderKind(n) {
   if (/\/smc-client-email\b/.test(url)) return 'email'; // Supabase edge function -> Resend (SortMyCover client booking email, W05)
   if (/\/smc-email-send\b/.test(url)) return 'email'; // Supabase edge function -> Resend (prebuilt SortMyCover email: adviser booking notice, W05)
   if (/graph_url/.test(url) || /graph_url/.test(s)) return 'email'; // W20: URL built in a Code node (sendMail)
+  if (/emmadoesit\.cloud\/api\/notify\b/i.test(url)) return 'notify'; // EMMA -> Jono (Teams / Telegram / WhatsApp), W38
   return null;
 }
 
