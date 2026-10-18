@@ -421,3 +421,13 @@ test('planFirstTouch: a lead given a broker by hand (no routed_at) that books ge
   const r = W06.firstTouchTrigger({ origin: 'whatsapp', routed_at: '2026-10-17T10:00:00Z' }, {});
   assert.equal(r.reason, 'routed'); assert.equal(r.clock_ms, Date.parse('2026-10-17T10:00:00Z'));
 });
+
+test('W06: a page lead routed later (W39 /start/ web lead) whose BOOKING event wins the one claim gets broker_intro_booked, however long after routing', () => {
+  const l = { id: 'lead_sp', origin: 'page', broker_id: 'b1', routed_at: '2026-10-13T10:00:00+02:00', first_name: 'Thandi', phone: '+27600000181' };
+  const b = { id: 'b1', practice_name: 'Oracle Private Wealth', fsp_number: '28418', adviser_name: 'Mark Smith', intro_card_url: 'https://media.sortmycover.co.za/intro/mark.png' };
+  const booking = { id: 'bk_sp', created_at: '2026-10-13T10:12:00+02:00', start: '2026-10-15T10:00:00+02:00', method: 'teams' };
+  const p = planFirstTouch(l, b, W06.ctxFromEvent({ op: 'booking', booking }, Date.parse(booking.created_at)));
+  assert.equal(p.template, 'broker_intro_booked'); assert.equal(p.trigger, 'booking');
+  // the existing page path is unchanged: without the booking event the 45-s hold still decides
+  assert.equal(firstTouchTrigger(l, { booking }).reason, 'hold');
+});

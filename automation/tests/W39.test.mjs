@@ -275,7 +275,7 @@ test('W39.json via the real Code nodes: GET /start (token -> view) and POST /sta
   assert.deepEqual(fx.map((x) => x.json.kind), ['send', 'escalate']);
   const [wa] = await runCode(WF, 'WhatsApp input (Lindi line)', { items: [fx[0].json] });
   assert.deepEqual(wa.json, { to: '+27600000138', kind: 'text', text: W39.WILLS_TEXT('Thandi'), lead_id: LEAD_ID, correlation: `w39:will:${LEAD_ID}` }, 'the decided shape smc-whatsapp-send takes');
-  assert.deepEqual(evalParam(WF, 'Escalate to a person (wills)', 'options.queryReplacement', { json: fx[1].json, refs: { 'Decide (w39.decideAnswers)': dw.json } })[0], LEAD_ID);
+  assert.deepEqual(evalParam(WF, 'Escalate to a person (wills / web lead)', 'options.queryReplacement', { json: fx[1].json, refs: { 'Decide (w39.decideAnswers)': dw.json } })[0], LEAD_ID);
   for (const out of [c1.json, q.json, d.json, ans.json, aw.json]) assert.equal(JSON.stringify(out).includes(t), false, 'the token never travels past the caller check');
 });
 
@@ -397,4 +397,23 @@ test('W39.json via the real Code nodes: the two calls (adviser card, then confir
   const [ansB] = await runCode(WF, 'Answer (w39.answer)', { items: [{ broker_id: BROKER_ID }], refs: { 'Decide (w39.decideAnswers)': b.d, 'Save answers + timeline + cancel stall (one statement)': { claimed: 1 }, 'Adviser step (w39.coverStep)': b.st } });
   assert.deepEqual(ansB.json.body, { ok: true, next: 'slots' });
   assert.match(WF.nodes.find((n) => n.name === 'Log adviser_disclosed (before routing)').parameters.query, /'adviser_disclosed'/);
+});
+
+test('a /start/ page web lead (origin page, start_page_pending): never a session text; will / other go to a person; routed like any unrouted lead', () => {
+  const web = (over = {}) => LEAD({ origin: 'page', routing_reason: 'start_page_pending', consent_mode: 'generic', ...over });
+  const will = W39.decideAnswers({ lead: web(), answers: { intent: 'will' }, request_id: RID, now: NOW });
+  assert.equal(will.send, null, 'no 24-h session: no WhatsApp text'); assert.match(will.escalate.note, /wills/);
+  const other = W39.decideAnswers({ lead: web(), answers: { intent: 'other' }, request_id: RID, now: NOW });
+  assert.equal(other.send, null); assert.match(other.escalate.note, /web lead/);
+  assert.deepEqual(W39.answer({ plan: other, claimed: true }).effects.map((e) => e.kind), ['escalate']);
+  const close = W39.decideAnswers({ lead: web(), answers: { intent: 'life', age_band: 'lt35', budget_band: '1500_plus' }, request_id: RID, now: NOW, oobAgeBooks: false });
+  assert.equal(close.send, null);
+  // the two phases work the same for it
+  const plan = W39.decideAnswers({ lead: web(), answers: { intent: 'life', age_band: '35_44', budget_band: '1500_plus' }, request_id: RID, now: NOW });
+  assert.equal(W39.coverStep({ plan, lead: web(), brokers: [PICK] }).next, 'adviser');
+  const conf = W39.decideAnswers({ lead: web(), answers: { intent: 'life', age_band: '35_44', budget_band: '1500_plus' }, request_id: RID, confirm_adviser: BROKER_ID, now: NOW });
+  assert.deepEqual(W39.coverStep({ plan: conf, lead: web(), brokers: [PICK] }).steps, ['disclose', 'route']);
+  // a WhatsApp lead keeps Lindi's session lines
+  assert.ok(W39.decideAnswers({ lead: LEAD({ origin: 'ctwa' }), answers: { intent: 'other' }, request_id: RID, now: NOW }).send);
+  assert.match(WF.nodes.find((n) => n.name === 'Load lead + earlier answer (same request_id)').parameters.query, /l\.origin, l\.routing_reason/);
 });

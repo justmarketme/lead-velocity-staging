@@ -34,7 +34,7 @@ const link = (c, from, to, out = 0) => { c[from] ??= { main: [] }; while (c[from
 const chain = (c, ...names) => { for (let i = 0; i + 1 < names.length; i++) link(c, names[i], names[i + 1]); };
 
 // The lead, by the token's lead id only (the browser never sends a broker id). erased = W34 took the number away.
-const LEAD_COLS = `l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,
+const LEAD_COLS = `l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,
          l.age_band, l.budget_band, l.product_interest, l.disqualified_reason`;
 
 function buildW39() {
@@ -151,7 +151,7 @@ RETURNING id;`, "={{ (() => { const s = $('Adviser step (w39.coverStep)').first(
   n.push(code('WhatsApp input (Lindi line)', 'w39.mjs', `// decided shape (smc-whatsapp-send writes the communications row; correlation w39:<path>:<lead> = once per lead)\nreturn $input.all().map((i) => ({ json: i.json.message }));`));
   n.push(sub('WhatsApp Send (Lindi line)', 'WhatsApp Send'));
   // Same mechanism as W03's wills opener ("Escalate to a person (opener)"): a console escalation; once a day per lead at most.
-  n.push(pg('Escalate to a person (wills)', `INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)
+  n.push(pg('Escalate to a person (wills / web lead)', `INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)
 SELECT l.brand_id, 'human_handoff', 'normal', 'leads', l.id::text, l.id, now(), left($2, 500)
   FROM public.leads l
  WHERE l.id::text = $1
@@ -173,7 +173,7 @@ RETURNING id;`, "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id, $jso
   chain(c, 'W01 Lead core input (no first touch)', 'W01 Lead core (route, no W06 first touch; waits)', 'Re-read broker_id', 'Answer (w39.answer)', 'Respond (answers)');
   link(c, 'Answer (w39.answer)', 'Effects (claimed request only)');
   chain(c, 'Effects (claimed request only)', 'Effect?');
-  link(c, 'Effect?', 'WhatsApp input (Lindi line)', 0); link(c, 'Effect?', 'Escalate to a person (wills)', 1);
+  link(c, 'Effect?', 'WhatsApp input (Lindi line)', 0); link(c, 'Effect?', 'Escalate to a person (wills / web lead)', 1);
   chain(c, 'WhatsApp input (Lindi line)', 'WhatsApp Send (Lindi line)');
 
   return { id: 'smc-w39', name: 'W39 Start page API', nodes: n, connections: c, active: false, settings: SETTINGS, pinData: {},

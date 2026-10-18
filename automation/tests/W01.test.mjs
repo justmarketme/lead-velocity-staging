@@ -1050,3 +1050,54 @@ test('W39 disclosure before routing: expect_broker_id routes only the confirmed 
   const [h] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [B], first_touch: false, expect_broker_id: null, hold_only: true }] });
   assert.equal(h.json.r.reason, 'not_disclosed');
 });
+
+// ============================================================================================
+// /start/ page web intake (desktop "Book" without a token, Jono 18 Oct 2026): POST /lead with start_page: true
+// ============================================================================================
+const OPW = { ...tcBroker(), practice_name: 'Oracle Private Wealth', fsp_number: '28418', consent_mode: 'named' };
+const spBody = (over = {}) => ({ first_name: 'Thandi', mobile: '0600000181', consent: true,
+  consent_text: W01.consentRegistry(OPW)['CONSENT-NAMED-v5web'], consent_version: 'CONSENT-NAMED-v5web', consent_mode: 'named',
+  consent_ads: true, consent_ads_text: W01.WEB_CONSENT.ads.text, consent_ads_version: W01.WEB_CONSENT.ads.version,
+  page_url: 'https://sortmycover.co.za/start/?ref=w-book&via=google', started_at: TC_NOW - 60e3, request_id: 'req-sp-web-0001', honeypot: '',
+  context: { ref: 'w-book', utm: { utm_source: 'google' }, event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000005b1' }, start_page: true, ...over });
+const spCtx = (over = {}) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000181', lead_id: '00000000-0000-4000-8000-0000000a05b1', brand_id: 'smc', brokers: [OPW], consent_mode: 'named', ...over });
+
+test('start page web intake: stored with the named v5web consent, NOT routed (start_page_pending), no first touch / WhatsApp / CAPI yet, a lead_token', () => {
+  const sub = W01.normaliseSubmission(spBody(), {});
+  assert.equal(sub.start_page, true); assert.equal(sub.consent.ads, true, 'the separate ad-measurement choice is recorded');
+  const d = W01.decide(sub, spCtx());
+  assert.deepEqual([d.kind, d.outcome, d.mint_token], ['insert', 'start_page', true]);
+  assert.deepEqual([d.row.broker_id, d.row.routed_at, d.row.routing_reason, d.row.stage, d.row.disqualified_reason], [null, null, 'start_page_pending', 'new', null]);
+  assert.deepEqual(d.row.conv_state, { state: 'start_page', via: 'start_page' });
+  assert.equal(d.first_touch, null); assert.equal(d.capi, null, 'CAPI Lead at the hand-over (W39 confirm), like a held page lead'); assert.equal(d.notice, undefined);
+  assert.equal(d.row.consent_text, W01.consentRegistry(OPW)['CONSENT-NAMED-v5web']);
+  assert.match(d.row.consent_text, /Oracle Private Wealth \(FSP 28418\)/);
+  assert.ok(d.row.consent_ads_at, 'ads consent recorded');
+  assert.deepEqual(W01.consentAudit(sub, W01.consentRegistry(OPW)), { version: 'CONSENT-NAMED-v5web', known_version: true, matches_registry: true }, 'registry check: the exact text for Mark\'s practice');
+  assert.equal(W01.consentAudit(W01.normaliseSubmission(spBody({ consent_text: 'edited' }), {}), W01.consentRegistry(OPW)).matches_registry, false);
+  assert.deepEqual(W01.pageResponse(d, 'lt1.tok'), { http_status: 200, body: { ok: true, status: 'accepted', lead_id: d.row.id, lead_token: 'lt1.tok' } });
+  assert.ok(d.activities.some((a) => a.activity_type === 'start_page_pending'));
+  // no answers yet, any age: never out of band here (W39 decides on the page)
+  for (const over of [{}, { age_band: '51plus' }, { age_band: 'lt35', budget_band: 'lt750' }]) assert.equal(W01.decide(W01.normaliseSubmission(spBody(over), {}), spCtx()).outcome, 'start_page', JSON.stringify(over));
+  // the same body without the flag is the old quiz path (no answers -> out of band)
+  assert.equal(W01.decide(W01.normaliseSubmission(spBody({ start_page: false }), {}), spCtx()).outcome, 'not_qualified');
+  // a STOPped number stays suppressed, never a token
+  const sup = W01.decide(sub, spCtx({ suppressed: true }));
+  assert.deepEqual([sup.outcome, sup.mint_token], ['suppressed', false]);
+  // a 90-day duplicate gets a fresh token for the EXISTING lead, routed or not (opted out: none)
+  const prior = { id: '00000000-0000-4000-8000-0000000a05b0', brand_id: 'smc', created_at: TC_AT, broker_id: null, opted_out_at: null };
+  const dup = W01.decide(sub, spCtx({ prior }));
+  assert.deepEqual([dup.kind, dup.lead_id, dup.mint_token], ['duplicate', prior.id, true]);
+  assert.equal(W01.decide(sub, spCtx({ prior: { ...prior, opted_out_at: TC_AT } })).mint_token, false);
+  assert.equal(W01.decide(W01.normaliseSubmission(spBody({ start_page: false }), {}), spCtx({ prior })).mint_token, false, 'the old rule for other page posts');
+});
+
+test('start page web lead at the hand-over (W39 confirm): routed like any page lead, CAPI Lead now (start_page_pending counts as held), named consent strict', () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a05b1', brand_id: 'smc', origin: 'page', routing_reason: 'start_page_pending', budget_band: '1500_plus', consent_mode: 'named',
+    consent_text: W01.consentRegistry(OPW)['CONSENT-NAMED-v5web'], consent_ads_at: TC_AT, lead_event_id: 'evt-sp', created_at: TC_AT, phone: '+27600000181', first_name: 'Thandi' };
+  const r = W01.routeExisting(lead, { brokers: [OPW], now: TC_NOW, first_touch: false, expect_broker_id: OPW.id });
+  assert.equal(r.action, 'routed'); assert.equal(r.first_touch, null);
+  assert.equal(r.capi.event_name, 'Lead');
+  const other = { ...OPW, practice_name: 'Another Practice' };
+  assert.equal(W01.routeExisting(lead, { brokers: [other], now: TC_NOW, first_touch: false, expect_broker_id: OPW.id }).update.routing_reason, 'held_consent_names_other_practice', 'named consent: only the practice named in the text');
+});

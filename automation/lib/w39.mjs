@@ -143,7 +143,11 @@ export function decideAnswers({ lead, answers, request_id, confirm_adviser = nul
   if (a.age_band) set.age_band = a.age_band;
   if (a.budget_band) set.budget_band = a.budget_band;
   if (REASONS_OF[a.intent]) set.reasons = REASONS_OF[a.intent];
-  const send = (text, tag) => (lead.phone ? { to: lead.phone, kind: 'text', text, lead_id: lead.id, correlation: `w39:${tag}:${lead.id}` } : null);
+  // A web lead (/start/ page, W01 origin 'page') has never messaged us: no 24-h WhatsApp session, so no session text is ever
+  // planned for it. Its will / other answer goes to a person (escalation) instead; templates (W01 held notice, W06 intro
+  // card after booking) are unaffected. A WhatsApp lead (origin ctwa / comment / dm) wrote to us, so Lindi's line is a session text.
+  const session = lead.origin !== 'page';
+  const send = (text, tag) => (session && lead.phone ? { to: lead.phone, kind: 'text', text, lead_id: lead.id, correlation: `w39:${tag}:${lead.id}` } : null);
   const key = answersKey(lead.id, request_id, !!confirm_adviser);
   const plan = (path, extra) => ({ kind: 'work', path, key, set, notes: [], send: null, escalate: null, cover: false, confirm_adviser, thread_stage: 'done',
     ...extra, activity: { activity_type: 'start_page_answers', idempotency_key: key, payload: { path, ...a, request_id, via: 'start_page', ...(confirm_adviser ? { confirm_adviser } : {}) } } });
@@ -155,7 +159,7 @@ export function decideAnswers({ lead, answers, request_id, confirm_adviser = nul
   }
   if (a.intent === 'other') {
     set.conv_state.state = 'unbooked';
-    return plan('other', { send: send(OTHER_TEXT, 'other') });
+    return plan('other', { send: send(OTHER_TEXT, 'other'), ...(session ? {} : { escalate: { note: 'start page web lead: "something else", no WhatsApp session; a person follows up' } }) });
   }
   const ageIn = QUAL_AGE.has(a.age_band);
   if (!ageIn && !oobAgeBooks) {

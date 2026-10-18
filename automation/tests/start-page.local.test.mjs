@@ -13,6 +13,7 @@
 //   W05  POST /book (Teams, email, no Turnstile secret) -> HELD (pending_verification); the email link (ev1) -> op finalize ->
 //        the same row promoted to booked -> fan-out W06 op booking
 //   W06  the one intro card (broker_intro_booked, with the practice + FSP disclosure), recorded as a DRY communications row
+//   web  POST /lead start_page (desktop "Book", no token): stored unrouted, lead_token -> the same W39 / W04 / W05 / W06 chain
 //   +    an under-35 lead (OUT_OF_BAND_AGE_BOOKS): routed, never qualified, a timeline note; a will: a person (escalation)
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,6 +27,7 @@ import { runCode, evalParam } from './_n8ncode.mjs';
 import * as W4 from '../lib/w04.mjs';
 import * as W5 from '../lib/w05.mjs';
 import * as W39 from '../lib/w39.mjs';
+import * as W01 from '../lib/w01.mjs';
 
 const require = createRequire(import.meta.url);
 const LT = require('../security/lead-token.js');
@@ -125,7 +127,7 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
     const [a] = await runCode(WF39, 'Answer (w39.answer)', { items: [{ broker_id: (bk && bk[0]) || null }], refs });
     if (a.json.effects.some((e) => e.kind === 'escalate')) {
       const e = a.json.effects.find((x) => x.kind === 'escalate');
-      app(sqlOf(WF39, 'Escalate to a person (wills)'), evalParam(WF39, 'Escalate to a person (wills)', 'options.queryReplacement', { json: e, refs }));
+      app(sqlOf(WF39, 'Escalate to a person (wills / web lead)'), evalParam(WF39, 'Escalate to a person (wills / web lead)', 'options.queryReplacement', { json: e, refs }));
     }
     return { status: a.json.status, body: a.json.body, effects: a.json.effects, plan: d.json.plan, save: refs['Save answers + timeline + cancel stall (one statement)'] || null, core,
       step: refs['Adviser step (w39.coverStep)'] ? refs['Adviser step (w39.coverStep)'].step : null };
@@ -318,4 +320,91 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   q(`UPDATE public.leads SET opted_out_at = now() WHERE id = '${ID3}'`);
   assert.deepEqual((await getStart(TOK3)).body, { error: 'try_again' });
   assert.equal((await postAnswers(TOK3, { intent: 'other', request_id: 'req-sp-0004' })).status, 401);
+
+  // =========================================================================================== 8. the web path: POST /lead start_page (no token yet)
+  // Desktop "Book" opens /start/?ref=w-book&via=google with no token; step 0 posts /lead. W01's own nodes: Context SQL ->
+  // "Decide (w01.decide) + lead_token" (real Code node) -> "Insert lead + timeline".
+  const MOBILE_W = '+27820000311';
+  const webBody = { first_name: 'Synthetic Naledi', mobile: '082 000 0311', consent: true,
+    consent_text: W01.consentRegistry({ practice_name: 'Synthetic Advisory', fsp_number: '12345' })['CONSENT-NAMED-v5web'], consent_version: 'CONSENT-NAMED-v5web', consent_mode: 'named',
+    consent_ads: true, consent_ads_text: W01.WEB_CONSENT.ads.text, consent_ads_version: W01.WEB_CONSENT.ads.version,
+    page_url: 'https://sortmycover.co.za/start/?ref=w-book&via=google', started_at: Date.now() - 60e3, request_id: 'req-sp-web-0311', honeypot: '',
+    context: { ref: 'w-book', utm: { utm_source: 'google' }, event_id: crypto.randomUUID() }, start_page: true };
+  const postLead = async (body) => {
+    const sub = W01.normaliseSubmission(body, {});
+    const scr = W01.screen(sub, { now: Date.now() });
+    assert.equal(scr.ok, true, JSON.stringify(scr));
+    const cx = app(sqlOf(WF01, 'Context: counters, prior lead, suppression, brokers'), ['', '', '', '', scr.mobile, BRAND])[0];
+    const ctx = { brand_uuid: cx[0], ip_hits: Number(cx[1]), number_hits: Number(cx[2]), prior: j(cx[3]), suppressed: cx[4] === 't', brokers: j(cx[5]) || [] };
+    const gp = { from: 'page', sub, scr, ctx, mobile: scr.mobile, now: Date.now(), lead_id: crypto.randomUUID(), g: { ok: true, bot_check: 'skipped' }, need_lookup: false, lookup_override: null, test_hooks: false, form_post: false };
+    const [d] = await runCode(WF01, 'Decide (w01.decide) + lead_token', { items: [{}], refs: { 'Guard passed?': gp }, env: ENV });
+    if (d.json.kind === 'insert') app(sqlOf(WF01, 'Insert lead + timeline (one statement; broker_id written before W06 exists)'), evalParam(WF01, 'Insert lead + timeline (one statement; broker_id written before W06 exists)', 'options.queryReplacement', { json: d.json }));
+    return d.json;
+  };
+  const wl = await postLead(webBody);
+  assert.deepEqual([wl.kind, wl.decision.outcome, wl.http.http_status, wl.http.body.ok, wl.http.body.status], ['insert', 'start_page', 200, true, 'accepted']);
+  const WTOK = wl.http.body.lead_token;
+  const WID = LT.verifyLeadToken(WTOK, { secret: SECRET }).lead_id;
+  assert.equal(WID, wl.http.body.lead_id);
+  const w0 = lead(WID);
+  assert.deepEqual([w0.origin, w0.broker_id, w0.routing_reason, w0.conv_state.state, w0.consent_text_version, w0.disqualified_reason], ['page', null, 'start_page_pending', 'start_page', 'CONSENT-NAMED-v5web', null], 'stored, not routed');
+  assert.ok(w0.consent_ads_at, 'the optional ad-measurement choice is recorded');
+  assert.ok(acts(WID).includes('start_page_pending') && acts(WID).includes('consent_audit'));
+  assert.equal(q(`SELECT payload->>'matches_registry' FROM public.lead_activities WHERE lead_id = '${WID}' AND activity_type = 'consent_audit'`)[0][0], 'true', 'the exact named v5web text for this practice');
+  // the same number again within 90 days: a fresh token for the SAME lead, no second lead
+  const again = await postLead({ ...webBody, request_id: 'req-sp-web-0311b', context: { ...webBody.context, event_id: crypto.randomUUID() } });
+  assert.equal(again.kind, 'duplicate'); assert.equal(LT.verifyLeadToken(again.http.body.lead_token, { secret: SECRET }).lead_id, WID);
+  assert.equal(q(`SELECT count(*) FROM public.leads WHERE phone = '${MOBILE_W}'`)[0][0], '1');
+
+  const vw = await getStart(WTOK);
+  assert.deepEqual(vw.body, { first_name: 'Synthetic', adviser: null, methods: [], answers: {}, booking: null });
+  const WBODY = { intent: 'review', age_band: '45_50', has_cover: 'yes', budget_band: '1250_1499', want: 'unsure', request_id: 'req-sp-web-a1' };
+  const wa = await postAnswers(WTOK, WBODY);
+  assert.deepEqual(wa.body, { ok: true, next: 'adviser', adviser: CARD });
+  assert.equal(lead(WID).broker_id, null, 'phase (a): still not routed');
+  const wb = await postAnswers(WTOK, { ...WBODY, confirm_adviser: MARK });
+  assert.deepEqual(wb.body, { ok: true, next: 'slots' });
+  assert.equal(wb.core.r.capi.event_name, 'Lead', 'the CAPI Lead goes at the hand-over, like any held page lead');
+  assert.deepEqual([lead(WID).broker_id, lead(WID).routing_reason, lead(WID).order_state], [MARK, 'single_broker', 'attached']);
+  const wtl = q(`SELECT activity_type FROM public.lead_activities WHERE lead_id = '${WID}' AND activity_type IN ('adviser_disclosed', 'routed') ORDER BY occurred_at`).map((r) => r[0]);
+  assert.deepEqual(wtl, ['adviser_disclosed', 'routed']);
+  // slots -> book (held) -> verify -> booked -> W06 intro card (dry)
+  const cw = W4.resolveCaller(H(WTOK), { days: '14' }, ENV, Date.now());
+  const rw = app(sqlOf(WF04, 'Load lead + broker + holds (http)'), [cw.lead_id, ''])[0];
+  const xw = { lane: 'http', req: cw, lead: j(rw[0]), broker: j(rw[1]), bookings: j(rw[2]) || [] };
+  const sw = W4.respond({ ...xw, busy: [], route: W4.planRequest(xw).route, now: Date.now(), holidays: HOL });
+  assert.ok(sw.body.slots.length > 0);
+  const WSLOT = sw.body.slots.find((x) => x.start !== SLOT.start);
+  const pw = W5.parseHttp(H(WTOK), { slot_start: WSLOT.start, method: 'phone', email: 'synthetic-sp-naledi@example.test', request_id: 'req-sp-web-book', context: { source: 'start_page' } }, ENV, Date.now());
+  const bw = book(pw);
+  assert.equal(bw.row.status, 'pending_verification');
+  const hw = W5.holdPending(bw.ctx, bw.dec.plan, bw.row);
+  app(sqlOf(WF05, 'Save hold: lead email (unverified) + timeline'), evalParam(WF05, 'Save hold: lead email (unverified) + timeline', 'options.queryReplacement', { json: { ...bw.item, booking: bw.row, hold: hw } }));
+  assert.equal(hw.response.body.held, true);
+  q(`UPDATE public.leads SET email_verified = true, email_verified_at = now(), email_verified_via = 'link' WHERE id = '${WID}'`);
+  const fw = app(sqlOf(WF05, 'Load held slot + lead (finalize)'), [WID, ''])[0];
+  const bw2 = book({ lane: 'sub', ok: true, req: W5.finalizeRequest(j(fw[0]), j(fw[1]), Date.now()), hdr: {} });
+  assert.deepEqual([bw2.row.id, bw2.row.status], [bw.row.id, 'booked']);
+  const evw = W5.afterEvent(W5.sharedEventItem(bw2.ctx, bw2.dec.plan, {}, {}));
+  const ffw = W5.finish(bw2.ctx, bw2.dec.plan, bw2.row, evw, { site: ENV.SITE_URL, ics_secret: SECRET });
+  app(sqlOf(WF05, 'Save event ids + lead (stage, broker, invite email)'), evalParam(WF05, 'Save event ids + lead (stage, broker, invite email)', 'options.queryReplacement', { json: { ...bw2.item, booking: bw2.row, ev: evw, f: ffw } }));
+  assert.equal(lead(WID).stage, 'booked');
+  const r6w = app(sqlOf(WF06, 'Load lead, broker, brand, live booking'), [WID, ffw.w06.booking_id])[0];
+  const l6w = Object.fromEntries(cols6.map((k, i) => [k, r6w[i] === '' ? null : r6w[i]]));
+  l6w.suppressed = l6w.suppressed === 't'; l6w.booking = j(r6w[19]);
+  const [h6w] = await runCode(WF06, 'Hold for the in-page booking? (w06.holdSeconds)', { items: [l6w], refs: { 'Called by W01 / W05 / W07 (op routed | skip | booking | status)': ffw.w06 } });
+  assert.deepEqual([h6w.json.blocked, h6w.json.hold_s, l6w.origin], [null, 0, 'page'], 'a page lead, booking event: no 45-s hold');
+  const cw6 = app(sqlOf(WF06, 'Claim the one first touch (w06:first:{lead_id})'), evalParam(WF06, 'Claim the one first touch (w06:first:{lead_id})', 'options.queryReplacement', { json: h6w.json }));
+  const [clw] = await runCode(WF06, 'Claimed? -> need W04 slots?', { items: cw6.map((r) => ({ lead_id: r[0] })), refs: { 'Hold for the in-page booking? (w06.holdSeconds)': h6w.json, 'Event after hold': {} } });
+  const [pl6w] = await runCode(WF06, 'Plan card (w06.planFirstTouch + toCloudApi)', { items: [{}], refs: { 'Claimed? -> need W04 slots?': clw.json }, env: ENV });
+  assert.equal(pl6w.json.plan.template, 'broker_intro_booked', 'the approved template with the booked time (no session needed)');
+  const stw = await runCode(WF06, 'Dry run: stand-in response (external_id dry:w06:first:{lead_id})', { json: pl6w.json });
+  const [evdw] = await runCode(WF06, 'Evidence rows (w06.communicationRow + sentUpdate)', { items: [stw[0].json], refs: { 'Plan card (w06.planFirstTouch + toCloudApi)': pl6w.json } });
+  app(sqlOf(WF06, 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)'), evalParam(WF06, 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)', 'options.queryReplacement', { json: evdw.json }));
+  const cmw = q(`SELECT template_name, external_id, metadata->>'dry_run' FROM public.communications WHERE lead_id = '${WID}'`);
+  assert.deepEqual(cmw, [['broker_intro_booked', `dry:w06:first:${WID}`, 'true']], 'the only message to the web lead: the template, dry');
+  // a web lead's "something else" goes to a person, never a session text
+  const wl2 = await postLead({ ...webBody, mobile: '082 000 0312', request_id: 'req-sp-web-0312', context: { ...webBody.context, event_id: crypto.randomUUID() } });
+  const wo = await postAnswers(wl2.http.body.lead_token, { intent: 'other', request_id: 'req-sp-web-o1' });
+  assert.deepEqual(wo.body, { ok: true, next: 'chat' }); assert.deepEqual(wo.effects.map((e) => e.kind), ['escalate']);
 });
