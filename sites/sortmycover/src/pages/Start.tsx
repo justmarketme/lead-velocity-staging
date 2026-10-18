@@ -1,5 +1,5 @@
-/* /start/: the private per-lead page Lindi sends on WhatsApp (sortmycover.co.za/start/#lt=<token>). Six one-tap questions, then the
-   adviser's open times and the email for the invite. noindex,nofollow, no referrer, not in the sitemap or any menu, no site chrome,
+/* /start/: the private per-lead page Lindi sends on WhatsApp (sortmycover.co.za/start/#lt=<token>). Six one-tap questions, then who the
+   adviser is and what is shared with them (confirmed before any open time is fetched), the open times and the email for the invite. noindex,nofollow, no referrer, not in the sitemap or any menu, no site chrome,
    no chat widget, no Meta Pixel. The token lives in the URL fragment, then sessionStorage, and is sent only as X-Lead-Token.
    Pure logic: src/lib/start.ts. API: src/lib/start-api.ts. Styles: src/styles/start.css. */
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -10,9 +10,9 @@ import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
 import { createStartApi, type BookedInfo, type StartApi, type StartData } from "@/lib/start-api";
 import {
-  TOKEN_KEY, TOTAL_STEPS, answersPayload, availableMethods, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
+  TOKEN_KEY, TOTAL_STEPS, adviserDisclosure, afterAnswers, answersPayload, availableMethods, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
   methodLabel, nextStep, prevStep, readTokenFromHash, requestId, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink,
-  type Answers, type Method, type Slot, type StepId,
+  type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
 
 type Screen =
@@ -24,7 +24,6 @@ type Screen =
   | { k: "done"; info: BookedInfo; held: boolean };
 
 const SHOW_ROWS = 8;
-const DISCLOSURE = "Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.";
 const EMAIL_ERR = "That address doesn't look complete. Could you check it and send it again?";
 const WA = waLink(site.whatsapp_number);
 
@@ -46,7 +45,34 @@ const WANTS: Opt<NonNullable<Answers["want"]>>[] = [
 ];
 
 const reducedMotion = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const keyOf = (s: Screen) => (s.k === "step" ? "step:" + s.step : s.k);
+const keyOf = (s: Screen, adviserId?: string) => (s.k === "step" ? "step:" + s.step + (s.step === "adviser" ? ":" + (adviserId || "") : "") : s.k);
+
+/** Step 5 part A: who the call is with and what SortMyCover shares with them. The disclosure is required: always rendered in full,
+    at body size, from the API values. Exported for tests/start.test.ts. */
+export function AdviserIntro({ adviser, busy, onConfirm, heading }: { adviser: AdviserInfo; busy: boolean; onConfirm: () => void; heading?: ReactNode }) {
+  const [who, shared, intro] = adviserDisclosure(adviser);
+  return (
+    <>
+      {heading ?? <h1 className="st-q" id="st-q">This is your adviser, <em>{adviser.first_name}.</em></h1>}
+      <AdviserCard adviser={adviser} />
+      <div className="st-adv-disclose" data-disclosure>
+        <p>{who}</p>
+        <p>{shared}</p>
+        <p>{intro}</p>
+      </div>
+      <button type="button" className="btn st-btn" onClick={onConfirm} disabled={busy}>{busy ? "One moment…" : `See ${adviser.first_name}'s open times`}</button>
+    </>
+  );
+}
+
+function AdviserCard({ adviser }: { adviser: Pick<AdviserInfo, "name" | "firm" | "fsp"> }) {
+  return (
+    <div className="st-adv">
+      <span className="st-av" aria-hidden="true">{initials(adviser.name)}</span>
+      <div className="st-adv-t"><strong>{adviser.name}</strong><span>{adviser.firm} · authorised FSP {adviser.fsp}</span></div>
+    </div>
+  );
+}
 
 function TickSvg({ size = 12, width = 4 }: { size?: number; width?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg>;
@@ -88,7 +114,12 @@ function StartFlow() {
   const rid = useRef<{ key: string; id: string } | null>(null);
   const idFor = (key: string) => { if (rid.current?.key !== key) rid.current = { key, id: requestId() }; return rid.current.id; };
 
-  const adviserFirst = data?.adviser?.first_name || null;
+  /** The adviser on part A (from POST /start/answers, or GET /start when it already carries an id). */
+  const [adviser, setAdviser] = useState<AdviserInfo | null>(null);
+  /** The adviser id a 'slots' reply confirmed. Nothing asks for open times until this is set. */
+  const confirmed = useRef<string | null>(null);
+  const shown: AdviserInfo | null = adviser ?? (data?.adviser ? { ...data.adviser, id: data.adviser.id || "" } : null);
+  const adviserFirst = shown?.first_name || null;
 
   /* ---------- boot: token from the fragment, then strip it from the address bar ---------- */
   const load = useCallback(async () => {
@@ -106,7 +137,11 @@ function StartFlow() {
     if (d.booking && !d.booking.held) return setScreen({ k: "done", info: d.booking, held: false });
     const at = resumeAt(d.answers || {});
     if (at === "chat") return setScreen({ k: "chat" });
-    if (at === "time") return goTime(true);
+    if (at === "adviser") {
+      // already answered (maybe already routed): show part A and confirm before any open time is fetched
+      if (d.adviser?.id) { setAdviser({ ...d.adviser, id: d.adviser.id }); return setScreen({ k: "step", step: "adviser" }); }
+      return submitAnswers(d.answers || {}, false, null, true);
+    }
     setScreen({ k: "step", step: at });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -130,7 +165,7 @@ function StartFlow() {
   const bodyRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLHeadingElement>(null);
   const prevKey = useRef("loading");
-  const key = keyOf(screen);
+  const key = keyOf(screen, adviser?.id);
   useLayoutEffect(() => {
     const was = prevKey.current;
     prevKey.current = key;
@@ -143,15 +178,25 @@ function StartFlow() {
   /* ---------- steps ---------- */
   const go = (step: StepId) => { setErr(null); setScreen({ k: "step", step }); };
 
-  async function submitAnswers(a: Answers, toChat: boolean) {
+  /** POST /start/answers. Phase 1 (confirm null) routes and names the adviser; phase 2 confirms that adviser. Only a confirmed
+      'slots' reply opens the times (afterAnswers in src/lib/start.ts); a different adviser re-shows part A. */
+  async function submitAnswers(a: Answers, toChat: boolean, confirm: string | null = null, fromLoad = false) {
     setBusy(true); setErr(null);
-    const body = answersPayload(a, "");
+    const body = answersPayload(a, "", confirm);
     const r = await api.current!.postAnswers({ ...body, request_id: idFor("answers:" + JSON.stringify(body)) });
     setBusy(false);
+    const fail = () => (fromLoad ? setScreen({ k: "loadError" }) : setErr({ retry: () => submitAnswers(a, toChat, confirm) }));
     if (r.kind === "expired") return setScreen({ k: "expired" });
-    if (r.kind === "error") return setErr({ retry: () => submitAnswers(a, toChat) });
-    if (toChat || r.next === "chat") return setScreen({ k: "chat" });
-    goTime(false);
+    if (r.kind === "error") return fail();
+    if (toChat) return setScreen({ k: "chat" });
+    const o = afterAnswers(r, confirm);
+    if (o.k === "chat") return setScreen({ k: "chat" });
+    if (o.k === "error") return fail();
+    if (o.k === "adviser") { confirmed.current = null; setAdviser(o.adviser); return go("adviser"); }
+    confirmed.current = confirm;
+    setSlots(null); setPicked(null); setShowAll(false);
+    go("time");
+    fetchSlots();
   }
 
   function choose<K extends "intent" | "age_band" | "has_cover" | "budget_band" | "want">(step: StepId, k: K, v: NonNullable<Answers[K]>) {
@@ -174,6 +219,7 @@ function StartFlow() {
 
   /* ---------- time ---------- */
   async function fetchSlots() {
+    if (!confirmed.current) return go("adviser"); // never ask for times before the adviser is confirmed
     setSlotsState("loading");
     const r = await api.current!.getSlots(7);
     if (r.kind === "expired") return setScreen({ k: "expired" });
@@ -188,10 +234,6 @@ function StartFlow() {
         setMethod((m) => (m && av.includes(m) ? m : defaultMethod(r.data.methods!)));
       }
     }
-  }
-  function goTime(fresh: boolean) {
-    go("time");
-    if (fresh || !slots) fetchSlots();
   }
 
   /* ---------- book ---------- */
@@ -261,7 +303,7 @@ function StartFlow() {
       break;
     case "done": {
       const { info, held } = screen;
-      const adv = data?.adviser;
+      const adv = shown;
       body = (
         <div className="st-done">
           <span className="st-bigtick" aria-hidden="true"><TickSvg size={34} width={3.4} /></span>
@@ -299,21 +341,20 @@ function StartFlow() {
         case "want":
           body = (<><Q ref={headRef}>What would you most want cover <em>to do for you?</em></Q>{options(WANTS, answers.want, (v) => choose("want", "want", v))}{optionFoot}</>);
           break;
+        case "adviser":
+          body = shown?.id
+            ? (<><AdviserIntro adviser={shown} busy={busy} onConfirm={() => submitAnswers(answers, false, shown.id)} heading={<Q ref={headRef}>This is your adviser, <em>{shown.first_name}.</em></Q>} /><div className="st-foot">{errorBox}{backLink}</div></>)
+            : (<><Q ref={headRef}>Something went <em>wrong.</em></Q><p className="st-sub">Please try again.</p><div className="st-foot"><button type="button" className="btn st-btn" onClick={load}>Try again</button></div></>);
+          break;
         case "time": {
-          const adv = data?.adviser;
+          const adv = shown;
           const groups = slots ? groupSlots(slots, new Date()) : [];
-          const shown = showAll ? groups : limitGroups(groups, SHOW_ROWS);
-          const more = countRows(groups) > countRows(shown);
+          const visibleGroups = showAll ? groups : limitGroups(groups, SHOW_ROWS);
+          const more = countRows(groups) > countRows(visibleGroups);
           body = (
             <>
               <Q ref={headRef}>Pick a time for your <em>30-minute call</em></Q>
-              {adv && (
-                <div className="st-adv">
-                  <span className="st-av" aria-hidden="true">{initials(adv.name)}</span>
-                  <div className="st-adv-t"><strong>{adv.name}</strong><span>{adv.firm} · authorised FSP {adv.fsp}</span></div>
-                </div>
-              )}
-              <p className="st-disclose" data-disclosure>{DISCLOSURE}</p>
+              {adv && <AdviserCard adviser={adv} />}
               {methods.length > 1 && (
                 <div className="st-seg" role="group" aria-label="Meeting type">
                   {methods.map((m) => <button key={m} type="button" aria-pressed={method === m} onClick={() => setMethod(m)}>{methodLabel(m)}</button>)}
@@ -325,7 +366,7 @@ function StartFlow() {
               {slotsState === "error" && <div className="st-error" aria-live="polite"><p>Something went wrong.</p><button type="button" className="st-retry" onClick={fetchSlots}>Try again</button></div>}
               {slotsState === "idle" && slots && (
                 <div className="st-slots" role="group" aria-label="Open times">
-                  {shown.map((g) => (
+                  {visibleGroups.map((g) => (
                     <div key={g.label} className="st-slot-g">
                       <p className="st-slot-h">{g.label}</p>
                       {g.rows.map((s) => (
@@ -348,7 +389,7 @@ function StartFlow() {
         }
         case "email": {
           const sug = suggestEmail(email);
-          const adv = data?.adviser;
+          const adv = shown;
           body = (
             <form className="st-form" noValidate onSubmit={(ev) => { ev.preventDefault(); book(); }}>
               <Q ref={headRef}>Where should the <em>invite</em> go?</Q>

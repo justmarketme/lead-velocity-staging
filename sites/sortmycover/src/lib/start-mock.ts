@@ -26,22 +26,32 @@ function sampleSlots(now = new Date()): Slot[] {
   return out;
 }
 
+const ADVISER = { id: "mock-broker", first_name: "Mark", name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" };
+
 export function createMockApi(): StartApi {
   let answers: Answers = {};
+  let routed = false;
+  let confirmed = false;
   let slots = sampleSlots();
   let taken = false;
   return {
     async getStart() {
       await wait();
-      return { kind: "ok", data: { first_name: "Naledi", adviser: { first_name: "Mark", name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" }, methods: ["teams", "whatsapp_call", "phone"], answers, booking: null } };
+      return { kind: "ok", data: { first_name: "Naledi", adviser: routed ? ADVISER : null, methods: ["teams", "whatsapp_call", "phone"], answers, booking: null } };
     },
     async postAnswers(body: any) {
       await wait();
-      answers = { ...answers, ...body };
-      return { kind: "ok", next: body.intent === "will" || body.intent === "other" ? "chat" : "slots" };
+      const { confirm_adviser, request_id: _rid, ...rest } = body;
+      answers = { ...answers, ...rest };
+      if (body.intent === "will" || body.intent === "other") return { kind: "ok", next: "chat" };
+      routed = true;
+      // two phases, like W-start: the first POST routes and names the adviser; only a POST confirming that adviser opens the times
+      if (confirm_adviser === ADVISER.id) confirmed = true;
+      return confirm_adviser === ADVISER.id ? { kind: "ok", next: "slots", adviser: ADVISER } : { kind: "ok", next: "adviser", adviser: ADVISER };
     },
     async getSlots() {
       await wait();
+      if (!confirmed) throw new Error("mock: slots requested before the adviser was confirmed");
       return { kind: "ok", data: { slots, tz: "Africa/Johannesburg", methods: ["teams", "whatsapp_call", "phone"], adviser_first_name: "Mark" } };
     },
     async book(body) {

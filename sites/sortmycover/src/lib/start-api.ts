@@ -1,9 +1,10 @@
 /* n8n client for /start/ (base API_BASE = n8n_base + api_prefix). Every call carries the lead token in the X-Lead-Token header and
    nowhere else, never caches, never sends cookies or a referrer, and gives up after 10 s. The token is never logged. */
 import { API_BASE } from "./site";
-import type { Answers, Slot } from "./start";
+import type { AdviserInfo, Answers, AnswersReply, Slot } from "./start";
 
-export interface Adviser { first_name: string; name: string; firm: string; fsp: string | number }
+/** GET /start may return the adviser without an id (not yet confirmable); POST /start/answers always carries the id. */
+export interface Adviser { id?: string; first_name: string; name: string; firm: string; fsp: string | number }
 export interface Booking { start: string; end: string; method: string; held: boolean }
 export interface StartData {
   first_name: string | null;
@@ -18,7 +19,7 @@ export interface BookedInfo { booking_id?: string; start: string; end: string; m
 
 type Fail = { kind: "expired" } | { kind: "error" };
 export type StartResult = { kind: "ok"; data: StartData } | Fail;
-export type AnswersResult = { kind: "ok"; next: "slots" | "chat" } | Fail;
+export type AnswersResult = ({ kind: "ok" } & AnswersReply) | Fail;
 export type SlotsResult = { kind: "ok"; data: SlotsData } | Fail;
 export type BookResult =
   | { kind: "booked"; info: BookedInfo }
@@ -54,9 +55,15 @@ export function interpretBook(status: number, body: any): BookResult {
   return { kind: "error" };
 }
 
+const asAdviser = (x: any): AdviserInfo | null =>
+  x && typeof x.id === "string" && x.id && typeof x.name === "string" && typeof x.first_name === "string" && typeof x.firm === "string" && x.fsp != null
+    ? { id: x.id, first_name: x.first_name, name: x.name, firm: x.firm, fsp: x.fsp } : null;
+
 export function interpretAnswers(status: number, body: any): AnswersResult {
   if (isAuth(status)) return { kind: "expired" };
-  if (status >= 200 && status < 300 && body?.ok === true) return { kind: "ok", next: body.next === "chat" ? "chat" : "slots" };
+  if (status >= 200 && status < 300 && body?.ok === true && ["adviser", "slots", "chat"].includes(body.next)) {
+    return { kind: "ok", next: body.next, adviser: asAdviser(body.adviser) };
+  }
   return { kind: "error" };
 }
 

@@ -53,12 +53,14 @@
 .st-error p { margin: 0; color: var(--err); font-weight: 800; }
 .st-retry { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 2px solid var(--sm-charcoal); background: var(--sm-white); color: var(--sm-charcoal); font: inherit; font-weight: 800; font-size: 14px; cursor: pointer; }
 
-/* adviser card (navy circle, yellow initials) and the required disclosure */
+/* adviser card (navy circle, yellow initials) */
 .st-adv { display: flex; gap: 12px; align-items: center; background: var(--sm-off-white-2); border-radius: 14px; padding: 10px 12px; }
 .st-av { width: 42px; height: 42px; border-radius: 50%; background: var(--sm-charcoal); color: var(--sm-amber); display: grid; place-items: center; font-weight: 800; font-size: 15px; flex: none; }
 .st-adv-t { display: grid; line-height: 1.3; font-size: 13px; color: var(--sm-muted); }
 .st-adv-t strong { color: var(--sm-charcoal); font-size: 15px; }
-.st-disclose { margin: -4px 0 0; font-size: 12px; line-height: 1.45; color: var(--sm-muted); }
+/* step 5 part A: the required adviser disclosure, at body size and in full */
+.st-adv-disclose { display: grid; gap: 10px; font-size: 15px; line-height: 1.5; color: var(--sm-charcoal); }
+.st-adv-disclose p { margin: 0; }
 
 /* meeting type toggle */
 .st-seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--sm-off-white-2); border-radius: 999px; padding: 3px; }

@@ -33,12 +33,13 @@ export interface Answers {
   want?: Want;
 }
 
-export type StepId = "intent" | "age" | "cover" | "budget" | "want" | "time" | "email";
+/** "adviser" is step 5 part A: who the call is with, and what is shared with them, shown and confirmed before any open time is asked for. */
+export type StepId = "intent" | "age" | "cover" | "budget" | "want" | "adviser" | "time" | "email";
 /** Where a step leads: another step, the WhatsApp handoff, or "submit" (POST the answers, then the server says slots or chat). */
 export type Next = StepId | "chat" | "submit";
 
 export const TOTAL_STEPS = 6;
-const NUMBER: Record<StepId, number> = { intent: 1, age: 2, cover: 3, budget: 4, want: 4, time: 5, email: 6 };
+const NUMBER: Record<StepId, number> = { intent: 1, age: 2, cover: 3, budget: 4, want: 4, adviser: 5, time: 5, email: 6 };
 export const stepNumber = (s: StepId) => NUMBER[s];
 
 /** "A will" and "Something else" do not continue on the page: Lindi carries on in the chat. */
@@ -53,6 +54,7 @@ export function nextStep(step: StepId, a: Answers): Next {
     case "cover": return "budget";
     case "budget": return asksWant(a) ? "want" : "submit";
     case "want": return "submit";
+    case "adviser": return "submit"; // POST again with confirm_adviser; only a confirmed 'slots' answer opens the times
     case "time": return "email";
     case "email": return "submit";
   }
@@ -65,13 +67,15 @@ export function prevStep(step: StepId, a: Answers): StepId | null {
     case "cover": return "age";
     case "budget": return "cover";
     case "want": return "budget";
-    case "time": return asksWant(a) ? "want" : "budget";
+    case "adviser": return asksWant(a) ? "want" : "budget";
+    case "time": return "adviser";
     case "email": return "time";
   }
 }
 
-/** Where to resume from prefilled answers: the first unanswered step, "chat" for a will / something else, or "time" when every
-    question is answered (every age band continues to the time step; Jono, 18 Oct 2026). */
+/** Where to resume from prefilled answers: the first unanswered step, "chat" for a will / something else, or "adviser" when every
+    question is answered (every age band continues; Jono, 18 Oct 2026). Never "time": even a lead that is already routed sees and
+    confirms the adviser first. */
 export function resumeAt(a: Answers): StepId | "chat" {
   if (!a.intent) return "intent";
   if (isChatIntent(a.intent)) return "chat";
@@ -79,11 +83,12 @@ export function resumeAt(a: Answers): StepId | "chat" {
   if (!a.has_cover) return "cover";
   if (!a.budget_band) return "budget";
   if (asksWant(a) && !a.want) return "want";
-  return "time";
+  return "adviser";
 }
 
-/** Body for POST /start/answers. A will / something else sends the intent alone; `want` only on the no / not sure path. */
-export function answersPayload(a: Answers, request_id: string) {
+/** Body for POST /start/answers. A will / something else sends the intent alone; `want` only on the no / not sure path;
+    `confirm_adviser` only once the person has seen the adviser disclosure and pressed the button. */
+export function answersPayload(a: Answers, request_id: string, confirm_adviser?: string | null) {
   if (isChatIntent(a.intent)) return { intent: a.intent, request_id };
   return {
     intent: a.intent,
@@ -91,9 +96,36 @@ export function answersPayload(a: Answers, request_id: string) {
     has_cover: a.has_cover,
     ...(a.budget_band ? { budget_band: a.budget_band } : {}),
     ...(asksWant(a) && a.want ? { want: a.want } : {}),
+    ...(confirm_adviser ? { confirm_adviser } : {}),
     request_id,
   };
 }
+
+/* ---------------- adviser disclosure (before routing) ---------------- */
+export interface AdviserInfo { id: string; first_name: string; name: string; firm: string; fsp: string | number }
+export interface AnswersReply { next: "adviser" | "slots" | "chat"; adviser?: AdviserInfo | null }
+export type AfterAnswers = { k: "chat" } | { k: "adviser"; adviser: AdviserInfo } | { k: "slots" } | { k: "error" };
+
+/** What the page does with a POST /start/answers reply. `confirmed` is the adviser id sent as confirm_adviser (null on the first
+    POST). The times open ONLY on 'slots' to a confirming POST for that same adviser; any other adviser re-shows part A. */
+export function afterAnswers(r: AnswersReply, confirmed: string | null): AfterAnswers {
+  if (r.next === "chat") return { k: "chat" };
+  const adv = r.adviser && r.adviser.id ? r.adviser : null;
+  if (r.next === "adviser") return adv ? { k: "adviser", adviser: adv } : { k: "error" };
+  // next === "slots"
+  if (confirmed && (!adv || adv.id === confirmed)) return { k: "slots" };
+  return adv ? { k: "adviser", adviser: adv } : { k: "error" };
+}
+
+/** The required disclosure on part A, built from the API values (always shown in full). Gender-neutral. */
+export function adviserDisclosure(a: Pick<AdviserInfo, "first_name" | "name" | "firm" | "fsp">): [string, string, string] {
+  return [
+    `${a.name}, ${a.firm}, an authorised financial services provider (FSP ${a.fsp}). ${a.first_name} will be the one on the call with you.`,
+    `SortMyCover shares your name, WhatsApp number and the answers you gave here with ${a.first_name} to prepare for the call.`,
+    INTRO_DISCLOSURE,
+  ];
+}
+export const INTRO_DISCLOSURE = "Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.";
 
 /** Changing an earlier answer drops the ones that depended on it (the band question and the follow-up differ by cover path). */
 export function setAnswer<K extends keyof Answers>(a: Answers, key: K, value: Answers[K]): Answers {
