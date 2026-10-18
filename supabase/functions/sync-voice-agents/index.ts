@@ -331,7 +331,7 @@ async function syncSmc() {
         { tag: "Empathetically", description: "When a caller is worried, confused, or out of criteria." },
       ],
     },
-    asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Brokers", "Capital Legacy", "Teams", "gmail.com", "co.za"] },
+    asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Private Wealth", "Capital Legacy", "Teams", "gmail.com", "co.za"] },
     turn: SMC_TURN,
     conversation: { max_duration_seconds: 900 },
   };

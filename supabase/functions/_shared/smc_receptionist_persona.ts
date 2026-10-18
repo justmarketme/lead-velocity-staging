@@ -12,7 +12,7 @@ export const SMC_AGENT_NAME = "Lindi SortMyCover on call";
 export const SMC_NUMBER_SPOKEN = "060 015 6480";
 
 // The first adviser. Keep in step with brokers row 306062a1-c271-4ae1-8b1e-bb9aed10a5f6.
-export const SMC_ADVISER = { name: "Mark Weston", firm: "Oracle Brokers", fsp: "28418" };
+export const SMC_ADVISER = { name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" };
 
 export const SMC_FIRST_MESSAGE =
   "Hi, thanks for calling SortMyCover, you're speaking to Lindi, SortMyCover's virtual assistant. " +
