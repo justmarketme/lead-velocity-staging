@@ -11,11 +11,11 @@ export function WaPreview({ wills = false }: { wills?: boolean }) {
       <div className="wa-phone" aria-label="Example WhatsApp chat with Lindi">
         <div className="wa-bar">
           <span className="wa-avatar" aria-hidden="true">L</span>
-          <span><strong>Lindi</strong><small>SortMyCover · AI assistant</small></span>
+          <span><strong>Lindi</strong><small>SortMyCover · automated assistant</small></span>
         </div>
         <ol className="wa-thread">
           <li className="wa-msg wa-me">Hi Lindi, I'd like to chat about {wills ? "a will" : "cover for my family"}.</li>
-          <li className="wa-msg">Hi, I'm Lindi, SortMyCover's AI assistant. What would you like help with?
+          <li className="wa-msg">Hi, I'm Lindi, SortMyCover's automated assistant. What would you like help with?
             <span className="wa-chips" aria-hidden="true"><span>Life cover</span><span>Disability</span><span>Income protection</span></span>
           </li>
           <li className="wa-msg wa-me">Life cover</li>
@@ -28,7 +28,7 @@ export function WaPreview({ wills = false }: { wills?: boolean }) {
           <li className="wa-typing" aria-hidden="true"><i /><i /><i /></li>
         </ol>
       </div>
-      <figcaption>An example of the chat. Lindi is an AI assistant, and you can ask for a person at any time.</figcaption>
+      <figcaption>An example of the chat. Lindi is an automated assistant, and you can ask for a person at any time.</figcaption>
     </figure>
   );
 }

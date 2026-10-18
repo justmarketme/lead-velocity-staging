@@ -1,4 +1,4 @@
-/* /book/ (Jono, 17 Oct 2026): there is no booking form. Every call is booked on WhatsApp by Lindi, SortMyCover's AI booking
+/* /book/ (Jono, 17 Oct 2026): there is no booking form. Every call is booked on WhatsApp by Lindi, SortMyCover's automated booking
    assistant. The URL stays because ads, the footer and old links point here. */
 import { Seo } from "@/lib/head";
 import { APEX, COST_LINE, provider, site } from "@/lib/site";
@@ -22,7 +22,7 @@ export default function Book() {
         <h2>What happens on WhatsApp</h2>
         <WaPreview />
         <ol>{WA_STEPS().map((s) => <li key={s}>{s}</li>)}</ol>
-        <p>Lindi is an AI assistant. You can ask for a person at any time, and reply STOP to any message to stop. The number is <strong>{site.whatsapp_number}</strong>.</p>
+        <p>Lindi is an automated assistant, not a person. You can ask for a person at any time, and reply STOP to any message to stop. The number is <strong>{site.whatsapp_number}</strong>.</p>
         <p>Please do not send ID numbers, bank details or health details in a message.</p>
         <h2>Not sure yet?</h2>
         <p>Read about <Link to="/cover/">cover types</Link> or <Link to="/wills/">wills and estate</Link>, see <Link to="/how-it-works/">how it works</Link>, or <Link to="/how-we-make-money/">how we make money</Link>.</p>

@@ -228,6 +228,16 @@ describe.skipIf(!have)("pre-rendered output", () => {
     }
     expect(n).toBeGreaterThan(20);
   });
+  it("Lindi is an automated assistant, never an AI assistant, in anything a client sees (Jono, 18 Oct 2026)", () => {
+    const AI = /\bAI[- ]assistant\b|\buses AI\b|\bAI booking\b|\bour AI\b/i;
+    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(AI);
+    const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+    for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(AI);
+    // the honest wording stays: it is automated, and a person is available
+    const book = visible(pages.find((p) => p.rel === "book/index.html")!.html);
+    expect(book).toMatch(/automated assistant/);
+    expect(book).toMatch(/ask for a person/i);
+  });
   it("no public page names or links the will provider (Jono, 18 Oct 2026: named only on WhatsApp)", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/capital\s*legacy|capitallegacy|FSP 43826/i);
     // nor any shipped script or file: the provider's identity is internal (config/will-provider.internal.json)
@@ -240,7 +250,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
       "how-we-make-money/index.html": ["money", "Pays a fee for introductions"],
       "advisers/index.html": ["check", "On the FSCA register"],
       "about/index.html": ["company", "Legally responsible"],
-      "book/index.html": ["phone", "Lindi is an AI assistant, and you can ask for a person at any time"],
+      "book/index.html": ["phone", "Lindi is an automated assistant, and you can ask for a person at any time"],
     };
     for (const [rel, [viz, words]] of Object.entries(want)) {
       const h = pages.find((p) => p.rel === rel)!.html;

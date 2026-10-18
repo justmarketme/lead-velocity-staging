@@ -136,7 +136,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
             <WaIcon size={18} />Open WhatsApp
           </a>
           {CAL_ENABLED && <button type="button" className="chat-cal desk-only" onClick={() => openCal(c)}>Or pick a time in the calendar</button>}
-          <p className="chat-fine">Lindi, our AI assistant, replies. Ask for a person any time, or reply STOP to stop.</p>
+          <p className="chat-fine">Lindi, our automated assistant, replies. Ask for a person any time, or reply STOP to stop.</p>
         </div>
       )}
       {cal && (
