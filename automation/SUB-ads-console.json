@@ -27,7 +27,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "smc-ads-console-2",
@@ -61,7 +61,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "smc-ads-console-4",
@@ -95,7 +95,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "smc-ads-console-6",
@@ -129,7 +129,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "smc-ads-console-8",

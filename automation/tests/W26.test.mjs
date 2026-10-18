@@ -3,11 +3,12 @@
 //   node --test automation/tests/W26.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, utimesSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, utimesSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const A = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPTS = ['vps/provision.sh', 'vps/apply-analytics.sh', 'backup/pg_dump_nightly.sh', 'backup/restore.sh'];
@@ -195,16 +196,31 @@ test('I-06: Execute Command enabled for W23 in both compose files (only localFil
   assert.match(readFileSync(join(A, 'local/LOCAL-STAGING.md'), 'utf8'), /NODES_EXCLUDE/);
 });
 
-test('I-37b: W23/W19/W04 browser webhooks take Allowed Origins from PUBLIC_ALLOWED_ORIGINS, never a hard-coded list', () => {
-  const expr = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}";
-  const want = { 'W23.json': 8, 'W19.json': 1, 'W04.json': 1 };
+test('I-37b: browser webhooks carry the LITERAL origin list (n8n sends an allowedOrigins expression out verbatim)', () => {
+  const { ALLOWED_ORIGINS, PUBLIC_ORIGINS } = createRequire(import.meta.url)('../lib/public-origins.cjs');
+  assert.ok(PUBLIC_ORIGINS.includes('https://sortmycover.co.za') && PUBLIC_ORIGINS.includes('https://www.sortmycover.co.za'));
+  assert.equal(PUBLIC_ORIGINS.filter((o) => /^https:\/\/[a-z-]+\.sortmycover\.co\.za$/.test(o) && !o.startsWith('https://www.')).length, 10, 'the ten campaign hosts');
+  const want = { 'W23.json': 8, 'W19.json': 1, 'W04.json': 1, 'W39.json': 2, 'SUB-ads-console.json': 4 };
   for (const [f, n] of Object.entries(want)) {
     const wf = JSON.parse(readFileSync(join(A, f), 'utf8'));
     const withCors = wf.nodes.filter((x) => x.type === 'n8n-nodes-base.webhook' && x.parameters.options && x.parameters.options.allowedOrigins);
     assert.ok(withCors.length >= n, `${f}: ${n} browser webhooks`);
-    for (const x of withCors) assert.equal(x.parameters.options.allowedOrigins, expr, `${f} ${x.name}`);
+    for (const x of withCors) assert.equal(x.parameters.options.allowedOrigins, ALLOWED_ORIGINS, `${f} ${x.name}`);
   }
-  assert.ok(!/"allowedOrigins": "https:/.test(readFileSync(join(A, 'W23.json'), 'utf8')), 'no literal origin left in W23');
+});
+
+test('no webhook anywhere sets allowedOrigins to an expression (live bug 18 Oct 2026: the "={{ ... }}" text was the CORS header)', () => {
+  const files = readdirSync(A).filter((f) => f.endsWith('.json') && /^(W\d\d|SUB-)/.test(f));
+  assert.ok(files.length > 20);
+  for (const f of files) {
+    const wf = JSON.parse(readFileSync(join(A, f), 'utf8'));
+    for (const x of wf.nodes || []) {
+      const o = x.type === 'n8n-nodes-base.webhook' && x.parameters && x.parameters.options && x.parameters.options.allowedOrigins;
+      if (o === undefined || o === false || o === null) continue;
+      assert.ok(!String(o).trim().startsWith('='), `${f} ${x.name}: allowedOrigins is an expression`);
+      for (const origin of String(o).split(',')) assert.match(origin.trim(), /^(\*|https:\/\/[a-z0-9.-]+)$/, `${f} ${x.name}: ${origin}`);
+    }
+  }
 });
 
 test('I-44e / I-55e: Traefik maps /wa/:ref and /c/:id to the webhookId-prefixed n8n paths, same ids as W03/W05', () => {

@@ -17,7 +17,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: false, saveDataSuccessExecution: 'none', errorWorkflow: 'smc-w22' }; // tokens pass through items: successful runs are not saved
 const PRE = (lib) => `const L = require('lv-automation').${lib.replace(/\.mjs$/, '')};\n`;
-const ORIGINS = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"; // as W04 GET /slots
+const { ALLOWED_ORIGINS: ORIGINS } = createRequire(import.meta.url)('./lib/public-origins.cjs'); // literal list: n8n does not evaluate expressions in allowedOrigins
 
 let seq = 0; let X = 0;
 const pos = () => [((X++) % 8) * 240, Math.floor((X - 1) / 8) * 200];

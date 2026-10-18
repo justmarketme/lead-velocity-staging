@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 // I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (automation/lib/egress-gate.cjs; idempotent).
 const { gateSenders } = createRequire(import.meta.url)('../lib/egress-gate.cjs');
+const { ALLOWED_ORIGINS } = createRequire(import.meta.url)('../lib/public-origins.cjs'); // literal list: n8n does not evaluate expressions in allowedOrigins
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -696,7 +697,7 @@ return $input.all().map((i) => i.json).filter((r) => r && r.action === 'come_bac
   const backMail = w.add('n8n-nodes-base.microsoftOutlook', "Email: 'come back any time' from howzit@", { resource: 'message', operation: 'send', toRecipients: W19_MAIL_TO, subject: 'SortMyCover: start again any time', bodyContent: W19_MAIL_HTML('$json.text'), additionalFields: { bodyContentType: 'html' } }, { v: 2, row: 7, col: 6, credentials: OUTLOOK });
 
   // --- I-30e: portal "Switch off" card auto-renew (Bearer Supabase JWT; off only; opt-in happens at checkout)
-  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}" } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
+  const arHook = w.add('n8n-nodes-base.webhook', 'Portal: POST /billing-autorenew', { httpMethod: 'POST', path: 'billing-autorenew', responseMode: 'responseNode', options: { allowedOrigins: ALLOWED_ORIGINS } }, { v: 2, row: 8, col: 0, webhookId: 'smc-billing-autorenew' });
   const arAuth = w.add('n8n-nodes-base.code', 'Autorenew: verify broker JWT + body', code(`
 const r = BILLING.autorenew.parseAutorenewRequest({ headers: $json.headers || {}, body: $json.body || {} }, { jwtSecret: $env.SUPABASE_JWT_SECRET });
 return [{ json: r }];

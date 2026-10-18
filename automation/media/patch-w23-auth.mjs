@@ -7,6 +7,7 @@
 // After:  browser -> {API}/intro/upload-confirm and {API}/intro/approve with Authorization: Bearer <Supabase access token>;
 //         HS256 verify (SUPABASE_JWT_SECRET, env name) -> broker = brokers.user_id = sub. broker_id in the body is never read.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // TODO(I-44a): when the other workflows move Code nodes from import($env.REPO_DIR + ...) to require('lv-automation/lib/...'), change PRE below the same way.
@@ -33,7 +34,7 @@ if (!process.argv.slice(2).includes(FORCE_FLAG)) {
 const here = dirname(fileURLToPath(import.meta.url));
 const file = join(here, '..', 'W23.json');
 const w = JSON.parse(readFileSync(file, 'utf8'));
-const ORIGIN = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"; // I-37b: env-driven, never a literal (automation/tests/W26.test.mjs)
+const ORIGIN = createRequire(import.meta.url)('../lib/public-origins.cjs').ALLOWED_ORIGINS; // literal list: n8n does not evaluate expressions in allowedOrigins
 const N = (name) => w.nodes.find((n) => n.name === name);
 const drop = (names) => { w.nodes = w.nodes.filter((n) => !names.includes(n.name)); names.forEach((x) => delete w.connections[x]); };
 const link = (from, to, out = 0) => { const c = (w.connections[from] ||= { main: [] }); (c.main[out] ||= []); if (!c.main[out].some((t) => t.node === to)) c.main[out].push({ node: to, type: 'main', index: 0 }); };

@@ -220,7 +220,7 @@ test('W39.json: stable id smc-w39, inactive, errorWorkflow smc-w22, credentials 
   assert.doesNotMatch(raw, /EAA[A-Za-z0-9]{20,}|sk_live|-----BEGIN|Bearer [A-Za-z0-9._-]{20,}|lt1\.[A-Za-z0-9-]{8,}\.\d/);
   const hooks = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.webhook');
   assert.deepEqual(hooks.map((h) => [h.parameters.httpMethod, h.parameters.path]), [['GET', 'start'], ['POST', 'start/answers']]);
-  for (const h of hooks) { assert.match(h.parameters.options.allowedOrigins, /\$env\.PUBLIC_ALLOWED_ORIGINS/); assert.equal(h.parameters.responseMode, 'responseNode'); }
+  for (const h of hooks) { assert.ok(h.parameters.options.allowedOrigins.split(',').includes('https://sortmycover.co.za'), 'sortmycover.co.za may call /start'); assert.equal(h.parameters.responseMode, 'responseNode'); }
   for (const r of WF.nodes.filter((n) => n.type === 'n8n-nodes-base.respondToWebhook')) assert.deepEqual(r.parameters.options.responseHeaders.entries, [{ name: 'Cache-Control', value: 'no-store' }]);
   const subs = Object.fromEntries(WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow').map((n) => [n.parameters.workflowId.value, n.parameters.options.waitForSubWorkflow]));
   assert.deepEqual(subs, { 'smc-w01': true, 'smc-whatsapp-send': false }, 'routing waits (written before next: slots); the WhatsApp line is fire-and-forget');
