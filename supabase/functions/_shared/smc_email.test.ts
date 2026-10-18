@@ -37,7 +37,7 @@ Deno.test("SMC communication email: brand tokens only, plain text, LV signature 
   assertSmcLook(m.html, "communication");
   assert(m.html.includes("https://sortmycover.co.za/c/bk_1"), "link kept");
   assert(!m.html.includes("Director | Lead Velocity") && !m.text.includes("Director | Lead Velocity"), "LV text signature must not reach an SMC client");
-  assert(!/<[a-z\/]/i.test(m.text), "text part has no markup");
+  assert(!/<[a-z/]/i.test(m.text), "text part has no markup");
   assert(m.text.includes("Lerato"), "text carries the body");
 });
 

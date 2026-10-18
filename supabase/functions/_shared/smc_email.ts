@@ -130,6 +130,7 @@ export function smcBookingConfirmationEmail(d: { firstName?: string | null; brok
  * are not applied (no brand_id column) simply answers "none" and every email stays on the Lead Velocity path.
  */
 // deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- callers pass differently typed supabase clients
 export async function smcLeadIds(supabase: any, ids: Array<string | null | undefined>): Promise<Set<string>> {
   const want = [...new Set(ids.filter((x): x is string => !!x))];
   if (want.length === 0) return new Set();
