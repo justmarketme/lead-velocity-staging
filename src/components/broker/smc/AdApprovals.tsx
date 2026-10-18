@@ -42,7 +42,7 @@ function AdPreview({ row, skin, pending }: { row: AdRow; skin: ReviewSkin; pendi
       aria-label={peek ? "Preview this ad in colour. Approval is still required." : undefined}>
       {video
         ? <video src={src} poster={poster || undefined} controls playsInline preload="metadata" style={style} aria-label={`Ad version ${row.version}`} />
-        : <img src={src} alt={`SortMyCover ad featuring you, version ${row.version}`} style={style} loading="lazy" className={`transition-[filter,opacity] duration-500 motion-reduce:transition-none ${dim}`} />}
+        : <img src={src} alt={`SortMyCover ad featuring you, version ${row.version}`} style={style} loading="lazy" className={`transition-[filter,opacity] duration-200 motion-reduce:transition-none ${dim}`} />}
       {!video && <ApprovalBand show={pending} />}
     </div>
   );
