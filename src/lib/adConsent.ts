@@ -8,12 +8,12 @@
  * Pure helpers (no imports) so they run under `node --test src/lib/adConsent.test.mjs`.
  */
 
-export const AD_CONSENT_VERSION = "ADS-LIKENESS-v2";
+export const AD_CONSENT_VERSION = "ADS-LIKENESS-v3";
 export const AD_CONSENT_HEADING = "Your photo and name in our ads";
 export const AD_CONSENT_BODY =
-  "We may feature you in some of the SortMyCover ads that send clients to you, using your name, photo, practice name and FSP number. We won't run any ad with your face or name until you've approved that specific ad here in your portal. You can withdraw this consent at any time.";
+  "We may feature you in some of the SortMyCover ads that send clients to you, using your name and photo only. Your practice name and FSP number never appear on an ad; clients see them in the WhatsApp chat. We won't run any ad with your face or name until you've approved that specific ad here in your portal. You can withdraw this consent at any time.";
 export const AD_CONSENT_CHECKBOX =
-  "I agree that Lead Velocity may use my name, photo, practice name and FSP number in SortMyCover adverts that refer clients to me, subject to my approval of each such advert in the portal.";
+  "I agree that Lead Velocity may use my name and photo in SortMyCover adverts that refer clients to me, subject to my approval of each such advert in the portal.";
 
 export interface AdConsent { status: "granted" | "withdrawn"; at: string | null; wording_version: string }
 

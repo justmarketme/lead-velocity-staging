@@ -50,7 +50,7 @@ test('splitAds: waiting, approved, declined hidden, processing hidden', () => {
 });
 
 test('wording and version are identical in the portal and the migration (what the audit row stores)', () => {
-  const sql = readFileSync(new URL('../../supabase/migrations/20261013190000_broker_ad_consent_and_approval.sql', import.meta.url), 'utf8');
+  const sql = readFileSync(new URL('../../supabase/migrations/20261018200000_ad_consent_name_photo_only.sql', import.meta.url), 'utf8');
   const lit = (name) => {
     const m = sql.match(new RegExp(`${name}\\s+constant text := '((?:[^']|'')*)';`));
     assert.ok(m, `constant ${name} in the migration`);
@@ -59,5 +59,5 @@ test('wording and version are identical in the portal and the migration (what th
   assert.equal(lit('c_version'), A.AD_CONSENT_VERSION);
   assert.equal(lit('c_body'), A.AD_CONSENT_BODY);
   assert.equal(lit('c_checkbox'), A.AD_CONSENT_CHECKBOX);
-  assert.equal(A.AD_CONSENT_VERSION, 'ADS-LIKENESS-v2');
+  assert.equal(A.AD_CONSENT_VERSION, 'ADS-LIKENESS-v3');
 });

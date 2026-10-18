@@ -2,7 +2,7 @@
  * "Your photo and name in our ads": the broker's standing consent that Lead Velocity MAY feature him in SortMyCover ads,
  * each ad subject to his approval (AdApprovals). Give consent: tick + "Give consent" -> broker_set_ad_likeness_consent(true).
  * After: green "Consent given · 13 Oct 2026, 18:42" + "Withdraw consent" (in-page confirm) -> (false). Optional, never
- * blocks go-live. The server stores the exact wording (ADS-LIKENESS-v2) and a timestamped audit row for every change.
+ * blocks go-live. The server stores the exact wording (ADS-LIKENESS-v3; v2 before 18 Oct) and a timestamped audit row for every change.
  * Two skins like LvReview: "elite" (/broker-elite, Tailwind) and "portal" (/broker/*, portal.css classes).
  */
 import { useState } from "react";
