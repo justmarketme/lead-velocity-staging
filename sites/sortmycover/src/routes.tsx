@@ -30,6 +30,8 @@ export interface RouteDef {
   campaign?: { slug: string; view: "landing" | "thanks" };
   /** Output file relative to dist (defaults to <path>/index.html). */
   file?: string;
+  /** Private per-lead page (/start/): rendered without the site chrome (header, footer nav, chat widget) and no Meta Pixel. */
+  bare?: boolean;
 }
 
 const BUILT = "2026-10-11"; // last content change for static pages; article lastmod comes from each article's lastReviewed
@@ -73,7 +75,13 @@ export const apexRoutes: RouteDef[] = [
   page("/terms/", () => import("./pages/Legal").then((m) => ({ default: m.Terms })), { lastmod: "2026-10-17" }),
   // PAIA manual: not published yet, the page is a placeholder with the contact route, so it stays noindex.
   page("/paia/", () => import("./pages/Legal").then((m) => ({ default: m.Paia })), { indexable: false }),
+  // Lindi's per-lead link (sortmycover.co.za/start/#lt=<token>): hidden, noindex,nofollow, not in the sitemap or any menu.
+  page("/start/", () => import("./pages/Start"), { indexable: false, bare: true, lastmod: "2026-10-18" }),
 ];
+
+/** Folder-style path ("/start" -> "/start/"), as the router table stores it. */
+export const routePath = (p: string) => (p.endsWith("/") || p.endsWith(".html") ? p : p + "/");
+export const isBarePath = (p: string) => apexRoutes.some((r) => r.bare && r.path === routePath(p));
 
 export const notFoundRoute: RouteDef = page("/404.html", () => Promise.resolve({ default: NotFound }), { indexable: false, file: "404.html" });
 

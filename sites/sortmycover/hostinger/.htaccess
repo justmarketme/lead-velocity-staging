@@ -113,6 +113,12 @@ Header always set Strict-Transport-Security "max-age=86400"
 Header always set X-Frame-Options "DENY"
 SetEnvIfNoCase Host "\.sortmycover\.co\.za$" CAMPAIGN_HOST=1
 Header always set X-Robots-Tag "noindex, nofollow" env=CAMPAIGN_HOST
+# /start/ (per-lead page): noindex and no referrer (mod_dir serves start/index.html as an internal redirect, hence both env names)
+SetEnvIf Request_URI "^/start(/|$)" START_PAGE=1
+Header always set X-Robots-Tag "noindex, nofollow" env=START_PAGE
+Header always set Referrer-Policy "no-referrer" env=START_PAGE
+Header always set X-Robots-Tag "noindex, nofollow" env=REDIRECT_START_PAGE
+Header always set Referrer-Policy "no-referrer" env=REDIRECT_START_PAGE
 <FilesMatch "\.(html)$">
   Header set Cache-Control "public, max-age=0, must-revalidate"
 </FilesMatch>

@@ -38,7 +38,10 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
 };
 
-const dest = (to: string) => ({ status: 301, headers: { Location: to } });
+/** /start/ (Lindi's per-lead link): noindex in a header as well as the meta tag, and no referrer at all. */
+export const START_HEADERS: Record<string, string> = { "X-Robots-Tag": "noindex, nofollow", "Referrer-Policy": "no-referrer" };
+
+const dest = (to: string) =>({ status: 301, headers: { Location: to } });
 
 export function vercelConfig() {
   const routes: Record<string, unknown>[] = [];
@@ -55,6 +58,8 @@ export function vercelConfig() {
   routes.push({ src: "/(.*)", headers: SECURITY_HEADERS, continue: true });
   routes.push({ src: "/(.*)", has: [{ type: "host", value: ".+" + esc(CAMPAIGN_SUFFIX) }], headers: { "X-Robots-Tag": "noindex, nofollow" }, continue: true });
   routes.push({ src: "/(.*)", has: [{ type: "host", value: ".*\\.vercel\\.app" }], headers: { "X-Robots-Tag": "noindex, nofollow, noarchive" }, continue: true });
+  // the private per-lead page: never indexed, never leaks a referrer
+  routes.push({ src: "^/start(?:/.*)?$", headers: START_HEADERS, continue: true });
   routes.push({ src: "/assets/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
   routes.push({ src: "/fonts/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
   routes.push({ src: "/(.*)\\.(png|webp|avif|jpg|ico|svg|webmanifest)", headers: { "Cache-Control": "public, max-age=86400" }, continue: true });
@@ -140,6 +145,9 @@ export function htaccess(): string {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) p(`Header always set ${k} "${v}"`);
   p(`SetEnvIfNoCase Host "${esc(CAMPAIGN_SUFFIX)}$" CAMPAIGN_HOST=1`);
   p('Header always set X-Robots-Tag "noindex, nofollow" env=CAMPAIGN_HOST');
+  p("# /start/ (per-lead page): noindex and no referrer (mod_dir serves start/index.html as an internal redirect, hence both env names)");
+  p('SetEnvIf Request_URI "^/start(/|$)" START_PAGE=1');
+  for (const env of ["START_PAGE", "REDIRECT_START_PAGE"]) for (const [k, v] of Object.entries(START_HEADERS)) p(`Header always set ${k} "${v}" env=${env}`);
   p('<FilesMatch "\\.(html)$">');
   p('  Header set Cache-Control "public, max-age=0, must-revalidate"');
   p("</FilesMatch>");

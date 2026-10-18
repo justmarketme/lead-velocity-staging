@@ -291,6 +291,14 @@
       "continue": true
     },
     {
+      "src": "^/start(?:/.*)?$",
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow",
+        "Referrer-Policy": "no-referrer"
+      },
+      "continue": true
+    },
+    {
       "src": "/assets/(.*)",
       "headers": {
         "Cache-Control": "public, max-age=31536000, immutable"
