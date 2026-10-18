@@ -70,7 +70,7 @@ test('spec v2: exact strings, question order and keys, no banned words in anythi
   assert.equal(SPEC.form_settings.form_type.ui, 'Higher intent');
   assert.deepEqual([SPEC.privacy_policy.url, SPEC.privacy_policy.link_text], ['https://sortmycover.co.za/privacy/', 'Privacy notice']);
   assert.deepEqual([SPEC.thank_you.headline.text, SPEC.thank_you.description.text, SPEC.thank_you.button.text.text, SPEC.thank_you.button.url],
-    ['Check WhatsApp', 'Lindi will message you in a moment to pick a time.', 'Chat on WhatsApp', 'https://wa.me/27600156480']);
+    ['Check WhatsApp', 'Lindi will message you in a moment to pick a time. Quick answers, no call centre or waiting on hold.', 'Chat on WhatsApp', 'https://wa.me/27600156480']);
   assert.ok(SPEC.sources.length >= 4 && SPEC.sources.every((s) => /^https:\/\//.test(s.url)));
 });
 

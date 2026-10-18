@@ -97,3 +97,11 @@ Deno.test("every age group books (Jono, 18 Oct 2026): no band is out of criteria
   assert(persona.includes("Which age group are you in: under 35, 35 to 44, 45 to 50, or over 50?"));
   assert(!/only take 35 to 50|out of criteria/i.test(persona));
 });
+
+Deno.test("why WhatsApp (Jono, 18 Oct 2026): one spoken sentence in the consent ask; no price words, no AI", async () => {
+  const { SMC_WHATSAPP_CONSENT_ASK } = await import("./smc_receptionist_persona.ts");
+  assert(SMC_WHATSAPP_CONSENT_ASK.includes("WhatsApp is just quicker for most people: you get answers fast, with no call centre or waiting on hold, and your confirmation and reminders come there too."));
+  assert(SMC_WHATSAPP_CONSENT_ASK.endsWith("Do I have your permission to contact you on WhatsApp on this number?"));
+  assert(!/\bfree\b|\bcosts?\b|\bprice\b|\bR\d/i.test(SMC_WHATSAPP_CONSENT_ASK));
+  assert(!/\bAI\b/.test(SMC_WHATSAPP_CONSENT_ASK));
+});

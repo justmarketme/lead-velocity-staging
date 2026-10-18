@@ -49,6 +49,10 @@
         "chars": 63
       },
       {
+        "text": "We'll confirm on WhatsApp: quick answers, no call centre or waiting on hold.",
+        "chars": 76
+      },
+      {
         "text": "You talk to an adviser for 30 minutes, by phone or video.",
         "chars": 57
       },
@@ -260,8 +264,8 @@
       "chars": 14
     },
     "description": {
-      "text": "Lindi will message you in a moment to pick a time.",
-      "chars": 50
+      "text": "Lindi will message you in a moment to pick a time. Quick answers, no call centre or waiting on hold.",
+      "chars": 100
     },
     "button": {
       "type_ui": "View website",

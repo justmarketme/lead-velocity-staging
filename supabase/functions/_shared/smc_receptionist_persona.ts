@@ -29,6 +29,7 @@ export function smcCallbackFirstMessage(firstName?: string | null): string {
 // POPIA WhatsApp-consent record, with its timestamp.
 export const SMC_WHATSAPP_CONSENT_ASK =
   "To get this set up for you, we'll continue on WhatsApp, and that's where we'll lock in your appointment with the adviser. " +
+  "WhatsApp is just quicker for most people: you get answers fast, with no call centre or waiting on hold, and your confirmation and reminders come there too. " +
   "Do I have your permission to contact you on WhatsApp on this number?";
 
 // Read word for word before anything is saved. Stored on the lead as consent_text.
