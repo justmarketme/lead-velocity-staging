@@ -13,7 +13,7 @@ import * as F from '../backup/ops_feeders.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..', '..');
-const MIG06 = readFileSync(join(ROOT, 'supabase/migrations/20261002_smc_06_pass2.sql'), 'utf8');
+const MIG06 = readFileSync(join(ROOT, 'supabase/migrations/20261002060000_smc_06_pass2.sql'), 'utf8');
 const INFRA_SQL = readFileSync(join(here, '..', 'backup', 'ops_feeders.sql'), 'utf8');
 const ddl = (t) => { const m = MIG06.match(new RegExp(`CREATE TABLE IF NOT EXISTS ops\\.${t} \\(([\\s\\S]*?)\\n\\);`)); assert.ok(m, `DDL for ops.${t}`); return m[0]; };
 const cols = (t) => [...ddl(t).matchAll(/^\s{2}([a-z_0-9]+)\s+[a-z]/gm)].map((m) => m[1]).filter((c) => !['primary', 'unique'].includes(c));

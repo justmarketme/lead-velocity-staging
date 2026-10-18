@@ -30,7 +30,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT/.env}"
-MIGRATION="$ROOT/supabase/migrations/20261002_smc_01_security.sql"
+MIGRATION="$ROOT/supabase/migrations/20261002010000_smc_01_security.sql"
 DUMP_DATE="${DUMP_DATE:-$(date +%F)}"
 DUMP="$ROOT/supabase/live_schema_${DUMP_DATE}.sql"
 MODE="full"

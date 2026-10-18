@@ -4,12 +4,13 @@
 // Flow: portal -> POST ms-oauth {action:'start'} (broker JWT) -> authorize_url -> Microsoft sign-in + Accept ->
 //       GET ms-oauth/callback?code&state -> token exchange (client secret lives only in the function secrets) ->
 //       refresh token ONLY through smc_vault_store_ms_refresh() (Supabase Vault) -> 302 back to /broker/calendar.
-// This is the same vault + status contract W20 uses (migration 20261002_smc_13), so W04/W05 read the token unchanged
+// This is the same vault + status contract W20 uses (migration 20261002130000_smc_13), so W04/W05 read the token unchanged
 // (smc_vault_ms_refresh while calendar_status = 'ok').
 //
 // PKCE without a table: code_verifier = HMAC(MS_OAUTH_STATE_SECRET, 'ms-pkce|' + nonce). The nonce travels in the signed
 // state; the verifier itself never leaves the server, so an intercepted code is useless without the secret.
 import { createHmac, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { Buffer } from 'node:buffer'; // Supabase edge runtime has no global Buffer
 
 export const LOGIN_HOST = 'https://login.microsoftonline.com';
 export const GRAPH = 'https://graph.microsoft.com/';
@@ -180,6 +181,37 @@ export function planCallback({ state, query = {}, token = null, currentStatus = 
     detail: { account, name: idt.name ? String(idt.name).slice(0, 120) : null, tenant_id: tenant, scopes, at },
     redirect: go({ calendar: 'connected' }),
   };
+}
+
+/**
+ * The mailbox the broker actually signed in with. Graph GET /me (allowed by User.Read) with the access token from the code
+ * exchange; `mail` is the primary SMTP address, `userPrincipalName` the sign-in name (used only when mail is empty and the
+ * UPN is a real address, never a guest "#EXT#" UPN). W04 getSchedule and W05 events use brokers.calendar_email, so this
+ * must be the connected mailbox, not the portal login email.
+ */
+export const ME_URL = `${GRAPH}v1.0/me?$select=mail,userPrincipalName`;
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export function mailboxFromMe(res) {
+  if (!res) return null;
+  const body = res.body && typeof res.body === 'object' ? res.body : res;
+  const code = Number(res.statusCode || 200);
+  if (code < 200 || code >= 300 || body.error) return null;
+  for (const v of [body.mail, body.userPrincipalName]) {
+    const e = String(v || '').trim().toLowerCase();
+    if (e && EMAIL.test(e) && !e.includes('#ext#') && e.length <= 254) return e;
+  }
+  return null;
+}
+
+/**
+ * calendar_email to store: the /me mailbox, else the id_token sign-in name the plan captured (still the signed-in account,
+ * never the portal login). Returns { email, source } or null.
+ */
+export function chooseMailbox(meRes, plan = {}) {
+  const me = mailboxFromMe(meRes);
+  if (me) return { email: me, source: 'graph_me' };
+  const a = String(plan.account || '').trim().toLowerCase();
+  return a && EMAIL.test(a) && !a.includes('#ext#') ? { email: a, source: 'id_token' } : null;
 }
 
 /** The plan with the token removed: what may be logged. */

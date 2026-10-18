@@ -324,7 +324,8 @@ test('qualifyLead backstop: bands, call preference, consent; key or label accept
   assert.equal(M.qualifyLead(lead(good)).qualified, true);
   assert.equal(M.qualifyLead(lead({ age_band: '35-44', budget_band: 'R750-R1,250', call_ok: 'Yes' })).qualified, true);
   assert.deepEqual(M.qualifyLead(lead({ ...good, age_band: '51plus' })).reasons, ['age_band']);
-  assert.deepEqual(M.qualifyLead(lead({ ...good, budget_band: '500_750' })).reasons, ['budget_band']);
+  assert.equal(M.qualifyLead(lead({ ...good, budget_band: '500_750' })).qualified, true, 'tier C (under R750) is not out of band (2026-10-11)');
+  assert.deepEqual(M.qualifyLead(lead({ ...good, budget_band: 'r100' })).reasons, ['budget_band'], 'an unknown band is still refused');
   assert.deepEqual(M.qualifyLead(lead({ ...good, call_ok: 'no' })).reasons, ['call_ok']);
   assert.deepEqual(M.qualifyLead(lead(good, null)).reasons, ['no_consent']);
   assert.deepEqual(M.qualifyLead(lead(good, 'false')).reasons, ['no_consent']);

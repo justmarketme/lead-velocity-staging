@@ -23,7 +23,7 @@ function run(name, headers, body, env = { SUPABASE_JWT_SECRET: SECRET }) {
 }
 const BOTH = [['Verify broker JWT (upload)', 'Portal upload confirmed (browser, Bearer JWT)'], ['Verify broker JWT (approve)', 'Approve webhook (browser, Bearer JWT)']];
 
-const ORIGINS = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"; // I-37b
+const ORIGINS = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"; // I-37b
 test('both browser endpoints: no header auth credential, no cookie, respond via node, CORS pinned to the portal origin', () => {
   for (const [, hook] of BOTH) {
     const p = node(hook).parameters;
@@ -103,7 +103,7 @@ test('existing media-row logic is intact and answers are sent', () => {
 
 test('inlined verifier is the repo module (sha stamp matches lead-token.js)', () => {
   const sha = crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, '..', 'security', 'lead-token.js'))).digest('hex').slice(0, 12);
-  for (const [ver] of BOTH) assert.ok(node(ver).parameters.jsCode.includes('sha256:' + sha), 're-run node automation/media/patch-w23-auth.mjs');
+  for (const [ver] of BOTH) assert.ok(node(ver).parameters.jsCode.includes('sha256:' + sha), 'refresh the inlined lead-token.js copy in the W23 Verify broker JWT nodes in place (patch-w23-auth.mjs rebuilds W23 from a stale base)');
 });
 
 test('static page: Bearer header from the Supabase session, no cookie, no broker id sent', () => {
@@ -297,31 +297,11 @@ test('I-40i workflow: both endpoints behind the JWT node, broker from user_id = 
   assert.ok(!JSON.stringify(W.nodes.filter((n) => /Script gate|Generate variant/.test(n.name))).match(/sk-ant|eyJ/));
 });
 
-// I-41h: every LLM-using step logs one ops.costs row; a failed insert never fails the request
-test('script-generate and script-recheck log ops.costs (kind llm, source_ref shape, credential by name, non-blocking)', () => {
-  const logs = W.nodes.filter((n) => /^Log LLM cost/.test(n.name));
-  assert.deepEqual(logs.map((n) => n.name).sort(), ['Log LLM cost (generate 1)', 'Log LLM cost (generate 2)', 'Log LLM cost (recheck)']);
-  for (const n of logs) {
-    assert.match(n.parameters.query, /insert into ops\.costs/);
-    assert.match(n.parameters.query, /'llm'/);
-    assert.match(n.parameters.query, /on conflict do nothing/);
-    assert.equal(n.credentials.postgres.name, 'LV Supabase - n8n_app (least privilege)');
-    assert.equal(n.onError, 'continueRegularOutput');
-    assert.match(n.parameters.options.queryReplacement, /\$env\.BRAND_ID/);
-    // side branch only: nothing downstream, so it cannot reach a Respond node
-    assert.equal(W.connections[n.name], undefined);
-  }
-  const calc = (n) => node(n).parameters.jsCode;
-  const gen1 = calc('Cost row (generate 1)'), gen2 = calc('Cost row (generate 2)'), rc = calc('Cost row (recheck)');
-  assert.ok(gen1.includes('`w23:script-generate:${broker}:${$execution.id}:${$json.angle}:1`'));
-  assert.ok(gen2.includes('`w23:script-generate:${broker}:${$execution.id}:${$json.angle}:2`'));
-  assert.ok(rc.includes('`w23:script-recheck:${broker}:${$execution.id}`'));
-  // run the ref expressions for real
-  const ref = (code, angle) => new Function('$json', '$execution', 'broker', 'return ' + code.match(/source_ref: (`[^`]+`)/)[1])({ angle }, { id: 'x77' }, 'b-1');
-  assert.equal(ref(gen1, 'family'), 'w23:script-generate:b-1:x77:family:1');
-  assert.equal(ref(rc), 'w23:script-recheck:b-1:x77');
-  assert.match(W.connections['Variant result (1)'].main[0].map((t) => t.node).join(), /Cost row \(generate 1\)/);
-  assert.match(W.connections['Recheck result'].main[0].map((t) => t.node).join(), /Cost row \(recheck\)/);
+// crm-nurture (2026-10-11): the ops schema (ops.costs) is not part of the CRM chain, so the LLM cost side branch is removed.
+test('W23 writes nothing to the ops schema (cost logging removed with ops.costs); script steps still respond', () => {
+  assert.equal((JSON.stringify(W).match(/\bops\.[a-z_]+/g) || []).length, 0);
+  assert.deepEqual(W.nodes.filter((n) => /^(Log LLM cost|Cost row)/.test(n.name)).map((n) => n.name), []);
+  for (const n of ['Variant result (1)', 'Recheck result']) assert.ok(node(n), n);
 });
 
 test('every W23 node name is unique and every connection source/target names an existing node (n8n rejects duplicate_node_name)', () => {
@@ -335,4 +315,16 @@ test('every W23 node name is unique and every connection source/target names an 
   }
   assert.ok(node('Verify broker JWT (upload-url)') && node('Verify broker JWT (upload)'));
   assert.equal(node('Intro upload-url (browser, Bearer JWT)').parameters.path, 'intro/upload');
+});
+
+test('patch-w23-auth.mjs refuses to run without --i-know-this-rebuilds-w23 and leaves W23.json untouched', () => {
+  const file = path.join(__dirname, '..', 'W23.json');
+  const before = fs.readFileSync(file);
+  const r = require('node:child_process').spawnSync(process.execPath, [path.join(__dirname, 'patch-w23-auth.mjs')], { encoding: 'utf8' });
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /refused, W23\.json not touched/);
+  assert.match(r.stderr, /stale base/);
+  assert.match(r.stderr, /--i-know-this-rebuilds-w23/);
+  assert.equal(r.stdout, '');
+  assert.ok(fs.readFileSync(file).equals(before), 'W23.json byte-identical');
 });

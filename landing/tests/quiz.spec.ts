@@ -9,9 +9,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import type { AddressInfo } from 'node:net';
+import type { Browser, Page, Route, Request } from 'playwright';
+
+/** Captured request bodies are arbitrary JSON (or the raw string when unparseable) that the assertions probe field by field. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous mocked-API JSON payloads, shape asserted per test
+type Payload = Record<string, any>;
+interface FbqEvent { cmd: unknown; name: string; params: Payload; opt: Payload }
 
 const require = createRequire(import.meta.url);
-let pw: any;
+let pw: typeof import('playwright');
 try { pw = require('playwright'); } catch { pw = require('/opt/node-tools/node_modules/playwright'); }
 const chromium = pw.chromium;
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist');
@@ -19,7 +26,7 @@ const EXEC = process.env.CHROMIUM_PATH || (fs.existsSync('/opt/pw-browsers/chrom
 const API = 'https://REPLACE-N8N-HOST/webhook/smc';
 const PAGE = (slug = 'employer-gap') => `${base}/${slug}/`;
 
-let server: http.Server, base = '', browser: any;
+let server: http.Server, base = '', browser: Browser;
 const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff' };
 
 before(async () => {
@@ -31,7 +38,7 @@ before(async () => {
     res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); res.end(fs.readFileSync(f));
   });
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-  base = `http://127.0.0.1:${(server.address() as any).port}`;
+  base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   browser = await chromium.launch({ headless: true, executablePath: EXEC, args: ['--no-sandbox'] });
 });
 after(async () => { await browser?.close(); server?.close(); });
@@ -46,17 +53,17 @@ const slotsFor = (n: number) => {
 async function newPage(opts: { js?: boolean } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: opts.js !== false, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
-  const calls: { method: string; url: string; body: any; token?: string }[] = [];
-  const beacons: any[] = []; /* I-32b: first-party visit beacons are kept apart from the lead-path calls */
-  const state = { bookCount: 0, bookFirst409: true, bookSeq: [] as number[], methods: ['teams', 'phone'] as string[], slots: slotsFor(7) as any[] };
+  const calls: { method: string; url: string; body: Payload; token?: string }[] = [];
+  const beacons: { method: string; body: Payload; ct?: string; cookie?: string }[] = []; /* I-32b: first-party visit beacons are kept apart from the lead-path calls */
+  const state = { bookCount: 0, bookFirst409: true, bookSeq: [] as number[], methods: ['teams', 'phone'] as string[], slots: slotsFor(7) };
   await page.addInitScript(STUB);
-  await page.route('**/connect.facebook.net/**', (r: any) => r.abort());
-  await page.route(`${API}/**`, async (route: any) => {
+  await page.route('**/connect.facebook.net/**', (r: Route) => r.abort());
+  await page.route(`${API}/**`, async (route: Route) => {
     const req = route.request(); const u = new URL(req.url());
-    if (u.pathname.endsWith('/beacon')) { let b: any = null; try { b = JSON.parse(req.postData() || ''); } catch { b = req.postData(); } beacons.push({ method: req.method(), body: b, ct: req.headers()['content-type'], cookie: req.headers()['cookie'] }); return route.fulfill({ status: 204 }); }
-    let body: any = null; try { body = req.postDataJSON(); } catch { body = req.postData(); }
+    if (u.pathname.endsWith('/beacon')) { let b: Payload = null as unknown as Payload; try { b = JSON.parse(req.postData() || ''); } catch { b = req.postData() as unknown as Payload; } beacons.push({ method: req.method(), body: b, ct: req.headers()['content-type'], cookie: req.headers()['cookie'] }); return route.fulfill({ status: 204 }); }
+    let body: Payload = null as unknown as Payload; try { body = req.postDataJSON(); } catch { body = req.postData() as unknown as Payload; }
     calls.push({ method: req.method(), url: u.pathname + u.search, body, token: req.headers()['x-lead-token'] });
-    const json = (status: number, o: any) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
+    const json = (status: number, o: unknown) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-lead-token', 'access-control-allow-methods': 'GET,POST' } });
     if (u.pathname.endsWith('/lead')) return json(200, { ok: true, lead_id: 'ld_test1', lead_token: 'lt1.test', methods_supported: state.methods });
     if (u.pathname.endsWith('/slots')) return json(200, { slots: state.slots, tz: 'Africa/Johannesburg' });
@@ -71,24 +78,24 @@ async function newPage(opts: { js?: boolean } = {}) {
   });
   return { ctx, page, calls, state, beacons };
 }
-const tap = async (page: any, name: string, value: string) => { await page.locator(`input[name="${name}"][value="${value}"]`).click(); };
-async function quiz(page: any, a: Record<string, string>) {
+const tap = async (page: Page, name: string, value: string) => { await page.locator(`input[name="${name}"][value="${value}"]`).click(); };
+async function quiz(page: Page, a: Record<string, string>) {
   await tap(page, 'age_band', a.age); await page.locator('.q.on[data-step="2"]').waitFor();
   await tap(page, 'bond', a.bond ?? 'yes'); await page.locator('.q.on[data-step="3"]').waitFor();
   await tap(page, 'dependants', a.deps ?? 'kids'); await page.locator('.q.on[data-step="4"]').waitFor();
   await tap(page, 'work_cover', a.work ?? 'yes'); await page.locator('.q.on[data-step="5"]').waitFor();
   await tap(page, 'budget_band', a.budget);
 }
-const fbq = (page: any) => page.evaluate(() => (window as any).__fbq.map((c: any[]) => ({ cmd: c[0], name: c[1], params: c[2], opt: c[3] })).filter((c: any) => c.cmd === 'track'));
+const fbq = (page: Page): Promise<FbqEvent[]> => page.evaluate(() => (window as unknown as { __fbq: unknown[][] }).__fbq.map((c) => ({ cmd: c[0], name: c[1] as string, params: c[2] as Payload, opt: c[3] as Payload })).filter((c) => c.cmd === 'track'));
 
-test('every age x budget band: only 35-44/45-50 with R750+ qualify, others exit with no capture', async () => {
+test('every age x budget band: 35-44/45-50 go on with ANY budget (under R750 = tier C, 2026-10-11); other ages exit with no capture', async () => {
   const ages = ['lt35', '35_44', '45_50', '51plus'], budgets = ['lt750', '750_1250', '1250plus'];
   const { ctx, page, calls } = await newPage();
   await page.goto(PAGE());
   for (const age of ages) for (const budget of budgets) {
     await page.reload();
     await quiz(page, { age, budget });
-    const ok = (age === '35_44' || age === '45_50') && (budget === '750_1250' || budget === '1250plus');
+    const ok = (age === '35_44' || age === '45_50') && budgets.includes(budget);
     await page.locator(`.q.on[data-step="${ok ? 6 : 9}"]`).waitFor({ timeout: 3000 });
     if (!ok) assert.match(await page.locator('.q.on').innerText(), /not the right fit right now/);
     else assert.match(await page.locator('#h6q').innerText(), /licensed adviser/i);
@@ -200,7 +207,7 @@ test('qualified path: validation, consent, /lead payload, Teams booking with ema
 
   // Pixel: PageView, ViewContent once, Lead (same event_id as posted), Schedule (same as /book)
   const ev = await fbq(page);
-  assert.deepEqual(ev.map((e: any) => e.name), ['PageView', 'ViewContent', 'Lead', 'Schedule']);
+  assert.deepEqual(ev.map((e) => e.name), ['PageView', 'ViewContent', 'Lead', 'Schedule']);
   assert.equal(ev[1].params.content_name, 'quiz_start');
   assert.equal(ev[2].opt.eventID, lead.body.context.event_id);
   assert.equal(ev[2].params.content_name, 'new-bond');
@@ -269,7 +276,7 @@ test('skip link keeps the lead: not-booked thank-you, Lead fired, no Schedule, n
   // I-45o: the skip tells W01 (POST /lead/skip with the lead token) so the slots card goes to WhatsApp now
   const skips = calls.filter((c) => c.method === 'POST' && c.url.endsWith('/lead/skip'));
   assert.equal(skips.length, 1); assert.equal(skips[0].token, 'lt1.test'); assert.equal(skips[0].body.lead_id, 'ld_test1');
-  assert.deepEqual((await fbq(page)).map((e: any) => e.name), ['PageView', 'ViewContent', 'Lead']);
+  assert.deepEqual((await fbq(page)).map((e) => e.name), ['PageView', 'ViewContent', 'Lead']);
   await ctx.close();
 });
 
@@ -314,7 +321,7 @@ test('keyboard: arrow-key selection does not auto-advance; Next appears', async 
 test('no-JS: capture step is a real POST form with every field named', async () => {
   const { ctx, page } = await newPage({ js: false });
   let posted: string | null = null;
-  await page.route(`${API}/lead`, (r: any) => { posted = r.request().postData(); return r.fulfill({ status: 200, contentType: 'text/html', body: 'ok' }); });
+  await page.route(`${API}/lead`, (r: Route) => { posted = r.request().postData(); return r.fulfill({ status: 200, contentType: 'text/html', body: 'ok' }); });
   await page.goto(PAGE());
   const form = page.locator('form#lead');
   assert.equal((await form.getAttribute('method')).toLowerCase(), 'post');
@@ -337,10 +344,10 @@ test('no-JS: capture step is a real POST form with every field named', async () 
 test('layout rules: no horizontal scroll, 44px targets, no third-party requests, one CTA wording, no nav, no phone number', async () => {
   const { ctx, page } = await newPage();
   const reqs: string[] = [];
-  page.on('request', (r: any) => { const u = new URL(r.url()); if (!u.hostname.match(/^(127\.0\.0\.1|REPLACE-N8N-HOST|sortmycover\.co\.za)$/i)) reqs.push(u.hostname); });
+  page.on('request', (r: Request) => { const u = new URL(r.url()); if (!u.hostname.match(/^(127\.0\.0\.1|REPLACE-N8N-HOST|sortmycover\.co\.za)$/i)) reqs.push(u.hostname); });
   await page.goto(PAGE());
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-  const small = await page.evaluate(() => Array.from(document.querySelectorAll('.opt,.btn,.slot,.method,.link,input:not([type=hidden]):not([type=radio]),summary,footer a')).filter((e: any) => e.offsetParent !== null && !e.closest('.hp')).map((e: any) => { const r = e.getBoundingClientRect(); return { cls: e.className || e.tagName, w: r.width, h: r.height }; }).filter((r) => r.h < 44 || r.w < 44));
+  const small = await page.evaluate(() => Array.from(document.querySelectorAll('.opt,.btn,.slot,.method,.link,input:not([type=hidden]):not([type=radio]),summary,footer a')).filter((e) => (e as HTMLElement).offsetParent !== null && !e.closest('.hp')).map((e) => { const r = e.getBoundingClientRect(); return { cls: e.className || e.tagName, w: r.width, h: r.height }; }).filter((r) => r.h < 44 || r.w < 44));
   assert.deepEqual(small, []);
   assert.deepEqual(reqs.filter((h) => !/facebook/.test(h)), [], 'only the Pixel may call third parties');
   const ctas = await page.locator('a.btn[href="#quiz"]').allInnerTexts();

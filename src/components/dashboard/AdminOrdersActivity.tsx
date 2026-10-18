@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,9 +12,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CheckCircle2, CreditCard, RefreshCw, FileSignature, Activity, FileText } from "lucide-react";
+import { CheckCircle2, CreditCard, RefreshCw, FileSignature, Activity, FileText, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import OrderAgreements from "@/components/broker/OrderAgreements";
+import NewOrderDialog from "./NewOrderDialog";
+import { Brand, OrderProgress, isSmcBrand, loadBrands, loadNurturedProgress, loadOrderBrands } from "./orderBrands";
 
 // Row shape returned by the admin_list_orders_activity() RPC
 interface OrderActivityRow {
@@ -66,9 +68,20 @@ const AdminOrdersActivity = () => {
   const [marking, setMarking] = useState(false);
   const [viewTarget, setViewTarget] = useState<OrderActivityRow | null>(null);
 
+  const [newOpen, setNewOpen] = useState(false);
+  const [brands, setBrands] = useState<Brand[] | null>(null);
+  const [orderBrand, setOrderBrand] = useState<Record<string, string | null> | null>(null);
+  const [progress, setProgress] = useState<Record<string, OrderProgress>>({});
+
   const load = async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any).rpc("admin_list_orders_activity");
+    const [{ data, error }, b, ob] = await Promise.all([
+      supabaseUntyped.rpc("admin_list_orders_activity"),
+      loadBrands(),
+      loadOrderBrands(),
+    ]);
+    setBrands(b);
+    setOrderBrand(ob);
     if (error) {
       console.error("admin_list_orders_activity error:", error);
       toast({ title: "Error", description: "Failed to load orders.", variant: "destructive" });
@@ -77,7 +90,10 @@ const AdminOrdersActivity = () => {
       setRows(((data || []) as unknown as OrderActivityRow[]));
     }
     setLoading(false);
+    const nurtured = Object.entries(ob || {}).filter(([, bid]) => isSmcBrand(b, bid)).map(([id]) => id);
+    setProgress(await loadNurturedProgress(nurtured));
   };
+  const brandOf = (orderId: string) => (orderBrand ? orderBrand[orderId] ?? null : null);
 
   useEffect(() => {
     load();
@@ -87,7 +103,7 @@ const AdminOrdersActivity = () => {
   const confirmMarkPaid = async () => {
     if (!payTarget) return;
     setMarking(true);
-    const { error } = await (supabase as any).rpc("admin_mark_order_paid", { p_order_id: payTarget.order_id });
+    const { error } = await supabaseUntyped.rpc("admin_mark_order_paid", { p_order_id: payTarget.order_id });
     setMarking(false);
     if (error) {
       console.error("admin_mark_order_paid error:", error);
@@ -104,17 +120,23 @@ const AdminOrdersActivity = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold gradient-text">Orders &amp; Broker Activity</h1>
           <p className="text-muted-foreground mt-2">
             Every lead order, its payment status, and how far each broker has worked their leads.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+          <Button size="sm" onClick={() => setNewOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> New order
+          </Button>
+        </div>
       </div>
+      <NewOrderDialog open={newOpen} onOpenChange={setNewOpen} brands={brands} onCreated={() => { toast({ title: "Order created", description: "Pending until the broker signs and you mark it paid." }); load(); }} />
 
       <Card className="border-border/50">
         <CardHeader>
@@ -149,6 +171,9 @@ const AdminOrdersActivity = () => {
                 <TableBody>
                   {rows.map((r) => {
                     const alreadyPaid = r.status === "paid" || r.status === "delivered";
+                    const nurtured = isSmcBrand(brands, brandOf(r.order_id));
+                    const prog = progress[r.order_id];
+                    const target = r.lead_count ?? 0;
                     return (
                       <TableRow key={r.order_id}>
                         <TableCell>
@@ -156,9 +181,26 @@ const AdminOrdersActivity = () => {
                           <div className="text-xs text-muted-foreground">{r.contact_person || ""}</div>
                           <div className="text-xs text-muted-foreground">{r.email || ""}</div>
                         </TableCell>
-                        <TableCell className="max-w-[180px]">{r.title || "Lead Order"}</TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <div>{r.title || "Lead Order"}</div>
+                          {orderBrand && (nurtured ? (
+                            <Badge variant="outline" className="mt-1 whitespace-nowrap border-emerald-500/40 text-emerald-400 text-[10px]">SortMyCover · nurtured</Badge>
+                          ) : (
+                            <Badge variant="outline" className="mt-1 whitespace-nowrap text-[10px]">Lead Velocity · raw</Badge>
+                          ))}
+                        </TableCell>
                         <TableCell>{statusBadge(r.status)}</TableCell>
-                        <TableCell className="text-right">{r.lead_count ?? r.total_leads}</TableCell>
+                        <TableCell className="text-right">
+                          {nurtured && prog ? (
+                            <div className="min-w-[9rem] text-right" title="Delivered = leads routed onto this order (lead_order_items). Booked = those with a SortMyCover call booked.">
+                              <div className="text-sm font-medium">{prog.delivered}/{target} delivered</div>
+                              <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={target} aria-valuenow={prog.delivered} aria-label="Leads delivered">
+                                <div className="h-full bg-emerald-500" style={{ width: `${target ? Math.min(100, (prog.delivered / target) * 100) : 0}%` }} />
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">{prog.booked} booked{prog.delivered ? ` (${Math.round((prog.booked / prog.delivered) * 100)}%)` : ""}</div>
+                            </div>
+                          ) : (r.lead_count ?? r.total_leads)}
+                        </TableCell>
                         <TableCell className="text-right">{formatZar(r.amount_zar)}</TableCell>
                         <TableCell>
                           {r.contract_signed_at ? (

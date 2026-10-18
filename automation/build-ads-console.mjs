@@ -22,7 +22,7 @@ const pg = (name, query, replacement, extra = {}) => ({ name, type: 'n8n-nodes-b
 const iff = (name, expr) => ({ name, type: 'n8n-nodes-base.if', typeVersion: 2.2, parameters: { conditions: { options: { caseSensitive: true, typeValidation: 'loose' }, combinator: 'and', conditions: [{ id: 'c1', leftValue: `={{ ${expr} }}`, rightValue: true, operator: { type: 'boolean', operation: 'equals' } }] }, options: {} } });
 const respond = (name, bodyExpr, statusExpr) => ({ name, type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1.1, parameters: { respondWith: 'json', responseBody: `={{ JSON.stringify(${bodyExpr}) }}`, options: { responseCode: `={{ ${statusExpr} }}` } } });
 const hook = (name, path, wid) => ({ name, type: 'n8n-nodes-base.webhook', typeVersion: 2, webhookId: wid, parameters: { httpMethod: 'POST', path, authentication: 'none', responseMode: 'responseNode',
-  options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}" } } });
+  options: { allowedOrigins: "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}" } } });
 const LV = "const L = require('lv-automation').adsConsole;\n";
 
 const PARSE = 'Parse request + verify caller (JWT)';

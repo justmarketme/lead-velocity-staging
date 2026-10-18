@@ -1,0 +1,368 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Connect Your Outlook Calendar</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap">
+<style>
+/* Portrait film stage, 720x1280, every visual driven by the clock (window.seek) so the renderer gets exact frames.
+   Lead Velocity look: white cards, navy text, pink-to-purple accents. Microsoft screens keep Microsoft's own look. */
+:root {
+  --navy: #0f172a; --ink: #1e293b; --slate: #475569; --muted: #64748b; --line: #e2e8f0; --soft: #f1f5f9;
+  --paper: #f7f5fb; --card: #ffffff; --pink: #db2777; --purple: #9333ea; --grad: linear-gradient(100deg, #db2777, #9333ea);
+  --wash: #fdf2f8; --ok: #047857; --ok-wash: #ecfdf5; --warn: #92400e; --warn-wash: #fffbeb; --bad: #b91c1c; --bad-wash: #fef2f2;
+  --ms-font: "Segoe UI", "Segoe UI Web", system-ui, sans-serif; --ms-blue: #0f6cbd; --ms-sub: #616161; --ms-line: #e0e0e0;
+  --lv: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #1b1530; }
+body { font-family: var(--lv); -webkit-font-smoothing: antialiased; }
+.holder { display: grid; place-items: center; min-height: 100vh; padding: 16px; gap: 12px; }
+.render .holder { padding: 0; min-height: 0; display: block; }
+#stage { position: relative; width: 720px; height: 1280px; overflow: hidden; background: var(--paper); color: var(--slate); transform-origin: top left; }
+#stage::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(70% 45% at 0% 0%, rgba(219,39,119,.13), transparent 70%),
+  radial-gradient(70% 45% at 100% 100%, rgba(147,51,234,.14), transparent 70%); }
+.top { position: absolute; left: 0; right: 0; top: 0; height: 104px; display: flex; align-items: center; gap: 14px; padding: 22px 40px 0; z-index: 3; }
+.top::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 8px; background: var(--grad); }
+.top img { width: 56px; height: 56px; }
+.top .nm { font-weight: 800; color: var(--navy); font-size: 24px; letter-spacing: -.01em; line-height: 1.1; }
+.top .nm small { display: block; font-size: 15px; font-weight: 700; color: var(--pink); letter-spacing: .12em; text-transform: uppercase; }
+.dots { margin-left: auto; display: flex; gap: 6px; }
+.dots i { width: 30px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; position: relative; }
+.dots i b { position: absolute; inset: 0; background: var(--grad); transform-origin: left; transform: scaleX(0); }
+
+.scene { position: absolute; left: 0; right: 0; top: 104px; bottom: 210px; padding: 18px 40px 0; display: flex; flex-direction: column; gap: 22px; opacity: 0; }
+.eyebrow { font-size: 17px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--pink); }
+h2 { margin: 6px 0 0; font-weight: 800; color: var(--navy); font-size: 50px; line-height: 1.04; letter-spacing: -.03em; }
+.body { position: relative; flex: 1; min-height: 0; }
+.stack { display: grid; gap: 16px; align-content: start; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 20px 22px; box-shadow: 0 2px 4px rgba(15,23,42,.04), 0 22px 40px -24px rgba(15,23,42,.28); }
+.card h3 { margin: 0; color: var(--navy); font-size: 25px; font-weight: 800; letter-spacing: -.01em; }
+.card p { margin: 6px 0 0; font-size: 19px; line-height: 1.35; }
+.k { font-size: 14px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
+.row { display: flex; gap: 16px; align-items: center; }
+.ico { flex: none; width: 54px; height: 54px; border-radius: 16px; background: var(--grad); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 26px; }
+.ico.x { background: var(--bad-wash); color: var(--bad); }
+.slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.slots span { font-size: 18px; font-variant-numeric: tabular-nums; padding: 5px 11px; border-radius: 9px; border: 1px solid var(--line); color: var(--muted); }
+.slots .busy { text-decoration: line-through; opacity: .5; }
+.slots .free { border-color: rgba(147,51,234,.45); color: var(--purple); font-weight: 700; }
+.slots .pick.on { background: var(--grad); color: #fff; border-color: transparent; }
+.ev { margin-top: 10px; border-left: 5px solid #8a4bd8; background: #f6f0fd; border-radius: 10px; padding: 10px 14px; font-size: 18px; color: var(--ink); display: grid; gap: 2px; }
+.ev .teams { color: #5b5fc7; font-weight: 700; }
+.mail { margin-top: 10px; font-size: 18px; color: var(--ink); display: grid; gap: 3px; }
+.mail b { color: var(--pink); }
+.tag { display: inline-flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; padding: 4px 12px; border-radius: 99px; white-space: nowrap; }
+.tag.ok { background: var(--ok-wash); color: var(--ok); } .tag.bad { background: var(--bad-wash); color: var(--bad); }
+.tag.warn { background: var(--warn-wash); color: var(--warn); } .tag.pk { background: var(--wash); color: var(--pink); }
+.perm { display: grid; grid-template-columns: 54px 1fr; gap: 16px; align-items: center; }
+.perm h3 { font-size: 23px; } .perm p { font-size: 18px; margin-top: 2px; }
+.nos { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.nos span { font-size: 20px; font-weight: 800; color: var(--bad); background: var(--bad-wash); padding: 8px 16px; border-radius: 12px; text-decoration: line-through; text-decoration-thickness: 2px; }
+
+/* screens (portal + Microsoft) */
+.scr { position: absolute; inset: 0; border-radius: 26px; overflow: hidden; background: #fff; border: 1px solid #d9d6e3; box-shadow: 0 30px 60px -30px rgba(15,23,42,.45); opacity: 0; }
+.scr .bar { display: flex; align-items: center; gap: 10px; padding: 12px 18px; background: #f2f1f6; border-bottom: 1px solid #e3e1ea; font-size: 16px; color: #4b4b5a; }
+.scr .bar span { background: #fff; border-radius: 99px; padding: 4px 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scr .in { padding: 26px 28px; display: grid; gap: 16px; align-content: start; }
+.lvp { background: #0f1424; color: #e2e8f0; border-color: #2a3150; }
+.lvp .bar { background: #161c31; border-color: #2a3150; color: #94a3b8; } .lvp .bar span { background: #0f1424; }
+.lvp h4 { margin: 0; color: #fff; font-size: 30px; font-weight: 800; }
+.lvp .pc { background: #171d33; border: 1px solid #2a3150; border-radius: 16px; padding: 20px; display: grid; gap: 12px; font-size: 19px; }
+.lvp .pc b { color: #fff; }
+.lvp .pill { width: max-content; font-size: 16px; font-weight: 800; padding: 4px 12px; border-radius: 99px; background: #1e2745; color: #a5b4fc; }
+.lvp .pill.ok { background: #0f2a22; color: #34d399; } .lvp .pill.warn { background: #2a2210; color: #fbbf24; }
+.lvp .btn { background: var(--grad); color: #fff; border-radius: 14px; padding: 15px; text-align: center; font-weight: 800; font-size: 20px; }
+.lvp .btn.sec { background: #232a46; }
+.lvp .sm { font-size: 16px; color: #94a3b8; line-height: 1.35; }
+.lvp ul { margin: 0; padding-left: 22px; font-size: 17px; color: #cbd5e1; display: grid; gap: 4px; }
+.lvp .tabs { display: flex; gap: 8px; font-size: 16px; } .lvp .tabs span { padding: 6px 12px; border-radius: 10px; color: #94a3b8; } .lvp .tabs .on { background: #232a46; color: #fff; font-weight: 700; }
+.ms { font-family: var(--ms-font); color: #242424; }
+.ms .in { padding: 34px 34px; gap: 18px; }
+.mslogo { display: grid; grid-template-columns: repeat(2, 14px); gap: 3px; } .mslogo i { width: 14px; height: 14px; display: block; }
+.mslogo i:nth-child(1){background:#f25022} .mslogo i:nth-child(2){background:#7fba00} .mslogo i:nth-child(3){background:#00a4ef} .mslogo i:nth-child(4){background:#ffb900}
+.ms h5 { margin: 0; font-size: 32px; font-weight: 600; }
+.ms .acc { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--ms-line); border-radius: 4px; font-size: 19px; }
+.ms .acc .av { width: 48px; height: 48px; border-radius: 50%; background: #5b5fc7; color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
+.ms .acc small { color: var(--ms-sub); font-size: 16px; }
+.ms .appl { display: flex; gap: 14px; align-items: center; font-size: 21px; } .ms .appl img { width: 56px; height: 56px; border: 1px solid var(--ms-line); border-radius: 8px; padding: 3px; }
+.ms .unv { color: #a4262c; font-size: 17px; }
+.ms ul { margin: 0; padding-left: 26px; display: grid; gap: 8px; font-size: 19px; }
+.ms .btns { display: flex; justify-content: flex-end; gap: 12px; }
+.ms .b2 { padding: 9px 26px; border-radius: 4px; border: 1px solid #8a8886; font-weight: 600; font-size: 19px; }
+.ms .b2.pri { background: var(--ms-blue); border-color: var(--ms-blue); color: #fff; }
+.ms .fine { font-size: 15px; color: var(--ms-sub); }
+.ms .cbx { display: flex; gap: 12px; align-items: center; font-size: 19px; }
+.ms .cbx i { width: 22px; height: 22px; border: 2px solid #616161; border-radius: 3px; display: grid; place-items: center; }
+.ms .cbx i.on { background: var(--ms-blue); border-color: var(--ms-blue); }
+.ms .cbx i.on::after { content: ""; width: 6px; height: 12px; border: solid #fff; border-width: 0 3px 3px 0; transform: rotate(45deg) translate(-1px,-1px); }
+.note { position: absolute; left: 0; right: 0; bottom: -2px; text-align: center; font-size: 15px; color: var(--muted); }
+.paths { display: grid; gap: 14px; }
+
+/* captions */
+.cap { position: absolute; left: 0; right: 0; bottom: 0; height: 210px; display: grid; place-items: center; padding: 0 44px 28px; z-index: 4; }
+.cap span { font-size: 31px; line-height: 1.25; font-weight: 700; color: #fff; text-align: center; background: rgba(15,23,42,.86); padding: 12px 20px; border-radius: 16px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.cap span:empty { display: none; }
+.ptr { position: absolute; left: 0; top: 0; width: 34px; height: 34px; z-index: 5; pointer-events: none; opacity: 0; filter: drop-shadow(0 3px 4px rgba(0,0,0,.35)); }
+.ring { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 3px solid var(--pink); z-index: 5; opacity: 0; pointer-events: none; }
+.endcard { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+
+/* preview controls (not rendered) */
+.ctl { display: flex; gap: 10px; align-items: center; color: #e2e8f0; font: 600 14px var(--lv); }
+.ctl button { border: 0; border-radius: 99px; padding: 10px 18px; background: var(--grad); color: #fff; font: inherit; cursor: pointer; }
+.render .ctl { display: none; }
+@media (prefers-reduced-motion: reduce) { .ptr, .ring { display: none; } }
+</style>
+
+<div class="holder">
+<div id="stage">
+  <div class="top"><img src="logo.png" alt=""><div class="nm"><small>Lead Velocity</small>Connect your Outlook calendar</div><div class="dots" id="dots"></div></div>
+
+  <!-- 1 -->
+  <section class="scene" data-id="s01">
+    <div><div class="eyebrow">Why connect</div><h2>Bookings land in your own calendar</h2></div>
+    <div class="body stack">
+      <div class="card b" data-at="free"><div class="k">Only your free times</div>
+        <div class="slots"><span class="busy">09:00</span><span class="free">09:30</span><span class="busy">10:00</span><span class="free pick" data-at="books">10:30</span><span class="free">11:30</span><span class="busy">14:00</span><span class="free">15:00</span></div></div>
+      <div class="card b" data-at="Outlook,"><div class="k">Straight into your Outlook</div>
+        <div class="ev"><b>SortMyCover call – Thandi – Teams</b><span>Tue 14 Oct · 10:30-11:00</span><span class="teams b" data-at="Teams">Join Teams meeting</span></div></div>
+      <div class="card b" data-at="invite"><div class="k">The invite comes from you</div>
+        <div class="mail"><span>From: <b>you@yourpractice.co.za</b></span><span>To: Thandi · Teams link included</span></div></div>
+      <div class="card b" data-at="moves"><div class="k">Moved or cancelled?</div><p>We update or remove that same meeting.</p></div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section class="scene" data-id="s02">
+    <div><div class="eyebrow">What you're allowing</div><h2>Four things. Nothing else.</h2></div>
+    <div class="body stack">
+      <div class="card perm b" data-at="Sign"><span class="ico">1</span><div><h3>Sign you in, read your basic profile</h3><p>So we know whose calendar it is.</p></div></div>
+      <div class="card perm b" data-at="Read"><span class="ico">2</span><div><h3>Read and write your calendars</h3><p>See when you're busy, add the meetings we book.</p></div></div>
+      <div class="card perm b" data-at="Create"><span class="ico">3</span><div><h3>Create online meetings</h3><p>The Teams link for each booking.</p></div></div>
+      <div class="card perm b" data-at="stay"><span class="ico">4</span><div><h3>Stay connected</h3><p>No signing in again every hour.</p></div></div>
+      <div class="card b" data-at="can't"><div class="k">What we can't see</div><div class="nos"><span>Email</span><span>Contacts</span><span>Files</span></div>
+        <p class="b" data-at="check">We check when you're busy, not what your meetings are about.</p></div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="scene" data-id="s03">
+    <div><div class="eyebrow">Connect, step by step</div><h2>About a minute</h2></div>
+    <div class="body">
+      <div class="scr lvp v" data-at="0" data-until="pick">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in">
+          <div class="tabs"><span>Dashboard</span><span>Leads</span><span class="on hl" data-at="Appointments">Appointments</span><span>Settings</span></div>
+          <h4>Appointments</h4>
+          <div class="pc"><span class="pill">Not connected</span><b>Connect my Outlook calendar</b><span class="sm">So SortMyCover clients can book a Teams call in your real free time.</span>
+            <span class="btn click" data-click="Tap">Connect my Outlook calendar</span>
+            <span class="sm">One tap: sign in with your work Microsoft account and choose Accept.</span></div>
+        </div>
+      </div>
+      <div class="scr ms v" data-at="pick" data-until="Next,">
+        <div class="bar"><span>🔒 login.microsoftonline.com</span></div>
+        <div class="in"><span class="mslogo"><i></i><i></i><i></i><i></i></span><h5>Pick an account</h5>
+          <div class="acc click" data-click="work"><span class="av">YP</span><span>Your name<br><small>you@yourpractice.co.za</small></span></div>
+          <div class="acc" style="color:var(--ms-sub)">Use another account</div>
+          <span class="tag pk b" data-at="whose" style="width:max-content">The calendar clients should book into</span></div>
+      </div>
+      <div class="scr ms v" data-at="Next," data-until="back">
+        <div class="bar"><span>🔒 login.microsoftonline.com</span></div>
+        <div class="in"><span class="mslogo"><i></i><i></i><i></i><i></i></span><span class="fine">you@yourpractice.co.za</span><h5>Permissions requested</h5>
+          <div class="appl"><img src="logo.png" alt=""><span><b>Lead Velocity</b><br><span class="unv">unverified</span></span></div>
+          <span style="font-size:19px">This app would like to:</span>
+          <ul><li>Sign you in and read your profile</li><li>Maintain access to data you have given it access to</li><li>Have full access to your calendars</li><li>Read and create your online meetings</li></ul>
+          <div class="btns"><span class="b2">Cancel</span><span class="b2 pri click" data-click="Accept.">Accept</span></div></div>
+      </div>
+      <div class="scr lvp v" data-at="back">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in"><h4>Appointments</h4>
+          <div class="pc"><span class="pill ok">Connected</span><span>Connected as <b>you@yourpractice.co.za</b></span><span class="sm">Next free slot we can offer: Tue 14 Oct, 09:30</span>
+            <span class="sm">Permissions granted</span><ul><li>✓ See when you are free or busy</li><li>✓ Add and remove the meetings we book for you</li><li>✓ Create a Teams link for each of those meetings</li></ul></div></div>
+      </div>
+      <div class="note b" data-at="pick" data-until="back">Microsoft's screens may look slightly different.</div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="scene" data-id="s04">
+    <div><div class="eyebrow">If you see "Need admin approval"</div><h2>Your practice approves the app once</h2></div>
+    <div class="body">
+      <div class="scr ms v" data-at="0" data-until="Waiting">
+        <div class="bar"><span>🔒 login.microsoftonline.com</span></div>
+        <div class="in"><span class="mslogo"><i></i><i></i><i></i><i></i></span><span class="fine">you@yourpractice.co.za</span><h5>Need admin approval</h5>
+          <div class="appl"><img src="logo.png" alt=""><b>Lead Velocity</b></div>
+          <span style="font-size:19px;line-height:1.4">Lead Velocity needs permission to access resources in your organization that only an admin can grant.</span>
+          <span class="tag ok b" data-at="Nothing" style="width:max-content;font-family:var(--lv)">Nothing is broken</span></div>
+      </div>
+      <div class="scr lvp v" data-at="Waiting" data-until="administrator#2">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in"><h4>Appointments</h4>
+          <div class="pc"><span class="pill warn">Waiting for your IT admin</span><b>Microsoft says your organisation needs admin approval.</b>
+            <span class="sm">They approve the Lead Velocity app once (about 2 minutes), then you tap Connect again.</span>
+            <span class="sm b" data-at="link." style="font-size:14px;word-break:break-all;color:#cbd5e1">https://login.microsoftonline.com/organizations/v2.0/adminconsent?client_id=…</span>
+            <span class="btn">Email my IT admin</span><span class="btn sec">Copy the approval link</span></div></div>
+      </div>
+      <div class="scr ms v" data-at="administrator#2" data-until="someone">
+        <div class="bar"><span>🔒 login.microsoftonline.com</span></div>
+        <div class="in"><span class="mslogo"><i></i><i></i><i></i><i></i></span><span class="fine">admin@yourpractice.co.za</span><h5>Permissions requested</h5>
+          <span style="font-size:20px;font-weight:600">Accept for your organization</span>
+          <div class="appl"><img src="logo.png" alt=""><span><b>Lead Velocity</b><br><span class="unv">unverified</span></span></div>
+          <span class="fine">The same four permissions, approved for everyone in your practice.</span>
+          <div class="btns"><span class="b2">Cancel</span><span class="b2 pri click" data-click="accept">Accept</span></div></div>
+      </div>
+      <div class="scr lvp v" data-at="someone" data-until="Connect">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in"><h4>Appointments</h4>
+          <div class="pc"><span class="pill warn">Waiting for your IT admin</span>
+            <span class="sm">Send the approval link to whoever manages your Microsoft account.</span>
+            <span class="btn click" data-click="Email">Email my IT admin</span><span class="btn sec click" data-click="Copy">Copy the approval link</span>
+            <span class="pill ok b" data-at="Copy+0.4">Link copied</span></div></div>
+      </div>
+      <div class="scr lvp v" data-at="Connect">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in"><h4>Appointments</h4>
+          <div class="pc"><span class="pill ok b" data-at="Connect+1.2">Approved</span><span class="btn click" data-click="Connect">Connect my Outlook calendar</span></div></div>
+      </div>
+      <div class="note b" data-at="0" data-until="Waiting">Microsoft's screens may look slightly different.</div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="scene" data-id="s05">
+    <div><div class="eyebrow">You stay in control</div><h2>Disconnect or reconnect any time</h2></div>
+    <div class="body">
+      <div class="scr lvp v" data-at="0" data-until="remove">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in"><h4>Appointments</h4>
+          <div class="pc"><span class="pill ok sh" data-at="0" data-until="delete">Connected</span><span class="pill warn sh" data-at="delete">Needs reconnecting</span>
+            <span class="sh" data-at="0" data-until="delete">Connected as <b>you@yourpractice.co.za</b></span>
+            <span class="sm sh" data-at="delete">Clients can't book new times until you reconnect.</span>
+            <span class="btn sec click sh" data-click="Disconnect#2" data-at="0" data-until="delete">Disconnect</span>
+            <span class="btn sh" data-at="delete">Reconnect my Outlook calendar</span></div>
+          <div class="pc b" data-at="Disconnect#2+0.5" data-until="delete" style="background:#fff;color:#1e293b;border-color:#fff">
+            <span style="color:#1e293b">Disconnect your Outlook calendar? Clients can't book new times with you until you reconnect.</span>
+            <div style="display:flex;gap:10px;justify-content:flex-end"><span class="btn sec" style="padding:10px 20px;color:#fff">Cancel</span><span class="btn click" data-click="delete-0.4" style="padding:10px 26px">OK</span></div></div>
+        </div>
+      </div>
+      <div class="scr ms v" data-at="remove" data-until="come">
+        <div class="bar"><span>🔒 myapplications.microsoft.com</span></div>
+        <div class="in"><h5>My Apps</h5>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+            <div class="acc" style="flex-direction:column;align-items:flex-start;position:relative"><img src="logo.png" alt="" style="width:48px;height:48px"><b style="font-size:17px">Lead Velocity</b><span class="click" data-click="menu," style="position:absolute;right:10px;top:6px;font-size:22px;font-weight:700">…</span></div>
+            <div class="acc" style="opacity:.55;flex-direction:column;align-items:flex-start"><span class="av" style="background:#0f6cbd">O</span><span style="font-size:17px">Outlook</span></div>
+            <div class="acc" style="opacity:.55;flex-direction:column;align-items:flex-start"><span class="av">T</span><span style="font-size:17px">Teams</span></div>
+          </div>
+          <div class="acc b click" data-at="menu,+0.3" data-until="Manage+0.5" data-click="Manage" style="width:max-content">Manage your application</div>
+          <div class="b" data-at="Manage+0.6" style="display:grid;gap:12px;border-top:1px solid var(--ms-line);padding-top:14px">
+            <b style="font-size:21px">Lead Velocity</b><span class="fine">Permissions you gave this app</span>
+            <span class="b2 click" data-click="Revoke" style="width:max-content;color:#a4262c;border-color:#a4262c">Revoke Permissions</span></div>
+          <span class="fine">Microsoft's screens may look slightly different.</span></div>
+      </div>
+      <div class="scr lvp v" data-at="come">
+        <div class="bar"><span>leadvelocity.co.za · your portal</span></div>
+        <div class="in"><h4>Appointments</h4>
+          <div class="pc"><span class="pill warn">Needs reconnecting</span><span class="btn click" data-click="Connect">Reconnect my Outlook calendar</span>
+            <span class="sm">One tap: sign in with your work Microsoft account and choose Accept.</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <svg class="ptr" id="ptr" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 2l7.5 19 2.6-7.4L21 11z" fill="#fff" stroke="#0f172a" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  <div class="ring" id="ring"></div>
+  <div class="cap"><span id="cap"></span></div>
+</div>
+<div class="ctl"><button id="play" type="button">Play</button><span id="time"></span></div>
+</div>
+<audio id="vo" preload="auto"></audio>
+<script src="timings.js"></script>
+<script>
+(() => {
+  const T = window.TIMINGS, LEAD = T.lead, FADE = .45;
+  const render = location.search.includes('render');
+  if (render) document.documentElement.classList.add('render');
+  const reduce = !render && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stage = document.getElementById('stage'), ptr = document.getElementById('ptr'), ring = document.getElementById('ring'), cap = document.getElementById('cap');
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = x => 1 - Math.pow(1 - x, 3);
+  const meta = [...document.querySelectorAll('.scene')].map((el, i) => ({ el, i, ...T.scenes[i] }));
+  let acc = 0; meta.forEach(m => { m.start = acc; acc += m.clip; }); const TOTAL = acc;
+  function timeOf(m, spec) {
+    const r = /^(.*?)(?:#(\d+))?([+-]\d*\.?\d+)?$/.exec(String(spec).trim());
+    const word = r[1], nth = r[2] ? +r[2] : 1, off = r[3] ? parseFloat(r[3]) : 0;
+    if (/^\d*\.?\d+$/.test(word)) return parseFloat(word) + off;
+    let c = nth; for (const w of m.words) if (norm(w.w) === norm(word) && --c === 0) return w.t + off;
+    throw new Error(`${m.id}: anchor word not found: ${spec}`);
+  }
+  meta.forEach(m => {
+    m.beats = [...m.el.querySelectorAll('[data-at]')].map(el => ({ el, t: timeOf(m, el.dataset.at), u: el.dataset.until ? timeOf(m, el.dataset.until) : null,
+      kind: el.classList.contains('scr') || el.classList.contains('v') ? 'view' : el.classList.contains('b') ? 'fade' : el.classList.contains('sh') ? 'show' : 'class' }));
+    m.clicks = [...m.el.querySelectorAll('[data-click]')].map(el => ({ el, t: timeOf(m, el.dataset.click) })).sort((a, b) => a.t - b.t);
+    const d = document.createElement('i'); d.appendChild(document.createElement('b')); document.getElementById('dots').appendChild(d); m.dot = d.firstChild;
+  });
+  const S = render ? 1 : 1;
+  function pos(el) { const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / 720; return [(r.left - s.left + Math.min(r.width * .5, 90)) / k, (r.top - s.top + r.height * .6) / k]; }
+
+  function draw(g) {
+    g = clamp(g, 0, TOTAL - 1e-3);
+    const m = meta.findLast ? meta.findLast(x => x.start <= g) : meta.filter(x => x.start <= g).pop();
+    const st = g - m.start;
+    meta.forEach(x => { x.el.style.opacity = x === m ? (x.i === 0 ? 1 : ease(clamp(st / .5))) : 0; x.el.style.transform = x === m ? `translateY(${(1 - ease(clamp(st / .6))) * 18}px)` : ''; x.dot.style.transform = `scaleX(${x.i < m.i ? 1 : x.i > m.i ? 0 : st / x.clip})`; });
+    for (const b of m.beats) {
+      const pin = reduce ? (st >= b.t ? 1 : 0) : clamp((st - b.t) / FADE), pout = b.u == null ? 0 : reduce ? (st >= b.u ? 1 : 0) : clamp((st - b.u) / FADE);
+      const v = pin * (1 - pout);
+      if (b.kind === 'fade') { b.el.style.opacity = v; b.el.style.transform = `translateY(${(1 - ease(pin)) * 14}px)`; }
+      else if (b.kind === 'view') {
+        // screens swap in sequence (outgoing fades in .25 s, incoming starts .2 s later) so two never blend
+        const vin = reduce ? pin : clamp((st - b.t - (b.t > 0 ? .2 : 0)) / .35), vout = b.u == null ? 0 : reduce ? pout : clamp((st - b.u) / .25), vv = vin * (1 - vout);
+        b.el.style.opacity = vv; b.el.style.transform = `translateX(${(1 - ease(vin)) * 40}px)`; b.el.style.visibility = vv > 0 ? 'visible' : 'hidden'; continue; }
+      else if (b.kind === 'view-old') { b.el.style.opacity = v; b.el.style.transform = `translateX(${(1 - ease(pin)) * 40 - ease(pout) * 40}px)`; b.el.style.visibility = v > 0 ? 'visible' : 'hidden'; }
+      else if (b.kind === 'show') b.el.style.display = v > .5 ? '' : 'none';
+      else b.el.classList.toggle('on', v > .5);
+    }
+    // pointer: glides to each tap target .75 s before the tap, ripples on the tap
+    let ci = -1; m.clicks.forEach((c, k) => { if (st >= c.t - .75) ci = k; });
+    const c = m.clicks[ci];
+    if (c && st < c.t + 1.6) {
+      const to = pos(c.el), prev = ci > 0 && st < c.t ? pos(m.clicks[ci - 1].el) : [to[0] + 60, to[1] + 140];
+      const p = ease(clamp((st - (c.t - .75)) / .65));
+      const x = prev[0] + (to[0] - prev[0]) * p, y = prev[1] + (to[1] - prev[1]) * p;
+      ptr.style.opacity = clamp((st - (c.t - .75)) / .2) * clamp((c.t + 1.6 - st) / .3);
+      ptr.style.transform = `translate(${x}px, ${y}px)`;
+      const r = (st - c.t) / .5;
+      ring.style.opacity = r >= 0 && r <= 1 ? 1 - r : 0; ring.style.transform = `translate(${to[0]}px, ${to[1]}px) scale(${.4 + r * 1.6})`;
+      c.el.style.filter = r >= 0 && r < .4 ? 'brightness(.88)' : '';
+    } else { ptr.style.opacity = 0; ring.style.opacity = 0; }
+    const cue = m.cues.find(q => st >= q.t && st < q.e);
+    const txt = cue ? cue.text : ''; if (cap.textContent !== txt) cap.textContent = txt;
+    return m;
+  }
+  window.TOTAL = TOTAL;
+  window.seek = g => { draw(g); };
+  window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(i => i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; })))).then(() => true);
+
+  // preview player (not part of the render)
+  if (!render) {
+    const fit = () => { const k = Math.min(1, (innerWidth - 32) / 720, (innerHeight - 90) / 1280); stage.style.transform = `scale(${k})`; stage.style.marginBottom = `${-1280 * (1 - k)}px`; stage.style.marginRight = `${-720 * (1 - k)}px`; };
+    fit(); addEventListener('resize', fit);
+    const vo = document.getElementById('vo'), btn = document.getElementById('play'), time = document.getElementById('time');
+    let g = 0, playing = false, last = performance.now(), cur = null;
+    const hm = /^#(\d+(?:\.\d+)?)$/.exec(location.hash); if (hm) g = +hm[1];
+    function step(now) {
+      const dt = Math.min(1, (now - last) / 1000); last = now;
+      if (playing) {
+        const m = meta.findLast(x => x.start <= g), st = g - m.start;
+        if (cur !== m.id) { cur = m.id; vo.src = `audio/${m.id}.mp3`; vo.pause(); }
+        if (st >= LEAD && st < LEAD + m.audio - .1) { if (vo.paused) { vo.currentTime = st - LEAD; vo.play().catch(() => {}); } else g = m.start + LEAD + vo.currentTime; }
+        else g += dt;
+        if (g >= TOTAL) { playing = false; vo.pause(); g = TOTAL - .01; }
+      }
+      draw(g); time.textContent = `${g.toFixed(1)} / ${TOTAL.toFixed(1)} s`; btn.textContent = playing ? 'Pause' : 'Play';
+      requestAnimationFrame(step);
+    }
+    btn.onclick = () => { playing = !playing; if (!playing) vo.pause(); else { cur = null; } };
+    requestAnimationFrame(step);
+  }
+})();
+</script>

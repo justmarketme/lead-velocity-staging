@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { inlineModule } from './security/inline-for-n8n.mjs';
 // I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent, W03 already gated).
 const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
+const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
 const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
@@ -89,14 +90,16 @@ return out;`));
 SELECT br.id AS brand_id,
        (SELECT row_to_json(k) FROM (
           SELECT b.id AS broker_id, b.practice_name, b.fsp_number, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name,
-                 b.methods_supported, coalesce(b.consent_mode, 'named') AS consent_mode, b.current_cycle_id
+                 b.methods_supported, coalesce(b.consent_mode, 'named') AS consent_mode
             FROM public.brokers b
            WHERE b.brand_id = br.id AND b.active AND b.routing_on AND NOT b.bookings_paused AND b.status = 'active'
+             -- capacity: only a broker with an open paid SortMyCover lead order (the database enforces it again at routing)
+             AND EXISTS (SELECT 1 FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = br.id AND c.open)
            ORDER BY b.next_free_slot_at NULLS LAST, b.created_at
            LIMIT 1) k) AS broker,
        ol.id AS existing_open_lead_id,
        (SELECT row_to_json(x) FROM (
-          SELECT l2.id, l2.conv_state, l2.age_band, l2.budget_band, l2.bond, l2.dependants, l2.broker_id, l2.language
+          SELECT l2.id, l2.origin, l2.conv_state, l2.age_band, l2.budget_band, l2.bond, l2.dependants, l2.broker_id, l2.language
             FROM public.leads l2 WHERE l2.id = ol.id) x) AS lead,
        EXISTS (SELECT 1 FROM public.suppression s
                 WHERE s.mobile_hash = public.smc_hash_contact($2) AND (s.brand_id IS NULL OR s.brand_id = br.id)
@@ -145,7 +148,7 @@ RETURNING stage;`,
     '={{ [ $json.brand_id, $json.mobile, JSON.stringify($json.thread || { stage: "none" }), $json.at, $json.stall_due_at ] }}'));
   n.push(code('Fan out actions', [1780, 280],
     "return $input.all().flatMap((it) => it.json.actions.filter((a) => !['schedule_stall', 'cancel_stall', 'ignore'].includes(a.kind)).map((a) => ({ json: { ...a, _brand_id: it.json.brand_id, _mobile: it.json.mobile, _wamid: it.json.wamid, _at: it.json.at, _pnid: it.json.phone_number_id, _broker: it.json.broker, _lead_id: it.json.lead_id, _hops: it.json.hops } })));"));
-  n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert', 'log_no_brand']));
+  n.push(switchOn('Action?', [2000, 280], '={{ $json.kind }}', ['send', 'insert_lead', 'update_lead', 'suppress', 'capi', 'route_and_first_touch', 'forward_w07', 'alert', 'log_no_brand', 'finalize_booking']));
   // I-48b/I-48k: every lead-facing W03 message takes the per-inbound reply claim (same key as W07: w07:reply:{wamid}),
   // then DRY_RUN_SENDS decides live send vs stored only; the outbound communications row is written either way (W07 parity).
   n.push(code('Build Cloud API body', [2240, 0], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message), brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }));"));
@@ -180,15 +183,13 @@ RETURNING id;`,
     '={{ [ $json._wamid, $json.phone_number_id || "" ] }}'));
   n.push(pg('Insert lead (consent at the tap)', [2240, 140],
 `-- Row is created at "Yes, continue" (W01 parity): consent text = exact words shown, verified by the tap (3.3).
--- campaign/adset from the W21 ad_objects cache; W21 back-fills when null. Idempotent on id and on the activity key.
+-- Idempotent on id and on the activity key. (campaign/adset ids are not looked up: the ads cache of the original design is not in the CRM.)
 WITH ins AS (
   INSERT INTO public.leads (id, brand_id, origin, ref, ad_id, ctwa_clid, phone, first_name, consent_text, consent_text_version,
                             consent_mode, consent_at, consent_source, verified_at, wa_delivered_at, stage, stage_entered_at,
-                            is_synthetic, campaign_id, adset_id, conv_state)
+                            is_synthetic, conv_state)
   SELECT $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz, 'ctwa', $12::timestamptz, $13::timestamptz,
-         'verified', $12::timestamptz, $14::boolean, a.campaign_id, a.adset_id, jsonb_build_object('state', 'q_age')
-    FROM (SELECT 1) one
-    LEFT JOIN public.ad_objects a ON a.id = $5 AND a.level = 'ad'
+         'verified', $12::timestamptz, $14::boolean, jsonb_build_object('state', 'q_age')
   ON CONFLICT (id) DO NOTHING
   RETURNING id, brand_id)
 INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
@@ -212,8 +213,11 @@ UPDATE public.leads
        broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE broker_id END,
        -- a qualified lead keeps nothing scheduled for deletion (lead-ad budget reminder sets reminder + 24 h; a tap in time clears it)
        retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after) END,
-       stage                  = coalesce($2::jsonb->>'stage', stage),
-       stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' THEN now() ELSE stage_entered_at END,
+       -- a stage only moves forward from the pre-booking stages (a lead a broker already booked is never pulled back to 'qualified' by a
+       -- late button tap); 'disqualified' / 'opted_out' may be written from any stage
+       stage                  = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))
+                                     THEN $2::jsonb->>'stage' ELSE stage END,
+       stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified')) THEN now() ELSE stage_entered_at END,
        -- I-48k: W03 writes leads.conv_state.state itself on every qualifying turn (W07 skips state on hand-off turns)
        conv_state             = CASE WHEN $2::jsonb ? 'conv_state_state'
                                      THEN coalesce(conv_state, '{}'::jsonb) || jsonb_build_object('state', $2::jsonb->>'conv_state_state', 'last_turn_at', now())
@@ -241,6 +245,10 @@ ON CONFLICT (source, external_id) DO UPDATE SET attempts = public.webhook_events
 RETURNING id;`,
     '={{ [ $json.msg.wamid, $json.brand_id || "", String($json.hops) ] }}'));
   n.push(sub('W22 Alerts: W03', [2240, 980], 'W22 Alerts'));
+  // quiz v2: a web lead's band arrived (finishPageBudget). executionOrder v1 runs the Action? outputs in order, so the
+  // band UPDATE (output 2) has committed before W05 op finalize (output 9) re-reads the lead: a held booking whose email is
+  // verified is handed over now; otherwise finalizeRequest returns nothing and the hold keeps waiting.
+  n.push(sub('W05 Book (finalize after the band)', [2240, 1260], 'W05 Book'));
 
   // tracked redirect (I-09)
   n.push(node('CTWA redirect (GET /wa/:ref)', 'webhook', 2, [0, 600], { httpMethod: 'GET', path: 'wa/:ref', responseMode: 'responseNode', options: {} }, { webhookId: 'w03-ctwa-redirect' }));
@@ -251,9 +259,6 @@ RETURNING id;`,
     { name: 'Cache-Control', value: 'no-store' },
     { name: 'Referrer-Policy', value: 'no-referrer' },
   ]));
-  n.push(pg('Log click (no IP, no UA)', [440, 680],
-    "-- ops.ctwa_clicks (needs_human: schema pass 3). Counting only (POPIA minimisation).\nINSERT INTO ops.ctwa_clicks (ref, clicked_at, ua_class) VALUES ($1, now(), $2);",
-    '={{ [ $json.click.ref, $json.click.ua_class ] }}'));
 
   // Meta GET handshake
   n.push(node('Meta webhook verify (GET)', 'webhook', 2, [0, 900], { httpMethod: 'GET', path: 'whatsapp', responseMode: 'responseNode', options: {} }, { webhookId: 'w03-waba-get' }));
@@ -270,7 +275,7 @@ RETURNING id;`,
   link(c, 'W03 step', 'Fan out actions');
   link(c, 'Fan out actions', 'Action?');
   ['Build Cloud API body', 'Insert lead (consent at the tap)', 'Update lead (answers / out-of-band)', 'Suppress (hash only)', 'CAPI business-messaging Lead',
-    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03', 'Log no brand (I-47b)'].forEach((t, i) => link(c, 'Action?', t, i));
+    'W01 Lead core (route + W06 first touch < 60 s)', 'Mark origin w03 (loop guard)', 'W22 Alerts: W03', 'Log no brand (I-47b)', 'W05 Book (finalize after the band)'].forEach((t, i) => link(c, 'Action?', t, i));
   link(c, 'Mark origin w03 (loop guard)', 'Hop limit ok? (I-48b)');
   link(c, 'Hop limit ok? (I-48b)', 'W07 Conversation agent (forward)', 0);
   link(c, 'Hop limit ok? (I-48b)', 'Log hop limit (W03)', 1);
@@ -282,7 +287,6 @@ RETURNING id;`,
   link(c, 'Insert lead (consent at the tap)', 'Mint lead_token');
   link(c, 'CTWA redirect (GET /wa/:ref)', 'Build redirect');
   link(c, 'Build redirect', 'Respond 302 to wa.me');
-  link(c, 'Build redirect', 'Log click (no IP, no UA)');
   link(c, 'Meta webhook verify (GET)', 'Check hub.verify_token');
   link(c, 'Check hub.verify_token', 'Respond hub.challenge');
   return { id: 'smc-w03', name: 'W03 Lead intake (Click-to-WhatsApp)', nodes: n, connections: c, active: false, settings: SETTINGS, pinData: {}, tags: [{ name: 'intake' }, { name: 'whatsapp' }], meta: { notes: 'automation-engineer. Logic: automation/ctwa/w03.js. Generated by automation/build-w03-w28.mjs; do not hand-edit Code nodes.' } };
@@ -320,7 +324,8 @@ const d = req.data || {};
 return [{ json: { status: 200, ping: false, req, tok, aes, iv, lead_id: tok.ok ? tok.lead_id : null, booking_id: tok.ok ? tok.booking_id : null,
   date: d.date || null, fresh: d.action_type === 'slot_selected' } }];`));
   n.push(switchOn('Status?', [440, 0], '={{ $json.status === 200 ? ($json.ping ? "ping" : "work") : "reject" }}', ['ping', 'work', 'reject']));
-  n.push(respond('Respond ping (encrypted)', [660, -160], '={{ $json.encrypted }}', 200));
+  // Meta Flows endpoint (docs re-checked 2026-10-11): the encrypted response is the base64 string, sent as text/plain.
+  n.push(respond('Respond ping (encrypted)', [660, -160], '={{ $json.encrypted }}', 200, [{ name: 'Content-Type', value: 'text/plain' }]));
   n.push(respond('Respond 421 / 432', [660, 160], '={{ "" }}', '={{ $json.status }}'));
   n.push(pg('Load token context', [660, 0],
 `-- The flow_token (HMAC) names the lead; everything else is looked up here, never taken from the payload.
@@ -330,7 +335,7 @@ SELECT row_to_json(l) AS lead, row_to_json(b) AS broker, row_to_json(a) AS booki
        (SELECT x.payload->>'typed_hash' FROM public.lead_activities x
          WHERE x.lead_id = l.id AND x.activity_type = 'flow_email_suggested' AND x.payload->>'flow_token' = $2
          ORDER BY x.occurred_at DESC LIMIT 1) AS email_suggested_for
-  FROM (SELECT id, email, opted_out_at, brand_id, broker_id, phone FROM public.leads WHERE id = $1::uuid) l
+  FROM (SELECT id, email, email_verified, opted_out_at, brand_id, broker_id, phone FROM public.leads WHERE id = $1::uuid) l
   JOIN (SELECT id AS broker_id, adviser_name, split_part(adviser_name, ' ', 1) AS adviser_first_name, methods_supported, calendar_provider,
                meeting_hours, slot_minutes, buffer_minutes, min_notice_hours, horizon_days, max_meetings_per_day, max_meetings_per_week,
                bookings_paused, status
@@ -361,7 +366,7 @@ const out = await EP.handle(base.req, {
 });
 return [{ json: { response: out.response, effects: out.effects, lead_id: ctx.lead ? ctx.lead.id : null, brand_id: ctx.lead ? ctx.lead.brand_id : null, broker_id: ctx.broker ? ctx.broker.broker_id : null, aes: base.aes, iv: base.iv } }];`));
   n.push(code('Encrypt response', [1320, -100], FC + "const j = $input.first().json;\nreturn [{ json: { ...j, encrypted: FC.encryptResponse(j.response, Buffer.from(j.aes, 'base64'), Buffer.from(j.iv, 'base64')) } }];"));
-  n.push(respond('Respond 200 (encrypted)', [1540, -100], '={{ $json.encrypted }}', 200));
+  n.push(respond('Respond 200 (encrypted)', [1540, -100], '={{ $json.encrypted }}', 200, [{ name: 'Content-Type', value: 'text/plain' }]));
   n.push(code('Fan out effects', [1320, 100], "return $input.all().flatMap((it) => (it.json.effects || []).map((e) => ({ json: { ...e, _lead_id: it.json.lead_id, _brand_id: it.json.brand_id, _broker_id: it.json.broker_id } })));"));
   n.push(switchOn('Effect?', [1540, 100], '={{ $json.kind }}', ['activity', 'store_email', 'send_list', 'security_event']));
   n.push(pg('Log activity (flow_opened / flow_error)', [1760, 0],
@@ -454,6 +459,9 @@ function EP_SAFE() { return W28; }
 
 // GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
 const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
-writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(gateSenders(buildW03()), null, 1) + '\n');
-writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(gateSenders(buildW28()), null, 1) + '\n');
+// 2026-10-11: every WhatsApp send goes through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER switches it.
+const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false } } }; // Store outbound (W03) logs it
+const W28_ROUTE = { caller: 'W28', nodes: { 'WhatsApp send list': { record: true }, 'WhatsApp send ask_email': { record: true } } };
+writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(routeWaSends(gateSenders(buildW03()), W03_ROUTE), null, 1) + '\n');
+writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(routeWaSends(gateSenders(buildW28()), W28_ROUTE), null, 1) + '\n');
 console.log(`wrote ${OUT_DIR === HERE ? 'automation' : OUT_DIR}/W03.json, W28.json`);

@@ -1,0 +1,103 @@
+{
+  "_meta": {
+    "key": "smc_session_list_10",
+    "approval": null,
+    "session_only": true
+  },
+  "content": {
+    "friendly_name": "smc_session_list_10",
+    "language": "en",
+    "variables": {
+      "1": "Here are the open times",
+      "2": "See times",
+      "3": "slot_1",
+      "4": "Tue 14 Oct 09:00",
+      "5": "South African time",
+      "6": "slot_2",
+      "7": "Tue 14 Oct 10:00",
+      "8": "South African time",
+      "9": "slot_3",
+      "10": "Tue 14 Oct 11:00",
+      "11": "South African time",
+      "12": "slot_4",
+      "13": "Tue 14 Oct 12:00",
+      "14": "South African time",
+      "15": "slot_5",
+      "16": "Tue 14 Oct 13:00",
+      "17": "South African time",
+      "18": "slot_6",
+      "19": "Tue 14 Oct 14:00",
+      "20": "South African time",
+      "21": "slot_7",
+      "22": "Tue 14 Oct 15:00",
+      "23": "South African time",
+      "24": "slot_8",
+      "25": "Tue 14 Oct 16:00",
+      "26": "South African time",
+      "27": "slot_9",
+      "28": "Tue 14 Oct 17:00",
+      "29": "South African time",
+      "30": "slot_10",
+      "31": "Tue 14 Oct 18:00",
+      "32": "South African time"
+    },
+    "types": {
+      "twilio/list-picker": {
+        "body": "{{1}}",
+        "button": "{{2}}",
+        "items": [
+          {
+            "id": "{{3}}",
+            "item": "{{4}}",
+            "description": "{{5}}"
+          },
+          {
+            "id": "{{6}}",
+            "item": "{{7}}",
+            "description": "{{8}}"
+          },
+          {
+            "id": "{{9}}",
+            "item": "{{10}}",
+            "description": "{{11}}"
+          },
+          {
+            "id": "{{12}}",
+            "item": "{{13}}",
+            "description": "{{14}}"
+          },
+          {
+            "id": "{{15}}",
+            "item": "{{16}}",
+            "description": "{{17}}"
+          },
+          {
+            "id": "{{18}}",
+            "item": "{{19}}",
+            "description": "{{20}}"
+          },
+          {
+            "id": "{{21}}",
+            "item": "{{22}}",
+            "description": "{{23}}"
+          },
+          {
+            "id": "{{24}}",
+            "item": "{{25}}",
+            "description": "{{26}}"
+          },
+          {
+            "id": "{{27}}",
+            "item": "{{28}}",
+            "description": "{{29}}"
+          },
+          {
+            "id": "{{30}}",
+            "item": "{{31}}",
+            "description": "{{32}}"
+          }
+        ]
+      }
+    }
+  }
+}

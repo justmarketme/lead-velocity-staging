@@ -35,7 +35,7 @@
       var small = document.createElement('small'); small.textContent = '/ 30-day cycle, ' + t.vat_line; price.appendChild(small);
       var ul = document.createElement('ul');
       [t.committed_leads + ' pre-qualified leads per cycle', 'AI WhatsApp follow-up, booking & reminders included',
-       'Up to ' + t.replacement_cap_cycle + ' replacements per cycle', 'Media spend included'].forEach(function (s) {
+       'Goodwill replacements: up to ' + t.goodwill_replacements_per_week + ' requests a week', 'Media spend included'].forEach(function (s) {
         var li = document.createElement('li'); li.textContent = s; ul.appendChild(li);
       });
       b.appendChild(name); b.appendChild(price); b.appendChild(ul);

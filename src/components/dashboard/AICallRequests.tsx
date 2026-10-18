@@ -32,6 +32,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CallRecordingPlayer } from "@/components/communications/CallRecordingPlayer";
@@ -439,18 +440,25 @@ const AICallRequests = () => {
   );
 };
 
+interface CoachingRecord {
+  total_score: number;
+  scorecard?: Record<string, string | number> | null;
+  coach_feedback?: { detailed?: { timestamp?: string; technique?: string; comment?: string }[] } | null;
+  fsca_compliance?: { is_compliant?: boolean; status_text?: string } | null;
+}
+
 const CoachingSection = ({ requestId }: { requestId: string }) => {
-  const [coaching, setCoaching] = useState<any>(null);
+  const [coaching, setCoaching] = useState<CoachingRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchCoaching = async () => {
-      const { data } = await supabase
+      const { data } = await supabaseUntyped
         .from('call_coaching')
         .select('*')
         .eq('call_request_id', requestId)
         .maybeSingle();
-      if (data) setCoaching(data);
+      if (data) setCoaching(data as CoachingRecord);
       setLoading(false);
     };
     fetchCoaching();
@@ -472,7 +480,7 @@ const CoachingSection = ({ requestId }: { requestId: string }) => {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        {Object.entries(coaching.scorecard || {}).map(([key, val]: [string, any]) => {
+        {Object.entries(coaching.scorecard || {}).map(([key, val]) => {
           if (key === 'total') return null;
           return (
             <div key={key} className="bg-muted/30 p-2 rounded text-xs">
@@ -485,7 +493,7 @@ const CoachingSection = ({ requestId }: { requestId: string }) => {
       <div className="space-y-2">
         <p className="text-[10px] uppercase font-bold text-muted-foreground">Detailed Feedback</p>
         <div className="space-y-1">
-          {coaching.coach_feedback?.detailed?.map((f: any, i: number) => (
+          {coaching.coach_feedback?.detailed?.map((f, i) => (
             <div key={i} className="text-xs bg-muted/50 p-2 rounded border-l-2 border-pink-500">
               <span className="font-bold text-pink-500">[{f.timestamp}] {f.technique}</span>: {f.comment}
             </div>

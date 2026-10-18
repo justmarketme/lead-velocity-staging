@@ -13,9 +13,12 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = process.env.PRICE_DIFF_ROOT || join(here, '..', '..');
 
-const seed = JSON.parse(readFileSync(join(here, 'pricing.seed.json'), 'utf8')).rows;
-const TIER_PRICES = new Set(seed.map((r) => Number(r.price_zar)));
-const PER_LEAD = new Set(seed.map((r) => Math.round(Number(r.price_zar) / Number(r.committed_leads))));
+const seedFile = JSON.parse(readFileSync(join(here, 'pricing.seed.json'), 'utf8'));
+const seed = seedFile.rows;
+// The Pilot sits outside `rows` (it is not on the monthly ladder) but its R8,500 and R850 are prices too.
+const pilot = seedFile.pilot && seedFile.pilot.offered !== false ? { total: Number(seedFile.pilot.price_per_lead_zar) * Number(seedFile.pilot.committed_leads), perLead: Number(seedFile.pilot.price_per_lead_zar) } : null;
+const TIER_PRICES = new Set([...seed.map((r) => Number(r.price_zar)), ...(pilot ? [pilot.total] : [])]);
+const PER_LEAD = new Set([...seed.map((r) => Math.round(Number(r.price_zar) / Number(r.committed_leads))), ...(pilot ? [pilot.perLead] : [])]);
 // Legacy B2B tiers hard-coded in the CRM (crm-gap NH-14). Typed as bare numbers so this file never matches itself.
 const LEGACY_PRICES = new Set([6000, 8500, 10500, 16500]);
 
@@ -32,6 +35,7 @@ const EXCLUDE = [
   ['deliverables/', 'agent working papers (research, memos, wording specs); surfaces inside deliverables are re-included below'],
   ['automation/billing/pricing.seed.json', 'THE pricing seed: the one allowed place'],
   ['automation/billing/price-diff.mjs', 'this checker (its legacy-value list)'],
+  ['automation/billing/pilot.test.js', 'independent oracle: pins the Pilot, ladder and top-up numbers on purpose (10 Oct 2026)'],
   ['automation/billing/fixtures/', 'synthetic bank alerts/statements: amounts are test data, not price claims'],
   ['evals/', 'golden sets and judge rubrics quote amounts as test inputs'],
   ['brand/node_modules/', 'third-party code'],

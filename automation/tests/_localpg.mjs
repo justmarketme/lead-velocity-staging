@@ -9,15 +9,20 @@ import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync, chmodSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const IMAGE = 'postgres:16-alpine';
+// Production is Postgres 17 (Supabase). Prefer a local postgres:17-alpine image, fall back to 16. Override with SMC_PG_IMAGE.
+const IMAGE_CANDIDATES = process.env.SMC_PG_IMAGE ? [process.env.SMC_PG_IMAGE] : ['postgres:17-alpine', 'postgres:16-alpine'];
+let IMAGE = IMAGE_CANDIDATES[0];
 const PGBIN = ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/local/pgsql/bin'].find((d) => existsSync(join(d, 'initdb')));
 
 function dockerReady() {
-  try { execFileSync('docker', ['image', 'inspect', IMAGE], { stdio: 'ignore', timeout: 20000 }); return true; } catch { return false; }
+  for (const img of IMAGE_CANDIDATES) {
+    try { execFileSync('docker', ['image', 'inspect', img], { stdio: 'ignore', timeout: 20000 }); IMAGE = img; return true; } catch { /* try next */ }
+  }
+  return false;
 }
 
 /** Which backend this machine can run, or null (the caller skips). Decided synchronously at module load. */
@@ -48,7 +53,12 @@ export function startLocalPg(backend = localPgBackend()) {
     as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
     const conn = ['-h', dir, '-p', port];
     const sql = (text, extra = []) => { const f = join(dir, `q${crypto.randomBytes(4).toString('hex')}.sql`); writeFileSync(f, text); chmodSync(f, 0o644); return as('psql', [...conn, ...base, ...extra, '-f', f]); };
-    return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
+    // one simple-protocol query string per call (what n8n / pg-promise sends), asynchronous so callers can overlap
+    const query = (text) => new Promise((resolve) => {
+      const args = [...conn, ...base, '-At', '-F', '|', '-c', text];
+      execFile(isRoot ? 'runuser' : 'psql', isRoot ? ['-u', 'postgres', '--', 'psql', ...args] : args, { encoding: 'utf8' }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
+    });
+    return { backend, dir, sql, query, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra),
       stop: () => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); } };
   }
   // docker
@@ -57,25 +67,50 @@ export function startLocalPg(backend = localPgBackend()) {
     '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', '-e', 'POSTGRES_USER=postgres', '-e', 'POSTGRES_DB=postgres', IMAGE], opts);
   const stop = () => { try { execFileSync('docker', ['rm', '-f', name], { stdio: 'ignore' }); } catch {} rmSync(dir, { recursive: true, force: true }); };
   // The image runs a temporary socket-only server during init, then restarts; TCP on loopback is up only after that.
-  const until = Date.now() + 90000;
+  // 90 s was not enough when the whole suite ran at once (three containers starting beside the other tests); SMC_PG_READY_MS overrides.
+  const until = Date.now() + Number(process.env.SMC_PG_READY_MS || 240000);
   for (;;) {
     try { execFileSync('docker', ['exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'], { stdio: 'ignore' }); break; }
     catch { if (Date.now() > until) { stop(); throw new Error('throwaway Postgres did not become ready'); } execFileSync(process.execPath, ['-e', 'setTimeout(()=>{},500)']); }
   }
   const sql = (text, extra = []) => execFileSync('docker', ['exec', '-i', name, 'psql', '-h', '127.0.0.1', ...base, ...extra, '-f', '-'], { ...opts, input: text });
-  return { backend, dir, sql, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
+  const query = (text) => new Promise((resolve) => {
+    execFile('docker', ['exec', name, 'psql', '-h', '127.0.0.1', ...base, '-At', '-F', '|', '-c', text], { encoding: 'utf8', maxBuffer: 1 << 26 }, (err, stdout, stderr) => resolve({ err, stdout: String(stdout).trim(), stderr }));
+  });
+  return { backend, dir, sql, query, file: (p, extra = []) => sql(readFileSync(p, 'utf8'), extra), stop };
 }
 
-/** Applies pg-stub.sql + the repo migration chain exactly as S7-08-09 always has (legacy first with one retry pass, then smc_*). */
+/**
+ * Applies pg-stub.sql + the repo migration chain exactly as S7-08-09 always has (legacy first with one retry pass, then smc_*).
+ * Default (crm-nurture, 2026-10-11): the captured LIVE schema, because the CRM chain extends live-only tables (lead_orders,
+ * lead_order_items) that no repo migration creates. SMC_BASE=legacy: the old repo replay. SMC_BASE=real (explicit) = the default:
+ * instead of replaying the repo's legacy migrations (which do NOT reproduce production: 26 live migrations are
+ * missing from the repo), start from the captured LIVE public schema (supabase/drift/real-public-schema-*.sql) + synthetic seed.
+ */
 export function applyRepoMigrations(pg) {
   pg.file(join(ROOT, 'automation', 'tests', 'fixtures', 'pg-stub.sql'));
+  if (String(process.env.SMC_BASE || 'real').toLowerCase() !== 'legacy') {
+    const D = join(ROOT, 'supabase', 'drift');
+    pg.file(join(D, 'real-public-prelude.sql'));
+    pg.file(join(D, readdirSync(D).find((f) => /^real-public-schema-.*\.sql$/.test(f))));
+    pg.file(join(D, 'real-seed-synthetic.sql'));
+    pg.sql('ALTER DATABASE postgres SET search_path = "$user", public, extensions');
+    const MIGR = join(ROOT, 'supabase', 'migrations');
+    // every migration after the captured live schema (2026-10-10): the smc_* chain AND the later CRM migrations that are not named
+    // smc_ (broker_*, appointment_*, ...), in timestamp order. undo/ and backup/ are directories, never picked up.
+    // `create extension pg_cron | pg_net` cannot be satisfied by a throwaway Postgres: the cron.* and net.* stand-ins in pg-stub.sql cover the calls.
+    for (const f of readdirSync(MIGR).filter((x) => /^\d{14}_.*\.sql$/.test(x) && x.slice(0, 14) >= '20261011000000').sort()) {
+      pg.sql(readFileSync(join(MIGR, f), 'utf8').replace(/create extension if not exists (pg_cron|pg_net)[^;]*;/gi, '-- pg_cron / pg_net: stubbed in pg-stub.sql'), ['-1']);
+    }
+    return;
+  }
   const MIG = join(ROOT, 'supabase', 'migrations');
   const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
-  const legacy = all.filter((f) => !/^2026100\d_smc_/.test(f) && !f.startsWith('20260114094619'));
+  const legacy = all.filter((f) => !/^\d{14}_smc_/.test(f) && !f.startsWith('20260114094619'));
   const deferred = [];
   for (const f of legacy) { try { pg.file(join(MIG, f), ['-1']); } catch { deferred.push(f); } }
   for (const f of deferred) pg.file(join(MIG, f), ['-1']);
-  for (const f of all.filter((x) => /^2026100\d_smc_/.test(x))) pg.file(join(MIG, f), ['-1']);
+  for (const f of all.filter((x) => /^\d{14}_smc_/.test(x))) pg.file(join(MIG, f), ['-1']);
 }
 
 /** psql with $n parameters inlined as literals (test-only; synthetic values) -> rows of string cells. */

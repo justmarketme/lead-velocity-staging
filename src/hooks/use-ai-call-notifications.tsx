@@ -19,7 +19,7 @@ interface NotificationPreferences {
 // Create notification sound using Web Audio API
 const playNotificationSound = () => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioContext = new (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
     
     // Create a pleasant two-tone notification sound
     const playTone = (frequency: number, startTime: number, duration: number) => {

@@ -129,7 +129,7 @@ function sections(p, t, o) {
     + row('Booked', `${esc(num(b.v))}${b.rate != null ? ` (${esc(pct(b.rate))} of verified)` : ''}`, [b.target != null ? `target ${pct(b.target)} booked` : 'target n/a', b.last != null ? `last week ${num(b.last)}` : 'last week n/a'].join(' · '))
     + row('Showed up', esc(num((sp.attended || {}).v)), tl(sp.attended))
     + row('Show rate', esc(pct(sr.v)) + pill(sr.light), tl(sr, pct))
-    + row('Replacements used', `${esc(rp.used)} of ${esc(rp.cap)}` + pill(rp.light), `last week ${rp.last_used == null ? 'n/a' : rp.last_used}`)
+    + row('Replacements used', esc(rp.used), `last week ${rp.last_used == null ? 'n/a' : rp.last_used}`)
     + row('Days left in this cycle', esc(sp.days_left), null)
     + `</table>`;
 

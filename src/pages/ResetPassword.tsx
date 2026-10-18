@@ -1,290 +1,315 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/lead-velocity-logo.webp";
-import { z } from "zod";
-import { Shield, HelpCircle, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { parseRecoveryParams, passwordStrength, postResetDestination, validateNewPassword, verifyFailureIsFinal } from "@/lib/passwordReset";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
+import { Check, Eye, EyeOff } from "lucide-react";
+import { BrokerMotion, EASE, Stagger, StaggerItem } from "@/components/broker/motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-const passwordSchema = z.object({
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords do not match",
-  path: ["confirmPassword"],
-});
+const STRENGTH = [
+  { label: "", color: "bg-slate-800" },
+  { label: "Too short", color: "bg-rose-500" },
+  { label: "Okay", color: "bg-amber-400" },
+  { label: "Good", color: "bg-primary" },
+  { label: "Strong", color: "bg-emerald-400" },
+];
 
+/**
+ * One page for every "set a password from an email link" case:
+ *  - /broker/set-password?token_hash=…&type=recovery — the admin "create your password" email
+ *    (send-password-setup). The token is only redeemed on submit, so link-scanners that pre-fetch
+ *    the URL can't use it up.
+ *  - /reset-password — Supabase's own recovery email (forgot password): the default template lands
+ *    here with the session in the URL hash (implicit flow), or ?code=… if the client uses PKCE.
+ * The email link itself proves the mailbox, so there is no security-question step here.
+ */
 const ResetPassword = () => {
+  const location = useLocation();
+  const isSetup = location.pathname.startsWith("/broker/set-password");
+  // The reset email adds &portal=admin for owner/admin logins (user_metadata.admin_portal), so their dead ends lead back to the admin CRM.
+  const isAdmin = new URLSearchParams(location.search).get("portal") === "admin";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const reduceMotion = useReducedMotion();
+  const [tokenHash, setTokenHash] = useState<string | null>(null);
   const [isValidSession, setIsValidSession] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [isVerified, setIsVerified] = useState(false);
-  const [questions, setQuestions] = useState<{ q1: string; q2: string } | null>(null);
-  const [answer1, setAnswer1] = useState("");
-  const [answer2, setAnswer2] = useState("");
-  const [correctAnswers, setCorrectAnswers] = useState<{ a1: string; a2: string } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check if we have a valid recovery session
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "PASSWORD_RECOVERY") {
-          setIsValidSession(true);
-        }
-        setCheckingSession(false);
-      }
-    );
+    const query = new URLSearchParams(location.search);
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const link = parseRecoveryParams(location.search, location.hash);
 
-    // Also check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsValidSession(true);
-        fetchSecurityQuestions(session.user.id);
-      }
+    // Never leave a one-time token, code or access token in the address bar, history or Referer.
+    // The token is kept in state; the supabase client has already read any hash session.
+    const portal = query.get("portal");
+    const scrubUrl = () => window.history.replaceState(null, "", location.pathname + (portal === "admin" ? "?portal=admin" : ""));
+
+    // Supabase puts link errors (expired / already used) in the hash or query.
+    if (link.kind === "error") {
+      scrubUrl();
       setCheckingSession(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchSecurityQuestions = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("security_question_1, security_answer_1, security_question_2, security_answer_2")
-        .eq("user_id", userId)
-        .single();
-
-      if (error) throw error;
-
-      if (data) {
-        setQuestions({
-          q1: data.security_question_1,
-          q2: data.security_question_2,
-        });
-        setCorrectAnswers({
-          a1: data.security_answer_1,
-          a2: data.security_answer_2,
-        });
-        // If no questions are set (legacy user), just allow reset
-        if (!data.security_question_1 && !data.security_question_2) {
-          setIsVerified(true);
-        }
-      } else {
-        // No profile found, allow reset (shouldn't happen for admins)
-        setIsVerified(true);
-      }
-    } catch (error) {
-      console.error("Error fetching security questions:", error);
-      // Fallback: allow reset if error fetching (don't lock out users)
-      setIsVerified(true);
-    }
-  };
-
-  const handleVerifyQuestions = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!questions || !correctAnswers) {
-      setIsVerified(true);
       return;
     }
 
-    const isA1Correct = answer1.trim().toLowerCase() === correctAnswers.a1.toLowerCase();
-    const isA2Correct = answer2.trim().toLowerCase() === correctAnswers.a2.toLowerCase();
-
-    if (isA1Correct && isA2Correct) {
-      setIsVerified(true);
-      toast({
-        title: "Identity Verified",
-        description: "Please enter your new password below.",
-      });
-    } else {
-      toast({
-        title: "Incorrect Answers",
-        description: "The answers provided do not match our records. Please try again.",
-        variant: "destructive",
-      });
+    if (link.kind === "token_hash") {
+      setTokenHash(link.tokenHash);
+      setIsValidSession(true);
+      setCheckingSession(false);
+      scrubUrl();
+      return;
     }
-  };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+    // Only a recovery link counts. An ordinary signed-in session must not: opening this page without
+    // a token would otherwise change the password of whoever happens to be signed in on this browser.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setIsValidSession(true);
+    });
+
+    (async () => {
+      if (link.kind === "code") {
+        const { error } = await supabase.auth.exchangeCodeForSession(link.code);
+        if (!error) setIsValidSession(true);
+      }
+      // Implicit-flow links (#access_token=…&type=recovery) fire PASSWORD_RECOVERY during client init.
+      // A signed-in user flagged must_reset_password (temporary password) is sent here by the portal.
+      const { data: { session } } = await supabase.auth.getSession();
+      // Trust the hash only if it actually signed in: a failed URL login leaves any existing session in place.
+      if (hash.get("type") === "recovery" && session && session.access_token === hash.get("access_token")) setIsValidSession(true);
+      if (session?.user?.user_metadata?.must_reset_password === true) setIsValidSession(true);
+      setCheckingSession(false);
+      if (hash.get("access_token") || query.get("code")) scrubUrl();
+    })();
+
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const problem = validateNewPassword(password, confirmPassword);
+    if (problem) {
+      toast({ title: "Check your password", description: problem, variant: "destructive" });
+      return;
+    }
     setLoading(true);
-
     try {
-      const validatedData = passwordSchema.parse({ password, confirmPassword });
-
-      const { error } = await supabase.auth.updateUser({
-        password: validatedData.password,
-      });
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        // Clear the forced-reset flag so the broker isn't bounced back here on next login.
-        const { error: flagError } = await supabase.auth.updateUser({
-          data: { must_reset_password: false },
-        });
-        if (flagError) {
-          console.error("Failed to clear must_reset_password flag:", flagError);
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+        if (error) {
+          // A rejected token (403 otp_expired, or any other 4xx) means the link is dead. A dropped
+          // connection, a rate limit (429) or a server error leaves the token valid, so let them retry.
+          if (verifyFailureIsFinal(error)) {
+            setTokenHash(null);
+            setIsValidSession(false);
+          } else {
+            toast({ title: "Couldn't check your link", description: "Please try again in a moment.", variant: "destructive" });
+          }
+          return;
         }
-
-        toast({
-          title: "Password Updated",
-          description: "Your password has been reset successfully. Please log in with your new password.",
-        });
-
-        // Sign out and redirect to login
-        await supabase.auth.signOut();
-        navigate("/login");
+        setTokenHash(null); // redeemed: there is now a session, so a retry only needs updateUser
       }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
+
+      const { data, error } = await supabase.auth.updateUser({
+        password,
+        data: { must_reset_password: false },
+      });
+      if (error || !data.user) {
+        toast({ title: "Couldn't save your password", description: error?.message, variant: "destructive" });
+        return;
       }
+
+      // A reset usually means "someone else may have my password": end every other session for this account.
+      // Best effort: the password is already changed, so a failure here must not block the redirect.
+      await supabase.auth.signOut({ scope: "others" }).catch(() => undefined);
+
+      // Admins go to the dashboard; brokers straight to their portal (same routing as /broker's sign-in).
+      const [{ data: role }, { data: broker }] = await Promise.all([
+        supabase.from("user_roles").select("role").eq("user_id", data.user.id).eq("role", "admin").maybeSingle(),
+        supabase.from("brokers").select("portal_type").eq("user_id", data.user.id).maybeSingle(),
+      ]);
+      setDone(true);
+      setTimeout(() => navigate(postResetDestination(!!role, broker?.portal_type), { replace: true }), reduceMotion ? 600 : 1600);
     } finally {
       setLoading(false);
     }
   };
 
-  if (checkingSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">Verifying reset link...</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const score = passwordStrength(password);
+  const eyebrow = isSetup ? "Lead Velocity / Broker onboarding" : isAdmin ? "Lead Velocity / Admin CRM" : "Lead Velocity / Account";
+  // Visual system = the public /onboarding page (src/pages/BrokerOnboarding.tsx): its input, primary and outline button classes.
+  const field = "bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md";
+  const pill =
+    "w-full bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20";
+  const outline = "w-full border-primary/30 text-white hover:bg-primary/10 hover:text-white px-6 py-6 text-base rounded-xl";
+  const label = "block text-sm font-medium text-slate-200 mb-2";
 
-  if (!isValidSession) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-        <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
-          <CardHeader className="space-y-4 text-center">
-            <img src={logo} alt="Lead Velocity" className="h-20 w-auto mx-auto" />
-            <CardTitle className="text-2xl text-destructive">Invalid or Expired Link</CardTitle>
-            <CardDescription>
-              This password reset link is invalid or has expired. Please request a new one.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full" onClick={() => navigate("/login")}>
-              Back to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+  let body: React.ReactNode;
+  if (checkingSession) {
+    body = (
+      <m.p key="checking" className="text-center text-slate-400 py-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        Checking your link...
+      </m.p>
+    );
+  } else if (done) {
+    body = (
+      <m.div key="done" className="text-center py-6" initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, ease: EASE }}>
+        <m.div
+          className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.4)]"
+          initial={{ scale: 0.4, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18 }}
+        >
+          <Check className="h-8 w-8 text-white" strokeWidth={3} />
+        </m.div>
+        <h1 className="text-3xl font-bold tracking-tight text-white font-inter">You&apos;re <span className="gradient-text-epiphany">in</span></h1>
+        <p className="mt-2 text-slate-400">Password saved. Taking you to {isAdmin ? "the admin CRM" : "your portal"}...</p>
+      </m.div>
+    );
+  } else if (!isValidSession) {
+    body = (
+      <m.div key="expired" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+        <h1 className="text-3xl font-bold tracking-tight text-white font-inter">This link has <span className="gradient-text-epiphany">expired</span></h1>
+        <p className="mt-3 text-slate-400 leading-relaxed">
+          Password links work once and expire after a short while. Get a fresh one below, or reply to the email you received and we&apos;ll send one.
+        </p>
+        <div className="mt-8 space-y-3">
+          <Button size="lg" className={pill} onClick={() => navigate(isAdmin ? "/admin?forgot=1" : "/broker/forgot-password")}>Send me a new link</Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className={outline}
+            onClick={async () => {
+              // A failed link leaves any other account's session in place; drop it so /broker shows sign-in, not their portal.
+              await supabase.auth.signOut({ scope: "local" });
+              navigate(isAdmin ? "/admin" : "/broker");
+            }}
+          >
+            Go to sign in
+          </Button>
+        </div>
+      </m.div>
+    );
+  } else {
+    body = (
+      <m.div key="form" exit={{ opacity: 0, scale: 0.97 }}>
+        <Stagger>
+          <StaggerItem>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white font-inter">
+              {isSetup ? "Create your" : "Choose a new"} <span className="gradient-text-epiphany">password</span>
+            </h1>
+            <p className="mt-3 text-slate-400 leading-relaxed">
+              {isSetup
+                ? "Welcome to Lead Velocity. Choose a password for your broker portal and you'll go straight in."
+                : isAdmin ? "Choose a new password for your Lead Velocity admin CRM login."
+                : "Choose a new password for your Lead Velocity account."}
+            </p>
+          </StaggerItem>
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            <StaggerItem>
+              <label htmlFor="password" className={label}>Password</label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className={`${field} pr-10`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-md text-slate-400 hover:text-white transition-colors"
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="mt-3 flex items-center gap-3" aria-live="polite">
+                <div className="flex flex-1 gap-1.5">
+                  {[1, 2, 3, 4].map((n) => (
+                    <div key={n} className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                      <m.div
+                        className={`h-full w-full origin-left rounded-full ${STRENGTH[score].color}`}
+                        initial={false}
+                        animate={{ scaleX: score >= n ? 1 : 0 }}
+                        transition={{ duration: 0.3, ease: EASE, delay: score >= n ? (n - 1) * 0.04 : 0 }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <span className="w-16 text-right text-xs text-muted-foreground">{STRENGTH[score].label}</span>
+              </div>
+            </StaggerItem>
+            <StaggerItem>
+              <label htmlFor="confirmPassword" className={label}>Confirm password</label>
+              <Input
+                id="confirmPassword"
+                type={showPw ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Type it again"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className={field}
+              />
+              {confirmPassword && confirmPassword !== password && (
+                <p className="mt-2 text-xs text-destructive">Passwords don&apos;t match yet</p>
+              )}
+            </StaggerItem>
+            <StaggerItem>
+              <Button type="submit" size="lg" className={pill} disabled={loading}>
+                {loading ? "Saving..." : "Save password and continue"}
+              </Button>
+            </StaggerItem>
+          </form>
+        </Stagger>
+      </m.div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
-      <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur">
-        <CardHeader className="space-y-4 text-center">
-          <img src={logo} alt="Lead Velocity" className="h-20 w-auto mx-auto" />
-          <CardTitle className="text-2xl gradient-text">Reset Your Password</CardTitle>
-          <CardDescription>
-            {isVerified ? "Enter your new password below" : "Please answer your security questions to continue"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!isVerified ? (
-            <form onSubmit={handleVerifyQuestions} className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-primary font-medium border-b border-border pb-2">
-                  <Shield className="h-4 w-4" />
-                  <span className="text-sm">Identity Verification</span>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground flex items-center gap-2">
-                    <HelpCircle className="h-3 w-3" />
-                    {questions?.q1 || "Security Question 1"}
-                  </Label>
-                  <Input
-                    placeholder="Your answer"
-                    value={answer1}
-                    onChange={(e) => setAnswer1(e.target.value)}
-                    required
-                    className="bg-muted/30"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground flex items-center gap-2">
-                    <HelpCircle className="h-3 w-3" />
-                    {questions?.q2 || "Security Question 2"}
-                  </Label>
-                  <Input
-                    placeholder="Your answer"
-                    value={answer2}
-                    onChange={(e) => setAnswer2(e.target.value)}
-                    required
-                    className="bg-muted/30"
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full">
-                Verify Identity
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="flex items-center gap-2 text-green-500 font-medium border-b border-border pb-2 mb-4">
-                <CheckCircle2 className="h-4 w-4" />
-                <span className="text-sm">Identity Verified</span>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">New Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Updating..." : "Update Password"}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+    <BrokerMotion>
+      <div className="relative min-h-[100dvh] overflow-hidden bg-[#030712] text-white flex items-center justify-center px-4 py-10">
+        <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none bg-slate-900/30">
+          <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-3xl hero-orb hero-orb-1"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-64 md:w-96 h-64 md:h-96 bg-secondary/10 rounded-full blur-3xl hero-orb hero-orb-2"></div>
+        </div>
+        <m.div
+          className="relative w-full max-w-md"
+          initial={{ opacity: 0, y: 24, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: EASE }}
+        >
+          <div className="mb-6 flex items-center gap-3">
+            <img src={logo} alt="Lead Velocity" className="h-10 w-10 object-contain" />
+            <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-purple-400/80">{eyebrow}</span>
+          </div>
+          <div className="relative overflow-hidden p-6 sm:p-8 bg-slate-900/40 backdrop-blur-xl rounded-2xl sm:rounded-3xl border border-primary/20 shadow-[0_20px_80px_-20px_hsl(var(--primary)/0.3)]">
+            <div aria-hidden className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+            <div className="relative z-10">
+              <AnimatePresence mode="wait">{body}</AnimatePresence>
+            </div>
+          </div>
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Need help? <a href="mailto:howzit@leadvelocity.co.za" className="text-pink-400 font-medium hover:underline">howzit@leadvelocity.co.za</a>
+          </p>
+        </m.div>
+      </div>
+    </BrokerMotion>
   );
 };
 

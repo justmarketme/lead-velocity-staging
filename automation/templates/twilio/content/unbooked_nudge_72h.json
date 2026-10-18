@@ -1,0 +1,61 @@
+{
+  "_meta": {
+    "key": "unbooked_nudge_72h",
+    "source": "automation/templates/unbooked_nudge_72h.json",
+    "approval": {
+      "name": "smc_unbooked_nudge_72h",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_unbooked_nudge_72h",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "see_open_times:sample",
+      "4": "no_thanks:sample"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, this is our last message about your insurance and financial planning enquiry. On the call, {{2}} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out.",
+        "footer": "SortMyCover",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "See open times",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "No thanks",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

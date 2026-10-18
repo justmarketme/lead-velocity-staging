@@ -9,7 +9,6 @@ import Services from "./pages/Services";
 import SpecializedServices from "./pages/SpecializedServices";
 import Contact from "./pages/Contact";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
 import AdminLogin from "./pages/AdminLogin";
 import Dashboard from "./pages/Dashboard";
 import BrokerPortal from "./pages/BrokerPortal";
@@ -21,6 +20,7 @@ import BrokerReports from "./pages/broker/BrokerReports";
 import BrokerDocuments from "./pages/broker/BrokerDocuments";
 import BrokerReferrals from "./pages/broker/BrokerReferrals";
 import BrokerCalendar from "./pages/broker/BrokerCalendar";
+import MsReturnGate from "./components/broker/smc/MsReturnGate";
 import InviteSignup from "./pages/InviteSignup";
 import BrokerSetup from "./pages/BrokerSetup";
 import BrokerForgotPassword from "./pages/auth/BrokerForgotPassword";
@@ -29,6 +29,7 @@ import NotificationHistory from "./pages/NotificationHistory";
 import BrokerOnboarding from "./pages/BrokerOnboarding";
 import Pricing from "./pages/Pricing";
 import PremiumBrokerPortalPage from "./pages/PremiumBrokerPortalPage";
+import AdminBrokerPreview from "./pages/AdminBrokerPreview";
 import BrokerProfile from "./pages/broker/BrokerProfile";
 import Explainer from "./pages/broker/Explainer";
 
@@ -56,6 +57,8 @@ const PortalAgreement = lazy(() => import("./pages/portal/Agreement"));
 const PortalLeads = lazy(() => import("./pages/portal/Leads"));
 const PortalReports = lazy(() => import("./pages/portal/Reports"));
 const PortalHelp = lazy(() => import("./pages/portal/Help"));
+const PortalMessages = lazy(() => import("./pages/portal/Messages"));
+const BrokerMessages = lazy(() => import("./pages/BrokerMessages"));
 const SmcBrokerSwitch = lazy(() => import("./pages/portal/SmcBrokerSwitch"));
 /** /s/* short links from WhatsApp template buttons: keep ?day=… etc. and land on the portal route (auth + broker switch apply there). */
 function SmcShortLink({ to }: { to: string }) {
@@ -90,7 +93,7 @@ const App = () => {
             <Route path="/specialized-services" element={<SpecializedServices />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/broker" element={<BrokerPortal />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<Navigate to="/admin" replace />} />
             <Route path="/admin" element={<AdminLogin />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/broker/dashboard" element={<BrokerDashboard />} />
@@ -99,17 +102,20 @@ const App = () => {
             <Route path="/broker/upload" element={<BrokerUpload />} />
             <Route path="/broker/documents" element={<BrokerDocuments />} />
             <Route path="/broker/referrals" element={<BrokerReferrals />} />
-            <Route path="/broker/calendar" element={shared(<PortalCalendar />, <BrokerCalendar />)} />
+            <Route path="/broker/calendar" element={<MsReturnGate>{shared(<PortalCalendar />, <BrokerCalendar />)}</MsReturnGate>} />
             <Route path="/broker/reports" element={shared(<PortalReports />, <BrokerReports />)} />
             <Route path="/broker/profile" element={shared(<PortalProfile />, <BrokerProfile />)} />
+            <Route path="/broker/messages" element={shared(<PortalMessages />, smc(<BrokerMessages />))} />
             <Route path="/broker/explainer" element={<Explainer />} />
             <Route path="/invite/:token" element={<InviteSignup />} />
             <Route path="/broker-setup/:token" element={<BrokerSetup />} />
             <Route path="/broker/forgot-password" element={<BrokerForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/broker/set-password" element={<ResetPassword />} />
             <Route path="/notifications" element={<NotificationHistory />} />
             <Route path="/onboarding" element={<BrokerOnboarding />} />
             <Route path="/broker-elite" element={<PremiumBrokerPortalPage />} />
+            <Route path="/admin/preview/broker/:brokerId" element={<AdminBrokerPreview />} />
             {SMC_ENABLED && (
               <>
                 <Route path="/console" element={smc(<SmcToday />)} />

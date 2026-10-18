@@ -5,7 +5,7 @@
  */
 import { createContext, type CSSProperties, ReactNode, useContext } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { BarChart3, Calendar, CreditCard, Database, HelpCircle, IdCard, Mic, Rocket, UserCircle } from "lucide-react";
+import { BarChart3, Calendar, MessageSquare, CreditCard, Database, HelpCircle, IdCard, Mic, Rocket, UserCircle } from "lucide-react";
 import BrokerLayout, { type BrokerMenuItem } from "@/components/broker/BrokerLayout";
 import "../../../brand/tokens.css";
 import "./portal.css";
@@ -22,6 +22,7 @@ export const SMC_MENU: BrokerMenuItem[] = [
   { id: "card", label: "Intro card", icon: IdCard, path: "/broker/intro-card" },
   { id: "media", label: "Voice note & video", icon: Mic, path: "/broker/intro-media" },
   { id: "agreement", label: "Agreement & billing", icon: CreditCard, path: "/broker/agreement" },
+  { id: "messages", label: "Message us", icon: MessageSquare, path: "/broker/messages" },
   { id: "help", label: "Help", icon: HelpCircle, path: "/broker/help" },
 ];
 const TABS = [

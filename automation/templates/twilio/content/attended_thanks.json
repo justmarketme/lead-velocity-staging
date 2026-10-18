@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "key": "attended_thanks",
+    "source": "automation/templates/attended_thanks.json",
+    "approval": {
+      "name": "smc_attended_thanks",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_attended_thanks",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Thanks for making time today, {{1}}. {{2}} will follow up with you directly. Reply STOP to opt out.",
+        "footer": "SortMyCover"
+      }
+    }
+  }
+}

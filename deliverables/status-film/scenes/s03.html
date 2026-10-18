@@ -1,63 +1,101 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>03 Pricing and the website</title>
+<html lang="en"><head><meta charset="utf-8"><title>03 The welcome email</title>
 <link rel="stylesheet" href="film.css">
 <style>
-  .site { position: absolute; right: 140px; top: 196px; display: flex; align-items: center; gap: 16px; padding: 12px 14px 12px 26px; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); font-size: 25px; font-weight: 700; color: var(--navy); }
-  .cards { position: absolute; left: 140px; right: 140px; top: 340px; display: flex; gap: 24px; }
-  .pc { flex: 1; height: 290px; padding: 30px 28px; position: relative; overflow: hidden; }
-  .pc .nm { font-size: 20px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); }
-  .pc .pr { margin-top: 18px; font-size: 60px; font-weight: 700; color: var(--navy); letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; }
-  .pc .ld { margin-top: 14px; font-size: 23px; color: var(--muted); font-weight: 600; }
-  .pc .bar { position: absolute; left: 28px; right: 28px; bottom: 30px; height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
-  .pc .bar i { position: absolute; inset: 0; background: var(--grad); transform-origin: left; }
-  .pc.top-up { background: var(--navy); border-color: var(--navy); }
-  .pc.top-up .nm { color: var(--pink-soft); } .pc.top-up .pr { color: #fff; } .pc.top-up .ld { color: var(--faint); }
-  .feed { position: absolute; left: 140px; right: 140px; top: 690px; height: 230px; }
-  .src { position: absolute; left: 0; top: 70px; display: flex; align-items: center; gap: 16px; padding: 18px 26px 18px 18px; font-size: 26px; font-weight: 700; color: var(--navy); }
-  .src .ic-g { width: 54px; height: 54px; border-radius: 14px; }
-  .src .ic-g svg { width: 28px; height: 28px; }
-  .feed svg.lines { position: absolute; left: 0; top: 0; width: 1640px; height: 230px; overflow: visible; }
-  .feed svg.lines path { fill: none; stroke: #c026d3; stroke-width: 3; stroke-linecap: round; }
-  .tg { position: absolute; width: 204px; display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 20px; font-size: 23px; font-weight: 700; color: var(--navy); border-radius: 14px; }
-  .tg i { width: 12px; height: 12px; border-radius: 50%; background: var(--grad); }
+  .adm { position: absolute; left: 140px; top: 300px; width: 860px; padding: 26px 30px; display: flex; align-items: center; gap: 20px; }
+  .adm .who-b { font-size: 26px; font-weight: 700; color: var(--navy); }
+  .adm .who-b span { display: block; font-size: 18px; color: var(--muted); font-weight: 600; }
+  .btn { margin-left: auto; display: flex; align-items: center; gap: 12px; height: 62px; padding: 0 26px; border-radius: 14px; background: var(--grad); color: #fff; font-size: 22px; font-weight: 700; box-shadow: 0 12px 26px -12px rgba(219,39,119,.7); }
+  .btn svg { width: 24px; height: 24px; stroke: #fff; fill: none; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+  .ptr { position: absolute; left: 0; top: 0; width: 38px; height: 38px; z-index: 6; }
+  .ripple { position: absolute; width: 70px; height: 70px; border-radius: 50%; border: 3px solid var(--pink); z-index: 5; opacity: 0; }
+  .mail { position: absolute; left: 140px; top: 440px; width: 860px; padding: 0; overflow: hidden; }
+  .mail .mh { padding: 20px 30px; border-bottom: 1.5px solid var(--soft); }
+  .mail .mh .s { font-size: 27px; font-weight: 700; color: var(--navy); }
+  .mail .mh .f { font-size: 18px; color: var(--muted); margin-top: 4px; }
+  .mail .mb { padding: 22px 30px 26px; display: flex; gap: 26px; align-items: center; }
+  .mail .mb img { height: 56px; }
+  .mail .mb .cta { margin-left: auto; height: 56px; padding: 0 24px; border-radius: 12px; background: var(--navy); color: #fff; display: grid; place-items: center; font-size: 20px; font-weight: 700; }
+  .mail .sk { height: 12px; border-radius: 6px; background: var(--soft); margin-top: 12px; }
+  .time { position: absolute; left: 140px; top: 690px; width: 860px; height: 250px; padding: 24px 30px 22px; }
+  .time .track { position: relative; height: 10px; border-radius: 5px; background: var(--soft); margin: 100px 40px 0; }
+  .time .track i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 5px; background: var(--grad); }
+  .time .pt { position: absolute; top: -84px; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+  .time .pt b { display: block; font-size: 28px; color: var(--navy); font-variant-numeric: tabular-nums; }
+  .time .pt span { font-size: 17px; color: var(--muted); font-weight: 600; }
+  .time .pt:after { content: ""; position: absolute; left: 50%; top: 75px; width: 18px; height: 18px; margin-left: -13px; border-radius: 50%; background: #fff; border: 4px solid #db2777; }
+  .time .dur { position: absolute; left: 50%; top: 34px; transform: translateX(-50%); }
+  .right { position: absolute; left: 1080px; top: 300px; width: 700px; }
+  .ok { display: flex; align-items: center; gap: 18px; padding: 15px 24px; margin-bottom: 14px; }
+  .ok .tick { width: 42px; height: 42px; }
+  .ok .tick svg { width: 22px; height: 22px; }
+  .ok .a { font-size: 25px; font-weight: 700; color: var(--navy); }
+  .ok .a.mono { font-size: 23px; }
+  .ok .b { font-size: 18px; color: var(--muted); margin-top: 2px; }
+  .disc { margin-top: 8px; padding: 20px 24px; background: var(--navy); border-color: var(--navy); }
+  .disc .lbl { color: #cbd5e1; }
+  .disc .r { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; color: #fff; font-size: 23px; font-weight: 700; }
+  .disc .r span { color: #f9a8d4; font-variant-numeric: tabular-nums; }
 </style></head>
 <body data-scene="s03"><div class="stage">
-  <div class="top"><div class="eyebrow">Done</div><h1 class="h"><i></i>Pricing and the website</h1></div>
-  <div class="site">leadvelocity.co.za <span class="pill green"><i></i>Live</span></div>
-  <div class="cards">
-    <div class="card pc"><div class="nm">Pilot</div><div class="pr">R8,500</div><div class="ld">10 leads</div><div class="bar"><i></i></div></div>
-    <div class="card pc"><div class="nm">Bronze</div><div class="pr">R16,500</div><div class="ld">20 leads</div><div class="bar"><i></i></div></div>
-    <div class="card pc"><div class="nm">Silver</div><div class="pr">R24,500</div><div class="ld">30 leads</div><div class="bar"><i></i></div></div>
-    <div class="card pc"><div class="nm">Gold</div><div class="pr">R35,500</div><div class="ld">45 leads</div><div class="bar"><i></i></div></div>
-    <div class="card pc top-up"><div class="nm">Top-up</div><div class="pr">R850</div><div class="ld">per extra lead</div></div>
+  <div class="top"><div class="eyebrow">Done · The welcome email</div><h1 class="h"><i></i>One button, one branded email</h1></div>
+  <div class="card adm"><div class="who-b">Admin · Broker management<span>Mark Weston · Oracle Brokers</span></div>
+    <div class="btn"><svg viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg>Send welcome email</div></div>
+  <div class="ripple"></div>
+  <svg class="ptr" viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.5L10 19z" fill="#0f172a" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+  <div class="card mail">
+    <div class="mh"><div class="s">Welcome to Lead Velocity: create your password</div><div class="f">From Lead Velocity · sent through Supabase auth</div></div>
+    <div class="mb"><img src="assets/lead-velocity-logo-contract.png" alt=""><div style="flex:1"><div class="sk" style="width:90%;margin-top:0"></div><div class="sk" style="width:70%"></div></div><div class="cta">Create my password</div></div>
   </div>
-  <div class="feed">
-    <svg class="lines" viewBox="0 0 1640 230"><defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#db2777"/><stop offset="1" stop-color="#9333ea"/></linearGradient></defs></svg>
-    <div class="card src"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg></div>One pricing file</div>
+  <div class="card time">
+    <div class="lbl">Mark's link, today (SAST)</div>
+    <div class="track"><i></i>
+      <div class="pt p1" style="left:0%"><b>08:23</b><span>email sent</span></div>
+      <div class="pt p2" style="left:100%"><b>11:57</b><span>password set</span></div>
+      <div class="dur pill pink"><i></i>3 h 34 min later · it still worked</div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="card ok o1"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a mono">/broker · /set-password · /forgot-password</div><div class="b">Sign-in and password pages live</div></div></div>
+    <div class="card ok o2"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">6 portal videos play</div><div class="b">Each with a branded poster</div></div></div>
+    <div class="card ok o3"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Live = latest commit</div><div class="b mono">release/smc-nurture · 38f4e77</div></div></div>
+    <div class="card disc"><div class="lbl">Discovery · paid and delivered</div>
+      <div class="r">De Villiers Swart<span>2,000 leads</span></div>
+      <div class="r">Sanette Du Toit<span>2,200 leads</span></div></div>
   </div>
 </div>
 <script src="timings.js"></script><script src="film.js"></script>
 <script>
-  const T = ['Website', 'Chatbot', 'Proposals', 'Invoices', 'Contract'], feed = $('.feed'), svg = $('svg.lines');
-  // targets sit on one line from the source; the line grows to each as it is named
-  const pos = [0, 1, 2, 3, 4].map(i => [500 + i * 230, 88]);
-  const tgs = T.map((n, i) => { feed.insertAdjacentHTML('beforeend', `<div class="card tg" style="left:${pos[i][0]}px;top:${pos[i][1]}px"><i></i>${n}</div>`); return feed.lastElementChild; });
-  const paths = pos.map(([x, y]) => { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    const y1 = y + 27; p.setAttribute('d', `M304 115 L ${x} 115`); p.setAttribute('pathLength', '1'); p.style.strokeDasharray = 1; svg.appendChild(p); return p; });
-  const tT = [cue('website'), cue('chatbot'), cue('proposals'), cue('invoices'), cue('contract')];
-  const tC = [cue('pilot'), cue('bronze'), cue('silver'), cue('gold'), cue('top')];
-  const fill = [10 / 45, 20 / 45, 30 / 45, 1];
+  const tBtn = cue('button'), tClick = cueEnd('button') + .1;
   window.update = t => {
     rv('.top .eyebrow', t, .2, { y: 16 });
     rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
-    rv('.site', t, cue('live') - .2, { x: 30, y: 0, dur: .8 });
-    rv('.site .pill', t, cue('leadvelocity') - .1, { scale: .7, y: 0, dur: .6, ease: E.back });
-    $$('.pc').forEach((c, i) => {
-      rv(c, t, tC[i] - .35, { y: 40, scale: .95, dur: .9 });
-      const b = c.querySelector('.bar i'); if (b) b.style.transform = `scaleX(${(fill[i] * P(t, tC[i], 1.2, E.inOut)).toFixed(4)})`;
+    rv('.adm', t, cue('admin') - .4, { y: 26, dur: .8 });
+    // pointer glides to the button and taps it
+    const btn = $('.btn').getBoundingClientRect();
+    const tx = btn.left + btn.width * .62, ty = btn.top + btn.height * .55;
+    const mv = P(t, tBtn - .7, .8, E.inOut), gone = P(t, tClick + 1.2, .5);
+    const px = lerp(tx + 260, tx, mv), py = lerp(ty + 220, ty, mv);
+    const press = P(t, tClick, .12) * (1 - P(t, tClick + .15, .2));
+    $('.ptr').style.opacity = (P(t, tBtn - .8, .3) * (1 - gone)).toFixed(3);
+    $('.ptr').style.transform = `translate(${px.toFixed(1)}px,${py.toFixed(1)}px) scale(${(1 - press * .15).toFixed(3)})`;
+    $('.btn').style.transform = `scale(${(1 - press * .05).toFixed(4)})`;
+    const rp = P(t, tClick, .7);
+    $('.ripple').style.opacity = rp > 0 && rp < 1 ? (1 - rp).toFixed(3) : 0;
+    $('.ripple').style.transform = `translate(${(tx - 35).toFixed(1)}px,${(ty - 35).toFixed(1)}px) scale(${lerp(.4, 1.6, rp).toFixed(3)})`;
+    rv('.mail', t, cue('branded') - .3, { y: 40, scale: .97, dur: .9 });
+    rv('.time', t, cue('went') - .4, { y: 30, dur: .8 });
+    rv('.p1', t, cue('eight'), { y: 10, dur: .6 });
+    $('.p1').style.transform += ' translateX(-50%)';
+    const tr = P(t, cue('used') - .1, 1.6, E.inOut);
+    $('.track i').style.width = (tr * 100).toFixed(2) + '%';
+    rv('.p2', t, cue('used') + 1.3, { y: 10, dur: .6 });
+    $('.p2').style.transform += ' translateX(-50%)';
+    rv('.dur', t, cue('hours') - .2, { y: 8, scale: .85, dur: .6, ease: E.back });
+    $('.dur').style.transform += ' translateX(-50%)';
+    [['.o1', cue('sign-in')], ['.o2', cue('videos')], ['.o3', cue('latest')]].forEach(([s, c]) => {
+      rv(s, t, c - .4, { x: 24, y: 0, dur: .7 }); tick($(s + ' .tick'), t, c + .2);
     });
-    rv('.src', t, cue('one') - .3, { x: -24, y: 0, dur: .8 });
-    paths.forEach((p, i) => p.style.strokeDashoffset = (1 - P(t, tT[i] - .45, .6, E.inOut)).toFixed(4));
-    tgs.forEach((g, i) => rv(g, t, tT[i] - .1, { x: 16, y: 0, scale: .94, dur: .6 }));
+    rv('.disc', t, cue('Discovery') - .3, { y: 26, dur: .8 });
   };
 </script></body></html>

@@ -206,7 +206,7 @@ test(`W12 [${MODE}] quality must be 1-5; no disposition on a no-show`, () => {
   assert.throws(() => recordDisposition({ outcome: 'no_show' }, { code: 'unreachable', at: '2026-10-15T11:00:00+02:00' }));
 });
 
-test(`W12 [${MODE}] two unconfirmed outcomes in one cycle -> Jonathan calls the broker`, () => {
+test(`W12 [${MODE}] two unconfirmed outcomes for one broker within 30 days -> Jonathan calls the broker`, () => {
   assert.deepEqual(unconfirmedAlert([{ unconfirmed: true }]), []);
   assert.deepEqual(unconfirmedAlert([{ unconfirmed: true }, { unconfirmed: false }, { unconfirmed: true }]), ['Jonathan: call broker']);
 });
@@ -218,7 +218,7 @@ import { runCode, templateCounts, allWorkflows, PG_CRED } from './_n8ncode.mjs';
 import { paramCounts } from '../lib/wa.mjs';
 const node = (name) => WF.nodes.find((n) => n.name === name);
 const BK = broker();
-const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: BK.broker_id, cycle_id: 'cyc_1', appointment_date: fx.reschedule_request?.new_slot_start ?? fx.booking_request.slot_start, slot_end: endOf(fx), status: 'booked', first_name: 'Pieter', last_name: 'V', phone: '+27600000004', language: 'en', opted_out_at: null, adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, broker_mark: null, reach: null, sent_outcome_check: false, sent_broker_nudge: false, sent_reach_check: false, outcome_exists: false, ...over });
+const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: BK.broker_id, appointment_date: fx.reschedule_request?.new_slot_start ?? fx.booking_request.slot_start, slot_end: endOf(fx), status: 'booked', first_name: 'Pieter', last_name: 'V', phone: '+27600000004', language: 'en', opted_out_at: null, adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, broker_mark: null, reach: null, sent_outcome_check: false, sent_broker_nudge: false, sent_reach_check: false, outcome_exists: false, ...over });
 const sweep = async (row, now) => (await runCode(WF, 'Decide (w12.sweepItems)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
 const follow = async (item, outcomeId) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item } })).map((x) => x.json);
 
@@ -247,8 +247,8 @@ test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns 
 test('W12.json writes: one outcome per booking (first writer, same as W11 backstop), appointments.outcome status + stage + timeline; taps last-win per CONTRACTS; never replacements', () => {
   const ins = node('Insert outcome + appointment + stage + timeline').parameters.query;
   assert.match(ins, /INSERT INTO public\.outcomes[\s\S]*ON CONFLICT \(booking_id\) DO NOTHING/);
-  assert.match(ins, /UPDATE public\.appointments SET status = \$13/);
-  assert.match(ins, /UPDATE public\.leads SET stage = COALESCE\(\$14, stage\)/);
+  assert.match(ins, /UPDATE public\.appointments SET status = \$12/);
+  assert.match(ins, /UPDATE public\.leads SET stage = COALESCE\(\$13, stage\)/);
   assert.match(ins, /'outcome_recorded'/);
   assert.match(ins, /esc_kind=two_unconfirmed/);
   assert.match(node('Record reach answer (w12:reach, last tap wins)').parameters.query, /'reach_check'[\s\S]*'w12:reach:' \|\| a\.id::text[\s\S]*DO UPDATE SET payload = EXCLUDED\.payload/);
@@ -432,7 +432,7 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   assert.equal(ops.indexOf('reject'), 6); assert.ok(ops.includes('kg_decision'));
   const fus = node('Follow-up').parameters.rules.values.map((v) => v.outputKey);
   assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release']);
-  assert.match(node('Park held CAPI Attended (w12:capi_hold)').parameters.query, /'w12:capi_hold:' \|\| \$5::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  assert.match(node('Park held CAPI Attended (w12:capi_hold)').parameters.query, /'w12:capi_hold:' \|\| \$4::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING/);
   assert.match(node('Claim CAPI release (once per booking, logs the reason)').parameters.query, /'w12:capi_release:'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
   assert.match(node('Record KG decision (w12:kg_decision, first wins)').parameters.query, /'w12:kg_decision:' \|\| a\.id::text/);
   assert.match(node('Held CAPI Attended (not yet released)').parameters.query, /NOT EXISTS[\s\S]*'w12:capi_release:'/);
@@ -448,9 +448,9 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   assert.ok(sent.length >= 1 && sent[0].json.event_id === 'evt_ld_attended' && sent[0].json.fu === 'capi');
 });
 
-// NH-62 (Jonathan, 2026-10-03): KG "not_attended" -> outcome no_show, replacement-eligible via W13's no_show op, cap per cycle.
+// NH-62 (Jonathan, 2026-10-03): KG "not_attended" -> outcome no_show, replacement-eligible via W13's no_show op (goodwill,
+// max 3 requests per broker per Calendar Week; crm-nurture 2026-10-11: no cycles, no per-plan cap).
 import * as W13 from '../lib/w13.mjs';
-import { pricing, cycle } from './_harness.mjs';
 
 test('NH-62: KG not_attended flips the outcome to no_show, audits it, calls W13 no_show; KG attended changes nothing; first decision wins', async () => {
   const q = node('Apply KG not_attended (outcome -> no_show, audit activity)').parameters.query;
@@ -474,15 +474,13 @@ test('NH-62: KG not_attended flips the outcome to no_show, audits it, calls W13 
   assert.deepEqual(R.releaseHeld({ ...held, outcome_outcome: 'attended', kg_decision: 'attended' }, ms(END) + H).map((x) => [x.decision, x.reason]), [['send', 'kg_attended']]);
 });
 
-for (const tier of ['SMC_BRONZE', 'SMC_SILVER', 'SMC_GOLD']) {
-  test(`NH-62 [${tier}]: KG-ruled no-shows claim replacements through W13 up to the cycle cap; the next is cap_reached`, () => {
-    const cap = pricing(tier).replacement_cap_cycle;
-    const cyc = { ...clone(cycle()), cycle_id: `cyc_${tier}`, tier_code: tier, replacement_cap: cap };
-    const rows = [];
-    const kgTrig = (i) => W13.replacementTrigger({ kind: 'no_show', confirmed_at: iso(ms('2026-10-15T15:00:00+02:00') + i * H), second_no_show: true });
-    for (let i = 0; i < cap; i++) assert.equal(W13.claim(cyc, rows, `kg_lead_${i}`, kgTrig(i)).row.status, 'due', `#${i + 1}`);
-    const over = W13.claim(cyc, rows, 'kg_lead_over', kgTrig(cap));
-    assert.deepEqual([over.row.status, over.row.note], ['rejected', 'cap_reached']);
-    assert.deepEqual(over.alerts, ['Jonathan: replacement cap reached']);
-  });
-}
+test('NH-62: KG-ruled no-shows claim goodwill replacements through W13, at most 3 per broker per Calendar Week; the 4th is refused (nothing written)', () => {
+  const ctx = { broker_id: BK.broker_id, lead_order_id: 'lo_test_001' };
+  const rows = [];
+  const kgTrig = (i) => W13.replacementTrigger({ kind: 'no_show', confirmed_at: iso(ms('2026-10-15T15:00:00+02:00') + i * H), second_no_show: true });
+  for (let i = 0; i < W13.WEEKLY_MAX; i++) assert.equal(W13.claim(ctx, rows, `kg_lead_${i}`, kgTrig(i)).row.status, 'due', `#${i + 1}`);
+  const over = W13.claim(ctx, rows, 'kg_lead_over', kgTrig(W13.WEEKLY_MAX));
+  assert.deepEqual([over.row, over.refused], [null, 'weekly_max']);
+  assert.deepEqual(over.alerts, ['Jonathan: weekly replacement maximum reached']);
+  assert.equal(rows.length, 3);
+});

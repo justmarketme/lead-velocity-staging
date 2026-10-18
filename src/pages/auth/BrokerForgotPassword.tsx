@@ -5,257 +5,105 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { ShieldQuestion, AlertCircle, Mail, Send, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { RATE_LIMITED_MESSAGE, RESET_SENT_MESSAGE, cooldownRemaining, isPlausibleEmail, normalizeEmail, requestPasswordReset } from "@/lib/passwordReset";
 import logo from "@/assets/lead-velocity-logo.webp";
 
+/**
+ * Email in → Supabase recovery email out → /reset-password. The response is the same whether or not
+ * the address has an account, so the page can't be used to find out who is a broker.
+ */
 const BrokerForgotPassword = () => {
     const navigate = useNavigate();
-    const { toast } = useToast();
-
-    const [step, setStep] = useState(1); // 1: Email, 2: Questions, 3: Success
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState("");
-    const [questions, setQuestions] = useState<any>(null);
+    const [done, setDone] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
 
-    const [ans1, setAns1] = useState("");
-    const [ans2, setAns2] = useState("");
-    const [ans3, setAns3] = useState("");
-
-    const handleVerifyEmail = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setNotice(null);
+        if (!isPlausibleEmail(email)) { setNotice("Please enter a valid email address."); return; }
         setLoading(true);
-
         try {
-            // 1. Find user by email (we need their ID)
-            // Since it's public schema questions, we can query if we know the email.
-            // But we don't want to leak who has an account. 
-            // However, security questions are linked to user_id. 
-            // We'll use a RPC or a query that joins profiles/brokers if needed.
-            // For now, let's assume we can fetch questions if the email exists in brokers.
-
-            const { data: broker, error: bError } = await supabase
-                .from("brokers")
-                .select("user_id")
-                .eq("email", email)
-                .single();
-
-            if (bError || !broker) {
-                // Generic error to avoid email enumeration
-                throw new Error("If an account exists with this email, you will be prompted for security questions.");
+            const outcome = await requestPasswordReset(supabase, email, window.location.origin);
+            if (outcome === "rate_limited") {
+                const wait = cooldownRemaining(email);
+                setNotice(wait > 0 ? `A link was just sent. You can ask for another in ${wait}s.` : RATE_LIMITED_MESSAGE);
+                return;
             }
-
-            // 2. Fetch questions
-            const { data: qData, error: qError } = await supabase
-                .from("broker_security_questions")
-                .select("question_1, question_2, question_3")
-                .eq("user_id", broker.user_id)
-                .single();
-
-            if (qError || !qData) {
-                throw new Error("No security questions found for this account. Please contact an administrator.");
-            }
-
-            setQuestions(qData);
-            setStep(2);
-        } catch (error: any) {
-            toast({
-                title: "Information",
-                description: error.message,
-                variant: error.message.includes("administrator") ? "destructive" : "default",
-            });
-            // Move to step 2 anyway if it's the generic message? No, only if we have data.
+            // Audit trail for admins. RLS lets anon INSERT but not SELECT, so no `.select()` here.
+            const { error: logError } = await supabase.from("broker_reset_requests").insert({ email: normalizeEmail(email) });
+            if (logError) console.warn("broker_reset_requests:", logError.code ?? "error");
+            setDone(true);
+        } catch {
+            setDone(true);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleVerifyQuestions = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-
-        try {
-            const { data: broker } = await supabase
-                .from("brokers")
-                .select("user_id")
-                .eq("email", email)
-                .single();
-
-            if (!broker) throw new Error("Session expired. Please try again.");
-
-            // Verify answers (this should ideally be an RPC for better security)
-            const { data: verify, error: vError } = await supabase
-                .from("broker_security_questions")
-                .select("*")
-                .eq("user_id", broker.user_id)
-                .eq("answer_1", ans1.toLowerCase().trim())
-                .eq("answer_2", ans2.toLowerCase().trim())
-                .eq("answer_3", ans3.toLowerCase().trim())
-                .single();
-
-            if (vError || !verify) {
-                throw new Error("Incorrect answers to security questions.");
-            }
-
-            // If correct, trigger Supabase password reset
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password`,
-            });
-
-            if (resetError) throw resetError;
-
-            setStep(3);
-        } catch (error: any) {
-            toast({
-                title: "Verification Failed",
-                description: error.message,
-                variant: "destructive",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleRequestAdminReset = async () => {
-        setLoading(true);
-        try {
-            const { error } = await supabase
-                .from("broker_reset_requests")
-                .insert({ email })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            // Trigger Discord Alert
-            await supabase.functions.invoke("trigger-discord-alert", {
-                body: {
-                    type: "broker_reset",
-                    data: { id: data.id, email: data.email }
-                }
-            });
-
-            toast({
-                title: "Request Sent",
-                description: "An administrator has been notified. They will review your request and send a new setup link if approved.",
-            });
-            navigate("/broker");
-        } catch (error: any) {
-            toast({
-                title: "Error",
-                description: "Failed to send request. Please try again later.",
-                variant: "destructive",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // Visual system = the public /onboarding page (src/pages/BrokerOnboarding.tsx): same base, orbs, form card, inputs and buttons.
     return (
-        <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex flex-col items-center justify-center p-4">
-            <img src={logo} alt="Lead Velocity" className="h-16 w-auto mb-8 animate-fade-in" />
+        <div className="min-h-screen bg-[#030712] text-white relative overflow-hidden flex flex-col items-center justify-center p-4">
+            <div aria-hidden className="absolute inset-0 overflow-hidden pointer-events-none bg-slate-900/30">
+                <div className="absolute top-1/4 left-1/4 w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-3xl hero-orb hero-orb-1"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-64 md:w-96 h-64 md:h-96 bg-secondary/10 rounded-full blur-3xl hero-orb hero-orb-2"></div>
+            </div>
+            <img src={logo} alt="Lead Velocity" className="relative h-16 w-auto object-contain mb-8 animate-fade-in" />
 
-            <Card className="w-full max-w-md border-border/50 bg-background/95 backdrop-blur shadow-xl">
-                <CardHeader className="text-center space-y-2">
-                    <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-                        {step === 3 ? <CheckCircle2 className="text-green-500" /> : <ShieldQuestion className="text-primary" />}
+            <Card className="relative w-full max-w-md bg-slate-900/40 backdrop-blur-xl rounded-2xl sm:rounded-3xl overflow-hidden border border-primary/20 shadow-[0_20px_80px_-20px_hsl(var(--primary)/0.3)]">
+                <div aria-hidden className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+                <CardHeader className="relative z-10 text-center space-y-2 px-6 sm:px-8 pt-8">
+                    <div className="mx-auto w-12 h-12 rounded-xl bg-pink-500/10 flex items-center justify-center mb-2">
+                        {done ? <CheckCircle2 className="w-6 h-6 text-emerald-400" /> : <Mail className="w-6 h-6 text-pink-400" />}
                     </div>
-                    <CardTitle className="text-2xl font-bold">
-                        {step === 1 ? "Forgot Password" : step === 2 ? "Security Challenge" : "Reset Email Sent"}
+                    <CardTitle className="text-2xl font-bold tracking-tight text-white font-inter">
+                        {done ? <>Check your <span className="gradient-text-epiphany">inbox</span></> : <>Forgot your <span className="gradient-text-epiphany">password?</span></>}
                     </CardTitle>
-                    <CardDescription>
-                        {step === 1
-                            ? "Enter your email to verify your identity."
-                            : step === 2
-                                ? "Answer your security questions to receive a reset link."
-                                : "Check your inbox for instructions to reset your password."}
+                    <CardDescription className="text-slate-400 leading-relaxed">
+                        {done
+                            ? RESET_SENT_MESSAGE
+                            : "Enter the email you sign in with and we'll email you a link to create a new password."}
                     </CardDescription>
                 </CardHeader>
 
-                <CardContent>
-                    {step === 1 && (
-                        <form onSubmit={handleVerifyEmail} className="space-y-4">
+                <CardContent className="relative z-10 px-6 sm:px-8 pb-8">
+                    {done ? (
+                        <div className="space-y-4 text-center">
+                            <p className="text-sm text-slate-400 leading-relaxed">
+                                The link works once and expires after a short while. Nothing arrived after a few minutes? Check spam,
+                                or email <a className="text-pink-400 font-medium hover:underline" href="mailto:howzit@leadvelocity.co.za">howzit@leadvelocity.co.za</a>.
+                            </p>
+                            <Button size="lg" className="w-full bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20" onClick={() => navigate("/broker")}>Back to sign in</Button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email Address</Label>
+                                <Label htmlFor="email" className="text-sm font-medium text-slate-200">Email address</Label>
                                 <Input
                                     id="email"
                                     type="email"
+                                    autoComplete="email"
                                     placeholder="broker@example.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
+                                    className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
                                 />
                             </div>
-                            <Button type="submit" className="w-full" disabled={loading}>
-                                {loading ? "Verifying..." : "Continue"}
+                            {notice && <p role="alert" className="text-sm text-rose-400">{notice}</p>}
+                            <Button type="submit" size="lg" className="w-full bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20" disabled={loading}>
+                                {loading ? "Sending..." : "Email me a link"}
                             </Button>
-                            <Link to="/broker" className="flex items-center justify-center text-sm text-muted-foreground hover:text-primary transition-colors">
+                            <Link to="/broker" className="flex items-center justify-center text-sm text-slate-400 hover:text-primary transition-colors">
                                 <ArrowLeft className="h-4 w-4 mr-1" />
-                                Back to Login
+                                Back to sign in
                             </Link>
                         </form>
                     )}
-
-                    {step === 2 && questions && (
-                        <form onSubmit={handleVerifyQuestions} className="space-y-4">
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label className="text-xs text-muted-foreground">{questions.question_1}</Label>
-                                    <Input value={ans1} onChange={(e) => setAns1(e.target.value)} required placeholder="Your answer" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs text-muted-foreground">{questions.question_2}</Label>
-                                    <Input value={ans2} onChange={(e) => setAns2(e.target.value)} required placeholder="Your answer" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs text-muted-foreground">{questions.question_3}</Label>
-                                    <Input value={ans3} onChange={(e) => setAns3(e.target.value)} required placeholder="Your answer" />
-                                </div>
-                            </div>
-
-                            <Button type="submit" className="w-full mt-4" disabled={loading}>
-                                {loading ? "Verifying..." : "Verify & Send Reset Link"}
-                            </Button>
-
-                            <div className="pt-4 border-t text-center space-y-3">
-                                <p className="text-xs text-muted-foreground">Can't remember your answers?</p>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full text-orange-500 border-orange-500/50 hover:bg-orange-500/10"
-                                    onClick={handleRequestAdminReset}
-                                    disabled={loading}
-                                >
-                                    Request Manual Admin Reset
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="text-xs">
-                                    Change Email
-                                </Button>
-                            </div>
-                        </form>
-                    )}
-
-                    {step === 3 && (
-                        <div className="space-y-6 text-center">
-                            <p className="text-sm text-muted-foreground">
-                                We've sent a password reset link to <strong>{email}</strong>.
-                                Please click the link in the email to set a new password.
-                            </p>
-                            <Button className="w-full" onClick={() => navigate("/broker")}>
-                                Return to Login
-                            </Button>
-                        </div>
-                    )}
                 </CardContent>
             </Card>
-
-            {step < 3 && (
-                <div className="mt-8 flex items-center gap-2 text-xs text-muted-foreground bg-background/50 backdrop-blur px-4 py-2 rounded-full border">
-                    <AlertCircle className="h-3 w-3 text-primary" />
-                    <span>Security questions are case-insensitive.</span>
-                </div>
-            )}
         </div>
     );
 };

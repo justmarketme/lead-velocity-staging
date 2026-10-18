@@ -1,6 +1,6 @@
 # Data the advisor reads and writes (contract for platform-architect)
 
-`supabase/migrations/20261002_smc_04_facts.sql` exists and defines `facts.fact_lead, fact_message, fact_booking, fact_outcome, fact_comment, fact_cost, fact_ad_day, fact_broker_day, fact_cycle, v_watchlist`. `slos.json` `reads.view` names those (`status: crm-gap` = table named in crm-gap.md; `proposed` = not in any migration yet). Column names inside `reads.column` are my reading of crm-gap.md and the migration's alias list; they were not checked against a live database. Anything the workflows need beyond those views is listed here. Additive DDL is in `sql-additions.sql` (not applied).
+`supabase/migrations/20261002040000_smc_04_facts.sql` exists and defines `facts.fact_lead, fact_message, fact_booking, fact_outcome, fact_comment, fact_cost, fact_ad_day, fact_broker_day, fact_cycle, v_watchlist`. `slos.json` `reads.view` names those (`status: crm-gap` = table named in crm-gap.md; `proposed` = not in any migration yet). Column names inside `reads.column` are my reading of crm-gap.md and the migration's alias list; they were not checked against a live database. Anything the workflows need beyond those views is listed here. Additive DDL is in `sql-additions.sql` (not applied).
 
 ## Read objects the workflows call (bodies owed)
 | Object | Returns | Used by |

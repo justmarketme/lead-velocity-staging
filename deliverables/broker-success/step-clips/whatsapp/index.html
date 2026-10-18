@@ -1,0 +1,393 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Confirm Your WhatsApp Number</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Portrait step clip, 720x1280. Every visual is a pure function of the clock (window.seek) so the renderer gets exact
+   frames: no CSS transitions or animations anywhere. The phone shows the real broker portal (dark, Inter, white primary
+   buttons, pink accents); the film's own chrome uses the Lead Velocity purple #b83df5 and a pink-orange gradient.
+   Labels inside the phone are verbatim from GettingStarted.tsx / ProfileForms.tsx. */
+:root {
+  --bg: #050816; --ink: #e2e8f0; --muted: #94a3b8; --line: rgba(255,255,255,.10);
+  --purple: #b83df5; --pink: #ec4899; --orange: #fb923c; --grad: linear-gradient(100deg, #fb923c, #ec4899 45%, #b83df5);
+  --lv: "Inter", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #0b0820; }
+body { font-family: var(--lv); -webkit-font-smoothing: antialiased; }
+.holder { display: grid; place-items: center; min-height: 100vh; padding: 16px; gap: 12px; }
+.render .holder { padding: 0; min-height: 0; display: block; }
+#stage { position: relative; width: 720px; height: 1280px; overflow: hidden; background: #070a1c; color: var(--ink); transform-origin: top left; }
+#stage::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(70% 40% at 0% 0%, rgba(184,61,245,.26), transparent 70%),
+  radial-gradient(65% 38% at 100% 100%, rgba(236,72,153,.20), transparent 70%),
+  radial-gradient(50% 30% at 100% 35%, rgba(251,146,60,.08), transparent 70%); }
+.top { position: absolute; left: 0; right: 0; top: 0; height: 104px; display: flex; align-items: center; gap: 14px; padding: 22px 36px 0; z-index: 3; }
+.top::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 8px; background: var(--grad); }
+.top img { width: 56px; height: 56px; }
+.top .nm { font-weight: 800; color: #fff; font-size: 23px; letter-spacing: -.015em; line-height: 1.15; }
+.top .nm small { display: block; font-size: 14px; font-weight: 800; color: var(--purple); letter-spacing: .14em; text-transform: uppercase; filter: brightness(1.25); }
+.dots { margin-left: auto; display: flex; gap: 6px; }
+.dots i { width: 30px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; position: relative; }
+.dots i b { position: absolute; inset: 0; background: var(--grad); transform-origin: left; transform: scaleX(0); }
+
+.scene { position: absolute; left: 0; right: 0; top: 104px; bottom: 210px; padding: 14px 36px 0; display: flex; flex-direction: column; gap: 18px; opacity: 0; }
+.eyebrow { font-size: 16px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #d08bff; }
+h2 { margin: 6px 0 0; font-weight: 800; color: #fff; font-size: 38px; line-height: 1.08; letter-spacing: -.03em; }
+.body { position: relative; flex: 1; min-height: 0; }
+
+/* the phone */
+.phone { position: absolute; top: 0; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 500px; border-radius: 58px; padding: 12px;
+  background: linear-gradient(160deg, #2a2350, #12102a 40%, #1d1638); box-shadow: 0 0 0 2px #3a3264, 0 40px 80px -30px rgba(0,0,0,.8), 0 0 90px -20px rgba(184,61,245,.35); }
+.screen { position: absolute; inset: 12px; border-radius: 46px; overflow: hidden; background: var(--bg); }
+.scr { position: absolute; inset: 0; }
+.app { position: absolute; left: 0; top: 0; width: 400px; height: 708px; transform: scale(1.19); transform-origin: 0 0; background: var(--bg); color: #e2e8f0; overflow: hidden; }
+.app::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 300px; background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(236,72,153,.10), transparent 70%); }
+.sb { position: relative; height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 0; font-size: 13px; font-weight: 600; color: #fff; }
+.sb .ic { display: flex; gap: 5px; align-items: center; }
+.hdr { position: relative; height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+.hdr .l { display: flex; align-items: center; gap: 12px; } .hdr img { width: 32px; height: 32px; object-fit: contain; }
+.hdr .firm { font-size: 14px; font-weight: 600; color: #fff; }
+.hdr .av { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255,255,255,.05); display: grid; place-items: center; font-size: 14px; font-weight: 600; color: #fff; }
+.vp { position: absolute; left: 0; right: 0; top: 88px; bottom: 60px; overflow: hidden; }
+.feed { position: relative; padding: 8px 16px 220px; }
+.feed h1 { margin: 0 0 24px; font-size: 24px; font-weight: 700; color: #fff; }
+.gs { position: relative; border-radius: 28px; border: 1px solid var(--line); background: linear-gradient(to bottom, rgba(255,255,255,.04), transparent); }
+.gs-h { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
+.gs-h h3 { margin: 0; font-size: 20px; font-weight: 700; color: #fff; }
+.gs-h p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.pb { margin-top: 12px; height: 6px; width: 192px; border-radius: 99px; background: rgba(255,255,255,.10); overflow: hidden; }
+.pb i { display: block; height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, #ec4899, #fb7185); transform-origin: left; }
+.chev { flex: none; border-radius: 50%; border: 1px solid var(--line); padding: 8px; color: #cbd5e1; display: grid; }
+.gs-b { padding: 0 20px 24px; }
+.gs-b h4 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #fff; }
+ol.st { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.st li { position: relative; border-radius: 16px; border: 1px solid var(--line); background: rgba(255,255,255,.02); padding: 16px; }
+.st li.done, .st li.on { border-color: rgba(16,185,129,.20); background: rgba(16,185,129,.04); }
+.rw { display: flex; align-items: flex-start; gap: 12px; }
+.ck { flex: none; margin-top: 2px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); display: grid; place-items: center; }
+.ck.ok { background: #34d399; border-color: #34d399; color: #020617; }
+.tx { flex: 1; min-width: 0; }
+.lbl { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; color: #fff; }
+.done .lbl, li.on .lbl { color: #cbd5e1; }
+.det { margin: 2px 0 0; font-size: 14px; line-height: 20px; color: var(--muted); }
+.act { flex: none; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); padding: 0 12px; font-size: 14px; font-weight: 600; color: #fff; }
+.pnl { overflow: hidden; }
+.pnl > div { padding: 16px 0 0 36px; }
+.sug { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sug .n { font-size: 16px; font-weight: 600; color: #fff; }
+.pri { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; background: #fff; color: #020617; padding: 0 16px; font-size: 14px; font-weight: 600; }
+.gh { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); padding: 0 16px; font-size: 14px; font-weight: 600; color: #fff; }
+.frm { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.frm label { display: block; flex: 1; min-width: 200px; }
+.frm label > span { font-size: 12px; font-weight: 500; color: var(--muted); }
+.inp { display: flex; align-items: center; min-height: 44px; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.04); padding: 0 12px; font-size: 16px; color: #fff; }
+.inp.on { box-shadow: 0 0 0 2px rgba(244,114,182,.6); }
+.caret { display: inline-block; width: 2px; height: 20px; margin-left: 1px; background: #f472b6; opacity: 0; }
+.lock { margin: 0; font-size: 12px; line-height: 16px; color: var(--muted); }
+.spin { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(2,6,23,.25); border-top-color: #020617; }
+.nav { position: absolute; left: 0; right: 0; bottom: 0; height: 60px; border-top: 1px solid rgba(255,255,255,.08); background: rgba(7,11,26,.95); display: grid; grid-template-columns: repeat(5, 1fr); }
+.nav span { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.nav span.a { color: #fff; } .nav span.a svg { color: #f472b6; }
+.nav span.a::before { content: ""; position: absolute; top: 0; width: 40px; height: 2px; border-radius: 99px; background: #f472b6; }
+
+/* film annotations (not part of the portal) */
+.glo { position: absolute; inset: -5px; border-radius: 20px; pointer-events: none; --g: 0;
+  box-shadow: 0 0 0 3px rgb(184 61 245 / calc(var(--g) * .95)), 0 0 30px 4px rgb(184 61 245 / calc(var(--g) * .55)); }
+.hln { --g: 0; border-radius: 6px; padding: 1px 3px; margin: 0 -3px; background: rgb(184 61 245 / calc(var(--g) * .38)); color: rgb(255 255 255 / calc(.6 + var(--g) * .4)); }
+.note { position: absolute; left: 24px; right: 24px; width: max-content; max-width: calc(100% - 48px); margin: 0 auto; z-index: 3; text-align: center;
+  padding: 14px 22px; border-radius: 18px; border: 2px solid transparent; color: #fff;
+  background: linear-gradient(#150f30, #150f30) padding-box, var(--grad) border-box; box-shadow: 0 20px 40px -14px rgba(0,0,0,.75); }
+.note b { display: block; font-size: 23px; font-weight: 800; letter-spacing: -.01em; }
+.note span { display: block; margin-top: 3px; font-size: 18px; color: #cbd5e1; }
+
+/* captions + touch pointer */
+.cap { position: absolute; left: 0; right: 0; bottom: 0; height: 210px; display: grid; place-items: center; padding: 0 40px 26px; z-index: 4; }
+.cap span { font-size: 31px; line-height: 1.25; font-weight: 700; color: #fff; text-align: center; background: rgba(5,8,22,.88); border: 1px solid rgba(184,61,245,.35); padding: 12px 20px; border-radius: 16px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.cap span:empty { display: none; }
+.ptr { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; z-index: 5; pointer-events: none; opacity: 0;
+  background: rgba(255,255,255,.32); border: 2px solid rgba(255,255,255,.9); box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+.ring { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; border: 3px solid var(--purple); z-index: 5; opacity: 0; pointer-events: none; }
+
+/* poster (out/poster.jpg): a designed title card, shown only in poster mode */
+#poster { display: none; position: absolute; inset: 0; z-index: 10; background: #070a1c; overflow: hidden; }
+.poster #poster { display: block; }
+#poster::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(80% 45% at 0% 0%, rgba(184,61,245,.38), transparent 70%),
+  radial-gradient(70% 40% at 100% 100%, rgba(236,72,153,.28), transparent 70%),
+  radial-gradient(55% 30% at 100% 45%, rgba(251,146,60,.14), transparent 70%); }
+#poster::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 10px; background: var(--grad); }
+.pin { position: relative; height: 100%; padding: 92px 56px 80px; display: flex; flex-direction: column; }
+.pin .lg { display: flex; align-items: center; gap: 16px; }
+.pin .lg img { width: 128px; height: 128px; }
+.pin .lg span { font-size: 22px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #fff; }
+.pin .ey { margin-top: 64px; font-size: 21px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #d08bff; }
+.pin h1 { margin: 16px 0 0; font-size: 76px; line-height: 1.02; letter-spacing: -.04em; font-weight: 800; color: #fff; }
+.pin h1 em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pin > p { margin: 22px 0 0; font-size: 28px; line-height: 1.35; color: #cbd5e1; max-width: 560px; }
+.pin .mock { margin-top: auto; border-radius: 26px; border: 1px solid rgba(255,255,255,.12); background: rgba(5,8,22,.85); padding: 26px; box-shadow: 0 30px 60px -24px rgba(0,0,0,.8), 0 0 0 1px rgba(184,61,245,.25); }
+.pin .mock .lbl { font-size: 24px; line-height: 32px; } .pin .mock .det { font-size: 19px; line-height: 27px; }
+.pin .mock .ck { width: 32px; height: 32px; } .pin .mock .pri, .pin .mock .gh { font-size: 19px; min-height: 54px; padding: 0 20px; border-radius: 14px; }
+.pin .mock .sug { margin: 18px 0 0 44px; gap: 12px; } .pin .mock .sug .n { font-size: 22px; }
+.pin .play { margin-top: 34px; display: flex; align-items: center; gap: 18px; font-size: 24px; font-weight: 700; color: #fff; }
+.pin .play i { width: 76px; height: 76px; border-radius: 50%; background: var(--grad); display: grid; place-items: center; box-shadow: 0 14px 30px -10px rgba(236,72,153,.7); }
+.pin .play small { display: block; font-size: 19px; font-weight: 500; color: var(--muted); }
+
+/* preview controls (not rendered) */
+.ctl { display: flex; gap: 10px; align-items: center; color: #e2e8f0; font: 600 14px var(--lv); }
+.ctl button { border: 0; border-radius: 99px; padding: 10px 18px; background: var(--grad); color: #fff; font: inherit; cursor: pointer; }
+.render .ctl { display: none; }
+@media (prefers-reduced-motion: reduce) { .ptr, .ring { display: none; } }
+</style>
+
+<div class="holder">
+<div id="stage">
+  <div class="top"><img src="logo.png" alt=""><div class="nm"><small>Lead Velocity · Getting started</small>Confirm your business WhatsApp number</div><div class="dots" id="dots"></div></div>
+
+  <!-- 1: confirm the suggested number -->
+  <section class="scene" data-id="s01">
+    <div><div class="eyebrow">Step 5 of 6</div><h2>Confirm the number we suggest</h2></div>
+    <div class="body">
+      <div class="phone"><div class="screen">
+        <div class="scr" id="s1app"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 2: use another number, and the lock -->
+  <section class="scene" data-id="s02">
+    <div><div class="eyebrow">Not the right number?</div><h2>Use another number</h2></div>
+    <div class="body">
+      <div class="phone"><div class="screen">
+        <div class="scr v" id="s2a" data-at="0" data-until="Once"></div>
+        <div class="scr v" id="s2b" data-at="Once"></div>
+      </div></div>
+      <div class="note b" data-at="South" data-until="Once" style="bottom:112px"><b>South African numbers only</b><span>e.g. +27 82 123 4567</span></div>
+      <div class="note b" data-at="Once+0.3" style="bottom:112px"><b>Later: once you're receiving leads</b></div>
+    </div>
+  </section>
+
+  <div class="ptr" id="ptr"></div>
+  <div class="ring" id="ring"></div>
+  <div class="cap"><span id="cap"></span></div>
+
+  <div id="poster"><div class="pin">
+    <div class="lg"><img src="logo.png" alt="Lead Velocity"></div>
+    <div class="ey">Getting started · Step 5 of 6</div>
+    <h1>Confirm your business <em>WhatsApp</em> number</h1>
+    <p>New leads and bookings are sent to it. Here's how to confirm it, or use another number.</p>
+    <div class="mock">
+      <div class="rw"><span class="ck"></span><div class="tx"><p class="lbl">Confirm your business WhatsApp number</p>
+        <p class="det">Is +27 82 123 4567 your business WhatsApp? New leads and bookings are sent to it.</p></div></div>
+      <div class="sug"><span class="n">+27 82 123 4567</span><span class="pri">Confirm</span><span class="gh">Use another number</span></div>
+    </div>
+    <div class="play"><i><svg width="30" height="30" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff"/></svg></i><span>Watch the walkthrough<small id="pdur">Captions on screen</small></span></div>
+  </div></div>
+</div>
+<div class="ctl"><button id="play" type="button">Play</button><span id="time"></span></div>
+</div>
+<audio id="vo" preload="auto"></audio>
+<script src="timings.js"></script>
+<script>
+// ---- the portal screen, built once per view (labels verbatim from GettingStarted.tsx / ProfileForms.tsx) ----
+(() => {
+  const CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  const CHEV = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="m6 9 6 6 6-6"/></svg>';
+  const I = (d) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const NAV = `<div class="nav">
+    <span class="a">${I('<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>')}Home</span>
+    <span>${I('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>')}Leads</span>
+    <span>${I('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>')}Appointments</span>
+    <span>${I('<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>')}Documents</span>
+    <span>${I('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>')}More</span></div>`;
+  const SB = `<div class="sb"><span>9:41</span><span class="ic"><svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#fff"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#fff"/><rect x="10" y="2" width="3" height="10" rx="1" fill="#fff"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#fff"/></svg><svg width="26" height="12" viewBox="0 0 26 12"><rect x=".5" y=".5" width="22" height="11" rx="3" fill="none" stroke="#fff" opacity=".5"/><rect x="2" y="2" width="16" height="8" rx="2" fill="#fff"/><rect x="23.5" y="4" width="2" height="4" rx="1" fill="#fff" opacity=".5"/></svg></span></div>`;
+  const HDR = `<div class="hdr"><div class="l"><img src="logo.png" alt=""><span class="firm">Your practice</span></div><div class="av">YP</div></div>`;
+  const step = (label, detail, action, done) => `<li class="${done ? 'done' : ''}"><div class="rw"><span class="ck ${done ? 'ok' : ''}">${done ? CHECK : ''}</span>
+    <div class="tx"><p class="lbl">${label}</p><p class="det">${detail}</p></div>${action ? `<span class="act">${action}</span>` : ''}</div></li>`;
+  const FIRST4 = step('Review your signed agreement', 'Signed and saved in Documents.', 'Open', true)
+    + step('Pay your first invoice', 'Paid on 10 October 2026.', '', true)
+    + step('Confirm your FSP number', 'Clients see it with your practice name.', 'Enter it', false)
+    + step('Add your photo and a short bio', 'Clients see these when they book a call with you.', 'Add them', false);
+  const CAL = step('Connect your Outlook calendar', 'So clients can book a Teams call in your real free time.', "What you'll be asked", false);
+  const CAL_DONE = step('Connect your Outlook calendar', 'Clients can book into your free time.', '', true);
+  // count: "2 of 6 done" -> "3 of 6 done" at `at` (null = stays at n0)
+  const head = (n0, at, barAt) => `<div class="gs-h"><div><h3>Getting started</h3>
+      ${at ? `<p class="sh" data-at="0" data-until="${at}">${n0} of 6 done</p><p class="sh" data-at="${at}">${n0 + 1} of 6 done</p>` : `<p>${n0} of 6 done</p>`}
+      <div class="pb"><i class="${at ? 'w' : ''}" ${at ? `data-at="${barAt || at}" data-from="${n0 / 6}" data-to="${(n0 + 1) / 6}"` : `style="transform:scaleX(${n0 / 6})"`}></i></div></div>
+      <span class="chev">${CHEV}</span></div>`;
+  const app = (scroll, n0, countAt, liWA, li6, barAt) => `<div class="app">${SB}${HDR}<div class="vp"><div class="feed" data-scroll="${scroll}">
+      <h1>Welcome</h1><div class="gs">${head(n0, countAt, barAt)}<div class="gs-b"><h4>What you need to do</h4>
+      <ol class="st">${FIRST4}${liWA}${li6 || CAL}</ol></div></div></div></div>${NAV}</div>`;
+  const pending = (n) => `Is <span class="hln gl" data-at="number#2" data-until="Tap">${n}</span> your business WhatsApp? New leads and bookings are sent to it.`;
+  const reach = (n) => `New leads and bookings reach you on ${n}.`;
+
+  // Scene 1: suggestion -> Confirm (opens the panel) -> Confirm -> ticked
+  const D1 = 'Confirm#2+0.55';
+  document.getElementById('s1app').innerHTML = app('0:0,Getting+0.2:#wa1,off.+0.15:0', 2, D1, `
+    <li class="wa" id="wa1" data-at="${D1}"><span class="glo gl" data-at="suggest-0.4" data-until="${D1}"></span>
+      <div class="rw"><span class="ck sh" data-at="0" data-until="${D1}"></span><span class="ck ok sh" data-at="${D1}"><span class="pop" data-at="${D1}" style="display:grid">${CHECK}</span></span>
+        <div class="tx"><p class="lbl">Confirm your business WhatsApp number</p>
+          <p class="det sh" data-at="0" data-until="${D1}">${pending('+27 82 123 4567')}</p>
+          <p class="det sh" data-at="${D1}">${reach('+27 82 123 4567')}</p></div>
+        <span class="act sh click" data-at="0" data-until="${D1}" data-click="Tap">Confirm</span><span class="act sh" data-at="${D1}">Change</span></div>
+      <div class="pnl g" data-at="Tap+0.15" data-until="${D1}"><div>
+        <div class="sug"><span class="n">+27 82 123 4567</span><span class="pri click" data-click="Confirm#2"><span class="sh" data-at="Confirm#2+0.05" data-until="${D1}"><i class="spin"></i></span>Confirm</span><span class="gh">Use another number</span></div>
+      </div></div></li>`, null, 'off.+0.7');
+
+  // Scene 2a: panel open -> Use another number -> type -> Save -> ticked with the new number
+  const D2 = 'Save.+0.55';
+  document.getElementById('s2a').innerHTML = app('0:#wa2', 2, D2, `
+    <li class="wa" id="wa2" data-at="${D2}">
+      <div class="rw"><span class="ck sh" data-at="0" data-until="${D2}"></span><span class="ck ok sh" data-at="${D2}"><span class="pop" data-at="${D2}" style="display:grid">${CHECK}</span></span>
+        <div class="tx"><p class="lbl">Confirm your business WhatsApp number</p>
+          <p class="det sh" data-at="0" data-until="${D2}">Is +27 82 123 4567 your business WhatsApp? New leads and bookings are sent to it.</p>
+          <p class="det sh" data-at="${D2}">${reach('+27 71 234 5678')}</p></div>
+        <span class="act sh" data-at="0" data-until="${D2}">Confirm</span><span class="act sh" data-at="${D2}">Change</span></div>
+      <div class="pnl g" data-at="0" data-until="${D2}"><div>
+        <div class="sug sh" data-at="0" data-until="Use+0.1"><span class="n">+27 82 123 4567</span><span class="pri">Confirm</span><span class="gh click" data-click="Use">Use another number</span></div>
+        <div class="frm sh" data-at="Use+0.1"><label><span>Business WhatsApp number</span>
+            <div class="inp click" data-tx=".85" data-at="type" data-until="Save." data-click="type"><span data-type="type+0.15" data-type-end="Save.-0.6" data-text="+27 71 234 5678" data-before="+27 82 123 4567"></span><i class="caret" data-caret="type" data-caret-end="Save."></i></div></label>
+          <span class="pri click" data-click="Save."><span class="sh" data-at="Save.+0.05" data-until="${D2}"><i class="spin"></i></span>Save</span><span class="gh">Cancel</span></div>
+      </div></div></li>`);
+
+  // Scene 2b: later, receiving leads -> Change -> locked
+  document.getElementById('s2b').innerHTML = app('0:#wa3', 4, null, `
+    <li class="done" id="wa3"><span class="glo gl" data-at="ask-0.2"></span>
+      <div class="rw"><span class="ck ok">${CHECK}</span>
+        <div class="tx"><p class="lbl">Confirm your business WhatsApp number</p><p class="det">${reach('+27 71 234 5678')}</p></div>
+        <span class="act click" data-click="number#4">Change</span></div>
+      <div class="pnl g" data-at="number#4+0.2"><div>
+        <p class="lock">Locked while you receive leads. Ask Lead Velocity to change it.</p>
+      </div></div></li>`, CAL_DONE);
+})();
+
+// ---- the clock engine (from calendar-connect-film, plus grow / glow / width / pop / typing / scroll) ----
+(() => {
+  const T = window.TIMINGS, LEAD = T.lead, FADE = .45;
+  const qs = new URLSearchParams(location.search);
+  const render = qs.has('render');
+  if (render) document.documentElement.classList.add('render');
+  if (qs.has('poster')) document.documentElement.classList.add('poster');
+  const reduce = !render && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stage = document.getElementById('stage'), ptr = document.getElementById('ptr'), ring = document.getElementById('ring'), cap = document.getElementById('cap');
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = x => 1 - Math.pow(1 - x, 3);
+  const inout = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  const meta = [...document.querySelectorAll('.scene')].map((el, i) => ({ el, i, ...T.scenes[i] }));
+  let acc = 0; meta.forEach(m => { m.start = acc; acc += m.clip; }); const TOTAL = acc;
+  function timeOf(m, spec) {
+    const r = /^(.*?)(?:#(\d+))?([+-]\d*\.?\d+)?$/.exec(String(spec).trim());
+    const word = r[1], nth = r[2] ? +r[2] : 1, off = r[3] ? parseFloat(r[3]) : 0;
+    if (/^\d*\.?\d+$/.test(word)) return parseFloat(word) + off;
+    let c = nth; for (const w of m.words) if (norm(w.w) === norm(word) && --c === 0) return w.t + off;
+    throw new Error(`${m.id}: anchor word not found: ${spec}`);
+  }
+  const kindOf = el => el.classList.contains('scr') || el.classList.contains('v') ? 'view' : el.classList.contains('g') ? 'grow'
+    : el.classList.contains('gl') ? 'glow' : el.classList.contains('w') ? 'width' : el.classList.contains('pop') ? 'pop'
+    : el.classList.contains('b') ? 'fade' : el.classList.contains('sh') ? 'show' : 'class';
+  const offTop = (el, root) => { let y = 0; while (el && el !== root) { y += el.offsetTop; el = el.offsetParent; } return y; };
+  meta.forEach(m => {
+    m.beats = [...m.el.querySelectorAll('[data-at]')].map(el => ({ el, t: timeOf(m, el.dataset.at), u: el.dataset.until ? timeOf(m, el.dataset.until) : null, kind: kindOf(el) }));
+    m.clicks = [...m.el.querySelectorAll('[data-click]')].map(el => ({ el, t: timeOf(m, el.dataset.click) })).sort((a, b) => a.t - b.t);
+    m.types = [...m.el.querySelectorAll('[data-type]')].map(el => ({ el, t0: timeOf(m, el.dataset.type), t1: timeOf(m, el.dataset.typeEnd), text: el.dataset.text, before: el.dataset.before || '' }));
+    m.carets = [...m.el.querySelectorAll('[data-caret]')].map(el => ({ el, t0: timeOf(m, el.dataset.caret), t1: timeOf(m, el.dataset.caretEnd) }));
+    m.scrolls = [...m.el.querySelectorAll('[data-scroll]')].map(el => ({ el, kf: el.dataset.scroll.split(',').map(s => {
+      const k = s.lastIndexOf(':'), v = s.slice(k + 1);
+      return { t: timeOf(m, s.slice(0, k)), y: v.startsWith('#') ? { id: v.slice(1) } : +v };
+    }) }));
+    m.spins = [...m.el.querySelectorAll('.spin')];
+    const d = document.createElement('i'); d.appendChild(document.createElement('b')); document.getElementById('dots').appendChild(d); m.dot = d.firstChild;
+  });
+  function pos(el) { const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / 720; return [(r.left - s.left + (el.dataset.tx ? r.width * +el.dataset.tx : Math.min(r.width * .5, 90))) / k, (r.top - s.top + r.height * .55) / k]; }
+
+  function draw(g) {
+    g = clamp(g, 0, TOTAL - 1e-3);
+    const m = meta.findLast(x => x.start <= g);
+    const st = g - m.start;
+    meta.forEach(x => { x.el.style.opacity = x === m ? (x.i === 0 ? 1 : ease(clamp(st / .5))) : 0; x.el.style.visibility = x === m ? 'visible' : 'hidden'; x.el.style.transform = x === m && x.i > 0 ? `translateY(${(1 - ease(clamp(st / .6))) * 18}px)` : ''; x.dot.style.transform = `scaleX(${x.i < m.i ? 1 : x.i > m.i ? 0 : st / x.clip})`; });
+    // pass 1: content state (show / class / typing) so heights are right before grow and scroll measure them
+    for (const b of m.beats) {
+      const pin = reduce ? (st >= b.t ? 1 : 0) : clamp((st - b.t) / FADE), pout = b.u == null ? 0 : reduce ? (st >= b.u ? 1 : 0) : clamp((st - b.u) / FADE);
+      b.v = pin * (1 - pout); b.pin = pin; b.pout = pout;
+      if (b.kind === 'show') b.el.style.display = (st >= b.t && (b.u == null || st < b.u)) ? '' : 'none';
+      else if (b.kind === 'class') b.el.classList.toggle('on', st >= b.t && (b.u == null || st < b.u));
+    }
+    for (const ty of m.types) ty.el.textContent = st < ty.t0 - .15 ? ty.before : st < ty.t0 ? '' : ty.text.slice(0, Math.round(ty.text.length * clamp((st - ty.t0) / (ty.t1 - ty.t0))));
+    for (const c of m.carets) c.el.style.opacity = st >= c.t0 && st < c.t1 ? (Math.floor((st - c.t0) * 2.2) % 2 === 0 ? 1 : 0) : 0;
+    for (const s of m.spins) s.style.transform = `rotate(${st * 540}deg)`;
+    // pass 2: motion
+    for (const b of m.beats) {
+      const { pin, pout } = b, v = b.v;
+      if (b.kind === 'fade') { b.el.style.opacity = v; b.el.style.transform = `translateY(${(1 - ease(pin)) * 14}px)`; }
+      else if (b.kind === 'view') {
+        const vin = reduce ? pin : clamp((st - b.t - (b.t > 0 ? .2 : 0)) / .35), vout = b.u == null ? 0 : reduce ? pout : clamp((st - b.u) / .25), vv = vin * (1 - vout);
+        b.el.style.opacity = vv; b.el.style.transform = `translateX(${(1 - ease(vin)) * 40}px)`; b.el.style.visibility = vv > 0 ? 'visible' : 'hidden';
+      }
+      else if (b.kind === 'grow') {
+        const gin = clamp((st - b.t) / .4), gout = b.u == null ? 0 : clamp((st - b.u) / .3), gv = inout(gin) * (1 - inout(gout));
+        b.el.style.maxHeight = `${gv * b.el.scrollHeight}px`; b.el.style.opacity = clamp(gin * 1.6) * (1 - gout);
+      }
+      else if (b.kind === 'glow') b.el.style.setProperty('--g', ease(v).toFixed(3));
+      else if (b.kind === 'width') { const f = +b.el.dataset.from, to = +b.el.dataset.to; b.el.style.transform = `scaleX(${f + (to - f) * ease(clamp((st - b.t) / .8))})`; }
+      else if (b.kind === 'pop') { const p = clamp((st - b.t) / .35); b.el.style.transform = `scale(${p <= 0 ? 0 : p < .7 ? ease(p / .7) * 1.25 : 1.25 - .25 * ease((p - .7) / .3)})`; }
+    }
+    // pass 3: scroll (measured after the content above has its height for this instant)
+    for (const sc of m.scrolls) {
+      const val = k => typeof k.y === 'number' ? k.y : Math.max(0, offTop(document.getElementById(k.y.id), sc.el) - 14);
+      let y = val(sc.kf[0]);
+      for (let k = 1; k < sc.kf.length; k++) y += (val(sc.kf[k]) - y) * inout(clamp((st - sc.kf[k].t) / 1.0));
+      sc.el.style.transform = `translateY(${-y}px)`;
+    }
+    // touch pointer: glides to each tap target .75 s before the tap, presses and ripples on the tap
+    let ci = -1; m.clicks.forEach((c, k) => { if (st >= c.t - .75) ci = k; });
+    const c = m.clicks[ci], LINGER = .8;
+    for (const x of m.clicks) if (x !== c) x.el.style.filter = '';
+    if (c && st < c.t + LINGER) {
+      const live = c.el.getBoundingClientRect(), to = live.width || live.height ? pos(c.el) : (c.p || pos(c.el)), prev = ci > 0 && st < c.t ? (m.clicks[ci - 1].p || pos(m.clicks[ci - 1].el)) : [to[0] + 70, to[1] + 150];
+      const p = ease(clamp((st - (c.t - .75)) / .65));
+      const x = prev[0] + (to[0] - prev[0]) * p, y = prev[1] + (to[1] - prev[1]) * p;
+      const press = st >= c.t - .08 && st < c.t + .16 ? .78 : 1;
+      ptr.style.opacity = clamp((st - (c.t - .75)) / .2) * clamp((c.t + LINGER - st) / .3);
+      ptr.style.transform = `translate(${x}px, ${y}px) scale(${press})`;
+      const r = (st - c.t) / .5;
+      ring.style.opacity = r >= 0 && r <= 1 ? 1 - r : 0; ring.style.transform = `translate(${to[0]}px, ${to[1]}px) scale(${.4 + r * 1.6})`;
+      c.el.style.filter = r >= 0 && r < .4 ? 'brightness(.82)' : '';
+    } else { ptr.style.opacity = 0; ring.style.opacity = 0; if (c) c.el.style.filter = ''; }
+    const cue = m.cues.find(q => st >= q.t && st < q.e);
+    const txt = cue ? cue.text : ''; if (cap.textContent !== txt) cap.textContent = txt;
+    return m;
+  }
+  window.TOTAL = TOTAL;
+  window.seek = g => { draw(g); };
+  const mmss = s => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+  document.getElementById('pdur').textContent = `${mmss(TOTAL)} · captions on screen`;
+  // where each tap landed, measured once at its own instant (a tapped button may be gone when the pointer leaves it)
+  const measure = () => { meta.forEach(m => m.clicks.forEach(c => { draw(m.start + c.t); c.p = pos(c.el); })); draw(0); };
+  window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(i => i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; })))).then(() => { measure(); return true; });
+
+  // preview player (not part of the render)
+  if (!render) {
+    const fit = () => { const k = Math.min(1, (innerWidth - 32) / 720, (innerHeight - 90) / 1280); stage.style.transform = `scale(${k})`; stage.style.marginBottom = `${-1280 * (1 - k)}px`; stage.style.marginRight = `${-720 * (1 - k)}px`; };
+    fit(); addEventListener('resize', fit);
+    const vo = document.getElementById('vo'), btn = document.getElementById('play'), time = document.getElementById('time');
+    let g = 0, playing = false, last = performance.now(), cur = null;
+    const hm = /^#(\d+(?:\.\d+)?)$/.exec(location.hash); if (hm) g = +hm[1];
+    function step(now) {
+      const dt = Math.min(1, (now - last) / 1000); last = now;
+      if (playing) {
+        const m = meta.findLast(x => x.start <= g), st = g - m.start;
+        if (cur !== m.id) { cur = m.id; vo.src = `audio/${m.id}.mp3`; vo.pause(); }
+        if (st >= LEAD && st < LEAD + m.audio - .1) { if (vo.paused) { vo.currentTime = st - LEAD; vo.play().catch(() => {}); } else g = m.start + LEAD + vo.currentTime; }
+        else g += dt;
+        if (g >= TOTAL) { playing = false; vo.pause(); g = TOTAL - .01; }
+      }
+      draw(g); time.textContent = `${g.toFixed(1)} / ${TOTAL.toFixed(1)} s`; btn.textContent = playing ? 'Pause' : 'Play';
+      requestAnimationFrame(step);
+    }
+    btn.onclick = () => { playing = !playing; if (!playing) vo.pause(); else { cur = null; } };
+    requestAnimationFrame(step);
+  }
+})();
+</script>

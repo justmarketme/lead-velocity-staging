@@ -1,3 +1,4 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { useState, useEffect, useMemo, type ElementType, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -147,7 +148,7 @@ const BrokerOrders = () => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
 
@@ -164,12 +165,12 @@ const BrokerOrders = () => {
       }
 
       setBroker({
-        contact_person: (broker as any).contact_person ?? null,
-        firm_name: (broker as any).firm_name ?? null,
-        email: (broker as any).email ?? null,
+        contact_person: broker.contact_person ?? null,
+        firm_name: broker.firm_name ?? null,
+        email: broker.email ?? null,
       });
 
-      const { data: orderRows, error: ordersError } = await (supabase as any)
+      const { data: orderRows, error: ordersError } = await supabaseUntyped
         .from("lead_orders")
         .select("*")
         .eq("broker_id", broker.id)
@@ -203,9 +204,9 @@ const BrokerOrders = () => {
     setNotesHistory({});
 
     const [summaryRes, leadsRes, notesRes] = await Promise.all([
-      (supabase as any).rpc("get_order_summary", { p_order_id: order.id }),
-      (supabase as any).rpc("get_order_leads", { p_order_id: order.id }),
-      (supabase as any).rpc("broker_get_order_notes", { p_order_id: order.id }),
+      supabaseUntyped.rpc("get_order_summary", { p_order_id: order.id }),
+      supabaseUntyped.rpc("get_order_leads", { p_order_id: order.id }),
+      supabaseUntyped.rpc("broker_get_order_notes", { p_order_id: order.id }),
     ]);
 
     if (notesRes.error) {
@@ -254,7 +255,7 @@ const BrokerOrders = () => {
   // ── Broker edits on unlocked-order leads (gated server-side by RPC) ─────────
   const updateLeadStatus = async (leadId: string, status: string): Promise<boolean> => {
     if (!selectedOrder) return false;
-    const { error } = await (supabase as any).rpc("broker_update_lead_status", {
+    const { error } = await supabaseUntyped.rpc("broker_update_lead_status", {
       p_order_id: selectedOrder.id,
       p_lead_id: leadId,
       p_status: status,
@@ -272,7 +273,7 @@ const BrokerOrders = () => {
     if (!selectedOrder) return false;
     const trimmed = note.trim();
     if (!trimmed) return false;
-    const { data, error } = await (supabase as any).rpc("broker_add_lead_note", {
+    const { data, error } = await supabaseUntyped.rpc("broker_add_lead_note", {
       p_order_id: selectedOrder.id,
       p_lead_id: leadId,
       p_note: trimmed,
@@ -292,7 +293,7 @@ const BrokerOrders = () => {
 
   // Delete one of the broker's own notes (server enforces authorship).
   const deleteLeadNote = async (leadId: string, noteId: string): Promise<boolean> => {
-    const { data, error } = await (supabase as any).rpc("broker_delete_lead_note", { p_note_id: noteId });
+    const { data, error } = await supabaseUntyped.rpc("broker_delete_lead_note", { p_note_id: noteId });
     if (error || data === false) {
       console.error("broker_delete_lead_note error:", error);
       toast({ title: "Couldn't delete note", description: error?.message || "Please try again.", variant: "destructive" });
@@ -319,7 +320,7 @@ const BrokerOrders = () => {
     if (!selectedOrder) return false;
     const trimmed = message.trim();
     if (!trimmed) return false;
-    const { error } = await (supabase as any).rpc("broker_send_feedback", {
+    const { error } = await supabaseUntyped.rpc("broker_send_feedback", {
       p_order_id: selectedOrder.id,
       p_message: trimmed,
       p_lead_id: leadId,

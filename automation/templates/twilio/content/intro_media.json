@@ -1,0 +1,79 @@
+{
+  "_meta": {
+    "key": "intro_media",
+    "source": "automation/templates/intro_media.json",
+    "approval": {
+      "name": "smc_intro_media",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "header_media"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_intro_media",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Tue 7 Oct",
+      "4": "10:00",
+      "5": "samples/intro_video_sample.mp4",
+      "6": "looking_forward_to_it:sample",
+      "7": "reschedule:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, {{2}} recorded this short video so you know who you will be speaking to. Your call is on *{{3}} at {{4}}*. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "__TWILIO_MEDIA_BASE_URL__/{{5}}"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Looking forward to it",
+            "id": "{{6}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{7}}"
+          }
+        ]
+      }
+    }
+  }
+}

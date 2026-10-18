@@ -11,9 +11,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
-import { supabase } from "@/integrations/supabase/client";
 import { CLIPS_BASE, MS_ADMIN_CONSENT_URL, SUPPORT_EMAIL, errText, fmtDayTime, methodLabel, portalEvent, postWebhook, smcDb } from "@/lib/smc";
-import { adminConsentNote, callbackNotice, calendarStepView, msUrl } from "@/lib/smcMsConnect";
+import { adminConsentNote, callbackNotice, calendarStepView, msUrl, safeJoinUrl } from "@/lib/smcMsConnect";
+import { msCall, msIsBeingSetUp, msStartError } from "@/lib/smcMsClient";
+import { clientName, useUpcomingSmcAppointments } from "@/components/broker/smc/UpcomingSmcAppointments";
 import type { SmcMeetingHours, SmcMethod } from "@/integrations/supabase/smc-types";
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
@@ -23,24 +24,28 @@ const METHODS: SmcMethod[] = ["teams", "phone", "whatsapp_call", "zoom", "meet"]
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
 interface SlotResp { slots?: { start: string }[]; more_this_week?: number; count_week?: number }
-interface MsResp { ok?: boolean; authorize_url?: string; admin_consent_url?: string; calendar_status?: string; error?: string }
-
-/** ms-oauth edge function (supabase/functions/ms-oauth): start returns the Microsoft sign-in URL (PKCE), disconnect forgets the token. */
-async function msCall(action: "start" | "disconnect"): Promise<{ ok: boolean; status: number; data: MsResp | null }> {
-  const { data: s } = await supabase.auth.getSession();
-  if (!s.session?.access_token) return { ok: false, status: 401, data: { error: "Please sign in again." } };
-  try {
-    const { data, error } = await supabase.functions.invoke<MsResp>("ms-oauth", { body: { action } });
-    if (error) {
-      const status = (error as { context?: Response }).context?.status ?? 0;
-      let body: MsResp | null = null;
-      try { body = (await (error as { context?: Response }).context?.json()) as MsResp; } catch { body = null; }
-      return { ok: false, status, data: body ?? { error: errText(error) } };
-    }
-    return { ok: !!data?.ok, status: 200, data: data ?? null };
-  } catch (e) {
-    return { ok: false, status: 0, data: { error: errText(e) } };
-  }
+/** Upcoming SortMyCover calls with their Teams join links (appointments.join_url). */
+function UpcomingCalls({ brokerId }: { brokerId: string }) {
+  const { rows, loading, unavailable } = useUpcomingSmcAppointments(brokerId);
+  if (unavailable) return null;
+  return (
+    <section className="card" id="upcoming">
+      <h2>Your upcoming calls</h2>
+      {loading ? <p className="muted">Loading…</p> : !rows.length ? <p className="muted">No calls booked yet. New bookings appear here with their Teams link.</p> : (
+        <table className="tbl"><tbody>
+          {rows.map((a) => {
+            const link = safeJoinUrl(a.join_url);
+            return (
+              <tr key={a.id}>
+                <td><b>{fmtDayTime(a.appointment_date)}</b><br /><span className="small">{clientName(a)} · {methodLabel(a.method) || "Teams"}</span></td>
+                <td style={{ textAlign: "right" }}>{link ? <a className="tap g" href={link} target="_blank" rel="noopener noreferrer">Join Teams call</a> : <span className="small">{(a.method || "teams") === "teams" ? "Teams link on its way" : "No link needed"}</span>}</td>
+              </tr>
+            );
+          })}
+        </tbody></table>
+      )}
+    </section>
+  );
 }
 
 /** ?day=YYYY-MM-DD (WhatsApp template button, I-37c) → that date's weekday key, or null if absent/invalid. */
@@ -88,16 +93,16 @@ function Body() {
     || (MS_ADMIN_CONSENT_URL ? `${MS_ADMIN_CONSENT_URL}${broker.ms_tenant_id ? `${MS_ADMIN_CONSENT_URL.includes("?") ? "&" : "?"}tenant=${encodeURIComponent(broker.ms_tenant_id)}` : ""}` : "");
   const [msBusy, setMsBusy] = useState<"" | "connect" | "disconnect">("");
   const [msErr, setMsErr] = useState<string | null>(null);
+  const [msCalm, setMsCalm] = useState(false); // msErr is the "being set up" note, not a failure
 
   async function connectOutlook() {
-    setMsErr(null); setMsBusy("connect");
+    setMsErr(null); setMsCalm(false); setMsBusy("connect");
     const r = await msCall("start");
     const go = msUrl(r.data?.authorize_url);
     if (r.ok && go) { window.location.assign(go); return; }
     setMsBusy("");
-    setMsErr(r.status === 401 ? "Your sign-in has expired. Sign in to the portal again, then tap Sign in with Microsoft."
-      : r.status === 503 || r.status === 0 ? "Microsoft sign-in isn't switched on yet. We'll let you know on WhatsApp."
-      : `We couldn't start Microsoft sign-in (${r.data?.error || `HTTP ${r.status}`}). Try again.`);
+    setMsCalm(msIsBeingSetUp(r));
+    setMsErr(msStartError(r));
   }
 
   // The admin-approval panel needs a link even before the broker has ever tapped Connect.
@@ -152,7 +157,7 @@ function Body() {
   }
 
   async function useShared() { await portalEvent("calendar.fallback_chosen", "calendar"); void reload(); }
-  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the SortMyCover calendar app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
+  const mailIt = `mailto:?cc=${SUPPORT_EMAIL}&subject=${encodeURIComponent("Please approve the Lead Velocity app")}&body=${encodeURIComponent(adminConsentNote({ brokerName: broker.contact_person, consentUrl }))}`;
 
   return (
     <>
@@ -171,7 +176,7 @@ function Body() {
         {broker.calendar_status === "ok" && broker.calendar_mode !== "shared_fallback" && (
           <>
             <button className="btn ghost" type="button" onClick={disconnectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "disconnect"}>{msBusy === "disconnect" ? "Disconnecting…" : "Disconnect Outlook"}</button>
-            {msErr && <p className="err" role="alert">{msErr}</p>}
+            {msErr && <p className={msCalm ? "pill info" : "err"} role={msCalm ? "status" : "alert"}>{msErr}</p>}
           </>
         )}
         {(!connected || broker.calendar_status === "needs_reconnect") && (
@@ -181,7 +186,7 @@ function Body() {
             <button className="btn ms" type="button" onClick={connectOutlook} disabled={msBusy !== ""} aria-busy={msBusy === "connect"}>
               <span className="ms-logo" aria-hidden="true"><i /><i /><i /><i /></span>{msBusy === "connect" ? "Opening Microsoft…" : "Sign in with Microsoft"}
             </button>
-            {msErr && <p className="err" role="alert">{msErr}</p>}
+            {msErr && <p className={msCalm ? "pill info" : "err"} role={msCalm ? "status" : "alert"}>{msErr}</p>}
             <details open={blockedAdmin} style={{ marginTop: 12 }}>
               <summary>Microsoft says "Need admin approval"?</summary>
               <p className="muted">Your IT admin has switched off new apps. Two easy ways forward.</p>
@@ -198,6 +203,8 @@ function Body() {
           </>
         )}
       </section>
+
+      <UpcomingCalls brokerId={broker.id} />
 
       <section className="card" id="hours">
         <h2>Your hours and how you meet</h2>

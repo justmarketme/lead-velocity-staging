@@ -16,8 +16,17 @@
 //  - Idempotent: appointments.idempotency_key (unique). Page: request_id -> page:<lead>:<request_id>. Flow:
 //    flow_token + slot (hashed, the token is a bearer secret). Chat: the tap's wamid. Graph create carries a
 //    transactionId derived from the same key, so a retried POST never makes a second Outlook event.
-//  - Email ONLY for Teams / Zoom / Meet (0.1): call methods never read, store or forward an email.
-//  - Client NOT an attendee by default (add_client_as_attendee per broker); the invite goes from howzit@.
+//  - Email: required for Teams / Zoom / Meet (the invite) AND, since 2026-10-11, for every booking of a lead whose email
+//    is not verified yet (Jonathan: the booking reaches the broker only after the client verifies the email).
+//  - VERIFY GATE (Jonathan, 2026-10-11): a lead whose email is not verified gets a HELD slot (appointments.status
+//    pending_verification, verify_by = min(now + 24 h, start - 2 h)): stored so nobody else can take it, but NO Outlook
+//    event, Teams link, invite, broker notice, intro card, reminders or CAPI Schedule. The lead is asked to verify (link /
+//    code from smc-email-verify). Verified in time -> op 'finalize' turns the hold into 'booked' and runs the normal
+//    fan-out; not verified by verify_by -> the hold is released (cancelled) and the lead is nudged to rebook.
+//  - Invite FROM THE BROKER'S OWN OUTLOOK (Jono, 2026-10-13): when the event goes into the broker's connected calendar
+//    (route 'graph') the client is a required attendee, so Exchange sends the meeting request (Teams link included) from
+//    the broker's mailbox; brokers.add_client_as_attendee = false is the explicit opt-out. The howzit@ email + .ics is
+//    the fallback only: shared calendar, no calendar, opt-out, or the Graph create failed (invitedByOutlook).
 //  - CAPI Schedule once per booking, never with email (capi/event-spec.md).
 import { createRequire } from 'node:module';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
@@ -33,7 +42,7 @@ export const METHODS = ['teams', 'zoom', 'meet', 'whatsapp_call', 'phone'];
 export const INVITE_METHODS = new Set(['teams', 'zoom', 'meet']);
 export const CALL_METHODS = new Set(['whatsapp_call', 'phone']);
 export const FLOW_METHOD = { google_meet: 'meet' }; // W28 Flow ids -> appointments.method
-/** Outlook event title label (4.6 "Broker view": Life cover call – {first name} – {method}) */
+/** Outlook event title label (4.6 "Broker view": SortMyCover call – {first name} – {method}) */
 export const TITLE_LABEL = { teams: 'Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone' };
 /** fixtures _meta.method_labels / lib/w06.mjs METHOD_LABEL (broker_new_booking {{5}}) */
 export const METHOD_LABEL = { teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone' };
@@ -41,12 +50,19 @@ export const METHOD_LABEL = { teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Goo
 export const CONFIRM_LABEL = { teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'phone call' };
 export const BAND_LABEL = {
   age_band: { under_35: 'Under 35', '35_44': '35-44', '45_50': '45-50', '51_plus': '51+' },
-  budget_band: { under_500: 'Under R500', '500_750': 'R500-R750', '750_1250': 'R750-R1,250', '1250_plus': 'R1,250+ (before split)', '1250plus': 'R1,250+ (before split)', '1250_1499': 'R1,250-R1,499', '1500_plus': 'R1,500+' },
+  budget_band: { under_500: 'Under R500', '500_750': 'R500-R750', lt750: 'Under R750', '750_1499': 'R750-R1,499', '750_1250': 'R750-R1,250', '1250_plus': 'R1,250+ (before split)', '1250plus': 'R1,250+ (before split)', '1250_1499': 'R1,250-R1,499', '1500_plus': 'R1,500+' },
 };
 export const INVITE_FROM = 'howzit@leadvelocity.co.za';
 export const PORTAL = 'https://leadvelocity.co.za';
 export const SITE = 'https://sortmycover.co.za';
 export const LIVE = new Set(['booked', 'confirmed']);
+export const HELD = 'pending_verification';
+export const HOLD_MAX_H = 24;          // a held slot waits at most 24 h for the email verification ...
+export const HOLD_BEFORE_START_H = 2;  // ... and never later than 2 h before the meeting
+export const HOLD_MIN_WINDOW_MIN = 15; // a slot that leaves under 15 min to verify cannot be held (offer another time)
+/** The verification deadline of a held slot: min(now + 24 h, start - 2 h). */
+export const holdDeadline = (nowMs, startMs) => Math.min(nowMs + HOLD_MAX_H * 3600_000, startMs - HOLD_BEFORE_START_H * 3600_000);
+const sameEmail = (a, b) => !!a && !!b && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?([+-]\d{2}:\d{2}|Z)$/;
 const KEY_RE = /^[A-Za-z0-9:._+-]{1,160}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -140,7 +156,7 @@ export function parseHttp(headers = {}, body = {}, env = {}, nowMs = Date.now())
     ok: true, lane: 'http', mode: c.mode, user_id: c.user_id || null, guard,
     req: {
       op: 'book', lead_id: leadId, slot_start: iso(ms(slot)), method,
-      email: INVITE_METHODS.has(method) && b.email ? String(b.email) : null, // 0.1: dropped for call methods, never stored
+      email: b.email ? String(b.email) : null, // invite methods: the invite; every method: the verification (2026-10-11)
       email_confirmed: b.email_confirmed === true, booked_via: c.mode === 'broker' ? 'console' : 'page',
       idempotency_key: idem, previous_booking_id: null, context: { event_id: ev },
     },
@@ -206,6 +222,11 @@ export function parseSub(j = {}, env = {}, nowMs = Date.now()) {
     if (!METHODS.includes(method)) return rej('method missing or unknown');
     return { op: 'update_method', booking_id: String(j.booking_id), method, email: INVITE_METHODS.has(method) && j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true, idempotency_key: keyOk(j.idempotency_key) ? j.idempotency_key : `w05:method:${j.booking_id}:${method}` };
   }
+  if (j.op === 'finalize') {
+    // smc-email-verify after the lead verified the email: turn the lead's held slot into a booking (W05 "Load held slot").
+    if (!j.lead_id) return rej('lead_id missing');
+    return { op: 'finalize', lead_id: String(j.lead_id), booking_id: j.booking_id ? String(j.booking_id) : null };
+  }
   if (j.op === 'invite_bounced') {
     if (!j.recipient && !j.booking_id) return rej('recipient or booking_id missing');
     return { op: 'invite_bounced', recipient: j.recipient ? String(j.recipient).trim().toLowerCase() : null, booking_id: j.booking_id || null, lead_id: j.lead_id || null };
@@ -228,7 +249,7 @@ export function parseSub(j = {}, env = {}, nowMs = Date.now()) {
   if (!METHODS.includes(method)) return rej('method unknown');
   if (!keyOk(j.idempotency_key)) return rej('idempotency_key not key-safe');
   const via = ['page', 'flow', 'list', 'chat', 'console'].includes(j.booked_via) ? j.booked_via : 'chat';
-  return { op: 'book', lead_id: String(j.lead_id), slot_start: iso(ms(j.slot_start)), method, email: INVITE_METHODS.has(method) && j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true || via === 'flow', booked_via: via, idempotency_key: j.idempotency_key, previous_booking_id: j.previous_booking_id || null, context: j.context && typeof j.context === 'object' ? j.context : {} };
+  return { op: 'book', lead_id: String(j.lead_id), slot_start: iso(ms(j.slot_start)), method, email: j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true || via === 'flow', booked_via: via, idempotency_key: j.idempotency_key, previous_booking_id: j.previous_booking_id || null, context: j.context && typeof j.context === 'object' ? j.context : {}, ...(j.finalize_booking_id ? { finalize_booking_id: String(j.finalize_booking_id) } : {}) };
 }
 
 function parseFlow(msg, leadId, env, nowMs, rej) {
@@ -248,7 +269,24 @@ function parseFlow(msg, leadId, env, nowMs, rej) {
     // A move is W10's (same row, same Graph event): hand it the pick in W10's own payload format.
     return { op: 'to_w10', lead_id: leadId, booking_id: tok.booking_id, w10: { source: 'W05', lead_id: leadId, booking_id: tok.booking_id, msg: { ...msg, payload: null, list_id: `slot_${slot}:resched:${tok.booking_id}` }, method, idempotency_key: key } };
   }
-  return { op: 'book', lead_id: leadId, slot_start: slot, method, email: INVITE_METHODS.has(method) && fr.email ? String(fr.email) : null, email_confirmed: true, booked_via: 'flow', idempotency_key: key, previous_booking_id: null, context: {}, flow_token_hash: sha(fr.flow_token).slice(0, 32) };
+  return { op: 'book', lead_id: leadId, slot_start: slot, method, email: fr.email ? String(fr.email) : null, email_confirmed: true, booked_via: 'flow', idempotency_key: key, previous_booking_id: null, context: {}, flow_token_hash: sha(fr.flow_token).slice(0, 32) };
+}
+
+/**
+ * op 'finalize' (smc-email-verify, after the email is verified): the lead's held slot -> the documented book request the
+ * normal pipeline runs (same idempotency key, so "Load ..." finds the held row; decide() lets it through as a finalize;
+ * the insert statement promotes it to 'booked'; then the Outlook event, invite, broker notice, W06, W09 and CAPI run).
+ * hold = { id, appointment_date, method, booked_via, idempotency_key, status, verify_by } | null. Returns the req or null.
+ */
+export function finalizeRequest(hold, lead = {}, nowMs = Date.now()) {
+  if (!hold || hold.status !== HELD || !lead || lead.email_verified !== true) return null;
+  // quiz v2 band gate: the hold also waits for the self-declared budget band (W03 calls finalize again when it arrives)
+  if (!bandKnown(lead)) return null;
+  if (hold.verify_by && ms(hold.verify_by) <= nowMs) return null; // released by the sweep, never revived
+  return { op: 'book', lead_id: String(lead.id), slot_start: iso(ms(hold.appointment_date)), method: hold.method, email: lead.email || null, email_confirmed: true,
+    booked_via: hold.booked_via || 'chat', idempotency_key: hold.idempotency_key, previous_booking_id: hold.previous_booking_id || null,
+    // the page's browser CAPI event id was stored on the held row (schedule_event_id): the Schedule event keeps its Pixel twin
+    context: hold.booked_via === 'page' && hold.schedule_event_id ? { event_id: hold.schedule_event_id } : {}, finalize_booking_id: String(hold.id) };
 }
 
 // ---------------------------------------------------------------- decision before the re-check
@@ -261,6 +299,12 @@ export function chooseMethod(lead = {}, broker = {}) {
 }
 
 const leadView = (l = {}) => ({ ...l, phone: l.phone || l.mobile || null });
+/**
+ * Quiz v2 (2026-10-13): the landing page no longer asks the budget, so a page lead can book before its band is known.
+ * Contract 5.1(c) / S2.2: a Qualified Lead carries a self-declared band, and 5.7(a) gives it to the broker at the offer.
+ * So the booking is handed over only when the email is verified AND budget_band is set; otherwise the slot is HELD.
+ */
+export const bandKnown = (lead = {}) => lead.budget_band != null && lead.budget_band !== '';
 
 /**
  * decide(ctx) after the database load.
@@ -278,7 +322,8 @@ export function decide(ctx = {}) {
   const { lane, req = {}, mode } = ctx;
   const http = lane === 'http';
   const out = (status, body) => ({ action: 'respond', status, body: { ...body, error: body.error_code } });
-  if (ctx.existing) return http ? { action: 'respond', status: 201, body: publicBody(ctx.existing) } : { action: 'replay', booking: ctx.existing };
+  const fin = !!(req.finalize_booking_id && ctx.existing && String(ctx.existing.id) === String(req.finalize_booking_id) && ctx.existing.status === HELD);
+  if (ctx.existing && !fin) return http ? { action: 'respond', status: 201, body: publicBody(ctx.existing) } : { action: 'replay', booking: ctx.existing };
   const lead = ctx.lead ? leadView(ctx.lead) : null;
   if (!lead) return http ? (mode === 'broker' ? out(404, { error_code: 'unknown_lead' }) : { action: 'respond', status: 401, body: { error: 'try_again' } }) : { action: 'stop', reason: 'unknown_lead' };
   if (http && mode === 'broker') {
@@ -289,6 +334,14 @@ export function decide(ctx = {}) {
   if (!lead.broker_id || !ctx.broker) return http ? { action: 'respond', status: 200, body: { booked: false, fallback: 'whatsapp' } } : { action: 'stop', reason: 'unrouted' };
   const b = brokerConfig(ctx.broker);
   const start = ms(req.slot_start);
+  // a HELD slot of this lead (another time, still waiting for the email): the lead must verify first (or let it lapse)
+  const held = ctx.live && ctx.live.status === HELD && !fin && String(ctx.live.id) !== String(req.finalize_booking_id || '') ? ctx.live : null;
+  if (held) {
+    if (http) return out(409, { error_code: 'held_awaiting_email', booking: { start: iso(ms(held.appointment_date ?? held.start)), method: held.method, verify_by: held.verify_by ? iso(ms(held.verify_by)) : null } });
+    // chat / list / Flow pick of another time: MOVE the held slot (W10; it stays held, same deadline rule)
+    if (ms(held.appointment_date ?? held.start) === ms(req.slot_start)) return { action: 'replay', booking: held };
+    return { action: 'to_w10', w10: { source: 'W05', lead_id: lead.id, booking_id: held.id, msg: { list_id: `slot_${iso(ms(req.slot_start))}:resched:${held.id}`, wamid: req.idempotency_key }, idempotency_key: req.idempotency_key } };
+  }
   const live = ctx.live && LIVE.has(ctx.live.status) && ctx.live.id !== req.previous_booking_id ? ctx.live : null;
   if (live) {
     if (ms(live.appointment_date ?? live.start) === start) return http ? { action: 'respond', status: 201, body: publicBody(live) } : { action: 'replay', booking: live };
@@ -302,8 +355,10 @@ export function decide(ctx = {}) {
     return { action: 'message', kind: 'method_not_offered', wa: methodNotOfferedMessage(lead, b, method, req.slot_start) };
   }
   let email = null; let emailStatus = null; let askEmail = false;
-  if (INVITE_METHODS.has(method)) {
-    const raw = req.email || (!http && lead.email && lead.email_purpose === 'meeting_invite' && lead.email_status !== 'bounced' ? lead.email : null);
+  // 2026-10-11 verify gate: an unverified lead needs an email for EVERY method (the verification), invite methods always
+  const verifiedBefore = lead.email_verified === true;
+  if (INVITE_METHODS.has(method) || !verifiedBefore || req.email) {
+    const raw = req.email || (!http && lead.email && lead.email_status !== 'bounced' && (lead.email_purpose === 'meeting_invite' || verifiedBefore) ? lead.email : null);
     if (!raw) {
       if (http) return out(422, { error_code: 'email_required' });
       askEmail = true; // chat/list: book the time now (speed), ask for the address in chat (W28 ask_email), invite on reply
@@ -316,10 +371,16 @@ export function decide(ctx = {}) {
     }
   }
   const end = start + b.slot_minutes * MIN;
+  // the booking reaches the broker only when the email it carries is the lead's VERIFIED email; anything else is a hold
+  const emailOk = verifiedBefore && (!email || sameEmail(email, lead.email));
+  // a broker booking his own lead (portal, broker JWT) is not gated on the band: he already has the lead
+  const band = bandKnown(lead) || (http && mode === 'broker');
+  const verified = emailOk && band;
   return {
     action: 'check',
-    is_free: { op: 'is_free', broker_id: b.broker_id, start: iso(start), end: iso(end), ...(ctx.test_clock ? { now: iso(ctx.now), is_synthetic: true } : {}) },
-    plan: { lead_id: lead.id, broker_id: b.broker_id, start: iso(start), end: iso(end), method, email, email_status: emailStatus, ask_email: askEmail, booked_via: req.booked_via, idempotency_key: req.idempotency_key, previous_booking_id: req.previous_booking_id || null, context: req.context || {}, adviser_first: adviserFirst, route: calendarRoute(b) },
+    is_free: { op: 'is_free', broker_id: b.broker_id, start: iso(start), end: iso(end), ...(fin ? { exclude_booking_id: String(req.finalize_booking_id) } : {}), ...(ctx.test_clock ? { now: iso(ctx.now), is_synthetic: true } : {}) },
+    plan: { lead_id: lead.id, broker_id: b.broker_id, start: iso(start), end: iso(end), method, email, email_status: emailStatus, ask_email: askEmail, booked_via: req.booked_via, idempotency_key: req.idempotency_key, previous_booking_id: req.previous_booking_id || null, context: req.context || {}, adviser_first: adviserFirst, route: calendarRoute(b),
+      hold: !verified, hold_for: verified ? null : !emailOk ? 'email' : 'budget', finalize_booking_id: fin ? String(req.finalize_booking_id) : null },
   };
 }
 
@@ -328,6 +389,24 @@ export function publicBody(bk = {}) {
   const start = bk.appointment_date ?? bk.start;
   return { booked: true, booking_id: bk.id, start: iso(ms(start)), end: iso(ms(bk.ends_at ?? bk.end)), method: bk.method, join_url: bk.join_url ?? null, ics_url: bk.ics_url ?? icsUrl(bk.id) };
 }
+/**
+ * 2026-10-11: GET /j/{booking_id} -> 302 to the meeting's join link (Teams / Zoom / Meet), the link every reminder and
+ * booking_confirmed carry (lib/w09.mjs methodDetail). Only a live online booking with a join_url on a known meeting
+ * host redirects; everything else is one identical 404 (never says whether the booking exists). The booking id is a
+ * random uuid, and the join link is already in the lead's invite, so the redirect itself reveals nothing new.
+ */
+const JOIN_HOSTS = /^https:\/\/(teams\.microsoft\.com|teams\.live\.com|[a-z0-9-]+\.zoom\.us|zoom\.us|meet\.google\.com)\//i;
+export function joinRedirect(params = {}, a = null) {
+  const nf = { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' };
+  if (!BOOKING_ID_RE.test(String(params.booking_id || '')) || !a) return nf;
+  if (!['booked', 'confirmed'].includes(a.status) || !ONLINE_METHODS.has(a.method) || !JOIN_HOSTS.test(String(a.join_url || ''))) return nf;
+  return { status: 302, headers: { Location: a.join_url, 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' }, body: '' };
+}
+const ONLINE_METHODS = new Set(['teams', 'zoom', 'meet']);
+/** booking_confirmed {{5}}: the method, plus the join link for an online meeting (Teams link in the confirmation). */
+export const confirmDetail = (method, bookingId, site = SITE) => (ONLINE_METHODS.has(method) && bookingId
+  ? `${CONFIRM_LABEL[method]} (join link: ${site}/j/${bookingId})` : CONFIRM_LABEL[method]);
+
 /** I-45j: `.../c/{booking_id}?k={sig}` when a secret is given (the link lives in an invite / a WhatsApp, so it cannot carry a header); unsigned only without a secret (tests). */
 export const icsUrl = (id, site = SITE, secret = null) => (id ? (secret ? `${site}/c/${id}?k=${icsSig(secret, id)}` : `${site}/c/${id}`) : null);
 const ICS_MIN_SECRET = 32;
@@ -374,7 +453,7 @@ export function icsResponse(a, { adviser = '', caller = null } = {}) {
   const first = firstName(adviser) || 'your adviser';
   const link = INVITE_METHODS.has(a.method) ? a.join_url || null : null;
   const description = link ? `Join: ${link}` : CALL_METHODS.has(a.method) ? `${first} will ${a.method === 'whatsapp_call' ? 'WhatsApp-call' : 'call'} you` : `${word} call`;
-  const body = icsFile({ uid: `${a.id}@sortmycover.co.za`, start: a.appointment_date, end: a.ends_at, stamp: a.booked_at || a.appointment_date, summary: `${cancelled ? 'Cancelled: ' : ''}Life cover call with ${first}`, description, url: link || '', status: cancelled ? 'CANCELLED' : 'CONFIRMED', sequence: cancelled ? 1 : 0 });
+  const body = icsFile({ uid: `${a.id}@sortmycover.co.za`, start: a.appointment_date, end: a.ends_at, stamp: a.booked_at || a.appointment_date, summary: `${cancelled ? 'Cancelled: ' : ''}Your call with ${first}`, description, url: link || '', status: cancelled ? 'CANCELLED' : 'CONFIRMED', sequence: cancelled ? 1 : 0 });
   return { status: 200, headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="sortmycover-call.ics"', 'Cache-Control': 'no-store' }, body };
 }
 
@@ -384,7 +463,15 @@ export function icsResponse(a, { adviser = '', caller = null } = {}) {
  * @returns { action:'insert', row } | { action:'taken', status:409, body, wa? }
  */
 export function afterCheck(ctx, dec, free = {}) {
-  if (free && free.free === true) return { action: 'insert', row: appointmentRow(ctx, dec.plan) };
+  if (free && free.free === true) {
+    const p = dec.plan;
+    if (p.hold && holdDeadline(ms(ctx.now), ms(p.start)) - ms(ctx.now) < HOLD_MIN_WINDOW_MIN * MIN) {
+      // too close to the meeting to verify the email in time: offer the next free times (nothing is held)
+      const t = taken(ctx, p, free && Array.isArray(free.next_slots) ? free.next_slots : []);
+      return { ...t, body: { ...t.body, error: 'too_soon_to_verify', error_code: 'too_soon_to_verify' } };
+    }
+    return { action: 'insert', row: appointmentRow(ctx, p) };
+  }
   return taken(ctx, dec.plan, free && Array.isArray(free.next_slots) ? free.next_slots : []);
 }
 
@@ -403,8 +490,9 @@ export function appointmentRow(ctx, p) {
   const route = p.route === 'shared' ? 'shared_lv' : (b.calendar_provider || 'outlook');
   return {
     client_id: lead.id, broker_id: b.broker_id, brand_id: lead.brand_id || b.brand_id || null,
-    cycle_id: b.current_cycle_id || lead.cycle_id || null, appointment_date: p.start, ends_at: p.end, method: p.method,
-    status: 'booked', calendar_provider: route, booked_via: p.booked_via, booked_at: iso(ctx.now),
+    appointment_date: p.start, ends_at: p.end, method: p.method,
+    status: p.hold ? HELD : 'booked', verify_by: p.hold ? iso(holdDeadline(ms(ctx.now), ms(p.start))) : null, finalize_booking_id: p.finalize_booking_id || null,
+    calendar_provider: route, booked_via: p.booked_via, booked_at: iso(ctx.now),
     idempotency_key: p.idempotency_key, previous_booking_id: p.previous_booking_id,
     call_number: CALL_METHODS.has(p.method) ? (lead.call_number || lead.phone) : null,
     invite_email_status: INVITE_METHODS.has(p.method) ? null : 'not_needed',
@@ -419,10 +507,23 @@ export function appointmentRow(ctx, p) {
 export function insertBlocked(rows = [], row, bufferMinutes = 15) {
   const s = ms(row.appointment_date) - bufferMinutes * MIN;
   const e = ms(row.ends_at) + bufferMinutes * MIN;
-  return rows.some((x) => x.broker_id === row.broker_id && LIVE.has(x.status) && ms(x.appointment_date) < e && s < ms(x.ends_at));
+  return rows.some((x) => x.broker_id === row.broker_id && (LIVE.has(x.status) || x.status === HELD) && x.id !== row.finalize_booking_id && ms(x.appointment_date) < e && s < ms(x.ends_at));
 }
 
 // ---------------------------------------------------------------- Microsoft Graph event (modelled; ASSUMPTION)
+/**
+ * Is the client invited by the broker's own Outlook? True when the event goes into his connected calendar (plan route
+ * 'graph', or the booking's calendar_provider for an existing event), the method needs an invite (Teams / Zoom / Meet),
+ * there is an email, the broker has not opted out (add_client_as_attendee = false) and the Graph create did not fail.
+ * Then the event carries the client as attendee and no howzit@ email is sent.
+ */
+export function invitedByOutlook(ctx = {}, p = {}, booking = {}, ev = {}) {
+  const b = brokerConfig(ctx.broker || {});
+  const prov = booking && booking.calendar_provider;
+  const route = p.route || (prov ? (prov === 'shared_lv' ? 'shared' : 'graph') : calendarRoute(b));
+  return route === 'graph' && b.add_client_as_attendee !== false && !!p.email && INVITE_METHODS.has(p.method) && ev.ok !== false;
+}
+
 /**
  * Graph event body. ASSUMPTION (no web check; 4.6 names isOnlineMeeting / onlineMeetingProvider=teamsForBusiness):
  * POST /me/events (broker's delegated token) or /users/{howzit}/calendars/{shared}/events (0.3 #4 shared calendar),
@@ -448,7 +549,7 @@ export function graphEvent(ctx, p, opts = {}) {
   ].filter(Boolean);
   const ev = {
     transactionId: txId(p.idempotency_key),
-    subject: `Life cover call – ${first} – ${TITLE_LABEL[p.method]}`,
+    subject: `SortMyCover call – ${first} – ${TITLE_LABEL[p.method]}`,
     start: { dateTime: iso(ms(p.start)).slice(0, 19), timeZone: TZ },
     end: { dateTime: iso(ms(p.end)).slice(0, 19), timeZone: TZ },
     categories: ['SortMyCover'],
@@ -456,7 +557,7 @@ export function graphEvent(ctx, p, opts = {}) {
     isReminderOn: true,
     reminderMinutesBeforeStart: 15,
     isOnlineMeeting: p.method === 'teams',
-    attendees: b.add_client_as_attendee === true && p.email ? [{ emailAddress: { address: p.email, name: first }, type: 'required' }] : [],
+    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: first }, type: 'required' }] : [],
     body: { contentType: 'text', content: lines.join('\n') },
   };
   if (p.method === 'teams') ev.onlineMeetingProvider = 'teamsForBusiness';
@@ -545,12 +646,60 @@ export function capiSchedule(lead = {}, p = {}) {
   return { event_name: 'Schedule', event_id: browser || `evt_${lead.id}_schedule`, action_source: p.booked_via === 'page' ? 'website' : 'system_generated', lead_id: lead.id, brand_id: lead.brand_id || null };
 }
 
-/** leads UPDATE after the insert (CONTRACTS: broker_id/cycle_id on the lead; email only for invite methods). */
+/** leads UPDATE after the insert (CONTRACTS: broker_id on the lead; the email for the invite / the verification). */
 export function leadUpdate(ctx, p) {
   const b = brokerConfig(ctx.broker);
-  const u = { stage: 'booked', broker_id: b.broker_id, cycle_id: b.current_cycle_id || ctx.lead.cycle_id || null };
-  if (INVITE_METHODS.has(p.method) && p.email) Object.assign(u, { email: p.email, email_status: p.email_status || 'mx_ok', email_purpose: 'meeting_invite' });
+  const u = { stage: 'booked', broker_id: b.broker_id };
+  if (p.email) Object.assign(u, { email: p.email, email_status: p.email_status || 'mx_ok', email_purpose: 'meeting_invite' });
   return u;
+}
+
+/**
+ * The HELD slot (verify gate, 2026-10-11): what follows the insert of a pending_verification row instead of finish().
+ * No Outlook event, no Teams link, no invite, no broker notice, no W06 / W09 / CAPI: the broker learns nothing yet.
+ * The lead gets ONE WhatsApp (booking_held_verify_email: the time is held, confirm the email by the link or the code,
+ * deadline) and the verification email (smc-email-verify issue). Without any email (chat tap) -> ask for it (W28 ask_email).
+ */
+export function holdPending(ctx, p, row) {
+  const lead = leadView(ctx.lead);
+  const b = brokerConfig(ctx.broker);
+  const verifyBy = row.verify_by || iso(holdDeadline(ms(ctx.now), ms(p.start)));
+  if (p.hold_for === 'budget') {
+    // email already verified, only the band is missing: no verify email / message (the band is asked on WhatsApp or the
+    // email-confirm page; W03 runs op finalize when it arrives). The release sweep still frees the slot at verify_by.
+    return {
+      response: { status: 201, body: { booked: false, held: true, verify: 'budget', booking_id: row.id, start: iso(ms(p.start)), end: iso(ms(p.end)), method: p.method, verify_by: iso(ms(verifyBy)) } },
+      lead_update: {}, lead_wa: null, issue: null, ask_email: null,
+      timeline: { activity_type: 'booking_held', payload: { booking_id: row.id, start: p.start, method: p.method, verify_by: verifyBy, booked_via: p.booked_via, held_for: 'budget' } },
+    };
+  }
+  const vars = [firstName(lead.first_name) || 'there', dateLabel(p.start), timeLabel(p.start), firstName(b.adviser_name || b.contact_person) || 'your adviser', `${dateLabel(verifyBy)} at ${timeLabel(verifyBy)}`].map((v) => clean(v));
+  return {
+    response: { status: 201, body: { booked: false, held: true, verify: 'email', booking_id: row.id, start: iso(ms(p.start)), end: iso(ms(p.end)), method: p.method, verify_by: iso(ms(verifyBy)) } },
+    lead_update: p.email ? { email: p.email, email_status: p.email_status || 'mx_ok', email_purpose: 'meeting_invite' } : {},
+    lead_wa: p.email ? templateWa(lead.phone, 'booking_held_verify_email', vars, [], lead.language) : null,
+    issue: p.email ? { op: 'issue', lead_id: lead.id } : null,
+    ask_email: !p.email ? { op: 'ask_email', lead_id: lead.id, method: p.method, booking_id: row.id, reason: 'verify', delegate: ctx.req && ctx.req.delegate ? ctx.req.delegate : null } : null,
+    timeline: { activity_type: 'booking_held', payload: { booking_id: row.id, start: p.start, method: p.method, verify_by: verifyBy, booked_via: p.booked_via } },
+  };
+}
+
+/** The lead already has a held slot and picks again: one reminder to confirm the email first (session text: they just wrote). */
+export function heldReminderMessage(lead, held) {
+  const start = held.appointment_date ?? held.start;
+  const body = `You already have ${dateLabel(start)} at ${timeLabel(start)} held for you. Please confirm your email first: tap the link we emailed you, or reply here with the 6-digit code.`;
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(lead.phone || '').replace(/^\+/, ''), type: 'text', text: { body } };
+}
+
+/**
+ * Release sweep (every 5 min): a held slot whose verify_by passed is released (status cancelled, cancelled_at) and the
+ * lead gets ONE nudge to rebook (template booking_hold_released, "See open times" -> the W04 list). row = the released
+ * appointment joined with the lead (first_name, phone, language).
+ */
+export function holdReleased(row = {}) {
+  const vars = [firstName(row.first_name) || 'there', dateLabel(row.appointment_date), timeLabel(row.appointment_date)].map((v) => clean(v));
+  return { to: row.phone, kind: 'template', template: 'booking_hold_released', variables: vars, buttons: [{ quick_reply: 'see_open_times' }],
+    lead_id: row.lead_id, correlation: `w05:hold_released:${row.id}` };
 }
 
 /** RFC 5545 .ics for the invite (client copy). Times in UTC; no attendees (broker mailbox stays private). */
@@ -566,18 +715,20 @@ export function icsFile({ uid, start, end, summary, description = '', url = '', 
  */
 export function inviteMail(ctx, p, booking, ev = {}) {
   if (!INVITE_METHODS.has(p.method) || !p.email) return null;
+  if (invitedByOutlook(ctx, p, booking || {}, ev)) return null; // Exchange sends it from the broker's mailbox
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
   const adviser = b.adviser_name || b.contact_person || 'your adviser';
+  const adviserFirst = firstName(b.adviser_name || b.contact_person) || 'your adviser';
   const when = `${dateLabel(p.start)} at ${timeLabel(p.start)} (South African time)`;
   const link = ev.join_url || null;
   const word = METHOD_LABEL[p.method];
-  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover by Lead Velocity'].join('\n');
-  const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Life cover call with ${firstName(adviser)}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
+  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
+  const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Your call with ${adviserFirst}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
   return {
     to: p.email,
     message: {
-      subject: `Your call with ${firstName(adviser)} on ${when}`,
+      subject: `Your call with ${adviserFirst} on ${when}`,
       body: { contentType: 'Text', content: text },
       toRecipients: [{ emailAddress: { address: p.email } }],
       attachments: [{ '@odata.type': '#microsoft.graph.fileAttachment', name: 'sortmycover-call.ics', contentType: 'text/calendar', contentBytes: Buffer.from(ics, 'utf8').toString('base64') }],
@@ -604,7 +755,7 @@ export function brokerNotice(ctx, p) {
 export function bookingConfirmed(ctx, p, booking) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), CONFIRM_LABEL[p.method]].map((v) => clean(v));
+  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id)].map((v) => clean(v));
   return templateWa(lead.phone, 'booking_confirmed', vars, [{ url: booking.id }, { quick_reply: `confirm:${booking.id}` }, { quick_reply: `reschedule:${booking.id}` }, { quick_reply: `cancel:${booking.id}` }], lead.language);
 }
 
@@ -649,11 +800,12 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const joinUrl = INVITE_METHODS.has(p.method) ? (ev.join_url || null) : null; // I-54j: call methods never store a join link
   const bk = { ...booking, join_url: joinUrl, ics_url: icsUrl(booking.id, opts.site, opts.ics_secret) };
   const invite = inviteMail(ctx, p, bk, ev);
+  const outlookInvite = invitedByOutlook(ctx, p, bk, ev); // Exchange sent the meeting request from the broker's mailbox
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;
   return {
     response: { status: 201, body: publicBody(bk) },
-    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
+    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite || outlookInvite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
     lead_update: leadUpdate(ctx, p),
     invite,
     broker: brokerNotice(ctx, p),
@@ -696,7 +848,7 @@ export function planUpdateMethod(ctx = {}) {
   const ev = graphEvent({ ...ctx, lead }, p);
   return {
     action: 'patch',
-    graph_patch: { subject: ev.subject, body: ev.body, isOnlineMeeting: ev.isOnlineMeeting, ...(ev.onlineMeetingProvider ? { onlineMeetingProvider: ev.onlineMeetingProvider } : {}) },
+    graph_patch: { subject: ev.subject, body: ev.body, isOnlineMeeting: ev.isOnlineMeeting, ...(ev.onlineMeetingProvider ? { onlineMeetingProvider: ev.onlineMeetingProvider } : {}), ...(ev.attendees.length ? { attendees: ev.attendees } : {}) },
     appointment_update: { method: req.method, call_number: CALL_METHODS.has(req.method) ? (lead.call_number || lead.phone) : null, invite_email_status: INVITE_METHODS.has(req.method) ? 'sent' : 'not_needed' },
     lead_update: email ? { email, email_status: status, email_purpose: 'meeting_invite' } : {},
     plan: p,

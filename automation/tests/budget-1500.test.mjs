@@ -26,7 +26,8 @@ test('CTWA list offers both new answers; W03 qualifies them', () => {
   const rows = JSON.stringify(W3.question('q_budget', { practice_name: 'X', fsp_number: '1', adviser_name: 'A' }));
   assert.match(rows, /budget_1250_1499/); assert.match(rows, /budget_1500_plus/);
 });
-test('migration is file-only, keeps old value and adds the tag column', () => {
-  const sql = readFileSync(new URL('../../supabase/migrations/20261005_smc_15_budget_1500.sql', import.meta.url), 'utf8');
-  assert.match(sql, /'1250plus','1250_1499','1500_plus'/); assert.match(sql, /premium_1500/);
+test('migration keeps every budget code (old and new) valid; the R1,500+ tag is derived from budget_band, not stored (crm-nurture: no generated column on leads)', () => {
+  const sql = readFileSync(new URL('../../supabase/migrations/20261011020000_smc_02_core.sql', import.meta.url), 'utf8');
+  assert.match(sql, /'lt750','750_1499','1500_plus','750_1250','1250plus','1250_1499'/);
+  assert.doesNotMatch(sql, /premium_1500/, 'no stored tag: a generated column would rewrite the 4,209 live leads under an exclusive lock');
 });

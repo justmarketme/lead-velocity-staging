@@ -8,8 +8,9 @@
 import { useEffect, useState } from "react";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { CHECKOUT_URL, CLIPS_BASE, PAYSTACK_ENABLED, errText, fmtDay, fmtDayTime, fmtZar, portalEvent, postWebhook, sha256Hex, smcDb } from "@/lib/smc";
-import { TERMS } from "@/lib/pricing";
+import { PILOT, TERMS } from "@/lib/pricing";
 import { AGREEMENT_STRUCTURE } from "@/lib/contract/agreement";
+import { downloadAdminDocument } from "@/lib/adminDocs";
 import type { SmcAdminDocument, SmcAgreementAcceptances, SmcCycle, SmcInvoice, SmcPricing, SmcSignDocumentArgs } from "@/integrations/supabase/smc-types";
 
 const DOC_BUCKET = "admin-documents"; // INV-08; must be private (NH-15 S3)
@@ -53,7 +54,7 @@ function Body() {
   useEffect(() => {
     (async () => {
       const [d, c, p, i] = await Promise.all([
-        smcDb.from("admin_documents").select("*").eq("broker_id", broker.id).in("kind", ["agreement", "authorisation_letter"]).order("created_at", { ascending: false }),
+        smcDb.from("admin_documents").select("*").eq("broker_id", broker.id).in("kind", ["agreement", "signed_agreement", "authorisation_letter"]).order("created_at", { ascending: false }),
         smcDb.from("cycles").select("*").eq("broker_id", broker.id).order("cycle_no", { ascending: false }).limit(3),
         smcDb.from("pricing").select("*").is("active_to", null).order("sort_order"),
         smcDb.from("invoices_smc").select("*").eq("broker_id", broker.id).order("issued_at", { ascending: false }).limit(12),
@@ -65,6 +66,8 @@ function Body() {
     })();
   }, [broker.id]);
 
+  // A fully signed PDF uploaded by Lead Velocity (kind signed_agreement) replaces the e-sign flow.
+  const signedDoc = docs.find((d) => d.kind === "signed_agreement") || null;
   const agreement = docs.find((d) => d.kind === "agreement") || null;
   const signed = !!agreement?.signed_at;
   const canSign = read && name.trim().length >= 3 && !!agreement && !signed;
@@ -101,6 +104,8 @@ function Body() {
   const cur = cycles[0];
   const curTier = tiers.find((t) => t.tier_code === (cur?.tier_code || broker.tier_code));
   const curInvoice = invoices.find((i) => i.cycle_id === cur?.id && i.kind === "cycle");
+  // the Pilot is one introductory cycle: the next cycle is a different plan, not "the same price"
+  const onPilot = (cur?.tier_code || broker.tier_code) === PILOT.tier_code;
   const payUrl = (pay: string, tier?: string) => `${CHECKOUT_URL}${CHECKOUT_URL.includes("?") ? "&" : "?"}tier=${encodeURIComponent(tier || cur?.tier_code || broker.tier_code || "")}&pay=${pay}&cycle=next`;
   const vatLine = (t?: SmcPricing) => (t?.vat_rate ? ` + VAT ${(t.vat_rate * 100).toFixed(0)}%` : " excl. VAT");
 
@@ -117,16 +122,29 @@ function Body() {
 
   return (
     <>
+      {signedDoc && (
+        <section className="card">
+          <h2>Your signed agreement</h2>
+          <div className="next-slot" role="status"><span style={{ fontSize: 26 }}>✓</span><div><b>{signedDoc.name}</b>Signed{signedDoc.signed_at ? ` ${fmtDay(signedDoc.signed_at)}` : ""}{signedDoc.signed_by ? ` by ${signedDoc.signed_by}` : ""}.</div></div>
+          {signedDoc.file_path && (
+            <p style={{ margin: "10px 0 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="tap g" type="button" onClick={() => openDoc(signedDoc.file_path)}>View (PDF)</button>
+              <button className="tap" type="button" onClick={() => { const p = signedDoc.file_path as string; void downloadAdminDocument(p, p.split("/").pop() || "agreement.pdf"); }}>Download</button>
+            </p>
+          )}
+        </section>
+      )}
+      {!signedDoc && (
       <section className="card">
         <h2>Sign your agreement</h2>
-        <p className="muted">It is written in plain words. Flat price per {TERMS.cycle_days}-day cycle, month to month, no lock-in. Read it, tick the boxes, type your name. Done.</p>
+        <p className="muted">It is written in plain words. {onPilot ? `A flat once-off price for one introductory ${TERMS.cycle_days}-day cycle.` : `Flat price per ${TERMS.cycle_days}-day cycle, month to month, no lock-in.`} Read it, tick the boxes, type your name. Done.</p>
         {/* Summary of the Lead Generation Services Agreement (clauses 6, 7, 8.3, 11, 12); numbers from src/lib/pricing.ts */}
         <ul style={{ margin: "6px 0 10px", paddingLeft: 18, fontSize: 14 }}>
           <li>One flat price per cycle, never linked to policies, premiums or sales. No commission, ever.</li>
-          <li>Month to month. Cancel with {TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.</li>
+          <li>{onPilot ? `The Pilot is one cycle. To carry on, pay for Bronze or higher in advance before it ends; if you don't, the agreement simply ends.` : `Month to month. Cancel with ${TERMS.cancel_notice_days} days' written notice before your next cycle. If you don't pay for the next cycle, the agreement simply ends.`}</li>
           <li>We won't give the same consumer's enquiry to another broker. We keep the campaign data, pages, ad accounts and consent records.</li>
-          <li>No-show replacements are goodwill, not a right: up to {TERMS.goodwill_replacements_per_week} requests a week, with proof.</li>
-          <li>Shortfall: we deliver the balance within {TERMS.shortfall_rollover_days} days after the cycle. Anything still owed carries into your next paid cycle, or is refunded if you stop.</li>
+          <li>Replacements are goodwill, not a right: up to {TERMS.goodwill_replacements_per_week} requests a week for no-shows and leads you couldn't reach, with proof.</li>
+          <li>Shortfall: we keep delivering for up to {TERMS.shortfall_rollover_days} more days after the cycle, only for delays outside our control. After that, what is still owed rolls into your next cycle on top of its number, or you can ask for a refund at your plan's price per lead, paid within 7 working days.</li>
         </ul>
         {!agreement && <p className="alert">Your agreement is being prepared. We'll message you on WhatsApp when it's ready to sign.</p>}
         {agreement && (
@@ -138,7 +156,7 @@ function Body() {
           </>
         )}
         {agreement && (signed || done) ? (
-          <div className="next-slot" role="status" style={{ marginTop: 12 }}><span style={{ fontSize: 26 }}>✓</span><div><b>Signed{agreement.signed_at ? ` ${fmtDayTime(agreement.signed_at)}` : ""}{agreement.signed_by_name ? ` by ${agreement.signed_by_name}` : ""}.</b>A copy is on its way to your email and to howzit@leadvelocity.co.za. Document fingerprint (SHA-256) {(done || agreement.doc_sha256 || "").slice(0, 12)}… saved.</div></div>
+          <div className="next-slot" role="status" style={{ marginTop: 12 }}><span style={{ fontSize: 26 }}>✓</span><div><b>Signed{agreement.signed_at ? ` ${fmtDayTime(agreement.signed_at)}` : ""}{agreement.signed_by ? ` by ${agreement.signed_by}` : ""}.</b>A copy is on its way to your email and to howzit@leadvelocity.co.za. Document fingerprint (SHA-256) {(done || agreement.doc_sha256 || "").slice(0, 12)}… saved.</div></div>
         ) : agreement && (
           <div className="sig" style={{ marginTop: 12 }}>
             <label className="chip" style={{ display: "flex" }}><input type="checkbox" checked={read} onChange={(e) => setRead(e.target.checked)} /> I have read and agree to clauses 1 to {AGREEMENT_STRUCTURE.lastClause} and Schedules 1 to {AGREEMENT_STRUCTURE.schedules}, including clause {AGREEMENT_STRUCTURE.clientMaterialsClause}: you may use my name, photograph, practice name, FSP number and short biography in the Intro Card and WhatsApp messages to consumers you introduce to me (never in ads).</label>
@@ -153,6 +171,7 @@ function Body() {
           </div>
         )}
       </section>
+      )}
       <StepClip title="signing and paying" length="0:35" file={`${CLIPS_BASE}/agreement.mp4`} />
 
       <section className="card" id="billing">
@@ -181,7 +200,7 @@ function Body() {
           </>
         )}
         <h3 style={{ marginTop: 12 }}>{PAYSTACK_ENABLED ? "Next cycle: pick how you want to pay" : "Next cycle: payment by EFT, in advance"}</h3>
-        <p className="muted" style={{ margin: "0 0 8px" }}>Same price. No lock-in. Payment is by EFT, in advance, per 30-day cycle. The payment details are on your invoice. We show the renewal offer 7 days before your cycle ends. Your next cycle starts when you pay.</p>
+        <p className="muted" style={{ margin: "0 0 8px" }}>{onPilot ? "The Pilot is one cycle; pick Bronze or higher below to carry on. No lock-in." : "Same price. No lock-in."} Payment is by EFT, in advance, per 30-day cycle. The payment details are on your invoice. We show the renewal offer 7 days before your cycle ends. Your next cycle starts when you pay.</p>
         {PAYSTACK_ENABLED && <a className="btn" href={payUrl("instant_eft")}>Pay by Instant EFT (recommended)</a>}
         <a className={PAYSTACK_ENABLED ? "btn ghost" : "btn"} href={payUrl("manual_eft")}>Pay by EFT with a reference (no fee)</a>
         {PAYSTACK_ENABLED && <a className="btn ghost" href={payUrl("card_autorenew")}>Pay by card and renew automatically (optional)</a>}
@@ -191,7 +210,7 @@ function Body() {
         )}
         {tiers.filter((t) => t.tier_code !== (cur?.tier_code || broker.tier_code)).length > 0 && (
           <>
-            <h3 style={{ marginTop: 12 }}>Change tier for the next cycle</h3>
+            <h3 style={{ marginTop: 12 }}>{onPilot ? "Carry on after the Pilot" : "Change tier for the next cycle"}</h3>
             <div className="row">
               {tiers.filter((t) => t.tier_code !== (cur?.tier_code || broker.tier_code)).map((t) => (
                 <a key={t.tier_code} className="tap g" href={payUrl(PAYSTACK_ENABLED ? "instant_eft" : "manual_eft", t.tier_code)}>Move to {t.name}: {t.committed_leads} leads, {fmtZar(t.price_zar)}{vatLine(t)}</a>

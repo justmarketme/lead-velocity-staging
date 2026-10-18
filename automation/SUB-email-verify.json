@@ -1,0 +1,1124 @@
+{
+  "id": "smc-email-verify",
+  "name": "Email Verify (Resend code + link, clause 5.8)",
+  "nodes": [
+    {
+      "name": "Called by W05 / W28 (issue) or W07 (typed code)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "smc-email-verify-1",
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "name": "Normalise input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subEmailVerify;\nreturn { json: L.normalise($json) };"
+      },
+      "id": "smc-email-verify-2",
+      "position": [
+        440,
+        340
+      ]
+    },
+    {
+      "name": "Valid and op = issue?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid === true && $json.op === 'issue' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-3",
+      "position": [
+        660,
+        380
+      ]
+    },
+    {
+      "name": "Valid and op = code?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.valid === true && $json.op === 'code' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-4",
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "name": "Load lead (issue)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id::text AS id, l.first_name, l.email, l.email_verified, l.email_verify_code_hash, l.email_verify_sent_at,\n       l.email_verify_expires_at, l.email_verify_attempts, l.opted_out_at, l.phone, l.brand_id::text AS brand_id, l.broker_id::text AS broker_id,\n       b.contact_person AS adviser_name\n  FROM public.leads l LEFT JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id ] }}"
+        }
+      },
+      "id": "smc-email-verify-5",
+      "position": [
+        1100,
+        340
+      ]
+    },
+    {
+      "name": "Plan issue (code + link, 10-min gap)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subEmailVerify;\nreturn { json: { lead_id: $json.id, brand_id: $json.brand_id, broker_id: $json.broker_id, email: $json.email, ...L.issuePlan($json.id ? $json : null, $env, Date.now()) } };"
+      },
+      "id": "smc-email-verify-6",
+      "position": [
+        1320,
+        380
+      ]
+    },
+    {
+      "name": "Send the email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.action === 'send' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-7",
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "name": "Store code hash + timeline (before the send)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Only the hash is stored (capture-v2 issueEmailVerification). A newer email replaces the older code.\nWITH u AS (\n  UPDATE public.leads SET email_verify_code_hash = $2, email_verify_sent_at = $3::timestamptz, email_verify_expires_at = $4::timestamptz,\n                          email_verify_attempts = 0, updated_at = now()\n   WHERE id = $1::uuid AND brand_id IS NOT NULL AND email_verified IS NOT TRUE\n  RETURNING id, brand_id, broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'system', 'email_verify_sent', jsonb_build_object('via', 'resend', 'expires_at', $4::text), now(), 'ev:sent:' || u.id::text || ':' || $3\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id::text AS lead_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id, $json.set.email_verify_code_hash, $json.set.email_verify_sent_at, $json.set.email_verify_expires_at ] }}"
+        }
+      },
+      "id": "smc-email-verify-8",
+      "position": [
+        1760,
+        340
+      ]
+    },
+    {
+      "name": "Live send? (Resend)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-9",
+      "position": [
+        1980,
+        380
+      ]
+    },
+    {
+      "name": "Resend POST /emails (hello@sortmycover.co.za)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Plan issue (code + link, 10-min gap)').item.json.resend.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $('Plan issue (code + link, 10-min gap)').item.json.resend.headers.Authorization }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $('Plan issue (code + link, 10-min gap)').item.json.resend.headers['Idempotency-Key'] }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan issue (code + link, 10-min gap)').item.json.resend.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "smc-email-verify-10",
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "name": "Dry-run stub (Resend)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// DRY_RUN_SENDS=true: no email leaves the box; the evidence row is still written with a dry: id.\nreturn { json: { statusCode: 200, body: { id: 'dry:ev:' + $('Plan issue (code + link, 10-min gap)').item.json.lead_id } } };"
+      },
+      "id": "smc-email-verify-11",
+      "position": [
+        2420,
+        340
+      ]
+    },
+    {
+      "name": "Interpret Resend response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subEmailVerify;\nreturn { json: L.interpretResend($json) };"
+      },
+      "id": "smc-email-verify-12",
+      "position": [
+        2640,
+        380
+      ]
+    },
+    {
+      "name": "Log email in communications (CRM timeline)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The CRM's UnifiedCommunicationHub shows this row on the lead. Content never holds the code or the link.\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, subject, content, status, external_id, failed_reason, lead_id, broker_id, author, workflow, template_name, metadata)\nVALUES (NULLIF($1, '')::uuid, 'email', 'outbound', 'system', 'client', $2, $3, '[email verification: code + link]', $4, NULLIF($5, ''), NULLIF($6, ''), $7::uuid, NULLIF($8, '')::uuid, 'system', 'smc-email-verify', 'email_verification',\n        jsonb_build_object('provider', 'resend', 'from', $9::text, 'dry_run', $5 LIKE 'dry:%'))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan issue (code + link, 10-min gap)').item.json; return [ p.brand_id || '', p.email, p.resend.body.subject, $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '', p.lead_id, p.broker_id || '', p.resend.body.from ]; })() }}"
+        }
+      },
+      "id": "smc-email-verify-13",
+      "position": [
+        2860,
+        300
+      ]
+    },
+    {
+      "name": "Log skipped issue (timeline)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'system', 'email_verify_skipped', jsonb_build_object('reason', $2::text), now(), 'ev:skip:' || l.id::text || ':' || $2 || ':' || to_char(now(), 'YYYYMMDDHH24')\n  FROM public.leads l WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL AND $2 NOT IN ('recently_sent', 'already_verified')\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id || '', $json.reason || 'unknown' ] }}"
+        }
+      },
+      "id": "smc-email-verify-14",
+      "position": [
+        3080,
+        340
+      ]
+    },
+    {
+      "name": "Load lead (code)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id::text AS id, l.first_name, l.email, l.email_verified, l.email_verify_code_hash, l.email_verify_sent_at,\n       l.email_verify_expires_at, l.email_verify_attempts, l.opted_out_at, l.phone, l.brand_id::text AS brand_id, l.broker_id::text AS broker_id,\n       b.contact_person AS adviser_name\n  FROM public.leads l LEFT JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id ] }}"
+        }
+      },
+      "id": "smc-email-verify-15",
+      "position": [
+        3300,
+        380
+      ]
+    },
+    {
+      "name": "Check the typed code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subEmailVerify;\nconst n = $('Normalise input').item.json;\nconst r = L.codePlan($json.id ? $json : null, n.code, Date.now());\nreturn { json: { lead_id: $json.id, brand_id: $json.brand_id, broker_id: $json.broker_id, phone: $json.phone, ...r } };"
+      },
+      "id": "smc-email-verify-16",
+      "position": [
+        3520,
+        300
+      ]
+    },
+    {
+      "name": "Update lead + timeline (code)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (\n  UPDATE public.leads SET email_verified = COALESCE(($2::jsonb->>'email_verified')::boolean, email_verified),\n                          email_verified_at = COALESCE(($2::jsonb->>'email_verified_at')::timestamptz, email_verified_at),\n                          email_verified_via = COALESCE($2::jsonb->>'email_verified_via', email_verified_via),\n                          email_verify_attempts = COALESCE(($2::jsonb->>'email_verify_attempts')::int, email_verify_attempts),\n                          email_unverified_flag = CASE WHEN ($2::jsonb->>'email_verified')::boolean THEN false ELSE email_unverified_flag END,\n                          updated_at = now()\n   WHERE id = $1::uuid AND brand_id IS NOT NULL\n  RETURNING id, brand_id, broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'lead', $3, $4::jsonb, now(), 'ev:code:' || u.id::text || ':' || $5\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id::text AS lead_id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id, JSON.stringify($json.set || {}), $json.activity.activity_type, JSON.stringify($json.activity.payload), String($('Normalise input').item.json.wamid || Date.now()) ] }}"
+        }
+      },
+      "id": "smc-email-verify-17",
+      "position": [
+        3740,
+        340
+      ]
+    },
+    {
+      "name": "SUB input (reply on WhatsApp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// One reply to the typed code (the lead just wrote: inside the 24-h window). Through smc-whatsapp-send, so\n// WHATSAPP_PROVIDER switches it; the sub records the communications row (record:true).\nconst p = $('Check the typed code').item.json;\nconst n = $('Normalise input').item.json;\nreturn { json: { kind: 'prebuilt', wa: { messaging_product: 'whatsapp', to: String(n.to || p.phone || '').replace(/\\D/g, ''), type: 'text', text: { body: p.reply } }, record: true, caller: 'smc-email-verify', lead_id: p.lead_id, correlation: 'ev:reply:' + (n.wamid || p.lead_id + ':' + Date.now()) } };"
+      },
+      "id": "smc-email-verify-18",
+      "position": [
+        3960,
+        380
+      ]
+    },
+    {
+      "name": "WhatsApp reply (smc-whatsapp-send)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-email-verify-19",
+      "position": [
+        4180,
+        300
+      ]
+    },
+    {
+      "name": "Code expired? (issue a fresh one)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Check the typed code').item.json.reissue === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-20",
+      "position": [
+        4400,
+        340
+      ]
+    },
+    {
+      "name": "Re-issue item",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { op: 'issue', lead_id: $('Check the typed code').item.json.lead_id } };"
+      },
+      "id": "smc-email-verify-21",
+      "position": [
+        4620,
+        380
+      ]
+    },
+    {
+      "name": "Issue a fresh code (this workflow)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-email-verify",
+          "cachedResultName": "Email Verify"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-email-verify-22",
+      "position": [
+        4840,
+        300
+      ]
+    },
+    {
+      "name": "GET /v/:token (one-tap link)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "smc-email-verify-link",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "v/:token",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "smc-email-verify-23",
+      "position": [
+        5060,
+        340
+      ]
+    },
+    {
+      "name": "Lead id from the token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subEmailVerify;\nreturn { json: { lead_id: L.leadIdFromToken($json.params && $json.params.token) || '' } };"
+      },
+      "id": "smc-email-verify-24",
+      "position": [
+        5280,
+        380
+      ]
+    },
+    {
+      "name": "Load lead (link)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id::text AS id, l.first_name, l.email, l.email_verified, l.email_verify_code_hash, l.email_verify_sent_at,\n       l.email_verify_expires_at, l.email_verify_attempts, l.opted_out_at, l.phone, l.brand_id::text AS brand_id, l.broker_id::text AS broker_id,\n       b.contact_person AS adviser_name\n  FROM public.leads l LEFT JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id ] }}"
+        }
+      },
+      "id": "smc-email-verify-25",
+      "position": [
+        5500,
+        300
+      ]
+    },
+    {
+      "name": "Check the link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').subEmailVerify;\nconst tok = $('GET /v/:token (one-tap link)').item.json.params.token;\nreturn { json: { lead_id: $json.id || null, ...L.linkPlan(tok, $json.id ? $json : null, $env, Date.now()) } };"
+      },
+      "id": "smc-email-verify-26",
+      "position": [
+        5720,
+        340
+      ]
+    },
+    {
+      "name": "Update lead + timeline (link)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH u AS (\n  UPDATE public.leads SET email_verified = true, email_verified_at = ($2::jsonb->>'email_verified_at')::timestamptz, email_verified_via = 'link',\n                          email_unverified_flag = false, updated_at = now()\n   WHERE id = NULLIF($1, '')::uuid AND brand_id IS NOT NULL AND $3::boolean AND ($2::jsonb->>'email_verified') = 'true'\n  RETURNING id, brand_id, broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'lead', 'email_verified', '{\"via\":\"link\"}'::jsonb, now(), 'ev:link:' || u.id::text FROM u\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id || '', JSON.stringify($json.set || {}), !!$json.ok ] }}"
+        }
+      },
+      "id": "smc-email-verify-27",
+      "position": [
+        5940,
+        380
+      ]
+    },
+    {
+      "name": "Respond (HTML page)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $('Check the link').item.json.page }}",
+        "options": {
+          "responseCode": "={{ $('Check the link').item.json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      },
+      "id": "smc-email-verify-28",
+      "position": [
+        6160,
+        300
+      ]
+    },
+    {
+      "name": "Verified by the code? (finalize the held slot)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Check the typed code').item.json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-29",
+      "position": [
+        6380,
+        340
+      ]
+    },
+    {
+      "name": "Finalize item (code)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { op: 'finalize', lead_id: $('Check the typed code').item.json.lead_id } };"
+      },
+      "id": "smc-email-verify-30",
+      "position": [
+        6600,
+        380
+      ]
+    },
+    {
+      "name": "Verified by the link? (finalize the held slot)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $('Check the link').item.json.ok === true && !!$('Check the link').item.json.lead_id }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "smc-email-verify-31",
+      "position": [
+        6820,
+        300
+      ]
+    },
+    {
+      "name": "Finalize item (link)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: { op: 'finalize', lead_id: $('Check the link').item.json.lead_id } };"
+      },
+      "id": "smc-email-verify-32",
+      "position": [
+        7040,
+        340
+      ]
+    },
+    {
+      "name": "-> W05 finalize (code)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-email-verify-33",
+      "position": [
+        7260,
+        380
+      ]
+    },
+    {
+      "name": "-> W05 finalize (link)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w05",
+          "cachedResultName": "W05 Book"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "smc-email-verify-34",
+      "position": [
+        7480,
+        300
+      ]
+    },
+    {
+      "name": "Note: smc-email-verify",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "content": "## smc-email-verify (agreement clause 5.8(b))\n- `{ op: issue, lead_id }` (W05 after an invite booking with an email, W28 after the Flow email step): one email from `hello@sortmycover.co.za` through **Resend** (`RESEND_API_KEY`) with a one-tap link `VERIFY_BASE_URL/v/<ev1 token>` and a 6-digit code. Only `sha256(lead_id|code)` is stored. 10-minute gap per lead. `DRY_RUN_SENDS` -> nothing sent, row with a `dry:` id.\n- `{ op: code, lead_id, code, wamid, to }` (W07 route `email_code`): checks the code (5 tries, 24 h), confirms the email, one WhatsApp reply via smc-whatsapp-send; an expired code is re-issued.\n- Verified (code or link) -> W05 `{ op: finalize, lead_id }`: the held slot becomes the booking (verify gate, 2026-10-11).\n- `GET /v/:token`: the link. Traefik routes `sortmycover.co.za/v/*` to `/webhook/v/:token`. One identical page for every failure.\n- Env: `EMAIL_VERIFY_SECRET` (>= 32 chars), `RESEND_API_KEY`, optional `VERIFY_EMAIL_FROM`, `VERIFY_BASE_URL`, `VERIFY_EMAIL_REPLY_TO`.",
+        "width": 520,
+        "height": 300
+      },
+      "id": "smc-email-verify-35"
+    }
+  ],
+  "connections": {
+    "Called by W05 / W28 (issue) or W07 (typed code)": {
+      "main": [
+        [
+          {
+            "node": "Normalise input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise input": {
+      "main": [
+        [
+          {
+            "node": "Valid and op = issue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and op = issue?": {
+      "main": [
+        [
+          {
+            "node": "Load lead (issue)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Valid and op = code?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and op = code?": {
+      "main": [
+        [
+          {
+            "node": "Load lead (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead (issue)": {
+      "main": [
+        [
+          {
+            "node": "Plan issue (code + link, 10-min gap)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan issue (code + link, 10-min gap)": {
+      "main": [
+        [
+          {
+            "node": "Send the email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send the email?": {
+      "main": [
+        [
+          {
+            "node": "Store code hash + timeline (before the send)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log skipped issue (timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store code hash + timeline (before the send)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (Resend)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (Resend)": {
+      "main": [
+        [
+          {
+            "node": "Resend POST /emails (hello@sortmycover.co.za)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Resend)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend POST /emails (hello@sortmycover.co.za)": {
+      "main": [
+        [
+          {
+            "node": "Interpret Resend response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Resend)": {
+      "main": [
+        [
+          {
+            "node": "Interpret Resend response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpret Resend response": {
+      "main": [
+        [
+          {
+            "node": "Log email in communications (CRM timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead (code)": {
+      "main": [
+        [
+          {
+            "node": "Check the typed code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the typed code": {
+      "main": [
+        [
+          {
+            "node": "Update lead + timeline (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update lead + timeline (code)": {
+      "main": [
+        [
+          {
+            "node": "SUB input (reply on WhatsApp)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code expired? (issue a fresh one)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Verified by the code? (finalize the held slot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (reply on WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp reply (smc-whatsapp-send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code expired? (issue a fresh one)": {
+      "main": [
+        [
+          {
+            "node": "Re-issue item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-issue item": {
+      "main": [
+        [
+          {
+            "node": "Issue a fresh code (this workflow)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /v/:token (one-tap link)": {
+      "main": [
+        [
+          {
+            "node": "Lead id from the token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead id from the token": {
+      "main": [
+        [
+          {
+            "node": "Load lead (link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead (link)": {
+      "main": [
+        [
+          {
+            "node": "Check the link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the link": {
+      "main": [
+        [
+          {
+            "node": "Update lead + timeline (link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update lead + timeline (link)": {
+      "main": [
+        [
+          {
+            "node": "Respond (HTML page)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Verified by the link? (finalize the held slot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verified by the code? (finalize the held slot)": {
+      "main": [
+        [
+          {
+            "node": "Finalize item (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize item (code)": {
+      "main": [
+        [
+          {
+            "node": "-> W05 finalize (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verified by the link? (finalize the held slot)": {
+      "main": [
+        [
+          {
+            "node": "Finalize item (link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize item (link)": {
+      "main": [
+        [
+          {
+            "node": "-> W05 finalize (link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "errorWorkflow": "smc-w22",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "SortMyCover"
+    },
+    {
+      "name": "sub-workflow"
+    }
+  ],
+  "meta": {
+    "generatedBy": "automation/build-sub-workflows.mjs"
+  }
+}

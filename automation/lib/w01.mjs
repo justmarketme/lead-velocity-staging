@@ -79,11 +79,47 @@ export const BUDGET_TO_DB = {
   lt750: 'lt750', under_500: 'lt750', '500_750': 'lt750', '<500': 'lt750', '500-750': 'lt750', '<750': 'lt750',
   '750_1250': '750_1250', '750-1250': '750_1250', '1250plus': '1250plus', '1250_plus': '1250plus', '1250+': '1250plus', // legacy "R1,250+ (before split)"
   '1250_1499': '1250_1499', '1250-1499': '1250_1499', '1500_plus': '1500_plus', '1500plus': '1500_plus', '1500+': '1500_plus',
+  '750_1499': '750_1499', '750-1499': '750_1499', // the SortMyCover React quiz (sites/sortmycover) sends the merged R750-R1,499 band
 };
 export const PRIORITY_BUDGET = new Set(['1500_plus']); // priority TAG only: never a disqualifier, never a routing filter
 export const isPriority1500 = (band) => PRIORITY_BUDGET.has(band);
 export const QUAL_AGE = new Set(['35_44', '45_50']);
-export const QUAL_BUDGET = new Set(['750_1250', '1250plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250plus = legacy pre-split)
+export const QUAL_BUDGET = new Set(['750_1250', '750_1499', '1250plus', '1250_1499', '1500_plus']); // tiers A/B: every band from R750 up (1250plus = legacy pre-split)
+// Tier C (Jonathan, 2026-10-11): under R750 is NOT out of band any more. The lead is stored, counts as a lead, keeps
+// qualifying, and is routed only to a broker with the standing yes (brokers.accepts_low_budget, agreement 5.7 offer
+// accepted at once); with none that has room it is HELD open (routing_reason held_low_budget) until an admin assigns it
+// (routing_reason manual_low_budget) or LOW_BUDGET_HOLD_DAYS pass (closed politely, low_budget_no_taker). The database
+// enforces the same rule (smc_leads_route_check) and counts it only at booked + attendance confirmed, like every lead.
+export const LOW_BUDGET = 'lt750';
+export const KNOWN_BUDGET = new Set([...QUAL_BUDGET, LOW_BUDGET]);
+/** budget band (DB code) -> lead tier: A = R1,500+, B = R750-R1,499, C = under R750, null = unknown / not given. */
+export const tierOf = (band) => (band === '1500_plus' ? 'A' : QUAL_BUDGET.has(band) ? 'B' : band === LOW_BUDGET ? 'C' : null);
+export const LOW_BUDGET_HOLD_DAYS = 7;
+// WILLS (Jonathan, 2026-10-11): the four wills / estate angles of the SortMyCover site (theme B, provider Capital Legacy).
+// Their leads carry leads.product_interest = 'wills' and are routed ONLY to brokers with brokers.handles_wills (none with room
+// -> routing_reason held_no_wills_broker). Same nurture, booking, verification and counting rules otherwise.
+export const WILLS_ANGLES = new Set(['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']);
+export const PRODUCTS = new Set(['life_cover', 'wills']);
+// leads.source for every W01 lead. The live CHECK (leads_source_check) allows website_form, referral, campaign, cold_call, other,
+// 'Campaign Lead', 'Search Lead' and 'Ayanda Prospecting%'. W01 used to write 'LV Campaign', which that check rejects, so no web or
+// lead-ad lead could be inserted (found 2026-10-14 by automation/tests/quiz-v2-band.local.test.mjs). 'Campaign Lead' is the CRM's own
+// picklist value for a lead that came from a Lead Velocity campaign.
+export const LEAD_SOURCE = 'Campaign Lead';
+// Quiz v2 (lv-site a206f12, 2026-10-13): the landing page no longer asks the budget. It sends budget_pending: true and
+// help_with (the visitor's main reason, one of these). The band is asked later (WhatsApp / email-confirm page) and W05
+// hands the booking to the adviser only once it is known (contract 5.1(c), S2.2: a self-declared band is Required).
+export const HELP_WITH = new Set(['review', 'life', 'disability_income', 'severe_illness', 'wills']);
+export const helpWithOf = (v) => (typeof v === 'string' && HELP_WITH.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
+/** The page's own product choice (/book/ first question or ?for=, campaign theme), whitelisted; anything else -> null. */
+export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
+/** leads.product_interest: a wills angle is always 'wills'; otherwise the page's choice (product_interest, lv-site fc89d5a),
+ *  else derived from the angle ('life_cover'). */
+export const productOf = (angle, requested = null) =>
+  (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : productChoice(requested) ?? 'life_cover');
+export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
+export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
+// conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
+export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow']);
 const METHODS = new Set(['teams', 'zoom', 'meet', 'whatsapp_call', 'phone']);
 const METHOD_ALIAS = { google_meet: 'meet', whatsapp: 'whatsapp_call' };
 
@@ -120,6 +156,10 @@ export function normaliseSubmission(body = {}, opts = {}) {
     mobile_raw: typeof body.mobile === 'string' ? body.mobile : null,
     language: body.language ?? body.lang ?? null,
     angle: body.angle ?? null,
+    // quiz v2: the no-JS form may send only help_with; wills -> wills, any cover reason -> life_cover (same two products)
+    product_interest: productChoice(body.product_interest) ?? (helpWithOf(body.help_with) ? (helpWithOf(body.help_with) === 'wills' ? 'wills' : 'life_cover') : null),
+    help_with: helpWithOf(body.help_with),
+    budget_pending: body.budget_pending === true || body.budget_pending === 'true',
     quiz: {
       age_band: AGE_TO_DB[q.age_band] ?? null, budget_band: BUDGET_TO_DB[q.budget_band] ?? null,
       bond: yes(q.has_bond ?? q.bond), dependants: dependantsOf(q.has_dependants ?? q.dependants), work_cover: yes(q.has_work_cover ?? q.work_cover),
@@ -284,15 +324,24 @@ export function lineTypeFromLookup(resp) {
 
 // ---------------------------------------------------------------------------------------------- 4. routing (1.3)
 const practiceOf = (b) => b.practice_name || b.firm_name || '';
-const isRoutable = (b, brandId) => b && (brandId == null || b.brand_id === brandId) && b.status === 'active' && b.routing_on !== false && b.active !== false && !b.bookings_paused;
+// Capacity (CRM lead_orders, 2026-10-11): a broker is routable only while he has an open paid SortMyCover lead order
+// (order_remaining > 0, from public.smc_order_capacity). The database enforces the same rule again when the row is written
+// (smc_leads_route_check: no open order -> the lead is held, never over-delivered).
+const hasOpenOrder = (b) => Number(b.order_remaining) > 0;
+const isRoutable = (b, brandId) => b && (brandId == null || b.brand_id === brandId) && b.status === 'active' && b.routing_on !== false && b.active !== false && !b.bookings_paused && hasOpenOrder(b);
+/** Tier C goes only to a broker with the standing yes (brokers.accepts_low_budget); tiers A/B to any routable broker. */
+export const takesTier = (b, tier) => tier !== 'C' || b.accepts_low_budget === true;
+/** A wills lead goes only to a broker that handles wills (brokers.handles_wills). */
+export const takesProduct = (b, product) => product !== 'wills' || b.handles_wills === true;
 /**
- * pickBroker(brokers, brand_id) -> broker or null. One broker today ("single_broker"); with more, the broker furthest
- * from their committed number this cycle gets the lead (ratio = leads_this_cycle / committed_leads), ties by id.
+ * pickBroker(brokers, brand_id, tier?) -> broker or null. One broker today ("single_broker"); with more, the broker furthest
+ * from filling his open lead orders gets the lead (ratio = order_attached / order_capacity), ties by id. Tier C: only
+ * brokers with accepts_low_budget (the same fairness rule among them).
  */
-export function pickBroker(brokers = [], brandId = null) {
-  const ok = brokers.filter((b) => isRoutable(b, brandId));
+export function pickBroker(brokers = [], brandId = null, tier = null, product = null) {
+  const ok = brokers.filter((b) => isRoutable(b, brandId) && takesTier(b, tier) && takesProduct(b, product));
   if (!ok.length) return null;
-  const ratio = (b) => (Number(b.leads_this_cycle) || 0) / Math.max(1, Number(b.committed_leads) || 1);
+  const ratio = (b) => (Number(b.order_attached) || 0) / Math.max(1, Number(b.order_capacity) || 1);
   const best = [...ok].sort((a, b) => ratio(a) - ratio(b) || String(a.broker_id ?? a.id).localeCompare(String(b.broker_id ?? b.id)))[0];
   return { ...best, _reason: ok.length === 1 ? 'single_broker' : 'balanced' };
 }
@@ -314,9 +363,9 @@ export function namesPractice(consentText, b) {
  * Named consent (0.1 default while there is one broker): the practice named in the consent text must be the broker
  * we route to, otherwise the lead is HELD (stored, not handed over, not messaged) and ops sees it in the console.
  */
-export function routingFor(consentText, consentMode, brokers, brandId) {
-  const b = pickBroker(brokers, brandId);
-  if (!b) return { held: 'held_no_capacity' };
+export function routingFor(consentText, consentMode, brokers, brandId, tier = null, product = null) {
+  const b = pickBroker(brokers, brandId, tier, product);
+  if (!b) return { held: product === 'wills' ? 'held_no_wills_broker' : tier === 'C' ? 'held_low_budget' : 'held_no_capacity' };
   if (consentMode === 'named' && !namesPractice(consentText, b)) return { held: 'held_consent_names_other_practice' };
   return { broker: b };
 }
@@ -354,10 +403,10 @@ export function decide(sub, ctx) {
   const method = sub.preferred_method ?? null;
   const consentMode = ctx.consent_mode || sub.consent.mode || 'named';
   const row = {
-    id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: 'LV Campaign', is_synthetic: !!sub.is_synthetic, created_at: at,
+    id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: LEAD_SOURCE, is_synthetic: !!sub.is_synthetic, created_at: at,
     first_name: sub.first_name, phone: ctx.mobile, line_type: lt, language: sub.language ?? null,
     age_band: q.age_band ?? null, budget_band: q.budget_band ?? null, bond: q.bond ?? null, dependants: q.dependants ?? null, work_cover: q.work_cover ?? null,
-    method_pref: method, angle: sub.angle ?? null,
+    method_pref: method, angle: sub.angle ?? null, product_interest: productOf(sub.angle, sub.product_interest),
     // 0.1 Email: kept only when the chosen method needs an invite, purpose meeting_invite only (never marketing, never Meta)
     email: method && EMAIL_METHODS.has(method) && sub.email ? sub.email : null,
     email_purpose: method && EMAIL_METHODS.has(method) && sub.email ? 'meeting_invite' : null,
@@ -370,7 +419,7 @@ export function decide(sub, ctx) {
     leadgen_id: c.leadgen_id ?? null, ref: c.ref ?? null,
     utm_source: c.utm_source ?? null, utm_medium: c.utm_medium ?? null, utm_campaign: c.utm_campaign ?? null, utm_content: c.utm_content ?? null, utm_term: c.utm_term ?? null,
     page_url: c.page_url ?? null, client_ip: c.client_ip ?? null, client_user_agent: c.client_user_agent ?? null,
-    broker_id: null, cycle_id: null, tier_code: null, routed_at: null, routing_reason: null,
+    broker_id: null, routed_at: null, routing_reason: null,
     stage: 'new', disqualified_reason: null, retention_delete_after: null, opted_out_at: null,
   };
   const activities = [];
@@ -383,7 +432,15 @@ export function decide(sub, ctx) {
   // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
   // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
   const budgetPending = sub.channel === 'lead_ad' && row.budget_band == null && !ageOut;
-  const budOut = !budgetPending && !QUAL_BUDGET.has(row.budget_band);
+  // Quiz v2 (2026-10-13): a page lead that says budget_pending is not out of band either. It is routed now (provisionally
+  // as tier B: a broker who takes R750-R1,499 also takes R1,500+) so the page can book at once, and W05 holds the booking
+  // until the band is known (and the email verified). The band answer can still move it: lt750 -> the database trigger
+  // (smc_leads_route_check) holds it as tier C unless the broker has the standing yes.
+  const pageBudgetPending = sub.channel === 'page' && sub.budget_pending === true && row.budget_band == null && !ageOut;
+  const budOut = !budgetPending && !pageBudgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
+  const tier = pageBudgetPending ? 'B' : tierOf(row.budget_band);
+  // help_with has no column on public.leads: it is kept in conv_state (jsonb), no DDL (spec 2a)
+  if (sub.channel === 'page' && sub.help_with) row.conv_state = { help_with: sub.help_with };
   if (ageOut || budOut) {
     Object.assign(row, { stage: 'disqualified', disqualified_reason: ageOut ? 'age_band' : 'budget_band', retention_delete_after: isoSast(now + OUT_OF_BAND_RETENTION_H * H) });
     return { kind: 'insert', outcome: 'not_qualified', row, activities, first_touch: null, capi: null, mint_token: false,
@@ -398,6 +455,16 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
+  if (pageBudgetPending) {
+    // Quiz v2: the band is the one thing the page did not ask. The first WhatsApp (< 60 s) is the approved qualify_budget
+    // template (budgetQuestion below), whether or not a broker is free right now. The tap comes back W07 -> W03 (state
+    // q_budget is a qualifying state, so no new W07 route) and W03 finishPageBudget records the band, routes a held lead and
+    // finalizes any held booking. help_with (the page's reason) stays in conv_state; no q_reason step is asked on WhatsApp.
+    row.conv_state = { state: 'q_budget', budget_pending: true, help_with: sub.help_with ?? null };
+    activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at,
+      idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: 'page', help_with: sub.help_with ?? null } });
+  }
+
   if (budgetPending) {
     // Not routed, not handed over, no CAPI Lead yet: routeExisting() sends Lead at the hand-over (held_* rule, I-49c).
     // The first WhatsApp (< 60 s, HBR) is the budget question; W07 sends the tap to W03 because conv_state is q_budget.
@@ -408,21 +475,25 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
-  const r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId);
+  const r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
   if (r.held) {
     row.routing_reason = r.held;
-    activities.push({ activity_type: 'routing_held', actor_type: 'system', occurred_at: at, idempotency_key: `w01:held:${ctx.lead_id}`, payload: { reason: r.held } });
+    activities.push({ activity_type: 'routing_held', actor_type: 'system', occurred_at: at, idempotency_key: `w01:held:${ctx.lead_id}`, payload: { reason: r.held, lead_tier: tier } });
     // R6-11 / I-49c: a held lead (consent names another practice, or no capacity) may never be handed over, so no CAPI
     // Lead now; routeExisting() sends it at the hand-over (held -> routed), same event_id, so Meta optimises on real leads.
+    // Tier C held: one honest WhatsApp (we are checking which adviser can help at that budget), never a promise of a call.
     return { kind: 'insert', outcome: 'held', row, activities, first_touch: null, capi: null, mint_token: false,
+      budget_question: pageBudgetPending,
+      notice: r.held === 'held_low_budget' ? lowBudgetHeld(row) : null,
       response: { http_status: 200, body: { ok: true, status: 'held', lead_id: row.id } } };
   }
   const b = r.broker;
-  Object.assign(row, { broker_id: brokerIdOf(b), cycle_id: b.current_cycle_id ?? null, tier_code: b.tier_code ?? null, routed_at: at, routing_reason: b._reason });
+  Object.assign(row, { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason });
   activities.push({ activity_type: 'routed', actor_type: 'system', occurred_at: at, idempotency_key: `w01:routed:${ctx.lead_id}`,
-    payload: { broker_id: row.broker_id, cycle_id: row.cycle_id, reason: row.routing_reason } });
+    payload: { broker_id: row.broker_id, reason: row.routing_reason, ...(pageBudgetPending ? { provisional_tier: 'B' } : {}) } });
+  // W05 keeps any booking held until budget_band is set (and the email verified)
   return {
-    kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page',
+    kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page', budget_question: pageBudgetPending,
     // routed_at is written in the same statement as the lead row; W06 is called only after that statement returns.
     first_touch: { workflow: 'W06', op: 'routed', lead_id: row.id, not_before: row.routed_at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
     response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id, methods_supported: b.methods_supported || ['whatsapp_call', 'phone'] } },
@@ -491,13 +562,56 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
   if (lead.suppressed) return { action: 'skip', reason: 'suppressed' };
-  const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id);
-  if (r.held) return { action: 'held', update: { routing_reason: r.held } };
+  const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
+  if (r.held) return { action: 'held', update: { routing_reason: r.held }, notice: r.held === 'held_low_budget' ? lowBudgetHeld(lead) : null };
   const b = r.broker;
-  const update = { broker_id: brokerIdOf(b), cycle_id: b.current_cycle_id ?? null, tier_code: b.tier_code ?? null, routed_at: at, routing_reason: b._reason };
+  const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
   const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';
   return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+}
+
+// ---------------------------------------------------------------------------------------------- 5b. tier C (under R750)
+/**
+ * The one WhatsApp a held tier-C lead gets (template lead_low_budget_held): we are checking which authorised adviser can
+ * help at the budget they chose and will come back to them. No promise of a call, no advice, no amounts. Shared sender
+ * input ("decided" shape, as budgetQuestion); the correlation makes it once per lead, whichever path holds it.
+ */
+export function lowBudgetHeld(lead) {
+  if (!lead || !lead.id || !lead.phone) return null;
+  return { to: lead.phone, kind: 'template', template: LOW_BUDGET_HELD_TEMPLATE, variables: [String(lead.first_name || '').trim().split(/\s+/)[0] || 'there'],
+    lead_id: lead.id, correlation: `w01:low_budget_held:${lead.id}` };
+}
+
+/**
+ * Low-budget sweep, hand-off half: an admin assigned a held tier-C lead (portal: leads.broker_id + routing_reason
+ * 'manual_low_budget'; the database reserved the place and recorded the accept). Start the normal booking flow exactly
+ * like any routed lead: W06 { op: 'routed' } (slots card or Flow, then W05 booking with email verification and the Teams
+ * link). Waits while the lead is still answering the qualifying questions. null = nothing to do.
+ */
+export function lowBudgetHandoff(lead) {
+  if (!lead || !lead.id || !lead.broker_id || lead.routing_reason !== 'manual_low_budget') return null;
+  if (lead.opted_out_at || lead.first_message_at || lead.disqualified_reason || lead.order_state !== 'attached') return null;
+  if (QUALIFYING_STATES.has(lead.conv_state && lead.conv_state.state)) return null;
+  return { op: 'routed', lead_id: lead.id, origin: lead.origin || 'ctwa', claim_key: `w01:low_budget_handoff:${lead.id}` };
+}
+
+/**
+ * Low-budget sweep, close half: a tier-C lead nobody took within LOW_BUDGET_HOLD_DAYS of capture is closed politely, like an
+ * unbooked close (stage unbooked_closed, routing_reason low_budget_no_taker, conv_state closed_unbooked). It is a real lead,
+ * not out of band: no 24-h deletion, the normal retention clock (last_contact_at, CONTRACTS I-38d) applies. One message
+ * (template lead_low_budget_closed), never in lead quiet hours (20:00-08:00 SAST: the 08:00 sweep picks it up).
+ */
+export function lowBudgetClose(lead, nowMs = Date.now()) {
+  if (!lead || !lead.id || lead.broker_id || lead.routing_reason !== 'held_low_budget') return null;
+  if (lead.opted_out_at || lead.disqualified_reason || ['unbooked_closed', 'opted_out', 'disqualified'].includes(lead.stage)) return null;
+  if (nowMs < msOf(lead.created_at) + LOW_BUDGET_HOLD_DAYS * D || inQuiet(nowMs)) return null;
+  return {
+    lead_id: lead.id,
+    update: { stage: 'unbooked_closed', routing_reason: 'low_budget_no_taker', conv_state_state: 'closed_unbooked', closed_reason: 'low_budget_no_taker' },
+    send: lead.phone ? { to: lead.phone, kind: 'template', template: LOW_BUDGET_CLOSED_TEMPLATE, variables: [String(lead.first_name || '').trim().split(/\s+/)[0] || 'there'],
+      lead_id: lead.id, correlation: `w01:low_budget_closed:${lead.id}` } : null,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------- 6. token

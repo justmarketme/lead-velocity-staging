@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
+import { getErrorMessage } from "@/lib/groupA-errors";
+import type { AuditLogEntry } from "@/types/groupA-audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,16 +13,27 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { LOW_BUDGET, loadLowBudgetSwitches, setLowBudgetSwitch, WILLS, loadWillsSwitches, setWillsSwitch } from "@/lib/lowBudget";
 import { useToast } from "@/hooks/use-toast";
+import BrokerDocumentsSection from "./BrokerDocumentsSection";
+import BrokerProfileSection from "./BrokerProfileSection";
+import BrokerGoLivePanel from "./BrokerGoLivePanel";
+import BrokerComplianceChecks from "./BrokerComplianceChecks";
+import BrokerAdminStatus from "./BrokerAdminStatus";
 import {
   Briefcase, Phone, Mail, Building2, Clock, CalendarClock, CheckCircle2, PlusCircle,
   AlertTriangle, ShoppingBag, Pencil, Save, X, PhoneCall, MessageSquare, StickyNote, Users, CircleDot,
-  Sparkles, RefreshCw, Copy, History as HistoryIcon,
+  Sparkles, RefreshCw, Copy, History as HistoryIcon, Eye, CalendarCheck,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
+interface CoachResult { headline?: string; suggestions?: { action: string; why: string }[]; script?: string }
+
 interface Broker {
   id: string;
+  /** Set once the broker has a portal login (auth user). */
+  user_id: string | null;
   firm_name: string | null;
   contact_person: string | null;
   email: string | null;
@@ -29,6 +43,8 @@ interface Broker {
   mgmt_stage: string | null;
   next_follow_up_at: string | null;
   created_at: string | null;
+  /** Outlook connection (ms-oauth): ok | needs_reconnect | blocked_admin_consent | null. */
+  calendar_status?: string | null;
 }
 interface Activity {
   id: string;
@@ -100,8 +116,8 @@ const BrokerManagement = () => {
 
   const loadBrokers = useCallback(async () => {
     const [{ data: bRows, error: bErr }, { data: fRows }] = await Promise.all([
-      supabase.from("brokers").select("id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at").order("created_at", { ascending: false }),
-      (supabase as any).from("broker_followups").select("*").eq("status", "open"),
+      supabaseUntyped.from("brokers").select("id, user_id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at, calendar_status").order("created_at", { ascending: false }),
+      supabaseUntyped.from("broker_followups").select("*").eq("status", "open"),
     ]);
     if (bErr) {
       toast({ title: "Error", description: "Couldn't load brokers.", variant: "destructive" });
@@ -150,7 +166,7 @@ const BrokerManagement = () => {
   );
 
   const completeFollowupInline = async (id: string) => {
-    const { error } = await (supabase as any).from("broker_followups")
+    const { error } = await supabaseUntyped.from("broker_followups")
       .update({ status: "done", completed_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast({ title: "Couldn't update", description: error.message, variant: "destructive" }); return; }
     setOpenFollowups((prev) => prev.filter((f) => f.id !== id));
@@ -266,6 +282,12 @@ const BrokerManagement = () => {
                           <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px]">Client</Badge>
                         )}
                         {b.tier && <Badge variant="outline" className="text-[10px]">{b.tier}</Badge>}
+                        {b.calendar_status && (
+                          <span title={b.calendar_status === "ok" ? "Outlook calendar connected" : b.calendar_status === "blocked_admin_consent" ? "Calendar: needs IT admin approval" : "Calendar: needs reconnect"}
+                            className={`inline-flex ${b.calendar_status === "ok" ? "text-emerald-400" : "text-amber-300"}`}>
+                            <CalendarCheck className="h-3.5 w-3.5" aria-label={b.calendar_status === "ok" ? "Calendar connected" : "Calendar needs attention"} />
+                          </span>
+                        )}
                         {fu?.total ? (
                           <span className={`text-[10px] inline-flex items-center gap-1 ${fu.overdue ? "text-red-400" : "text-muted-foreground"}`}>
                             <CalendarClock className="h-3 w-3" />{fu.total} follow-up{fu.total > 1 ? "s" : ""}
@@ -330,14 +352,25 @@ const BrokerDrawer = ({
   const [savingFu, setSavingFu] = useState(false);
 
   // Einstein coach + change history
-  const [coach, setCoach] = useState<{ headline?: string; suggestions?: { action: string; why: string }[]; script?: string } | null>(null);
+  const [coach, setCoach] = useState<CoachResult | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<AuditLogEntry[]>([]);
+  // C-tier switch: null = column not on this DB yet, so the control stays hidden
+  const [lowBudget, setLowBudget] = useState<boolean | null>(null);
+  // Wills switch: same pattern (null = column not on this DB yet)
+  const [wills, setWills] = useState<boolean | null>(null);
+  // "Create your password" email: null = not sent this session, otherwise the address it went to
+  const [setupSending, setSetupSending] = useState(false);
+  const [setupSentTo, setSetupSentTo] = useState<string | null>(null);
+  // Shown inline: a toast renders behind this drawer.
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [setupPreviewTo, setSetupPreviewTo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!broker) return;
     setEditing(false);
+    setSetupSentTo(null);
     setForm({
       firm_name: broker.firm_name || "",
       contact_person: broker.contact_person || "",
@@ -346,12 +379,16 @@ const BrokerDrawer = ({
     });
     setActType("call"); setActOutcome("reached"); setActBody("");
     setFuTitle(""); setFuWhen("");
+    setLowBudget(null);
+    loadLowBudgetSwitches().then((m) => setLowBudget(m ? !!m[broker.id] : null));
+    setWills(null);
+    loadWillsSwitches().then((m) => setWills(m ? !!m[broker.id] : null));
     (async () => {
       setLoadingDetail(true);
       const [a, f, o] = await Promise.all([
-        (supabase as any).from("broker_activities").select("*").eq("broker_id", broker.id).order("created_at", { ascending: false }),
-        (supabase as any).from("broker_followups").select("*").eq("broker_id", broker.id).order("due_at", { ascending: true }),
-        (supabase as any).from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false }),
+        supabaseUntyped.from("broker_activities").select("*").eq("broker_id", broker.id).order("created_at", { ascending: false }),
+        supabaseUntyped.from("broker_followups").select("*").eq("broker_id", broker.id).order("due_at", { ascending: true }),
+        supabaseUntyped.from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false }),
       ]);
       const acts = (a.data || []) as Activity[];
       const fups = (f.data || []) as Followup[];
@@ -362,8 +399,8 @@ const BrokerDrawer = ({
       setLoadingDetail(false);
 
       // change history (paper trail) for this broker record
-      const hist = await (supabase as any).from("audit_log").select("*").eq("record_id", broker.id).order("changed_at", { ascending: false }).limit(25);
-      setHistory((hist.data || []) as any[]);
+      const hist = await supabaseUntyped.from("audit_log").select("*").eq("record_id", broker.id).order("changed_at", { ascending: false }).limit(25);
+      setHistory((hist.data || []) as AuditLogEntry[]);
 
       // Einstein auto-surfaces its read on this broker as soon as you open them
       runCoach(broker, acts, fups, ords);
@@ -383,15 +420,16 @@ const BrokerDrawer = ({
             followups: fups.filter(f => f.status === "open").map(f => ({ title: f.title, due_at: f.due_at, overdue: isOverdue(f.due_at) })),
           },
         },
-        headers: {
-          "x-openrouter-key": (import.meta as any).env?.VITE_OPENROUTER_API_KEY || "",
-        },
       });
-      if (error) throw new Error(error.message);
-      if ((data as any)?.success === false) throw new Error((data as any).error || "Coach unavailable");
-      setCoach(data as any);
-    } catch (e: any) {
-      setCoachError(e.message || "Couldn't reach Einstein");
+      if (error) throw error;
+      const result = data as (CoachResult & { success?: boolean; error?: string }) | null;
+      if (result?.success === false) throw new Error(result.error || "");
+      setCoach(result);
+    } catch (e: unknown) {
+      // crm-coach answers {success:false, error:"<plain sentence>"} when its model is down; anything else gets a calm default.
+      console.error("crm-coach:", e);
+      const msg = String(getErrorMessage(e) || "");
+      setCoachError(/^Einstein /.test(msg) ? msg : "Einstein is unavailable right now. Try again in a minute.");
     } finally {
       setCoachLoading(false);
     }
@@ -407,7 +445,7 @@ const BrokerDrawer = ({
   };
 
   const updateBroker = async (patch: Partial<Broker>, label = "Broker record updated") => {
-    const { error } = await supabase.from("brokers").update(patch as any).eq("id", broker.id);
+    const { error } = await supabaseUntyped.from("brokers").update(patch).eq("id", broker.id);
     if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); return false; }
     onBrokerPatched(broker.id, patch);
     notifyCrmChange("brokers", broker.id, `${label} — ${broker.firm_name || "broker"}`);
@@ -428,6 +466,24 @@ const BrokerDrawer = ({
     if (await updateBroker({ mgmt_stage: stage }, `Pipeline stage → ${stage}`)) toast({ title: `Moved to ${stage}` });
   };
 
+  const toggleLowBudget = async (on: boolean) => {
+    const prev = lowBudget;
+    setLowBudget(on);
+    const { error } = await setLowBudgetSwitch(broker.id, on);
+    if (error) { setLowBudget(prev); toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
+    notifyCrmChange("brokers", broker.id, `${LOW_BUDGET.label} leads ${on ? "on" : "off"} — ${broker.firm_name || "broker"}`);
+    toast({ title: on ? "Accepts leads under R750" : "No longer accepts leads under R750" });
+  };
+
+  const toggleWills = async (on: boolean) => {
+    const prev = wills;
+    setWills(on);
+    const { error } = await setWillsSwitch(broker.id, on);
+    if (error) { setWills(prev); toast({ title: "Update failed", description: error.message, variant: "destructive" }); return; }
+    notifyCrmChange("brokers", broker.id, `Wills leads ${on ? "on" : "off"} — ${broker.firm_name || "broker"}`);
+    toast({ title: on ? "Handles wills leads" : "No longer handles wills leads" });
+  };
+
   const setNextFollowUp = async (val: string) => {
     const iso = val ? new Date(val).toISOString() : null;
     await updateBroker({ next_follow_up_at: iso });
@@ -436,7 +492,7 @@ const BrokerDrawer = ({
   const addActivity = async () => {
     if (!actBody.trim() && actType === "note") return;
     setSavingAct(true);
-    const { data, error } = await (supabase as any).from("broker_activities")
+    const { data, error } = await supabaseUntyped.from("broker_activities")
       .insert({ broker_id: broker.id, activity_type: actType, outcome: actType === "note" ? null : actOutcome, body: actBody.trim() || null })
       .select().single();
     setSavingAct(false);
@@ -446,11 +502,30 @@ const BrokerDrawer = ({
     toast({ title: "Activity logged" });
   };
 
+  // Admin-only edge function: Supabase mails the branded welcome + one-time link; the browser never sees it.
+  // preview = the same email (this broker's details) sent to the signed-in admin instead.
+  const sendPasswordSetup = async (preview = false) => {
+    setSetupSending(true);
+    setSetupError(null);
+    const { data, error } = await supabase.functions.invoke("send-password-setup", { body: { broker_id: broker.id, ...(preview ? { self: true } : {}) } });
+    setSetupSending(false);
+    if (error || !data?.sent) {
+      let message = error?.message || "Unknown error";
+      try { message = (await (error as { context?: Response } | null)?.context?.json())?.error || message; } catch { /* keep message */ }
+      setSetupError(message);
+      return;
+    }
+    if (preview) { setSetupPreviewTo(data.email); return; }
+    setSetupSentTo(data.email);
+    if (data.activity) setActivities((prev) => [data.activity as Activity, ...prev]);
+    toast({ title: `Sent to ${data.email}` });
+  };
+
   const addFollowup = async () => {
     if (!fuTitle.trim() || !fuWhen) { toast({ title: "Add a title and a date", variant: "destructive" }); return; }
     setSavingFu(true);
     const dueIso = new Date(fuWhen).toISOString();
-    const { data, error } = await (supabase as any).from("broker_followups")
+    const { data, error } = await supabaseUntyped.from("broker_followups")
       .insert({ broker_id: broker.id, title: fuTitle.trim(), due_at: dueIso, status: "open" })
       .select().single();
     setSavingFu(false);
@@ -464,7 +539,7 @@ const BrokerDrawer = ({
   };
 
   const completeFollowup = async (id: string) => {
-    const { error } = await (supabase as any).from("broker_followups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabaseUntyped.from("broker_followups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast({ title: "Couldn't update", description: error.message, variant: "destructive" }); return; }
     setFollowups((prev) => prev.map((f) => (f.id === id ? { ...f, status: "done", completed_at: new Date().toISOString() } : f)));
     onFollowupsChanged();
@@ -485,9 +560,41 @@ const BrokerDrawer = ({
             {broker.status === "Inactive" ? (
               <Badge className="bg-slate-500/20 text-slate-400 border-slate-500/30 text-xs">Archived</Badge>
             ) : broker.status === "Prospect" ? (
-              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Prospect — no portal yet</Badge>
+              <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Prospect</Badge>
             ) : (
               <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">Client</Badge>
+            )}
+            {broker.user_id ? (
+              <>
+                <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/30 text-xs">Portal login active</Badge>
+                {setupSentTo ? (
+                  <span className="text-[11px] text-green-400 flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Sent to {setupSentTo}
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => sendPasswordSetup()}
+                      disabled={setupSending}
+                      title="Emails the broker the branded welcome (payment, plan, first steps) with a one-time link to create their password, from howzit@leadvelocity.co.za"
+                      className="text-[11px] text-sky-300 hover:text-sky-200 underline decoration-dotted disabled:opacity-50 flex items-center gap-1"
+                    >
+                      <Mail className="h-3 w-3" /> {setupSending ? "Sending..." : "Send welcome email (create password)"}
+                    </button>
+                    <button
+                      onClick={() => sendPasswordSetup(true)}
+                      disabled={setupSending}
+                      title="Sends this broker's welcome email to your own login so you can see it first. The broker gets nothing."
+                      className="text-[11px] text-muted-foreground hover:text-foreground underline decoration-dotted disabled:opacity-50"
+                    >
+                      {setupPreviewTo ? `Preview sent to ${setupPreviewTo}` : "Preview to me"}
+                    </button>
+                  </>
+                )}
+                {setupError && <span role="alert" className="text-[11px] text-red-400">Couldn&apos;t send: {setupError}</span>}
+              </>
+            ) : (
+              <Badge variant="outline" className="text-xs text-muted-foreground">No portal login</Badge>
             )}
             {broker.tier && <Badge variant="outline" className="text-xs">{broker.tier}</Badge>}
             <button
@@ -500,6 +607,15 @@ const BrokerDrawer = ({
               {broker.status === "Inactive" ? "Restore" : "Archive"}
             </button>
           </SheetDescription>
+          <div>
+            <Button asChild size="sm" variant="outline" className="h-8 text-xs">
+              <a href={`/admin/preview/broker/${broker.id}`} target="_blank" rel="noopener noreferrer" title="Opens the broker's portal with his data, read-only, in a new tab">
+                <Eye className="mr-1.5 h-3.5 w-3.5" /> Preview portal
+              </a>
+            </Button>
+          </div>
+          {/* Ad consent + open change requests from the broker (portal) */}
+          <BrokerAdminStatus brokerId={broker.id} />
         </SheetHeader>
         <Separator />
 
@@ -517,7 +633,7 @@ const BrokerDrawer = ({
               {coachLoading ? (
                 <p className="text-sm text-muted-foreground">Reading the relationship…</p>
               ) : coachError ? (
-                <p className="text-sm text-muted-foreground">Einstein unavailable — {coachError}</p>
+                <p className="text-sm text-muted-foreground">{coachError}</p>
               ) : coach ? (
                 <div className="space-y-3">
                   {coach.headline && <p className="text-sm font-medium">{coach.headline}</p>}
@@ -563,6 +679,26 @@ const BrokerDrawer = ({
               </div>
             </div>
 
+            {lowBudget !== null && (
+              <div className="rounded-lg border border-white/10 bg-slate-900/40 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor="accepts-low-budget" className="text-sm font-medium">Accepts leads under R750</Label>
+                  <p className="text-xs text-muted-foreground">{LOW_BUDGET.label} leads go to this broker automatically. Turn on only once they've agreed.</p>
+                </div>
+                <Switch id="accepts-low-budget" checked={lowBudget} onCheckedChange={toggleLowBudget} />
+              </div>
+            )}
+
+            {wills !== null && (
+              <div className="rounded-lg border border-white/10 bg-slate-900/40 p-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor="handles-wills" className="text-sm font-medium">{WILLS.label}</Label>
+                  <p className="text-xs text-muted-foreground">Wills and estate leads go only to brokers with this on. Turn on only once they've agreed.</p>
+                </div>
+                <Switch id="handles-wills" checked={wills} onCheckedChange={toggleWills} />
+              </div>
+            )}
+
             {/* Firm details */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -592,6 +728,23 @@ const BrokerDrawer = ({
               )}
             </div>
 
+            {/* What the broker entered in his portal (FSP, WhatsApp, intro card) */}
+            <BrokerProfileSection brokerId={broker.id} />
+
+            {/* Lead Velocity's compliance checks (FSCA register, products, content review) with evidence */}
+            <BrokerComplianceChecks brokerId={broker.id} />
+
+            {/* Campaigns, calendar and go-live checklist (rules evaluated in the database) */}
+            <BrokerGoLivePanel
+              brokerId={broker.id}
+              brokerLabel={broker.contact_person || broker.firm_name || "The broker"}
+              onChanged={async () => {
+                const o = await supabaseUntyped.from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false });
+                setOrders((o.data || []) as OrderLite[]);
+                onFollowupsChanged();
+              }}
+            />
+
             {/* Attached leads / orders */}
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2 mb-2"><ShoppingBag className="h-4 w-4 text-primary" /> Attached leads</h3>
@@ -611,6 +764,9 @@ const BrokerDrawer = ({
                 </div>
               )}
             </div>
+
+            {/* Documents (signed contracts first) — the broker sees the same list in his portal */}
+            <BrokerDocumentsSection brokerId={broker.id} brokerLabel={broker.contact_person || broker.firm_name || "The broker"} />
 
             {/* Follow-ups */}
             <div>

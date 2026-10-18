@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { adminInviteEmail } from "../_shared/lv_emails.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
@@ -99,11 +100,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Sending admin invite to:", email, "by admin:", user.id);
 
-    const expiryDate = new Date(expiresAt).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
+    const mail = adminInviteEmail({ inviteLink, expiresAt });
 
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -114,67 +111,9 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "Lead Velocity <howzit@leadvelocity.co.za>",
         to: [email],
-        subject: "You've Been Invited as an Admin - Lead Velocity",
-        html: `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 24px;">Welcome to Lead Velocity</h1>
-            </div>
-            
-            <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-              <p style="font-size: 16px; margin-bottom: 20px;">Hello,</p>
-              
-              <p style="font-size: 16px; margin-bottom: 20px;">
-                You've been invited to join <strong>Lead Velocity</strong> as an <strong>Administrator</strong>. 
-                This gives you full access to manage leads, brokers, and the platform.
-              </p>
-              
-              <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0;">
-                <h3 style="margin: 0 0 15px 0; color: #6366f1;">How to Get Started:</h3>
-                <ol style="margin: 0; padding-left: 20px;">
-                  <li style="margin-bottom: 10px;">Click the button below to access your invite</li>
-                  <li style="margin-bottom: 10px;">Create your account with a secure password</li>
-                  <li style="margin-bottom: 10px;">Start managing the platform!</li>
-                </ol>
-              </div>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${inviteLink}" 
-                   style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); 
-                          color: white; 
-                          padding: 14px 32px; 
-                          text-decoration: none; 
-                          border-radius: 8px; 
-                          font-weight: 600;
-                          font-size: 16px;
-                          display: inline-block;">
-                  Accept Invitation
-                </a>
-              </div>
-              
-              <p style="font-size: 14px; color: #6b7280; margin-top: 25px;">
-                <strong>Note:</strong> This invitation expires on <strong>${expiryDate}</strong>. 
-                If the link doesn't work, copy and paste this URL into your browser:
-              </p>
-              <p style="font-size: 12px; color: #9ca3af; word-break: break-all; background: #f3f4f6; padding: 10px; border-radius: 4px;">
-                ${inviteLink}
-              </p>
-              
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 25px 0;">
-              
-              <p style="font-size: 12px; color: #9ca3af; text-align: center; margin: 0;">
-                If you didn't expect this invitation, you can safely ignore this email.
-              </p>
-            </div>
-          </body>
-          </html>
-        `,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
       }),
     });
 
@@ -191,10 +130,10 @@ const handler = async (req: Request): Promise<Response> => {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error sending admin invite email:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: (error instanceof Error ? error.message : String(error)) }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

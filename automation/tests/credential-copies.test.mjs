@@ -30,9 +30,10 @@ test('every workflow credential is mapped to exactly one secret, and no mapping 
   assert.equal(c.rows.length, requiredCredentials(A).size);
 });
 
-test('the known multi-copy secrets keep their counts (Meta 6 copies / 5 names, Anthropic 3, Twilio 2)', () => {
+test('the known multi-copy secrets keep their counts (Meta 5 copies / 5 names, Anthropic 3, Twilio 2)', () => {
   const by = (s) => copies(A).rows.filter((x) => x.secret === s);
-  assert.equal(by('Meta system-user token').length, 6);
+  // 2026-10-11: W23's whatsAppApi copy is gone (its sends go through smc-whatsapp-send)
+  assert.equal(by('Meta system-user token').length, 5);
   assert.equal(new Set(by('Meta system-user token').map((x) => x.name)).size, 5);
   assert.equal(by('Anthropic API key').length, 3);
   assert.equal(by('Twilio API key').length, 2);

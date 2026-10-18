@@ -1,32 +1,47 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>06 What's left for us</title>
+<html lang="en"><head><meta charset="utf-8"><title>06 What blocks Mark's first lead</title>
 <link rel="stylesheet" href="film.css">
 <style>
-  .list { position: absolute; left: 140px; right: 140px; top: 340px; display: flex; flex-direction: column; gap: 26px; }
-  .it { height: 160px; display: flex; align-items: center; gap: 34px; padding: 0 44px; }
-  .it .no { font-size: 64px; font-weight: 700; line-height: 1; background: var(--grad); -webkit-background-clip: text; color: transparent; width: 90px; letter-spacing: -.03em; }
-  .it .tx { font-size: 38px; font-weight: 700; color: var(--navy); }
-  .it .sb { font-size: 22px; color: var(--muted); margin-top: 6px; }
-  .it .pill { margin-left: auto; }
-  .ring { width: 54px; height: 54px; flex: none; }
+  .count { position: absolute; right: 140px; top: 196px; }
+  .grid8 { position: absolute; left: 140px; right: 140px; top: 296px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; grid-template-rows: repeat(4, 1fr); gap: 16px 26px; height: 640px; }
+  .it { display: flex; align-items: center; gap: 20px; padding: 0 26px; position: relative; }
+  .it .no { width: 50px; height: 50px; border-radius: 14px; background: var(--soft); color: var(--muted); display: grid; place-items: center; font-size: 23px; font-weight: 700; flex: none; }
+  .it .hd2 { display: flex; align-items: center; gap: 12px; }
+  .it .tx { font-size: 26px; font-weight: 700; color: var(--navy); line-height: 1.15; }
+  .it .bl { font-size: 18px; color: var(--muted); margin-top: 6px; }
+  .it .bl b { color: #c2410c; font-weight: 700; }
+  .it .who { margin-left: auto; }
 </style></head>
 <body data-scene="s06"><div class="stage">
-  <div class="top"><div class="eyebrow">Still on our side</div><h1 class="h"><i></i>What's left for us</h1></div>
-  <div class="list">
-    <div class="card it"><div class="no">1</div><div><div class="tx">Weekly report clean-up</div><div class="sb">Remove ratings from the weekly broker report</div></div><span class="pill pink"><i></i>In progress</span></div>
-    <div class="card it"><div class="no">2</div><div><div class="tx">Merge and deploy the new portal and CRM</div><div class="sb">Into the live system</div></div><span class="pill amber"><i></i>Once you're happy</span></div>
-    <div class="card it"><div class="no">3</div><div><div class="tx">Launch sortmycover.co.za</div><div class="sb">After its final checks</div></div><span class="pill amber"><i></i>After final checks</span></div>
+  <div class="top"><div class="eyebrow">Still to do · who, and what it blocks</div><h1 class="h"><i></i>Between Mark and his first lead</h1></div>
+  <div class="count pill pink"><i></i>8 blockers</div>
+  <div class="grid8">
+    <div class="card it"><div class="no">1</div><div><div class="tx">Register the Microsoft app + set secrets</div><div class="bl"><b>Blocks:</b> every broker's calendar connection</div></div><span class="who jono">Jono</span></div>
+    <div class="card it"><div class="no">2</div><div><div class="tx">Confirm Meta business verification</div><div class="bl"><b>Blocks:</b> the WhatsApp sender · not re-checked today</div></div><span class="who kg">KG</span></div>
+    <div class="card it"><div class="no">3</div><div><div class="tx">WhatsApp number back online</div><div class="bl"><b>Blocks:</b> all WhatsApp · n8n still on the main Twilio account</div></div><span class="who claude">Claude</span></div>
+    <div class="card it"><div class="no">4</div><div><div class="tx">Decide how Mark's intro card is approved</div><div class="bl"><b>Blocks:</b> his routing (no intro card, not ready)</div></div><span class="who jono">Jono</span></div>
+    <div class="card it"><div class="no">5</div><div><div class="tx">Fix "Save outcome" false success</div><div class="bl"><b>Blocks:</b> Mark's first booking · add attended + no-show</div></div><span class="who claude">Claude</span></div>
+    <div class="card it"><div class="no">6</div><div><div class="tx">Gate-test the booking workflows</div><div class="bl"><b>Blocks:</b> slots + booking · all off today</div></div><span class="who claude">Claude</span></div>
+    <div class="card it"><div class="no">7</div><div><div class="tx">Create the ad account + pixel</div><div class="bl"><b>Blocks:</b> ads and the production site build</div></div><span class="who jono">Jono</span></div>
+    <div class="card it"><div class="no">8</div><div><div class="tx">Confirm WhatsApp, connect Outlook</div><div class="bl"><b>Blocks:</b> going live (after the Microsoft app)</div></div><span class="who mark">Mark</span></div>
   </div>
 </div>
 <script src="timings.js"></script><script src="film.js"></script>
 <script>
-  const its = $$('.it'), tI = [cue('removing'), cue('merging'), cue('then')], tP = [cue('report'), cue('happy'), cue('checks')];
+  const its = $$('.it');
+  const tI = [cue('register'), cue('confirm'), cue('bring'), cue('decide'), cue('fix'), cue('gate'), cue('create'), cue('finishes')];
   window.update = t => {
     rv('.top .eyebrow', t, .2, { y: 16 });
     rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.count', t, .9, { scale: .8, y: 0, dur: .6, ease: E.back });
     its.forEach((c, i) => {
-      rv(c, t, tI[i] - .5, { x: -40, y: 0, dur: .9 });
-      rv(c.querySelector('.pill'), t, tP[i] - .2, { x: 20, y: 0, scale: .9, dur: .6, ease: E.back });
+      rv(c, t, tI[i] - .6, { y: 26, scale: .96, dur: .7 });
+      const hot = P(t, tI[i] - .4, .3) * (1 - (i < 7 ? P(t, tI[i + 1] - .4, .5) : 0));
+      c.style.borderColor = hot > .01 ? `rgba(219,39,119,${(hot * .6).toFixed(3)})` : '';
+      const no = c.querySelector('.no');
+      no.style.background = hot > .5 ? 'linear-gradient(135deg,#db2777,#9333ea)' : '';
+      no.style.color = hot > .5 ? '#fff' : '';
+      rv(c.querySelector('.who'), t, tI[i] - .7, { scale: .7, y: 0, dur: .5, ease: E.back });
     });
   };
 </script></body></html>

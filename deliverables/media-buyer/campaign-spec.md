@@ -127,13 +127,13 @@ Do not add: email (collected only inside WhatsApp, and only for Teams/Zoom/Meet)
 
 **3.5 Privacy and consent (screen "Privacy policy")**
 - Privacy policy link text "SortMyCover privacy notice"; URL `https://sortmycover.co.za/privacy` (must be live and name Pixel/CAPI/cookies before submission).
-- Custom disclaimer title: "How we use your details". Body: the brand disclosure line (CONSENT-FOOTER-v1) + "Privacy notice: sortmycover.co.za/privacy".
-- **Custom consent checkbox, required, unticked.** Text, quoted from `deliverables/contracts-drafter/consent-and-privacy.md` sections 1.2 (CONSENT-NAMED-v1, the live default per 0.1) + 1.4 (CONSENT-ADS-v1) as one tick (1.4, 1.7):
+- Custom disclaimer title: "How we use your details". Body: the brand disclosure line (`DISC-FULL-v2`, consent-and-privacy.md CP-v0.3 section 1.5) + "Privacy notice: sortmycover.co.za/privacy".
+- **Custom consent checkbox, required, unticked.** Text, quoted from `deliverables/contracts-drafter/consent-and-privacy.md` sections 1.2 (CONSENT-NAMED-v3, the live default per 0.1; scope "insurance and financial planning" since 7 Oct 2026) + 1.4 (CONSENT-ADS-v1) as one tick (1.4, 1.7):
 
-> I agree that Lead Velocity may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about life cover. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.
+> I agree that SortMyCover may share my details with {practice_name} (FSP {fsp_number}), an authorised financial services provider, who may contact me by WhatsApp or phone about insurance and financial planning. I can opt out at any time by replying STOP. We also use your details in coded (hashed) form to measure and improve our ads on Facebook and Instagram. We never use them to send you ads by message.
 
 - `{practice_name}` and `{fsp_number}` are read from the `brokers` row at entry time and typed literally into the form (a Meta form cannot merge). **Fail closed:** if either is empty or the FSP number is not marked verified, do not create the form. The consent file's source is DRAFT for practitioner review: re-read it before entry and use its current text; if it differs from the quote above, the file wins.
-- Switching `consent_mode` to `generic` (CONSENT-GENERIC-v1) means a new form version; never edit a live form's consent text.
+- Switching `consent_mode` to `generic` (CONSENT-GENERIC-v3) means a new form version; never edit a live form's consent text.
 - Named consent makes the form broker-specific: with a second broker the form must be duplicated per broker (or generic mode must be approved). **NH-22 (e) confirmed 2026-10-03: one instant form per broker.**
 - **ASSUMPTION**: checkbox text length limit. If the combined text is too long, put the 1.4 sentence in the disclaimer body and mark `needs_human` for compliance-qa (the sentence is meant to sit inside the same tick).
 

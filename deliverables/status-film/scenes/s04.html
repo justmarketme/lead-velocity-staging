@@ -1,40 +1,99 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>04 The system</title>
+<html lang="en"><head><meta charset="utf-8"><title>04 SortMyCover and n8n</title>
 <link rel="stylesheet" href="film.css">
 <style>
-  .grid6 { position: absolute; left: 140px; right: 140px; top: 330px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
-  .tile { height: 276px; padding: 32px 34px; position: relative; }
-  .tile .tx { margin-top: 24px; font-size: 33px; font-weight: 700; color: var(--navy); line-height: 1.15; }
-  .tile .sb { margin-top: 8px; font-size: 21px; color: var(--muted); line-height: 1.35; }
-  .tile .tick { position: absolute; right: 30px; top: 30px; }
-  .old { position: absolute; left: 34px; bottom: 26px; font-size: 18px; font-weight: 700; color: var(--faint); }
-  .old s { text-decoration-thickness: 2.5px; text-decoration-color: var(--pink); }
+  .br { position: absolute; left: 140px; top: 296px; width: 880px; height: 430px; overflow: hidden; padding: 0; }
+  .br .bar { height: 54px; display: flex; align-items: center; gap: 10px; padding: 0 20px; background: var(--soft); border-bottom: 1.5px solid var(--line); }
+  .br .bar i { width: 13px; height: 13px; border-radius: 50%; background: #cbd5e1; }
+  .br .url { margin-left: 14px; flex: 1; height: 34px; border-radius: 10px; background: #fff; display: flex; align-items: center; padding: 0 16px; font-size: 18px; font-weight: 600; color: var(--slate); gap: 10px; }
+  .br .url .lock { width: 14px; height: 14px; border-radius: 3px; background: var(--green); }
+  .br .live { margin-left: auto; }
+  .br .pg { padding: 28px 36px; display: flex; gap: 34px; }
+  .br .hl { font-size: 38px; font-weight: 700; color: var(--navy); line-height: 1.1; width: 420px; letter-spacing: -.01em; }
+  .br .sub { font-size: 19px; color: var(--muted); margin-top: 12px; width: 400px; }
+  .br .sec { display: flex; gap: 12px; margin-top: 22px; }
+  .br .sec span { padding: 9px 16px; border-radius: 12px; background: var(--pink-wash); color: var(--pink); font-weight: 700; font-size: 18px; }
+  .br .cnt { margin-left: auto; width: 300px; text-align: center; padding-top: 6px; }
+  .br .cnt .v { font-size: 104px; font-weight: 700; color: var(--navy); line-height: 1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .br .cnt .k { font-size: 20px; color: var(--muted); font-weight: 600; margin-top: 8px; }
+  .br .lt { position: absolute; left: 36px; right: 36px; bottom: 24px; padding: 16px 20px; border-radius: 16px; border: 1.5px solid var(--line); display: flex; align-items: center; gap: 16px; background: #fff; }
+  .br .lt .a { font-size: 22px; font-weight: 700; color: var(--navy); }
+  .br .lt .b { font-size: 17px; color: var(--muted); }
+  .br .lt .tag { margin-left: auto; }
+  .subs10 { position: absolute; left: 140px; top: 750px; width: 880px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .subs10 span { padding: 8px 14px; border-radius: 10px; background: #fff; border: 1.5px solid var(--line); font-size: 16px; font-weight: 700; color: var(--slate); box-shadow: var(--shadow); }
+  .n8n { position: absolute; left: 1080px; top: 296px; width: 700px; padding: 24px 30px; }
+  .n8n .hh { display: flex; align-items: center; gap: 14px; }
+  .n8n .hh .lg { width: 52px; height: 52px; border-radius: 14px; background: #ea4b71; color: #fff; display: grid; place-items: center; font-size: 19px; font-weight: 800; }
+  .n8n .hh .a { font-size: 26px; font-weight: 700; color: var(--navy); }
+  .n8n .hh .b { font-size: 17px; color: var(--muted); }
+  .n8n .hh .pill { margin-left: auto; }
+  .n8n .r { display: flex; align-items: center; gap: 16px; margin-top: 18px; }
+  .n8n .r .tick { width: 38px; height: 38px; }
+  .n8n .r .tick svg { width: 20px; height: 20px; }
+  .n8n .r .a { font-size: 22px; font-weight: 700; color: var(--navy); }
+  .n8n .r .b { font-size: 16px; color: var(--muted); }
+  .wfm { margin-top: 22px; padding-top: 18px; border-top: 1.5px solid var(--soft); }
+  .wfm .top2 { display: flex; justify-content: space-between; align-items: baseline; }
+  .wfm .v { font-size: 34px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
+  .wfm .v small { font-size: 20px; color: var(--faint); }
+  .cells { display: grid; grid-template-columns: repeat(22, 1fr); gap: 5px; margin-top: 12px; }
+  .cells i { height: 16px; border-radius: 4px; background: var(--soft); }
+  .cells i.on { background: var(--grad); }
+  .dry { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 10px; background: #fff7ed; color: #c2410c; border: 1.5px dashed #fdba74; font-size: 18px; font-weight: 800; letter-spacing: .08em; }
+  .wnum { position: absolute; left: 1080px; top: 702px; width: 700px; padding: 20px 26px; display: flex; align-items: center; gap: 18px; }
+  .wnum .a { font-size: 27px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
+  .wnum .b { font-size: 17px; color: var(--muted); }
 </style></head>
 <body data-scene="s04"><div class="stage">
-  <div class="top"><div class="eyebrow">Done</div><h1 class="h"><i></i>The system</h1></div>
-  <div class="grid6">
-    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13l2 2 4-4"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="old"><s>Commission tiers</s></div><div class="tx">CRM contract generator</div><div class="sb">Generates only the new agreement</div></div>
-    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4M9 8h6M9 11.5h4"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">Today screen</div><div class="sb">New phone layout for the broker portal</div></div>
-    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11l4.3.9a2 2 0 0 1 1.6 2.2l-.6 5A2 2 0 0 1 15.3 21H11a2 2 0 0 1-1.6-.8L5.8 15.6a1.5 1.5 0 0 1 2.2-2L9 14.5"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">One-tap feedback</div><div class="sb">Attendance only, plus no-show proof</div></div>
-    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">Cycle card + top-ups</div><div class="sb">Where each broker is in the cycle</div></div>
-    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">R1,500+ targeting</div><div class="sb">Clients who can budget R1,500 a month or more</div></div>
-    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">Onboarding film</div><div class="sb">Finished</div></div>
+  <div class="top"><div class="eyebrow">Done · SortMyCover and n8n</div><h1 class="h"><i></i>The front door is open</h1></div>
+  <div class="card br">
+    <div class="bar"><i></i><i></i><i></i><div class="url"><span class="lock"></span>sortmycover.co.za<span class="live pill green" style="padding:2px 12px;font-size:15px"><i></i>Live · Hostinger</span></div></div>
+    <div class="pg">
+      <div><div class="hl">Cover adviser calls and wills</div><div class="sub">Consumer site. Leads go to n8n, then the CRM.</div>
+        <div class="sec"><span class="s1">/cover/ · 4 guides</span><span class="s2">/wills/ · 6 guides</span></div></div>
+      <div class="cnt"><div class="v" id="pg">0</div><div class="k">of 37 sitemap pages load</div></div>
+    </div>
+    <div class="lt"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Budget under R750? Kept, not thrown away</div><div class="b">Held as C-tier for brokers who accept them</div></div></div>
   </div>
+  <div class="subs10">
+    <span>adviser-conversation</span><span>new-bond</span><span>salary-stops</span><span>cover-gap</span><span>owners-directors</span>
+    <span>new-baby</span><span>children-guardian</span><span>will-myth</span><span>will-and-cover</span><span>where-is-the-will</span>
+  </div>
+  <div class="card n8n">
+    <div class="hh"><div class="lg">n8n</div><div><div class="a">n8n on the EMMA VPS</div><div class="b mono">n8n.sortmycover.co.za</div></div><span class="pill green hz"><i></i>healthy</span></div>
+    <div class="r r1"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Backed up every night</div><div class="b">01:30 dumps on 12 and 13 Oct</div></div></div>
+    <div class="r r2"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="a">Site lead form reaches it</div><div class="b mono">POST /webhook/smc/lead</div></div></div>
+    <div class="wfm">
+      <div class="top2"><div class="v"><span id="wf">0</span> <small>of 43 workflows on</small></div><span class="dry">DRY RUN</span></div>
+      <div class="cells"></div>
+    </div>
+  </div>
+  <div class="card wnum"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 10.5c.5 2 2 3.6 4.5 4.5"/></svg></div>
+    <div><div class="a">+27 60 015 6480</div><div class="b">On its own SortMyCover Twilio subaccount</div></div></div>
 </div>
 <script src="timings.js"></script><script src="film.js"></script>
 <script>
-  const tiles = $$('.tile');
-  const tT = [cue('CRM'), cue('today'), cue('onetap'), cue('cycle'), cue('campaigns'), cue('onboarding')];
-  const tDone = [cue('gone'), cue('today') + .6, cue('attendance'), cue('top', 1, cue('cycle')), cue('budget'), cue('finished')];
+  const cells = $('.cells'); for (let i = 0; i < 43; i++) cells.insertAdjacentHTML('beforeend', '<i></i>');
+  const cs = [...cells.children];
   window.update = t => {
     rv('.top .eyebrow', t, .2, { y: 16 });
     rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
-    tiles.forEach((c, i) => {
-      rv(c, t, tT[i] - .4, { y: 40, scale: .95, dur: .9 });
-      tick(c.querySelector('.tick'), t, tDone[i]);
-      const hot = P(t, tT[i] - .2, .4) * (1 - (i < 5 ? P(t, tT[i + 1] - .2, .6) : 0));
-      c.style.borderColor = `rgba(219,39,119,${(hot * .5).toFixed(3)})`;
-    });
-    rv('.old', t, cue('old') - .1, { y: 10, dur: .6 });
+    rv('.br', t, .5, { y: 34, scale: .97, dur: 1 });
+    $('#pg').textContent = Math.round(37 * P(t, cue('thirty') - .2, 1.5, E.out));
+    rv('.s1', t, cue('cover') - .2, { y: 10, scale: .9, dur: .5, ease: E.back });
+    rv('.s2', t, cue('wills') - .2, { y: 10, scale: .9, dur: .5, ease: E.back });
+    rv('.subs10 span', t, cue('ten') - .3, { y: 14, scale: .9, dur: .5, stagger: .07 });
+    rv('.lt', t, cue('budget') - .5, { y: 20, dur: .7 }); tick($('.lt .tick'), t, cue('kept'));
+    rv('.n8n', t, cue('n8n') - .5, { y: 30, dur: .9 });
+    rv('.hz', t, cue('healthy') - .1, { scale: .8, y: 0, dur: .5, ease: E.back });
+    rv('.r1', t, cue('backed') - .3, { x: 20, y: 0, dur: .6 }); tick($('.r1 .tick'), t, cue('night'));
+    rv('.r2', t, cue('form') - .4, { x: 20, y: 0, dur: .6 }); tick($('.r2 .tick'), t, cue('form') + .2);
+    rv('.wfm', t, cue('three') - .5, { y: 16, dur: .6 });
+    const on = Math.round(3 * P(t, cue('three'), .6));
+    $('#wf').textContent = on;
+    cs.forEach((c, i) => { c.classList.toggle('on', i < on); c.style.opacity = P(t, cue('three') - .5 + i * .012, .3); });
+    rv('.dry', t, cue('dry') - .1, { scale: .7, y: 0, dur: .6, ease: E.back });
+    rv('.wnum', t, cue('WhatsApp') - .4, { y: 26, dur: .8 });
   };
 </script></body></html>

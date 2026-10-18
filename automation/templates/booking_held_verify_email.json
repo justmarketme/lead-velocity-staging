@@ -1,0 +1,26 @@
+{
+  "name": "booking_held_verify_email",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm the booking, please tap the confirmation link we sent to your email address. If it isn't confirmed by {{5}}, we'll release the time. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Thu 15 Oct",
+            "10:00",
+            "Mark",
+            "Wed 14 Oct at 09:10"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

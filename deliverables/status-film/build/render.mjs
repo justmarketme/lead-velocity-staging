@@ -102,14 +102,17 @@ function join() {
   console.log(`join: ${sc.length} scenes, ${total.toFixed(2)}s`);
   run('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex_script', graph, '-map', '[v]', '-map', '[a]',
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '10', '-pix_fmt', 'yuv420p', '-c:a', 'pcm_s16le', master]);
-  const enc = (scale, crf, file) => run('ffmpeg', ['-y', '-loglevel', 'error', '-i', master,
-    ...(scale ? ['-vf', `scale=${scale}:flags=lanczos`] : []),
+  // poster: end of scene 1 (logo, title, chips and stats settled); also baked into frames 0-2 of both MP4s
+  // so players and chat apps that thumbnail the first frame show the branded title, not a blank fade-in.
+  const poster = path.join(ROOT, 'poster.jpg');
+  run('ffmpeg', ['-y', '-loglevel', 'error', '-ss', (L[0] - XFADE - .3).toFixed(2), '-i', master, '-frames:v', '1', '-q:v', '3', poster]);
+  const enc = (scale, crf, file) => run('ffmpeg', ['-y', '-loglevel', 'error', '-i', master, '-loop', '1', '-i', poster,
+    '-filter_complex', (scale ? `[0:v]scale=${scale}:flags=lanczos[m];[1:v]scale=${scale}:flags=lanczos[p]` : '[0:v]null[m];[1:v]null[p]')
+      + ";[m][p]overlay=0:0:shortest=1:enable='lte(n,2)'[v]", '-map', '[v]', '-map', '0:a',
     '-c:v', 'libx264', '-preset', 'slow', '-crf', String(crf), '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-r', String(FPS),
     '-g', String(FPS * 4), '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-movflags', '+faststart', path.join(ROOT, file)]);
   enc(null, Number(process.env.CRF1080 || 22), `${OUT}-1080p.mp4`);
   enc('1280:720', Number(process.env.CRF720 || 24), `${OUT}-720p.mp4`);
-  // poster: end of scene 1 (logo, title and all three chips settled)
-  run('ffmpeg', ['-y', '-loglevel', 'error', '-ss', (L[0] - XFADE - .3).toFixed(2), '-i', master, '-frames:v', '1', '-q:v', '3', path.join(ROOT, 'poster.jpg')]);
   fs.writeFileSync(path.join(CLIPS, 'offsets.json'), JSON.stringify(sc.map((s, i) => ({ id: s.id, start: +starts[i].toFixed(3), clip: L[i], speech: +(starts[i] + TM.lead).toFixed(3) })), null, 1));
   console.log('done ->', ROOT);
 }

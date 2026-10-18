@@ -9,7 +9,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-01",
@@ -43,7 +43,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-03",
@@ -298,6 +298,73 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ /^twilio:https:\\/\\/api\\.twilio\\.com\\//.test(String((($('Called by W07 (broker media)').item.json.messages || [])[0] || {})[(($('Called by W07 (broker media)').item.json.messages || [])[0] || {}).type]?.id || '')) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "w23-twilio-1",
+      "name": "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ String((($('Called by W07 (broker media)').item.json.messages || [])[0] || {})[(($('Called by W07 (broker media)').item.json.messages || [])[0] || {}).type].id).replace(/^twilio:/, '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + Buffer.from($env.TWILIO_API_KEY_SID ? $env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET : $env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "w23-twilio-2",
+      "name": "Download media (Twilio MediaUrl, Basic auth)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        420
+      ]
+    },
+    {
+      "parameters": {
         "assignments": {
           "assignments": [
             {
@@ -381,26 +448,26 @@
       ]
     },
     {
-      "parameters": {
-        "operation": "send",
-        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
-        "recipientPhoneNumber": "={{ $json.to_number }}",
-        "textBody": "Got it. We're adding captions and your details now. It will show in your portal for approval in a minute or two."
-      },
       "id": "w23-13",
       "name": "WhatsApp: got it",
-      "type": "n8n-nodes-base.whatsApp",
+      "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
         1440,
         400
       ],
-      "credentials": {
-        "whatsAppApi": {
-          "name": "WhatsApp Cloud API (SortMyCover)"
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
         }
-      },
-      "continueOnFail": true
+      }
     },
     {
       "parameters": {
@@ -984,26 +1051,26 @@
       }
     },
     {
-      "parameters": {
-        "operation": "send",
-        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
-        "recipientPhoneNumber": "={{ $('Compose URLs and ai_check').first().json.source === 'whatsapp' ? $('Compose URLs and ai_check').first().json.to_number : '' }}",
-        "textBody": "Your intro is ready. Open your portal to watch it and tap Approve: {{ $env.PORTAL_URL }}/intro-media/approve.html"
-      },
       "id": "w23-41",
       "name": "WhatsApp: ready to approve",
-      "type": "n8n-nodes-base.whatsApp",
+      "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
         7440,
         0
       ],
-      "credentials": {
-        "whatsAppApi": {
-          "name": "WhatsApp Cloud API (SortMyCover)"
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
         }
-      },
-      "continueOnFail": true
+      }
     },
     {
       "parameters": {
@@ -1041,26 +1108,26 @@
       }
     },
     {
-      "parameters": {
-        "operation": "send",
-        "phoneNumberId": "={{ $env.WA_PHONE_NUMBER_ID }}",
-        "recipientPhoneNumber": "={{ $('Compose rejection').first().json.source === 'whatsapp' ? $('Compose rejection').first().json.to_number : '' }}",
-        "textBody": "={{ $('Compose rejection').first().json.reject_reason }}"
-      },
       "id": "w23-44",
       "name": "Reply on WhatsApp with the reason",
-      "type": "n8n-nodes-base.whatsApp",
+      "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
         5760,
         240
       ],
-      "credentials": {
-        "whatsAppApi": {
-          "name": "WhatsApp Cloud API (SortMyCover)"
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
         }
-      },
-      "continueOnFail": true
+      }
     },
     {
       "parameters": {
@@ -1543,7 +1610,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-x01",
@@ -1710,7 +1777,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-x09",
@@ -1877,7 +1944,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-x17",
@@ -1997,7 +2064,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-x23",
@@ -2249,7 +2316,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-x35",
@@ -2695,43 +2762,6 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (1)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:1` }, row) }];"
-      },
-      "id": "w23-y16",
-      "name": "Cost row (generate 1)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        4360,
-        4200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing",
-        "options": {
-          "queryReplacement": "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}"
-        }
-      },
-      "id": "w23-y17",
-      "name": "Log LLM cost (generate 1)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        4580,
-        4200
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -3016,43 +3046,6 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Generate variant (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate LLM (Haiku, fails closed) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (2)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker + answers (generate)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-generate:${broker}:${$execution.id}:${$json.angle}:2` }, row) }];"
-      },
-      "id": "w23-y29",
-      "name": "Cost row (generate 2)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        8140,
-        4200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing",
-        "options": {
-          "queryReplacement": "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}"
-        }
-      },
-      "id": "w23-y30",
-      "name": "Log LLM cost (generate 2)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        8360,
-        4200
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
         "mode": "append"
       },
       "id": "w23-y31",
@@ -3172,7 +3165,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}"
+          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
         }
       },
       "id": "w23-x39",
@@ -3440,43 +3433,6 @@
         4660,
         5000
       ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst calls = [(() => { try { const j = $('Script gate LLM (Haiku, fails closed) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })(), (() => { try { const j = $('Script gate re-check (Sonnet) (recheck)').item.json; return { model: j.model, usage: j.usage }; } catch (e) { return null; } })()];\nconst row = M.llmCostRow(calls);\nlet broker = ''; try { broker = $('Load broker facts (recheck)').first().json.broker_id; } catch (e) {}\nreturn [{ json: Object.assign({ broker_id: broker, source_ref: `w23:script-recheck:${broker}:${$execution.id}` }, row) }];"
-      },
-      "id": "w23-y46",
-      "name": "Cost row (recheck)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        4000,
-        5200
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "insert into ops.costs (date, kind, brand_id, broker_id, amount_zar, source_ref, note) values (current_date, 'llm', $1::uuid, $2::uuid, $3::numeric, $4::text, $5::text) on conflict do nothing",
-        "options": {
-          "queryReplacement": "={{ [ $env.BRAND_ID, $json.broker_id, $json.amount_zar, $json.source_ref, $json.note ] }}"
-        }
-      },
-      "id": "w23-y47",
-      "name": "Log LLM cost (recheck)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        4220,
-        5200
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -3760,6 +3716,48 @@
         "mode": "runOnceForAllItems",
         "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (whatsapp). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
       }
+    },
+    {
+      "id": "d5bb110c-c5c6-ae08-3314-4ca62966639c",
+      "name": "SUB input (WhatsApp: got it)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"WhatsApp: got it\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = { messaging_product: 'whatsapp', to: ($json.to_number), type: 'text', text: { body: \"Got it. We're adding captions and your details now. It will show in your portal for approval in a minute or two.\" } };\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W23\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W23:WhatsApp: got it:\" + exec + ':' + idx,\n} };"
+      }
+    },
+    {
+      "id": "09599442-d7f8-a6ee-9d74-0c2cc8e73114",
+      "name": "SUB input (WhatsApp: ready to approve)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7320,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"WhatsApp: ready to approve\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = { messaging_product: 'whatsapp', to: ($('Compose URLs and ai_check').first().json.source === 'whatsapp' ? $('Compose URLs and ai_check').first().json.to_number : ''), type: 'text', text: { body: \"Your intro is ready. Open your portal to watch it and tap Approve: {{ $env.PORTAL_URL }}/intro-media/approve.html\" } };\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W23\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W23:WhatsApp: ready to approve:\" + exec + ':' + idx,\n} };"
+      }
+    },
+    {
+      "id": "26beb5e7-da51-7a89-bb3d-47cf9734a9a3",
+      "name": "SUB input (Reply on WhatsApp with the reason)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5640,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Reply on WhatsApp with the reason\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = { messaging_product: 'whatsapp', to: ($('Compose rejection').first().json.source === 'whatsapp' ? $('Compose rejection').first().json.to_number : ''), type: 'text', text: { body: ($('Compose rejection').first().json.reject_reason) } };\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W23\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W23:Reply on WhatsApp with the reason:\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
@@ -3866,7 +3864,36 @@
       "main": [
         [
           {
+            "node": "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)": {
+      "main": [
+        [
+          {
+            "node": "Download media (Twilio MediaUrl, Basic auth)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Get media URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download media (Twilio MediaUrl, Basic auth)": {
+      "main": [
+        [
+          {
+            "node": "Prepare job (WhatsApp)",
             "type": "main",
             "index": 0
           }
@@ -4892,23 +4919,7 @@
       "main": [
         [
           {
-            "node": "Cost row (generate 1)",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Needs retry? (generate)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cost row (generate 1)": {
-      "main": [
-        [
-          {
-            "node": "Log LLM cost (generate 1)",
             "type": "main",
             "index": 0
           }
@@ -5053,17 +5064,6 @@
             "node": "Merge variants",
             "type": "main",
             "index": 1
-          }
-        ]
-      ]
-    },
-    "Cost row (generate 2)": {
-      "main": [
-        [
-          {
-            "node": "Log LLM cost (generate 2)",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -5225,23 +5225,7 @@
       "main": [
         [
           {
-            "node": "Cost row (recheck)",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "Store chosen script? (recheck)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Cost row (recheck)": {
-      "main": [
-        [
-          {
-            "node": "Log LLM cost (recheck)",
             "type": "main",
             "index": 0
           }
@@ -5401,7 +5385,7 @@
       "main": [
         [
           {
-            "node": "WhatsApp: got it",
+            "node": "SUB input (WhatsApp: got it)",
             "type": "main",
             "index": 0
           }
@@ -5424,7 +5408,7 @@
       "main": [
         [
           {
-            "node": "WhatsApp: ready to approve",
+            "node": "SUB input (WhatsApp: ready to approve)",
             "type": "main",
             "index": 0
           }
@@ -5447,7 +5431,7 @@
       "main": [
         [
           {
-            "node": "Reply on WhatsApp with the reason",
+            "node": "SUB input (Reply on WhatsApp with the reason)",
             "type": "main",
             "index": 0
           }
@@ -5464,6 +5448,39 @@
     "Dry-run stub (Reply on WhatsApp with the reason)": {
       "main": [
         []
+      ]
+    },
+    "SUB input (WhatsApp: got it)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: got it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (WhatsApp: ready to approve)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: ready to approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Reply on WhatsApp with the reason)": {
+      "main": [
+        [
+          {
+            "node": "Reply on WhatsApp with the reason",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

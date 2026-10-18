@@ -1,4 +1,4 @@
-# Microsoft calendar connect: what Jonathan does once
+# Microsoft calendar connect: what Jono does once
 
 Result: a broker taps **Sign in with Microsoft**, accepts, and sees "Connected as name@domain". He never registers an app. All brokers share one Lead Velocity app.
 
@@ -7,7 +7,7 @@ Time: about 15 minutes, once. Sign in to https://entra.microsoft.com with the Le
 ## A. Register the app (Entra admin centre)
 
 1. Identity > Applications > App registrations > **New registration**.
-2. Name: `SortMyCover calendar`.
+2. Name: `Lead Velocity` (brokers and their IT admins see this name on the Microsoft consent screen and in the portal copy).
 3. Supported account types: **Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant)**. Not "personal Microsoft accounts" (a personal account has no Teams meetings).
 4. Redirect URI, platform **Web**: `https://<project-ref>.supabase.co/functions/v1/ms-oauth/callback`
    (project-ref is the Supabase project id). Register.
@@ -47,21 +47,32 @@ Without it, many company tenants block the app with "unverified publisher" and e
 2. Put the expiry date in `ops.secret_inventory` (W22 tracks it). A wrong or expired secret stops every broker from connecting and from refreshing; the callback logs it and W22 raises the red alert.
 3. The n8n credential "Microsoft Graph broker-connect client secret (W20)" must hold this same value, because W04/W05 refresh the brokers' tokens with it.
 
-## F. Supabase (Jonathan or Claude with the CLI, one time)
+## F. Supabase function secrets
+
+Already done (13 Oct 2026, Supabase CLI against project `cmsylaupctrbsvzrgzwy`):
+
+- `ms-oauth` is deployed with `verify_jwt = false` (the Microsoft callback carries no Supabase JWT; `start` and
+  `disconnect` check the broker's JWT inside the function, and the callback is bound to the broker by the signed `state`).
+- `MS_OAUTH_STATE_SECRET` (48 random characters) and `PORTAL_URL=https://leadvelocity.co.za` are set.
+- With the Microsoft values still missing the function answers `503 {"error":"not_configured"}` and the portal shows
+  "Calendar connection is being set up".
+
+Left for Jono, after steps A to E (one command; replace the two values from the Entra app):
 
 ```
-supabase secrets set MS_CLIENT_ID=<client id> MS_CLIENT_SECRET=<secret value> \
-  MS_REDIRECT_URI=https://<project-ref>.supabase.co/functions/v1/ms-oauth/callback \
-  MS_OAUTH_STATE_SECRET=<random 32+ chars> PORTAL_URL=https://leadvelocity.co.za \
-  N8N_PUBLIC_URL=<n8n public url> INTERNAL_HMAC_SECRET=<same as n8n>
-psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261007_smc_18_ms_oauth_edge.sql
-                        # this one file only (needs migration 13 applied). Not `supabase db push`: it would push every
-                        # unapplied smc_* file, incl. 20261007_smc_19_capture_v2.sql, which is not approved for live yet.
-supabase functions deploy ms-oauth --no-verify-jwt
+npx supabase secrets set --project-ref cmsylaupctrbsvzrgzwy MS_CLIENT_ID=<Application (client) ID> MS_CLIENT_SECRET=<client secret Value> MS_REDIRECT_URI=https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/ms-oauth/callback
 ```
 
-`N8N_PUBLIC_URL` and `INTERNAL_HMAC_SECRET` are what let the callback tell W20 "calendar connected" so the onboarding step completes (W20 checks a real free slot first). Skip them and the connection still works; the step completes when W20's sweep next runs.
+Optional, so the callback tells W20 at once that the calendar is connected (otherwise W20's sweep picks it up):
+`N8N_PUBLIC_URL=<n8n public url> INTERNAL_HMAC_SECRET=<same value as n8n>`.
+Secrets take effect without a redeploy. If the function code changes: `npx supabase functions deploy ms-oauth --project-ref cmsylaupctrbsvzrgzwy --no-verify-jwt`.
 The n8n values `MS_GRAPH_CLIENT_ID` and `MS_GRAPH_REDIRECT_URI` in `automation/.env.example` stay as they are; `MS_GRAPH_CLIENT_ID` must equal `MS_CLIENT_ID`.
+
+After the callback stores the token it reads Graph `/me` (allowed by `User.Read`) and saves the signed-in mailbox as
+`brokers.calendar_email`; W04 free/busy and W05 bookings use that mailbox, never the portal login email. With the
+calendar connected, W05 adds the client as attendee so the meeting request (with the Teams link) comes from the broker's
+own Outlook; the howzit@ email is only the fallback (calendar not connected, shared calendar, or the broker opted out in
+the admin drawer).
 
 ## G. Test it with your own work account
 
@@ -72,8 +83,11 @@ The n8n values `MS_GRAPH_CLIENT_ID` and `MS_GRAPH_REDIRECT_URI` in `automation/.
 
 ## What the broker's IT admin sees
 
-The portal gives the broker a link and one paragraph to forward (the same text is on the "Email this to my IT admin" button). The admin signs in, reviews "SortMyCover calendar" asking to read and write the signed-in user's calendar and meetings, and chooses **Accept**. The broker then taps Connect again.
+The portal gives the broker a link and one paragraph to forward (the same text is on the "Email this to my IT admin" button). The admin signs in, reviews "Lead Velocity" asking to read and write the signed-in user's calendar and meetings, and chooses **Accept**. The broker then taps Connect again.
 
 ## Not verified here
 
-Nothing in this checklist has run against a live Microsoft tenant or a live Supabase project; the code is tested offline (`node --test automation/tests/ms-oauth.test.mjs`). Items to confirm in step G: the admin-consent URL shape for the `organizations` tenant, and that `DELETE FROM vault.secrets` is permitted for the function owner in your project.
+Verified live on 13 Oct 2026: the function is listed as ACTIVE, and real calls return `503 not_configured` for `start` and
+`/callback`, `401` for `disconnect` without a JWT. Not verified, because they need the Entra app: a real Microsoft sign-in,
+the token exchange, the Graph `/me` mailbox, the admin-consent URL shape for the `organizations` tenant, and
+`DELETE FROM vault.secrets` for the function owner. Do step G once the client ID and secret are set.

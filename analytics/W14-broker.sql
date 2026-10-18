@@ -74,7 +74,7 @@ language sql stable as $$
     from k
 $$;
 comment on function facts.broker_pulse(uuid, date, int, int) is 'Broker-facing lead pulse (I-43c, R6-05): per cycle, held on the stored n and up of the last report until 5 new answers, null below 5. A POPIA erase never moves a held figure. Never use cycle_counts.pulse_* in a broker surface.';
--- I-50d: CREATE OR REPLACE resets SECURITY DEFINER / search_path; re-pin here so re-running this file never opens the function. Same statements as migration 20261002_smc_13_pass7.sql (its closing pin block), one function per file.
+-- I-50d: CREATE OR REPLACE resets SECURITY DEFINER / search_path; re-pin here so re-running this file never opens the function. Same statements as migration 20261002130000_smc_13_pass7.sql (its closing pin block), one function per file.
 ALTER FUNCTION facts.broker_pulse(uuid, date, int, int)  SECURITY DEFINER SET search_path = public, facts, pg_temp;
 REVOKE ALL ON FUNCTION facts.broker_pulse(uuid, date, int, int) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION facts.broker_pulse(uuid, date, int, int) TO n8n_app;

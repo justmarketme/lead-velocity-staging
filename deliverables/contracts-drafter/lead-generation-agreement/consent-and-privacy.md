@@ -4,6 +4,8 @@
 
 Version: CP-v0.2 (5 October 2026). Goes with the Lead Generation Services Agreement LGSA-v0.1 (clauses 3.8, 4.1, 13 and Schedule 4). Replaces `../consent-and-privacy.md` (CP-v0.1) Parts 1, 2 and 5 for this agreement; Parts 3 (website terms) and 4 (cookie notice) of CP-v0.1 are unchanged and still apply.
 
+**Status, 7 October 2026: a proposal, not live.** No consumer has seen these texts. The live texts, and the current privacy notice, are in `../consent-and-privacy.md` (CP-v0.3), which carries this file's open proposals (Form 4 layout, separate optional ads consent) as practitioner questions. On 7 October the consent scope in 1.1, 1.5 and Part 3 rule 7 was widened from "life cover" to "insurance and financial planning" (consent v3; LGSA-v0.2 clauses 12.3 and 13.5). The text IDs were kept because the texts were never used. If any text here is adopted, it gets a new ID in the CP series (`CTWA-NAMED-v2` here is not the `ctwa-named-v2` that W03 used until 7 October 2026; the live ID is now `ctwa-named-v3`). The qualifying questions in 1.4 are replaced by WhatsApp capture Flow v2 (`../../automation-engineer/whatsapp-capture-flow-v2.md`).
+
 **Two kinds of blanks.** [SQUARE BRACKETS] are filled once, before go-live. {{double braces}} are merge fields the system fills for each Consumer or broker from the CRM. A page or message must not render if any broker merge field is empty (fail closed).
 
 **Rules for every text in this file.**
@@ -23,7 +25,7 @@ Named mode is the live default while there is one broker (MASTER-PROMPT 0.1). Th
 >
 > SortMyCover is a service of Lead Velocity (Pty) Ltd. If you fit our criteria, we will introduce you to **{{client_full_name}}** of **{{practice_name}}**, an authorised financial services provider (**FSP {{fsp_number}}**).
 >
-> ( ) **I give my consent** for Lead Velocity to use my details to check whether a call fits me, to book and remind me about that call by WhatsApp, and to share my details with {{client_full_name}} of {{practice_name}} (FSP {{fsp_number}}), who may contact me by WhatsApp, phone call, SMS or email about my life cover enquiry.
+> ( ) **I give my consent** for Lead Velocity to use my details to check whether a call fits me, to book and remind me about that call by WhatsApp, and to share my details with {{client_full_name}} of {{practice_name}} (FSP {{fsp_number}}), who may contact me by WhatsApp, phone call, SMS or email about my insurance and financial planning enquiry.
 >
 > ( ) **I do not give my consent.**
 >
@@ -57,7 +59,7 @@ Only "35 to 44" and "45 to 50" meet the age criterion. For budget, only "Under R
 
 ### 1.5 Click-to-WhatsApp version (before any question) — `CTWA-NAMED-v2`
 
-> Hi, this is SortMyCover, a service of Lead Velocity (Pty) Ltd. If a call fits you, we'll introduce you to {{client_full_name}} of {{practice_name}}, an authorised financial services provider (FSP {{fsp_number}}), who may contact you by WhatsApp, call, SMS or email about life cover. We'll also book and remind you about the call here. OK to continue?
+> Hi, this is SortMyCover, a service of Lead Velocity (Pty) Ltd. If a call fits you, we'll introduce you to {{client_full_name}} of {{practice_name}}, an authorised financial services provider (FSP {{fsp_number}}), who may contact you by WhatsApp, call, SMS or email about insurance and financial planning. We'll also book and remind you about the call here. OK to continue?
 >
 > Buttons: `I give consent` · `I do not give consent`
 
@@ -119,7 +121,7 @@ Use 1.1 as the custom consent question and 1.2 as a separate optional question, 
 | 4 | STOP, "no", or any objection: stop at once, add to suppression list, tell the Client within 2 Business Days (agreement clause 13.4). | POPIA s11(3), s69 |
 | 5 | Purpose 3 (ads) uses only Consumers who gave consent 1.2. | POPIA s13, s15; research-memo.md R5 |
 | 6 | Consent text, version, time stamp and source are kept as Origin Records for [5] years; the Client cannot require their deletion (agreement clause 13.3). | POPIA s11(2)(a), s14(1) |
-| 7 | The Client's consent covers contact about this life cover enquiry only. Any other marketing by the Client needs its own basis (agreement clause 13.5). | POPIA s69 |
+| 7 | The Client's consent covers contact about this insurance and financial planning enquiry only. Any other marketing by the Client needs its own basis (agreement clause 13.5). | POPIA s69 |
 | 8 | Messages are logistics only: no product, benefit, insurer or price content (agreement clause 3.8). | FAIS s1; research-memo.md R6 |
 
 ---
@@ -168,3 +170,4 @@ The last reminder goes no later than 10 minutes before the start time (agreement
 | 6 | Purposes listed in an 8-row table | Three purposes, matching agreement clause 13.2 | Brief: privacy notice covers the three purposes |
 | 7 | Budget bands Less than R750 / R750–R1,250 / More than R1,250 ("R750–R1,250 or R1,250+ both qualify") | Bands Under R750 / R750–R1,499 / R1,500 or more; R750 or more qualifies; Campaigns target R1,500 or more | Jonathan's decision, 5 Oct 2026 (open-items.md D5, resolved). Same qualifying rule as 0.1; the band edges moved to show the R1,500 target |
 | 8 | Website Terms (Part 3) and Cookie Notice (Part 4) | Not repeated; CP-v0.1 versions (TU-v1.0 in consumer-terms.md, CN-v1.1) still apply | Out of scope for this brief. The Cookie Notice's "Pixel on at load" default (open question Q9) should be rechecked against the new optional consent 1.2 |
+| 9 | Consent scope "life cover" | 7 Oct 2026 amendment: "insurance and financial planning" in 1.1, 1.5 and Part 3 rule 7 | Consent v3 (Jonathan, 7 Oct 2026): people can ask about funeral, retirement, investments and disability too; matches LGSA-v0.2 clauses 12.3 and 13.5 and CP-v0.3 |

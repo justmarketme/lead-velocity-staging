@@ -43,7 +43,7 @@ export const PILOT: PricingTier & { once_off: true; continue_on: string } = {
   continue_on: seed.pilot.continue_on,
 };
 export const isPilot = (t: PricingTier): boolean => t.tier_code === PILOT.tier_code;
-/** Jonathan 2026-10-07: minimum spend is Bronze; the Pilot is not offered unless the seed sets pilot.offered. */
+/** The Pilot is offered unless the seed sets pilot.offered to false (withdrawn 2026-10-07, reinstated 2026-10-10 by Jonathan). */
 export const PILOT_OFFERED: boolean = (seed.pilot as { offered?: boolean }).offered !== false;
 /** Every plan a broker can be on or be quoted: Pilot first (only while offered), then the monthly ladder. */
 export const ALL_PLANS: PricingTier[] = PILOT_OFFERED ? [PILOT, ...TIERS] : [...TIERS];
@@ -53,7 +53,8 @@ export const planByName = (name: string): PricingTier | undefined =>
 export const PILOT_TEXT =
   `Pilot: ${zar(seed.pilot.price_per_lead_zar * seed.pilot.committed_leads)} once-off for ${seed.pilot.committed_leads} Qualified Leads ` +
   `(${zar(seed.pilot.price_per_lead_zar)} per lead) in one introductory ${seed.terms.cycle_days}-day cycle, for first-time clients only, ` +
-  `then continue on ${seed.pilot.continue_on}. Flat fee paid in advance, all-inclusive of ad spend; same rollover and replacement rules.`;
+  `then continue on ${seed.pilot.continue_on} by paying in advance, otherwise the agreement ends. Flat fee paid in advance, all-inclusive of ad spend; ` +
+  `same ${seed.terms.shortfall_rollover_days}-day rollover and replacement rules as every plan.`;
 
 
 export const VAT_NOTE = TERMS.vat_registered ? "Prices exclude VAT; VAT is added on the invoice." : "All prices exclude VAT.";
@@ -75,6 +76,12 @@ export const SHORTFALL_TEXT = (t: PricingTier): string =>
   `rolls into your next cycle on top of its number, or you can ask for a refund of ${zar(perLead(t))} per undelivered lead, paid within 7 working days.`;
 
 export const LATE_PAYMENT_TEXT = "If payment hasn't cleared, lead delivery is suspended until it has. No interest is charged.";
+
+/** Replacements (agreement clause 7, Jonathan 2026-10-10): goodwill, one weekly cap on every plan (Pilot included); no-shows and unreachable leads count together. */
+export const REPLACEMENT_TEXT =
+  `Out of goodwill, we replace up to ${TERMS.goodwill_replacements_per_week} no-shows or leads you couldn't reach a week, on every plan including the Pilot, ` +
+  `if you send proof (for a no-show, straight after waiting 10 minutes). We never replace a lead because they didn't buy. ` +
+  `Invalid contact details never count in the first place.`;
 
 export const TOPUP_TEXT =
   `Top-ups: once this cycle's leads are delivered, add more Qualified Leads at ${zar(TOPUP.price_per_lead_zar)} each, ` +
@@ -102,7 +109,7 @@ export const pricingSummaryText = (): string =>
     QUALIFIED_LEAD_TEXT,
     BUDGET_TARGET_TEXT,
     `Shortfall: up to ${TERMS.shortfall_rollover_days} extra days only for delays outside our control (day 44 at most); after that the balance rolls into the next cycle on top of its number, or the client may ask for a refund at the plan's effective price per undelivered lead, paid within 7 working days.`,
-    `Replacements: out of goodwill, up to ${TERMS.goodwill_replacements_per_week} no-show replacements a week (no-shows only). Invalid contact details never count in the first place.`,
+    `Replacements: ${REPLACEMENT_TEXT}`,
     LATE_PAYMENT_TEXT,
     NO_GUARANTEE_TEXT,
   ].join("\n");

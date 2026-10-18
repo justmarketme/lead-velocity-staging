@@ -1,6 +1,6 @@
 /**
  * 07 My leads (portal/spec/07-my-leads.md; prototype leads.html). Extends BrokerLeads.tsx (INV-P03) for SMC brokers.
- * Reads (own rows by RLS): v_cycle_progress, bookings (view), leads, outcomes, replacements.
+ * Reads (own rows by RLS): smc_order_capacity (his CRM lead orders), bookings (view), leads, outcomes, replacements.
  * Writes: outcomes(outcome → disposition (4.12a / NH-19 labels) → quality 1-5) on own bookings ("smc broker mark own" / "correct own"),
  *         then smc_portal_event('outcome.marked') → W12/W13/W29. Full names only inside the portal (portal rule 6); health detail never (2.1.7).
  */
@@ -8,7 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
 import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, isPremium1500, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
-import type { SmcBooking, SmcCycleProgress, SmcDispositionCode, SmcLead, SmcOutcome, SmcOutcomeKind, SmcReplacement } from "@/integrations/supabase/smc-types";
+import { TERMS } from "@/lib/pricing";
+import type { SmcBooking, SmcOrderCapacity, SmcDispositionCode, SmcLead, SmcOutcome, SmcOutcomeKind, SmcReplacement } from "@/integrations/supabase/smc-types";
 
 const CALL_METHODS = new Set(["phone", "whatsapp_call"]);
 const fullName = (l?: SmcLead) => [l?.first_name, l?.last_name].filter(Boolean).join(" ") || "Lead";
@@ -46,9 +47,14 @@ function MarkOne({ b, l, existing, onDone }: { b: SmcBooking; l?: SmcLead; exist
       outcome, disposition_code: outcome === "attended" ? dispo : null, quality_score: outcome === "attended" ? q : null,
       marked_by: userId, marked_via: "portal", marked_at: new Date().toISOString(), unconfirmed: false, auto_marked: false,
     };
-    const res = existing
-      ? await smcDb.from("outcomes").update(row).eq("id", existing.id)
-      : await smcDb.from("outcomes").insert({ ...row, booking_id: b.id, lead_id: b.lead_id, broker_id: broker.id, cycle_id: b.cycle_id, brand_id: b.brand_id });
+    // One outcomes row per booking. If WhatsApp (W12) or the 24-h sweep wrote it while this page was open,
+    // the insert hits the unique booking_id: update that row instead so the tap is never lost.
+    let res = existing
+      ? await smcDb.from("outcomes").update(row).eq("id", existing.id).select("id")
+      : await smcDb.from("outcomes").insert({ ...row, booking_id: b.id, lead_id: b.lead_id, broker_id: broker.id, brand_id: b.brand_id }).select("id");
+    if (res.error?.code === "23505" || (!res.error && !res.data?.length))
+      res = await smcDb.from("outcomes").update(row).eq("booking_id", b.id).eq("broker_id", broker.id).select("id");
+    if (!res.error && !res.data?.length) { setErr("Couldn't save. Refresh and try again."); setBusy(false); return; }
     if (res.error) { setErr(errText(res.error)); setBusy(false); return; }
     await portalEvent("outcome.marked", null, { booking_id: b.id, outcome, disposition_code: row.disposition_code, quality_score: row.quality_score });
     setBusy(false);
@@ -83,7 +89,7 @@ function MarkOne({ b, l, existing, onDone }: { b: SmcBooking; l?: SmcLead; exist
 
 function Body() {
   const { broker } = usePortal();
-  const [prog, setProg] = useState<SmcCycleProgress | null>(null);
+  const [prog, setProg] = useState<SmcOrderCapacity | null>(null);
   const [bookings, setBookings] = useState<SmcBooking[]>([]);
   const [leads, setLeads] = useState<Record<string, SmcLead>>({});
   const [outcomes, setOutcomes] = useState<Record<string, SmcOutcome>>({});
@@ -101,12 +107,14 @@ function Body() {
   const mark = (id: string) => ({ "data-lead-id": id, "aria-current": hl === id ? ("true" as const) : undefined, className: hl === id ? "lead-hl" : undefined });
 
   const load = useCallback(async () => {
-    const { data: p } = await smcDb.from("v_cycle_progress").select("*").eq("broker_id", broker.id).in("status", ["active", "extended"]).order("cycle_no", { ascending: false }).limit(1);
-    const cp = ((p as SmcCycleProgress[]) || [])[0] || null;
+    // capacity = his paid SortMyCover lead orders in the CRM (the open one first, else the latest)
+    const { data: p } = await smcDb.from("smc_order_capacity").select("*").eq("broker_id", broker.id).order("paid_at", { ascending: false, nullsFirst: false }).limit(5);
+    const orders = (p as SmcOrderCapacity[]) || [];
+    const cp = orders.find((o) => o.open) || orders[0] || null;
     setProg(cp);
-    const since = cp?.starts_at || new Date(Date.now() - 30 * 86400e3).toISOString();
+    const since = cp?.paid_at || new Date(Date.now() - 30 * 86400e3).toISOString();
     const until = new Date(Date.now() + 8 * 86400e3).toISOString();
-    const { data: bk, error: be } = await smcDb.from("bookings").select("*").eq("broker_id", broker.id).gte("starts_at", since).lte("starts_at", until).neq("status", "cancelled").order("starts_at");
+    const { data: bk, error: be } = await smcDb.from("bookings").select("*").eq("broker_id", broker.id).gte("starts_at", since).lte("starts_at", until).not("status", "in", "(cancelled,pending_verification)").order("starts_at");
     if (be) setErr(errText(be));
     const bs = (bk as SmcBooking[]) || [];
     setBookings(bs);
@@ -119,10 +127,8 @@ function Body() {
       setLeads(Object.fromEntries(((ls as SmcLead[]) || []).map((l) => [l.id, l])));
       setOutcomes(Object.fromEntries(((os as SmcOutcome[]) || []).map((o) => [o.booking_id, o])));
     }
-    if (cp) {
-      const { data: rp } = await smcDb.from("replacements").select("*").eq("broker_id", broker.id).eq("cycle_id", cp.cycle_id).order("claimed_at");
-      setReps((rp as SmcReplacement[]) || []);
-    }
+    const { data: rp } = await smcDb.from("replacements").select("*").eq("broker_id", broker.id).gte("claimed_at", new Date(Date.now() - 30 * 86400e3).toISOString()).order("claimed_at");
+    setReps((rp as SmcReplacement[]) || []);
     setLoaded(true);
   }, [broker.id]);
   useEffect(() => { void load(); }, [load]);
@@ -155,21 +161,21 @@ function Body() {
     };
   }, [bookings, outcomes, now, today]);
 
-  const delivered = prog?.verified ?? 0;
-  const showRate = prog && prog.attended + groups.past.filter((b) => outcomes[b.id]?.outcome === "no_show").length > 0
-    ? prog.attended / (prog.attended + groups.past.filter((b) => outcomes[b.id]?.outcome === "no_show").length) : null;
-  const dayOf = prog?.starts_at ? Math.max(1, Math.ceil((now - new Date(prog.starts_at).getTime()) / 86400e3)) : null;
+  const delivered = prog?.counted_toward_order ?? 0;
+  const attended = Object.values(outcomes).filter((o) => o.outcome === "attended").length;
+  const noShows = groups.past.filter((b) => outcomes[b.id]?.outcome === "no_show").length;
+  const showRate = attended + noShows > 0 ? attended / (attended + noShows) : null;
   const repLeadIds = new Set(reps.map((r) => r.lead_id));
 
   return (
     <>
       <section className="card">
-        <h3>Your cycle</h3>
+        <h3>Your lead order</h3>
         {prog ? (
           <>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}><span><b>{delivered}</b> of {prog.committed} delivered</span><span className="muted">{dayOf ? `day ${dayOf} · ` : ""}{prog.days_left} days left</span></div>
-            <div className="prog"><i style={{ width: `${Math.min(100, Math.round((delivered / Math.max(1, prog.committed)) * 100))}%` }} /></div>
-            <div className="small">{prog.booked} booked · {prog.attended} attended{showRate !== null ? <> (<i className={showRate >= 0.65 ? "tl-g" : showRate >= 0.5 ? "tl-a" : "tl-r"}>{Math.round(showRate * 100)}%</i>, target 65%)</> : ""} · replacements <i className={prog.replacements_used >= prog.replacement_cap ? "tl-r" : prog.replacements_used >= prog.replacement_cap / 2 ? "tl-a" : "tl-g"}>{prog.replacements_used} of {prog.replacement_cap}</i></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}><span><b>{delivered}</b> of {prog.lead_count} delivered</span><span className="muted">{prog.open ? `${prog.remaining} still to come` : "complete"}</span></div>
+            <div className="prog"><i style={{ width: `${Math.min(100, Math.round((delivered / Math.max(1, prog.lead_count)) * 100))}%` }} /></div>
+            <div className="small">{bookings.length} booked · {attended} attended{showRate !== null ? <> (<i className={showRate >= 0.65 ? "tl-g" : showRate >= 0.5 ? "tl-a" : "tl-r"}>{Math.round(showRate * 100)}%</i>, target 65%)</> : ""} · replacements {prog.replacement_requests_this_week} of {prog.replacement_weekly_max} requested this week</div>
           </>
         ) : <p className="muted">Your first lead will land here. We'll WhatsApp you the moment someone books.</p>}
       </section>
@@ -196,9 +202,10 @@ function Body() {
       <section className="card" id="mark">
         <h2>{groups.toMark.length ? `${groups.toMark.length} meeting${groups.toMark.length === 1 ? "" : "s"} to mark` : "Nothing to mark"}</h2>
         <p className="muted">Takes about 20 seconds each. Same buttons you get on WhatsApp.</p>
+        <p className="small">Mark attended once you've met the client — that's when it counts.</p>
         {flash && <div className="next-slot" role="status"><span style={{ fontSize: 24 }}>✓</span><div><b>{flash}</b>{groups.toMark.length ? `${groups.toMark.length} more to mark.` : ""}</div></div>}
         {groups.toMark.map((b) => <div key={b.id} {...mark(b.lead_id)}><MarkOne b={b} l={leads[b.lead_id]} existing={outcomes[b.id]} onDone={(m) => { setFlash(m); void load(); }} /></div>)}
-        <p className="hint">Out of goodwill, up to 3 no-shows a week can be replaced (no-shows only) after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
+        <p className="hint">Out of goodwill, up to {TERMS.goodwill_replacements_per_week} no-shows or leads you couldn't reach a week can be replaced, with proof, after a 48-hour check. Not marked within 24 hours? We record it as attended and flag it, so please mark in time.</p>
       </section>
 
       {groups.notReached.length > 0 && (
@@ -216,7 +223,7 @@ function Body() {
             <tr key={b.id} {...mark(b.lead_id)}><td>{fmtDay(b.starts_at)} {fmtTime(b.starts_at)} · {fullName(l)}{open === b.id && <Brief b={b} l={l} />}</td><td>{methodLabel(b.method)}</td>
               <td style={{ textAlign: "right" }}><button className="tap g" type="button" onClick={() => setOpen(open === b.id ? null : b.id)}>Brief</button></td></tr>); })}
         </tbody></table>
-        <h3 style={{ marginTop: 12 }}>Past (this cycle)</h3>
+        <h3 style={{ marginTop: 12 }}>Past</h3>
         {!groups.past.length && <p className="muted">No marked meetings yet.</p>}
         <table className="tbl"><tbody>
           {groups.past.map((b) => { const o = outcomes[b.id]; const l = leads[b.lead_id]; return (
@@ -228,7 +235,7 @@ function Body() {
 
       <section className="card">
         <h3>Replacements</h3>
-        <p className="muted" style={{ margin: "4px 0 6px" }}>{prog ? `${prog.replacements_used} used this cycle. ` : ""}Out of goodwill, up to 3 no-show replacements a week, no-shows only. Never "didn't buy". <Link to="/broker/help#replacements">Read more</Link></p>
+        <p className="muted" style={{ margin: "4px 0 6px" }}>{prog ? `${prog.replacement_requests_this_week} of ${prog.replacement_weekly_max} requested this week. ` : ""}Out of goodwill, up to {TERMS.goodwill_replacements_per_week} replacements a week for no-shows and leads you couldn't reach, with proof. Never "didn't buy". <Link to="/broker/help#replacements">Read more</Link></p>
         <table className="tbl"><tbody>
           {reps.map((r) => <tr key={r.id}><td>{leads[r.lead_id]?.first_name || "Lead"} · {r.reason.replace("_", " ")}</td><td>{fmtDay(r.claimed_at)}</td><td><span className={`st${r.status === "fulfilled" || r.status === "approved" ? " ok" : ""}`}>{r.status}</span></td></tr>)}
         </tbody></table>

@@ -131,7 +131,7 @@ DATA PROTECTION:
                 parts: [{ text: systemPrompt }]
             },
             contents: [
-                ...(history || []).map((m: any) => ({
+                ...(history || []).map((m: { role?: string; content?: string }) => ({
                     role: m.role === "user" ? "user" : "model",
                     parts: [{ text: m.content }]
                 })),
@@ -157,7 +157,7 @@ DATA PROTECTION:
                     model: "google/gemini-2.0-flash-001", // Upgrade to flagship Flash
                     messages: [
                         { role: "system", content: systemPrompt },
-                        ...(history || []).map((m: any) => ({ 
+                        ...(history || []).map((m: { role?: string; content?: string }) => ({ 
                             role: m.role === "user" ? "user" : "assistant", 
                             content: m.content 
                         })),
@@ -178,7 +178,7 @@ DATA PROTECTION:
                     body: JSON.stringify({
                         systemInstruction: { parts: [{ text: systemPrompt }] },
                         contents: [
-                            ...(history || []).map((m: any) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.content }] })),
+                            ...(history || []).map((m: { role?: string; content?: string }) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.content }] })),
                             { role: "user", parts: [{ text: query }] }
                         ],
                         generationConfig: { temperature: 0.7 }
@@ -189,17 +189,17 @@ DATA PROTECTION:
                 responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Einstein: Signal loss detected.";
                 usedProvider = "gemini";
             }
-        } catch (error: any) {
-            throw new Error(`Einstein Neural Bridge Collapse: ${error.message}`);
+        } catch (error: unknown) {
+            throw new Error(`Einstein Neural Bridge Collapse: ${error instanceof Error ? error.message : String(error)}`);
         }
 
         return new Response(JSON.stringify({ text: responseText, role }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("AI Query Error:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

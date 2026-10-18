@@ -2,6 +2,43 @@
 
 All documents are **DRAFT — for practitioner review**. Markdown only; PDF rendering is a later step.
 
+## LGSA-v0.3 repair pass — 2026-10-10 (after independent checks)
+
+### Changed (edit the draft, then `node make-sources.mjs` and `node build-docx.mjs template`)
+- 9.5, 9.7: a move on from the Pilot is made only under 9.7 (pay the next Plan's Fee in advance, no 9.5 notice). S1.3 states the Fee and Committed Leads of Silver and Gold instead of bracketed placeholders; the CRM generator lists Bronze there for a Pilot Client.
+- 1.1.28, S1.1: the weekly maximum (3 requests per Calendar Week) is stated next to the definition and in Schedule 1. 1.1.35: same two calls as S3.4(a).
+- 6.3, 11.6, S1.1: refunds are never more in total than the Client paid (rounded Effective Lead Price over-refunded a full Silver or Gold cycle by R10 or R5).
+- D11 and D12 lawyer notes corrected; D10 row added to the change log. 8.3, 8.4 and 6.1 untouched (open-items.md section 7, questions 7 and 9).
+- `make-sources.mjs` fails if these drop out; `src/lib/contract/agreement.ts` warns when the 1.1.14 prices, the weekly cap or an S1.3 Plan row drift from `pricing.seed.json`. `build-docx.mjs`: the two Silver and Gold substitutions for the old placeholders are gone.
+- `open-items.md`: questions 9 and 10, and section 8 (what this pass fixed, and the system work it deliberately did not do).
+- Outside the agreement: no broker-facing surface prints the internal per-cycle replacement cap any more (portal, W25 tier cards, checkout, the W14 weekly report and the W19 cycle-end WhatsApp line); the engine still enforces it silently (open-items.md section 8, item 1).
+
+## Lead Generation Services Agreement LGSA-v0.3 — 2026-10-10 (Pilot restored)
+
+### Changed (Jonathan's 10 Oct decisions; edit `lead-velocity-services-agreement-v2.md`, then `node make-sources.mjs`)
+- Pilot Plan restored (reverses the 7 Oct withdrawal): R8,500 once-off, 10 Qualified Leads (R850 each), first-time clients only, one introductory cycle, then Bronze or higher. 1.1.24, 9.6, 9.7, S1.3; "minimum Plan is Bronze" removed.
+- Replacements: 3 requests per Calendar Week for every Plan (no separate Pilot cap); an Uncontactable Lead ("couldn't reach them") also earns one, inside the same 3. New definition 1.1.35; 1.1.28, 7.1 to 7.7, 9.7, 14.3(c), S4.3; Schedule 3 rewritten (S3.4 and S3.5 new, S3.1 to S3.3 unchanged). Clause 7 stays goodwill ("may"): "will" vs "may" is open.
+- Refunds of undelivered leads, Top-Up Leads included, at the Effective Lead Price of the Client's Plan (Pilot R850, Bronze R825, Silver R817, Gold R789): 1.1.14, 6.3, 6.6, 11.6, S1.1, S1.2.
+- Notice stays 7 days (11.1). Clauses 8.3 and 8.4 untouched.
+- Tooling: `make-v02-sources.mjs` renamed `make-sources.mjs` (now v0.3, fails if a decided term drops out); `lead-velocity-services-agreement-v0.2-marked.md` renamed `-v0.3-marked.md` (v0.2 was never issued); `build-docx.mjs` footer reads the version from the source and numbers clauses with a letter suffix (1.1.3A).
+- `open-items.md`: sections 6 (decided) and 7 (open questions) added.
+
+### Open
+- `mark-whatsapp-reply.md` and the Mark copy describe v0.1/v0.2 and need redrafting; `node build-docx.mjs mark` already fails on the generic Parties placeholders.
+
+## Consent and privacy CP-v0.3 + consent scope v3 — 2026-10-07
+
+### Changed
+- `consent-and-privacy.md` CP-v0.1 → **CP-v0.3**. It is numbered past CP-v0.2 because that number is already used by `lead-generation-agreement/consent-and-privacy.md`. Consent texts move to v3 scope, "insurance and financial planning". New texts: `SMOKER-Q-v1` and `CTWA-REOFFER-v1` (tier B re-offer, not built yet). Privacy notice **PN-v1.2** mirrors the live page and adds cover through work, the tier B offer path, dispute evidence to the adviser, what Meta never gets, and a smoker retention line marked [CONFIRM with practitioner]. Cookie notice **CN-v1.2** (`smc_sid` row). The Part 5 templates are the live v3 texts. The file ends with its own change log and its open questions.
+- `broker-services-agreement.md`: **SUPERSEDED** header pointing to LGSA-v0.2. The rest is unchanged, for the record.
+- `lead-generation-agreement/consent-and-privacy.md` (CP-v0.2): status note (a proposal, not live). Scope "life cover" → "insurance and financial planning" in 1.1, 1.5 and Part 3 rule 7. Part 5 row 9.
+- `paia-manual.md` §10.1 and `ncc-direct-marketer-pack.md` row 6: the processing purpose and the direct-marketing description now say "insurance and financial planning".
+- `../media-buyer/campaign-spec.md` §3.5: the quoted instant-form consent is now `CONSENT-NAMED-v3` (it matches `instant-form-spec.json` and `consent.json` word for word). The disclaimer body is `DISC-FULL-v2`.
+
+### Open
+- Practitioner: open questions 1 to 8 at the end of CP-v0.3 (scope specificity, smoker status retention and s27 consent, re-offer consent, generic sequential offers, dispute evidence, the separate ads consent in LGSA 13.2(c), NH-60, Q22 against LGSA 8.4).
+- Build: open questions 9 to 12 at the end of CP-v0.3 (a W34 smoker job and 72-hour purge of `capture_state`, the smoker answer withheld on re-offer, a narrow dispute pack, the privacy page mirror and relabel).
+
 ## Lead Generation Services Agreement LGSA-v0.2 — 2026-10-07 (Mark Weston amendments)
 
 ### Added

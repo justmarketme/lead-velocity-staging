@@ -663,11 +663,14 @@ function normalizeLead(raw) {
   };
 }
 /* Backstop for the form's conditional logic (campaign-spec 3.4): re-check every answer and the consent tick.
- * Accepts the option key (35_44) or its label (35-44). Bands: age 35-44 / 45-50; budget R750-R1,250 and R1,250+ both qualify (0.1). */
+ * Accepts the option key (35_44) or its label (35-44). Bands: age 35-44 / 45-50; every known budget band (tier C under R750
+ * included since 2026-10-11); an unknown band value is still refused. */
 const slug = (v) => String(v == null ? '' : v).trim().toLowerCase();
 const AGE_OK = new Set(['35_44', '35-44', '45_50', '45-50']);
 // Same bands as W01/W03 QUAL_BUDGET (0.1: every band from R750 up). 1250_1499 / 1500_plus were missing after the split (5598a27).
-const BUDGET_OK = new Set(['750_1250', 'r750-r1,250', '1250plus', 'r1,250 or more', '1250_1499', 'r1,250-r1,499', '1500_plus', 'r1,500+']);
+// Tier C (Jonathan, 2026-10-11): under R750 is no longer out of band (stored, routed only to a broker with the standing yes).
+const BUDGET_OK = new Set(['750_1250', 'r750-r1,250', '1250plus', 'r1,250 or more', '1250_1499', 'r1,250-r1,499', '1500_plus', 'r1,500+',
+  '750_1499', 'r750-r1,499', 'lt750', 'under r750', 'lt500', 'under_500', 'under r500', '500_750', 'r500-r750']);
 function qualifyLead(lead) {
   const a = lead.answers || {}, reasons = [];
   if (!AGE_OK.has(slug(a.age_band))) reasons.push('age_band');

@@ -140,7 +140,7 @@ test('NAME required and validated; three bad submits auto-disqualify (invalid_co
   assert.equal(r.response.screen, 'END');
   assert.equal(r.response.data.body, C.COPY.end_invalid_body);
   assert.equal(r.effects.find((e) => e.kind === 'disqualify').reason, 'invalid_contact');
-  assert.equal(r.effects.find((e) => e.kind === 'disqualify').set.counts_toward_cycle, false);
+  assert.equal(r.effects.find((e) => e.kind === 'disqualify').set.delivered, false);
   assert.equal(C.validName("Mary-Jane O'Neil"), "Mary-Jane O'Neil");
   assert.equal(C.validName('Zoë'), 'Zoë');
 });
@@ -190,15 +190,18 @@ test('AGE: required; <35 and 51+ close politely, never delivered', async () => {
   }
   assert.equal((await harness().send({ screen: 'AGE' })).response.screen, 'AGE');
 });
-test('BUDGET: tiers A/B, below R750 closes and is never counted', async () => {
-  assert.deepEqual(C.TIER_OF, { '1500_plus': 'A', '1250_1499': 'B', '750_1250': 'B' });
+test('BUDGET: tiers A/B/C; under R750 is tier C and the questions go on (2026-10-11); an unknown band is refused', async () => {
+  assert.deepEqual(C.TIER_OF, { '1500_plus': 'A', '1250_1499': 'B', '750_1250': 'B', lt750: 'C' });
   const h = harness();
   const r = await through(h, 'BUDGET', { BUDGET: { budget_band: 'lt750' } });
-  assert.equal(r.response.screen, 'END');
-  const d = r.effects.find((e) => e.kind === 'disqualify');
-  assert.equal(d.reason, 'budget_band'); assert.equal(d.set.counts_toward_cycle, false);
-  // a closed capture stays closed: further screens cannot reopen it
-  assert.equal((await h.send({ screen: 'SMOKER', smoker: 'no' })).response.screen, 'END');
+  assert.equal(r.response.screen, 'SMOKER', 'not closed: the conversation continues');
+  assert.ok(!r.effects.some((e) => e.kind === 'disqualify'), 'never disqualified on budget');
+  assert.equal(h.state.capture.lead_tier, 'C');
+  assert.equal((await harness().send({ screen: 'BUDGET', budget_band: 'r200' })).response.screen, 'BUDGET', 'unknown band: asked again');
+  // a closed capture (age out of band) stays closed: further screens cannot reopen it
+  const x = harness();
+  await through(x, 'AGE', { AGE: { age_band: '51plus' } });
+  assert.equal((await x.send({ screen: 'SMOKER', smoker: 'no' })).response.screen, 'END');
   const a = harness();
   const ok = await through(a, 'BUDGET');
   assert.equal(ok.response.screen, 'SMOKER');
@@ -239,6 +242,15 @@ test('tier A: INCOME -> DATE (CalendarPicker bounds) -> SLOTS -> CONFIRM -> book
   assert.equal(card.template, 'broker_intro_booked');
   assert.deepEqual(card.vars, ['Lerato', 'Mark Smith Financial Services', '12345', 'Mark Smith', 'Microsoft Teams', 'Thu 8 Oct', '10:00']);
   assert.ok(r.effects.some((e) => e.kind === 'send_email_verification'));
+});
+test('verify gate: W05 answers with a HELD slot -> no intro card, the verification email, the "check your email" END screen with the deadline', async () => {
+  const h = harness({ book: async (p) => ({ ok: true, held: true, booking: { id: 'bk_h', verify_by: '2026-10-08T09:00:00+02:00' } }) });
+  const r = await through(h, 'CONFIRM');
+  assert.equal(r.response.data.heading, C.COPY.end_held_heading);
+  assert.match(r.response.data.body, /holding Thu 8 Oct at 10:00 .*lerato@example\.co\.za.*Thu 8 Oct at 09:00/);
+  assert.ok(!r.effects.some((e) => e.kind === 'send_template' && e.template === 'broker_intro_booked'), 'the intro card waits for the verification');
+  assert.ok(r.effects.some((e) => e.kind === 'send_email_verification'));
+  assert.equal(h.state.capture.held, true);
 });
 test('tier A edge cases: day full, slot taken at SLOTS, taken at CONFIRM, calendar down, broker without Teams', async () => {
   let h = harness();
@@ -291,10 +303,12 @@ test('makeOffer: template with Accept/Decline, lead gets the matching line, expi
 });
 const OFFER = { lead_id: LEAD.id, broker_id: BROKER.broker_id, status: 'offered', broker_whatsapp: BROKER.adviser_whatsapp };
 const B2 = { broker_id: 'b0000000-0000-4000-8000-000000000002' };
-test('accept: delivered + counted, timestamped, W06 first touch with the Flow card', () => {
+test('accept: routed (place reserved), NOT delivered or counted (that is the database, at booked + confirmed), W06 first touch', () => {
   const r = C.decideOffer('accept', { offer: OFFER, lead: LEAD, now: NOW, actor_broker_id: BROKER.broker_id });
   const set = r.effects.find((e) => e.kind === 'update_lead').set;
-  assert.equal(set.offer_status, 'accepted'); assert.equal(set.counts_toward_cycle, true); assert.equal(set.delivered, true);
+  assert.equal(set.offer_status, 'accepted'); assert.equal(set.broker_id, BROKER.broker_id);
+  assert.equal('delivered' in set, false, 'an accept never marks the lead delivered (agreement 5.2: counted at booked + attendance confirmed)');
+  assert.equal('counts_toward_cycle' in set, false, 'no cycles: setting broker_id reserves a place on his open lead order (database)');
   assert.equal(set.offer_decided_at, new Date(NOW).toISOString());
   assert.equal(r.effects.find((e) => e.kind === 'first_touch').template, 'broker_intro_slots_v2');
 });
@@ -302,7 +316,7 @@ test('decline: not counted, not delivered, never re-offered to the same broker; 
   let seen;
   const r = C.decideOffer('decline', { offer: OFFER, lead: { ...LEAD, declined_broker_ids: ['old'] }, now: NOW, nextBroker: (l, ex) => { seen = ex; return B2; } });
   const set = r.effects.find((e) => e.kind === 'update_lead').set;
-  assert.equal(set.counts_toward_cycle, false); assert.equal(set.delivered, false); assert.equal(set.broker_id, null);
+  assert.equal(set.delivered, false); assert.equal(set.broker_id, null);
   assert.deepEqual(set.declined_broker_ids, ['old', BROKER.broker_id]);
   assert.ok(seen.has(BROKER.broker_id));
   assert.equal(r.effects.find((e) => e.kind === 'reconsent').broker_id, B2.broker_id);
@@ -319,6 +333,48 @@ test('expiry = declined (status expired); no next broker -> held, lead told, ale
 test('offer decisions are idempotent and only the offered broker can decide', () => {
   assert.equal(C.decideOffer('accept', { offer: { ...OFFER, status: 'declined' }, lead: LEAD, now: NOW }).changed, false);
   assert.equal(C.decideOffer('accept', { offer: OFFER, lead: LEAD, now: NOW, actor_broker_id: B2.broker_id }).effects[0].reason, 'offer_wrong_broker');
+});
+
+// ------------------------------------------------------------------------------------------------ tier C (under R750)
+test('tier C + broker with the standing yes: offer accepted at once (standing), books in the Flow like tier A, never counted here', async () => {
+  const h = harness({ broker: { ...BROKER, accepts_low_budget: true } });
+  const r = await through(h, 'INCOME', { BUDGET: { budget_band: 'lt750' } });
+  assert.equal(r.response.screen, 'DATE');
+  const ins = r.effects.find((e) => e.kind === 'insert_offer');
+  assert.deepEqual([ins.row.status, ins.row.decided_via, ins.row.broker_id], ['accepted', 'standing', BROKER.broker_id]);
+  assert.ok(!r.effects.some((e) => e.kind === 'send_template' && e.template === 'broker_lead_offer'), 'no Accept/Decline ask: the standing yes is the accept');
+  const sets = r.effects.filter((e) => e.kind === 'update_lead').map((e) => e.set);
+  assert.ok(sets.some((x) => x.lead_tier === 'C' && x.offer_status === 'accepted'));
+  assert.ok(sets.every((x) => x.delivered !== true), 'never delivered at the accept');
+  const d = await h.send({ screen: 'DATE', date: '2026-10-08' });
+  assert.equal(d.response.screen, 'SLOTS');
+});
+test('tier C + broker without the standing yes: held open (held_low_budget, broker cleared), honest END + one WhatsApp, not disqualified', async () => {
+  const h = harness();
+  const r = await through(h, 'INCOME', { BUDGET: { budget_band: 'lt750' } });
+  assert.equal(r.response.data.heading, C.COPY.end_low_budget_heading);
+  assert.equal(r.response.data.body, C.fill(C.COPY.end_low_budget_body, { first_name: 'Lerato' }));
+  assert.doesNotMatch(C.COPY.end_low_budget_body, /call you|will call|guarantee|R\d/i, 'no promise of a call, no amounts');
+  const held = r.effects.filter((e) => e.kind === 'update_lead').map((e) => e.set).find((x) => x.routing_reason === 'held_low_budget');
+  assert.deepEqual([held.broker_id, held.stage, held.lead_tier, held.offer_status], [null, 'qualified', 'C', 'held']);
+  assert.ok(!r.effects.some((e) => e.kind === 'disqualify' || e.kind === 'insert_offer' || e.kind === 'broker_offer'), 'never offered to a broker without the standing yes');
+  const t = r.effects.find((e) => e.kind === 'send_template');
+  assert.equal(t.template, 'lead_low_budget_held'); assert.deepEqual(t.vars, ['Lerato']); assert.equal(t.correlation, `w01:low_budget_held:${LEAD.id}`);
+  const tpl = JSON.parse(readFileSync(join(ROOT, 'automation/templates/lead_low_budget_held.json'), 'utf8'));
+  assert.equal(tpl.components.find((c) => c.type === 'BODY').example.body_text[0].length, t.vars.length);
+  assert.equal((await h.send({ screen: 'DATE', date: '2026-10-08' })).response.data.heading, C.COPY.end_low_budget_heading, 'no booking while held');
+  assert.equal(h.state.booked.length, 0);
+});
+test('tier C offer lifecycle: declined / expired -> only a next broker with the standing yes; none -> held_low_budget + honest template', () => {
+  const lead = { ...LEAD, lead_tier: 'C' };
+  const r = C.decideOffer('expired', { offer: OFFER, lead, now: NOW, consent_mode: 'generic', nextBroker: () => B2 }); // B2 has no standing yes
+  assert.ok(r.effects.some((e) => e.kind === 'update_lead' && e.set.routing_reason === 'held_low_budget'));
+  assert.equal(r.effects.find((e) => e.kind === 'send_template').template, 'lead_low_budget_held');
+  assert.ok(!r.effects.some((e) => e.kind === 'offer_next'));
+  const ok = C.decideOffer('expired', { offer: OFFER, lead, now: NOW, consent_mode: 'generic', nextBroker: () => ({ ...B2, accepts_low_budget: true }) });
+  assert.equal(ok.effects.find((e) => e.kind === 'offer_next').broker_id, B2.broker_id);
+  const m = C.makeOffer({ lead: { ...lead, capture: { first_name: 'Lerato', lead_tier: 'C' } }, broker: { ...B2, accepts_low_budget: true }, now: NOW });
+  assert.equal(m.offer.status, 'accepted'); assert.equal(m.offer.decided_via, 'standing');
 });
 
 // ------------------------------------------------------------------------------------------------ email verification

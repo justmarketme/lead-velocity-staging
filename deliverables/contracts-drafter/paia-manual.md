@@ -100,7 +100,7 @@ Fees are those set in the PAIA Regulations for private bodies. At the date of th
 ## 10. Processing of personal information (POPIA section 51 and section 18)
 
 ### 10.1 Purposes
-- Connecting consumers who ask for it with one authorised financial services provider about life cover
+- Connecting consumers who ask for it with one authorised financial services provider about insurance and financial planning
 - Booking and reminding consumers of calls; sending invites
 - Measuring and improving advertising (hashed data only)
 - Running broker accounts, billing and reporting
@@ -111,12 +111,12 @@ Fees are those set in the PAIA Regulations for private bodies. At the date of th
 
 | Data subject | Information |
 |---|---|
-| Consumers (leads) | First name, mobile, optional email (invite only), optional call and backup numbers, age band, budget band, bond/dependants, preferred call method, booking times, messages, consent record, ad source, device and IP data |
+| Consumers (leads) | First name and surname, mobile, optional email (invite only), optional call and backup numbers, age band, budget band, reason(s) for the call, bond/dependants/cover through work, optional spend and income bands, optional smoker status, preferred call method, booking times, messages, consent record, ad source, device and IP data |
 | Brokers and advisers | Names, practice, FSP number, contact details, calendar availability, headshot, bio, voice and video recordings (with consent), payment records, feedback |
 | Suppliers | Contact and banking details, contracts |
 | Staff and contractors | Contact, identity, tax and payment details |
 
-Special personal information (such as health) is not asked for. If volunteered, it is removed from stored records.
+Smoker status (special personal information, POPIA s26) is asked only as an optional question with the consumer's express consent (s27(1)(a)) and is used only to brief the adviser named in the question. No other special personal information is asked for; if volunteered, it is removed from stored records.
 
 ### 10.3 Recipients
 - The one authorised FSP a consumer agreed to be passed to

@@ -1,6 +1,7 @@
 // I-52a (REHEARSAL-L01 F2): every literal `source` a workflow writes to public.webhook_events must be in
-// webhook_events_source_check as last defined by the migrations (02 creates it inline, 13 §7 widens it).
-// A new source in any automation/W*.json or SUB-*.json that the CHECK does not allow fails here, not on a lead.
+// webhook_events_source_check as defined by the crm-nurture chain (20261011020000_smc_02_core.sql).
+// Scope (crm-nurture, 2026-10-11): the workflows that run on the CRM chain (NURTURE below). The billing / reporting / ads
+// workflows (W14, W16-W19, W21, W25, W26 ...) depend on objects the chain does not create: see CRM-NURTURE-SCHEMA.md.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -10,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AUTO = resolve(HERE, '..');
 const MIG = resolve(AUTO, '..', 'supabase', 'migrations');
-const MIGRATIONS = ['20261002_smc_02_core.sql', '20261002_smc_06_pass2.sql', '20261002_smc_13_pass7.sql'];
+const MIGRATIONS = ['20261011020000_smc_02_core.sql'];
+const NURTURE = new Set(['W01.json', 'W03.json', 'W04.json', 'W05.json', 'W06.json', 'W07.json', 'W08.json', 'W09.json', 'W10.json', 'W12.json', 'W13.json',
+  'W15.json', 'W20.json', 'W23.json', 'W28.json', 'SUB-whatsapp-send.json', 'SUB-capi-send.json']);
 
 /** Split the start of `s` into top-level comma-separated expressions (quotes and parens respected). */
 function topLevelItems(s, want) {
@@ -49,7 +52,7 @@ export function webhookInserts(text) {
 }
 
 function workflowFiles() {
-  return readdirSync(AUTO).filter((f) => /^(W\d+|SUB-.+)\.json$/.test(f)).sort();
+  return readdirSync(AUTO).filter((f) => /^(W\d+|SUB-.+)\.json$/.test(f) && NURTURE.has(f)).sort();
 }
 
 function collectStrings(v, acc = []) {
@@ -96,11 +99,11 @@ export function checkList() {
 // The only non-literal writer allowed: the shared verify-webhooks helper constant (source passed as $1 by JS
 // callers that pass a provider name). Any other dynamic source must be reviewed and added here on purpose.
 const DYNAMIC_OK = /^\$1$/;
-const DYNAMIC_FILES_OK = new Set(['W03.json', 'W16.json', 'W19.json', 'W25.json', 'W28.json']);
+const DYNAMIC_FILES_OK = new Set(['W03.json', 'W28.json']);
 
 test('extractor finds W01 rate-counter and W20 dedupe sources (F2 regression)', () => {
   const lits = new Set(workflowSources().filter((r) => r.source).map((r) => `${r.file}:${r.source}`));
-  for (const k of ['W01.json:w01_ip', 'W01.json:w01_num', 'W20.json:w20', 'W07.json:whatsapp', 'W03.json:whatsapp', 'W16.json:paystack']) {
+  for (const k of ['W01.json:w01_ip', 'W01.json:w01_num', 'W20.json:w20', 'W07.json:whatsapp', 'W03.json:whatsapp']) {
     assert.ok(lits.has(k), `expected ${k} in extracted literals`);
   }
 });
@@ -111,11 +114,12 @@ test('W03/W07 claim keys are external_id prefixes, never a source', () => {
   }
 });
 
-test('CHECK list parsed from migrations: 13 §7 is a superset of 02 (additive)', () => {
+test('CHECK list parsed from the chain: defined once in 02, carries the rate counters and the Graph dedupe, no billing source', () => {
   const { current, history } = checkList();
-  assert.ok(history.length >= 2, `expected 02 + 13 definitions, got ${history.map((h) => h.file).join(', ')}`);
-  assert.equal(history[0].file, '20261002_smc_02_core.sql');
-  for (const v of history[0].list) assert.ok(current.includes(v), `02 value '${v}' dropped from the current CHECK`);
+  assert.equal(history.length, 1, `expected one definition, got ${history.map((h) => h.file).join(', ')}`);
+  assert.equal(history[0].file, '20261011020000_smc_02_core.sql');
+  for (const v of ['whatsapp', 'w01_ip', 'w01_num', 'w20']) assert.ok(current.includes(v), v);
+  assert.ok(!current.includes('paystack'), 'billing is the CRM lead_orders flow, not a chain webhook');
 });
 
 test('every literal webhook_events.source in W*.json / SUB-*.json is allowed by the CHECK', () => {

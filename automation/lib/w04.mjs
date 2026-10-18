@@ -31,7 +31,7 @@ export const H = 60 * MIN;
 export const D = 24 * H;
 const OFF = 2 * H;
 export const DOW = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const ACTIVE = new Set(['booked', 'confirmed']);
+export const ACTIVE = new Set(['pending_verification', 'booked', 'confirmed']); // a held slot (verify gate, 2026-10-11) is busy too
 export const DAY_VIEW_MAX = 20; // Flow RadioButtonsGroup limit (W28)
 export const LIST_MAX = 10; // WhatsApp interactive list rows
 export const CACHE_MS = 60_000; // CONTRACTS: responses cached 60 s per broker (shared by both paths)
@@ -258,7 +258,9 @@ export function planToken(res, nowMs = Date.now()) {
  * Prefer: outlook.timezone="Africa/Johannesburg" so scheduleItems come back in SAST.
  */
 export function getScheduleRequest(b, now, { fresh = false } = {}) {
-  const mailbox = b.calendar_email || b.email || null;
+  // Only the mailbox the broker connected (ms-oauth stores it from Graph /me). Never the login email: that can be a
+  // different mailbox, and an empty schedules list fails closed in parseGetSchedule (no slots offered from a wrong calendar).
+  const mailbox = b.calendar_email || null;
   const start = at(sast(now).date, '00:00');
   const end = start + (Number(b.horizon_days || 14) + 1) * D;
   return {

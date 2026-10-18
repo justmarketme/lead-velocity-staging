@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +10,14 @@ import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { openAdminDocument } from "@/lib/adminDocs";
 import { getInvoiceEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { callLegalAI } from "@/utils/legalAI";
-import { TIERS, ALL_PLANS, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import type { Tables } from "@/integrations/supabase/types";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 // Invoice line + terms built from the pricing source (3.6) - no price is typed in this file.
 // Wording never mentions policies, commission or success (FAIS, Raspberry Academy v Oaksure).
@@ -23,11 +28,13 @@ const invoiceLine = (t: PricingTier) => ({
     quantity: 1,
     price: t.price_zar,
 });
-const INVOICE_TERMS = `Payable in advance, before the billing cycle starts; delivery starts once payment has cleared. ${LATE_PAYMENT_TEXT} Month to month: either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. Top-ups (once the cycle's leads are delivered): ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), ${TOPUP.notice_days} days' notice, paid in advance.`;
+const invoiceTerms = (t: PricingTier) => `Payable in advance, before the billing cycle starts; delivery starts once payment has cleared. ${LATE_PAYMENT_TEXT} ${isPilot(t) ? `Once-off introductory cycle: the ${t.name} is a single ${TERMS.cycle_days}-day cycle; to continue, the client pays in advance for ${PILOT.continue_on}, otherwise the agreement ends.` : `Month to month: either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle.`} Fees for a cycle that has started are not refundable. Top-ups (once the cycle's leads are delivered): ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), ${TOPUP.notice_days} days' notice, paid in advance.`;
+// A preset swaps the terms only while they are still one of the generated texts, so a hand-edited note is never overwritten.
+const isGeneratedTerms = (notes: string) => ALL_PLANS.some((p) => invoiceTerms(p) === notes);
 
 interface InvoiceGeneratorProps {
     onBack: () => void;
-    initialData?: any;
+    initialData?: Record<string, unknown>;
 }
 
 // Helper component for inline editing
@@ -41,7 +48,7 @@ const Editable = ({
     value: string;
     onChange: (val: string) => void;
     className?: string;
-    tag?: any;
+    tag?: React.ElementType;
     html?: boolean;
 }) => {
     const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
@@ -112,7 +119,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         "Add a late fee clause",
         "Make it sound more professional"
     ]);
-    const [pendingChanges, setPendingChanges] = useState<any>(null);
+    const [pendingChanges, setPendingChanges] = useState<Record<string, unknown> | null>(null);
 
     const [invoiceData, setInvoiceData] = useState({
         invoiceNumber: "INV-2024-001",
@@ -122,7 +129,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         clientAddress: "123 Client Street, City, Country",
         clientVat: "VAT: 4000123456",
         items: [invoiceLine(TIERS[0])],
-        notes: INVOICE_TERMS,
+        notes: invoiceTerms(TIERS[0]),
         // NH-61: no bank account details in the build. Payment is by EFT, in advance, per 30-day cycle; Jonathan adds the account details on his own invoice.
         paymentWording: `Payment by EFT or Paystack, in advance, per ${TERMS.cycle_days}-day cycle.`,
         reference: "INV-2024-001",
@@ -132,7 +139,13 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         companyRegNumber: "Reg: [REG NO]"
     });
 
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<Tables<'admin_documents'>[]>([]);
+
+    // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
+    const viewPdf = async (path: string) => {
+        const r = await openAdminDocument(path);
+        if (!r.ok) toast({ title: "Could not open the PDF", description: r.error, variant: "destructive" });
+    };
 
     const fetchHistory = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -149,7 +162,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
 
     useEffect(() => {
         if (initialData) {
-            setInvoiceData(initialData);
+            setInvoiceData(initialData as typeof invoiceData);
         }
         fetchHistory();
     }, [initialData]);
@@ -176,7 +189,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
     const [recipientEmail, setRecipientEmail] = useState("");
     const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
 
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Independent Broker";
         const leads = broker.desired_leads_weekly || 0;
@@ -193,7 +206,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             clientPhone: broker.phone_number || broker.phone || "",
             clientAddress: broker.office_address || "Address: To be updated",
             items: [invoiceLine(tier)],
-            notes: INVOICE_TERMS,
+            notes: invoiceTerms(tier),
         }));
 
         if (broker.email) {
@@ -302,8 +315,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             setIsListening(false);
             return;
         }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported in this browser.", variant: "destructive" });
             return;
@@ -315,7 +327,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             setIsListening(true);
             toast({ title: "Listening...", description: "Speak your command clearly." });
         };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);
@@ -341,11 +353,11 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             }
             if (response && isConversational) speak(response);
             if (response && !isConversational) setAiResponse(response);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("AI Assistant Error:", error);
             const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
             setAiResponse(errorMsg);
-            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+            toast({ title: "AI Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsThinking(false);
         }
@@ -445,11 +457,6 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
 
                 if (uploadError) throw uploadError;
 
-                // Get Public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('admin-documents')
-                    .getPublicUrl(filePath);
-
                 // Get Current User
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
@@ -508,9 +515,9 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                     toast({ title: "Saved", description: "Invoice saved to documents library." });
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast({ title: "Error", description: error.message || "Failed to process document.", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error) || "Failed to process document.", variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -585,7 +592,8 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                                     newItems[0] = invoiceLine(tier);
                                                     setInvoiceData(prev => ({
                                                         ...prev,
-                                                        items: newItems
+                                                        items: newItems,
+                                                        notes: isGeneratedTerms(prev.notes) ? invoiceTerms(tier) : prev.notes
                                                     }));
                                                     toast({ title: `${tier.name} Applied`, description: "Line item updated." });
                                                 }}
@@ -625,9 +633,9 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                                             <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
                                                 <div className="flex justify-between items-start">
                                                     <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
-                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-green-400 hover:text-green-300 shrink-0 bg-green-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
+                                                    <button type="button" onClick={() => viewPdf(doc.file_path)} className="text-green-400 hover:text-green-300 shrink-0 bg-green-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
                                                         View PDF
-                                                    </a>
+                                                    </button>
                                                 </div>
                                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
                                                     {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}

@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,14 @@ const SECURITY_QUESTIONS = [
     "What is your favorite book?",
 ];
 
+/** Fields the setup page reads off the invite (edge function or get_broker_invite_by_token RPC). */
+interface BrokerInvite {
+    email?: string | null;
+    broker_name?: string | null;
+    firm_name?: string | null;
+    portal_type?: string | null;
+}
+
 const BrokerSetup = () => {
     const { token } = useParams();
     const navigate = useNavigate();
@@ -27,7 +36,7 @@ const BrokerSetup = () => {
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [invite, setInvite] = useState<any>(null);
+    const [invite, setInvite] = useState<BrokerInvite | null>(null);
     const [step, setStep] = useState(1);
 
     const [password, setPassword] = useState("");
@@ -58,7 +67,7 @@ const BrokerSetup = () => {
             }
 
             // Prefer Edge Function (works without DB migration); fallback to RPC
-            let data: any = null;
+            let data: BrokerInvite | null = null;
             let err: { message?: string; code?: string } | null = null;
 
             const { data: fnData, error: fnError } = await supabase.functions.invoke("get-broker-invite-by-token", {
@@ -83,7 +92,7 @@ const BrokerSetup = () => {
                 console.error("Broker invite validation error:", err);
                 toast({
                     title: "Setup Link Error",
-                    description: err.message?.includes("function") || (err as any).code === "42883"
+                    description: err.message?.includes("function") || err.code === "42883"
                         ? "Invite system may need a database update. Please contact your administrator."
                         : "This invitation link could not be validated. Please contact your administrator.",
                     variant: "destructive",
@@ -194,11 +203,11 @@ const BrokerSetup = () => {
                 navigate("/broker", { state: { email: loginEmail } });
             }, 3000);
             return () => clearTimeout(timer);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Setup error:", error);
             toast({
                 title: "Setup Failed",
-                description: error.message,
+                description: errorMessage(error),
                 variant: "destructive",
             });
         } finally {

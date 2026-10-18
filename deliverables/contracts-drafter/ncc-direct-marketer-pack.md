@@ -21,7 +21,7 @@
 | 3 | Physical and postal address; phone; howzit@leadvelocity.co.za | — | ☐ |
 | 4 | Trading names: Lead Velocity, SortMyCover (and CoverKlaar, reserved) | — | ☐ |
 | 5 | Contact person for the NCC (Jonathan) and alternate (KG) | — | ☐ |
-| 6 | Description of direct-marketing activity: "Consent-based contact by WhatsApp (and SMS fallback) with consumers who ask to be connected to an authorised financial services provider about life cover. Booking confirmations and reminders. No cold calling. No bought lists." | this pack | ☐ |
+| 6 | Description of direct-marketing activity: "Consent-based contact by WhatsApp (and SMS fallback) with consumers who ask to be connected to an authorised financial services provider about insurance and financial planning. Booking confirmations and reminders. No cold calling. No bought lists." | this pack | ☐ |
 | 7 | Channels used: WhatsApp, SMS fallback, email (meeting invites only), phone (by the broker, not us) | 4.6 | ☐ |
 | 8 | Expected monthly volume of consumers contacted: {{volume_estimate}} (Bronze ≈ 40 raw leads/month per broker) | 3.2 | ☐ |
 | 9 | Information Officer registration reference | IO pack | ☐ |

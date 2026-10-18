@@ -18,7 +18,7 @@ Weekly: generated Sun 23:00, sent Mon 07:00 SAST (before the 07:30 digest). Day-
     "delivered": {"v": 7, "target": 10, "last": 4, "committed": 20}, "verified": {"v": 7, "target": null, "last": 4},
     "booked": {"v": 5, "target": 0.60, "last": 0.60, "rate": 0.71}, "attended": {"v": 4, "target": null, "last": 3},
     "show_rate": {"v": 0.80, "target": 0.65, "last": 0.75, "light": "green"},
-    "replacements": {"used": 0, "cap": 4, "last_used": 0, "light": "green"}, "days_left": 16},
+    "replacements": {"used": 0, "last_used": 0}, "days_left": 16},
   "s3_meetings": {
     "last_week": [{"lead_ref": "lead_uuid", "first_name": "Lerato", "initial": "M", "full_name": "Lerato Mokoena", "when": "2026-10-08T11:00+02:00", "method": "teams", "outcome": "attended", "unconfirmed": false, "disposition": "fit_followup", "quality": 4}],
     "next_week": [{"first_name": "Pieter", "initial": "B", "when": "2026-10-13T10:00+02:00", "method": "teams"}],
@@ -78,7 +78,7 @@ None eligible: `s7_ask = null`. Button deep links `ask/<report_id>` land on the 
 | R04 | Exactly one ask, or none with the one-line saying so |
 | R05 | WhatsApp: at most six lines, no lead full name, no health detail |
 | R06 | Every number has target and last week (or an explicit n/a) |
-| R07 | Traffic light on show rate and replacements only |
+| R07 | Traffic light on show rate only (10 Oct 2026: replacements are goodwill, 3 requests a calendar week, so the report shows "used" with no cap and no light) |
 | R08 | Grade 7 reading level (Flesch-Kincaid <= 7), first person, under 150 words before the first table |
 | R09 | `s6_roi` absent unless a close rate exists; policies reported appear nowhere else |
 | R10 | Layout and section order unchanged from the template |

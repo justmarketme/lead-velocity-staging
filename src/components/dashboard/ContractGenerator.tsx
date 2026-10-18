@@ -3,6 +3,7 @@
 // (via src/lib/contract/agreement.ts). Plan numbers: src/lib/pricing.ts. This screen only fills the
 // template's [PLACEHOLDERS] and picks the Plan; it never edits clause text. No commission, success fee
 // or any payment linked to a policy, premium or sale exists anywhere in the agreement (clause 8.3).
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, Printer, AudioLines, Bot, Download, FileText, Mail, Maximize, Mic, Monitor, Paperclip, Save, SendHorizonal, X, ZoomIn, ZoomOut } from "lucide-react";
@@ -26,12 +27,16 @@ import { generateSmartPDF, blobToBase64 } from "@/utils/pdfUtils";
 import { buildContractDocx } from "@/utils/contractToDocx";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { openAdminDocument } from "@/lib/adminDocs";
 import { getContractEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { renderAgreementHtml } from "@/lib/contract/renderHtml";
 import contractLogo from "@/assets/lead-velocity-logo-contract.png";
 import { callLegalAI } from "@/utils/legalAI";
-import { ALL_PLANS, isPilot, perLead, pricingSummaryText, zar } from "@/lib/pricing";
+import { ALL_PLANS, PILOT, PILOT_OFFERED, isPilot, perLead, pricingSummaryText, zar } from "@/lib/pricing";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 import {
     AGREEMENT_TITLE,
     PRIMARY_FIELDS,
@@ -45,7 +50,7 @@ import {
 
 interface ContractGeneratorProps {
     onBack: () => void;
-    initialData?: any;
+    initialData?: Record<string, unknown>;
 }
 
 const EMAIL_SUBJECT = `${AGREEMENT_TITLE} — draft for your review`;
@@ -61,7 +66,7 @@ const AI_GUIDANCE =
     `the fee is flat per Billing Cycle (clause 8.3; FAIS, Raspberry Academy v Oaksure). For questions about the clauses, answer in "response" and return empty "changes".`;
 
 /** content_data saved by the old Service Level Agreement screen: carry the client details over. */
-function fromLegacy(old: Record<string, any>): AgreementFields {
+function fromLegacy(old: Record<string, unknown>): AgreementFields {
     const strip = (v: unknown, prefix: RegExp, junk: string[] = []) => {
         const s = String(v ?? "").replace(prefix, "").trim();
         return junk.includes(s) ? "" : s;
@@ -94,7 +99,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     const [recipientEmail, setRecipientEmail] = useState("");
     const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
     const [confirmAction, setConfirmAction] = useState<null | "save" | "email">(null);
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<Tables<'admin_documents'>[]>([]);
 
     const [isListening, setIsListening] = useState(false);
     const [aiInput, setAiInput] = useState("");
@@ -134,6 +139,12 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         window.addEventListener("mouseup", handleMouseUp);
     };
 
+    // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
+    const viewPdf = async (path: string) => {
+        const r = await openAdminDocument(path);
+        if (!r.ok) toast({ title: "Could not open the PDF", description: r.error, variant: "destructive" });
+    };
+
     const fetchHistory = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -148,7 +159,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
     };
 
     // Fills client details only. The Plan is never inferred from desired leads: Bronze by default, the user picks.
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         const phone = broker.phone_number || broker.phone || broker.whatsapp_number || "";
         setFields((prev) => ({
             ...prev,
@@ -213,8 +224,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
 
     const toggleListening = () => {
         if (isListening) { setIsListening(false); return; }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported.", variant: "destructive" });
             return;
@@ -222,7 +232,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         const recognition = new SpeechRecognition();
         recognition.lang = "en-ZA";
         recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);
@@ -254,10 +264,10 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             if (Object.keys(allowed).length > 0) setPendingChanges(allowed);
             if (Array.isArray(suggestions) && suggestions.length > 0) setAiSuggestions(suggestions);
             if (response && isConversational) speak(response);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("AI Assistant Error:", error);
             setAiResponse("I'm sorry, I couldn't connect to the AI. Please check your internet connection.");
-            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+            toast({ title: "AI Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsThinking(false);
         }
@@ -315,7 +325,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
         await new Promise<void>((resolve) => { frame.onload = () => resolve(); frame.srcdoc = html; });
         const fdoc = frame.contentDocument!;
         await Promise.all(Array.from(fdoc.images).map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))));
-        if ((fdoc as any).fonts?.ready) await (fdoc as any).fonts.ready;
+        if (fdoc.fonts?.ready) await fdoc.fonts.ready;
         return frame;
     };
 
@@ -346,8 +356,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             const suffix = fields.include_notes ? "_INTERNAL-NOTES" : "";
             if (kind === "word") download(await buildContractDocx(doc, { logoUrl: contractLogo }), `${safeName()}${suffix}.docx`);
             else download((await renderPdf(fields)).output("blob"), `${safeName()}${suffix}.pdf`);
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            toast({ title: "Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -383,7 +393,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                     file_size: pdfBlob.size,
                     category: "contracts",
                     uploaded_by: user.id,
-                    content_data: { template_version: doc.templateVersion, fields: clientFields() } as any,
+                    content_data: { template_version: doc.templateVersion, fields: clientFields() } as unknown as Json,
                 });
                 if (dbError) throw dbError;
                 fetchHistory();
@@ -411,8 +421,8 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
             } else {
                 toast({ title: "Saved to Library" });
             }
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            toast({ title: "Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -493,7 +503,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                         </button>
                                     ))}
                                 </div>
-                                <p className="text-[10px] text-slate-500">Flat fee per 30-day cycle, excl. VAT. Never linked to policies, premiums or sales. Minimum plan is Bronze. Pick the plan yourself; it is never chosen from desired leads.</p>
+                                <p className="text-[10px] text-slate-500">Flat fee per 30-day cycle, excl. VAT. Never linked to policies, premiums or sales. {PILOT_OFFERED ? `${PILOT.name} is a once-off introductory cycle for first-time clients; after it the client continues on ${PILOT.continue_on} or the agreement ends.` : "Minimum plan is Bronze."} Pick the plan yourself; it is never chosen from desired leads.</p>
                             </div>
 
                             <Separator className="bg-white/5" />
@@ -628,7 +638,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                             <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
                                                 <div className="flex justify-between items-start">
                                                     <span className="font-medium text-slate-200 truncate pr-2">{h.name}</span>
-                                                    <a href={supabase.storage.from("admin-documents").getPublicUrl(h.file_path).data.publicUrl} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded whitespace-nowrap text-xs">View PDF</a>
+                                                    <button type="button" onClick={() => viewPdf(h.file_path)} className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded whitespace-nowrap text-xs">View PDF</button>
                                                 </div>
                                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{new Date(h.created_at).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })}</span>
                                             </div>

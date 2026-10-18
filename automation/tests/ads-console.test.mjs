@@ -94,7 +94,7 @@ test('SQL: SMC brand pin, admin check, nonce claim before the call, ad cache upd
   assert.match(L.SQL.record, /\$2 = 'applied'/); assert.match(L.SQL.record, /kind|'ads_audit'/);
   const ctxNode = WF.nodes.find((n) => n.name.startsWith('Load context'));
   assert.equal(ctxNode.parameters.query, L.SQL.context);
-  const mig = readFileSync(join(A, '..', 'supabase', 'migrations', '20261005_smc_17_ads_write_log.sql'), 'utf8');
+  const mig = readFileSync(join(A, '..', 'supabase', 'migrations', '20261005170000_smc_17_ads_write_log.sql'), 'utf8');
   assert.match(mig, /nonce\s+text NOT NULL UNIQUE/); assert.match(mig, /smc_audit/);
 });
 

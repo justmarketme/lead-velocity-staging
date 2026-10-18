@@ -35,8 +35,8 @@ export const lead = (id) => {
   return l;
 };
 export const broker = (id = FIX.brokers[0].broker_id) => FIX.brokers.find((b) => b.broker_id === id);
-export const cycle = (id = FIX.cycles[0].cycle_id) => FIX.cycles.find((c) => c.cycle_id === id);
-export const pricing = (tier) => FIX.pricing.find((p) => p.tier_code === tier);
+/** The broker's CRM lead order (capacity; crm-nurture: no cycles, no pricing tiers). */
+export const order = (id = FIX.lead_orders[0].lead_order_id) => FIX.lead_orders.find((o) => o.lead_order_id === id);
 export const clone = (o) => JSON.parse(JSON.stringify(o));
 
 // ---------- time (Africa/Johannesburg = UTC+02:00 all year, no DST) ----------

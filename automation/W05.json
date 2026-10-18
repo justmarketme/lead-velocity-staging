@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 380,
-        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d)."
+        "content": "W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06's), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d). VERIFY GATE (2026-10-11): a lead whose email is not verified gets a HELD slot (status pending_verification, verify_by = min(+24 h, start - 2 h)): no Outlook event, no Teams link, no broker notice, no W06/W09/CAPI; booking_held_verify_email + smc-email-verify issue. smc-email-verify calls op finalize after the link / code: the held row becomes booked and the normal fan-out runs. Every 5 min: held slots past verify_by are released + booking_hold_released nudge."
       }
     },
     {
@@ -363,6 +363,27 @@
               },
               "renameOutput": true,
               "outputKey": "reject"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.req.op }}",
+                    "rightValue": "finalize",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "finalize"
             }
           ]
         },
@@ -373,11 +394,49 @@
     },
     {
       "id": "n13",
-      "name": "Log subcall_rejected",
+      "name": "Load held slot + lead (finalize)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
         960,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(h) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by, a.booked_via, a.idempotency_key, a.previous_booking_id, a.schedule_event_id\n                                  FROM public.appointments a\n                                 WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND ($2 = '' OR a.id::text = $2)\n                                 ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;",
+        "options": {
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n14",
+      "name": "Finalize request (w05.finalizeRequest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst x = $input.first().json;\nconst req = L.finalizeRequest(x.hold, x.lead, Date.now());\nreturn req ? [{ json: { lane: 'sub', ok: true, req, hdr: {} } }] : [];"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Log subcall_rejected",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
         200
       ],
       "parameters": {
@@ -396,12 +455,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n14",
+      "id": "n16",
       "name": "W10 pick payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1680,
         200
       ],
       "parameters": {
@@ -410,13 +469,13 @@
       }
     },
     {
-      "id": "n15",
+      "id": "n17",
       "name": "-> W10 reschedule pick",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1440,
-        200
+        0,
+        400
       ],
       "parameters": {
         "source": "database",
@@ -432,17 +491,17 @@
       }
     },
     {
-      "id": "n16",
+      "id": "n18",
       "name": "Load lead, broker, replay, live booking",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        200
+        240,
+        400
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- lead + its broker + idempotent replay + the lead's live booking (one round trip)\nWITH ld AS (\n  SELECT l.id, l.brand_id, l.broker_id, l.cycle_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,\n         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,\n         l.conv_state, l.opted_out_at, l.is_synthetic\n    FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)\n), byuser AS (\n  SELECT b.id FROM public.brokers b WHERE $3 <> '' AND b.user_id::text = $3 AND b.brand_id IS NOT NULL LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker, (SELECT to_jsonb(byuser) FROM byuser) AS broker_by_user,\n       (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $2 LIMIT 1) e) AS existing,\n       (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) v) AS live;",
+        "query": "-- lead + its broker + idempotent replay + the lead's live booking (one round trip)\nWITH ld AS (\n  SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,\n         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,\n         l.conv_state, l.opted_out_at, l.is_synthetic, l.email_verified\n    FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL\n), bk AS (\n  SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)\n), byuser AS (\n  SELECT b.id FROM public.brokers b WHERE $3 <> '' AND b.user_id::text = $3 AND b.brand_id IS NOT NULL LIMIT 1\n)\nSELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS broker, (SELECT to_jsonb(byuser) FROM byuser) AS broker_by_user,\n       (SELECT to_jsonb(e) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.join_url, a.ics_url FROM public.appointments a WHERE a.idempotency_key = $2 LIMIT 1) e) AS existing,\n       (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) v) AS live;",
         "options": {
           "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"
         }
@@ -456,26 +515,26 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n17",
+      "id": "n19",
       "name": "Decide (w05.decide + MX)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        480,
         400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst dns = require('dns').promises;\nconst x = $('Load lead, broker, replay, live booking').first().json;\nconst c = $input.first().json.req ? $input.first().json : ($('Parse + verify caller (w05.parseHttp)').isExecuted ? $('Parse + verify caller (w05.parseHttp)').first().json : $('Normalise sub-call (w05.parseSub)').first().json);\nconst wall = Date.now();\nconst now = L.clockFor(c.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic), wall);\nconst mx = {};\nconst d = L.emailDomain(c.req.email || (x.lead && x.lead.email) || '');\nif (d) { try { const r = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[d] = Array.isArray(r) && r.length > 0; } catch (e) { mx[d] = false; } }\nconst ctx = { lane: c.lane, mode: c.mode, req: c.req, lead: x.lead, broker: x.broker, broker_by_user: x.broker_by_user, existing: x.existing, live: x.live, mx, now, test_clock: now !== wall };\nconst dec = L.decide(ctx);\nreturn [{ json: { ctx, dec, action: dec.action, lane: c.lane, status: dec.status, body: dec.body, wa: dec.wa || null, to: 'lead', lead_id: x.lead ? x.lead.id : null, w10: dec.w10 || null } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst dns = require('dns').promises;\nconst x = $('Load lead, broker, replay, live booking').first().json;\nconst c = $input.first().json.req ? $input.first().json : ($('Parse + verify caller (w05.parseHttp)').isExecuted ? $('Parse + verify caller (w05.parseHttp)').first().json : $('Finalize request (w05.finalizeRequest)').isExecuted ? $('Finalize request (w05.finalizeRequest)').first().json : $('Normalise sub-call (w05.parseSub)').first().json);\nconst wall = Date.now();\nconst now = L.clockFor(c.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic), wall);\nconst mx = {};\nconst d = L.emailDomain(c.req.email || (x.lead && x.lead.email) || '');\nif (d) { try { const r = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[d] = Array.isArray(r) && r.length > 0; } catch (e) { mx[d] = false; } }\nconst ctx = { lane: c.lane, mode: c.mode, req: c.req, lead: x.lead, broker: x.broker, broker_by_user: x.broker_by_user, existing: x.existing, live: x.live, mx, now, test_clock: now !== wall };\nconst dec = L.decide(ctx);\nreturn [{ json: { ctx, dec, action: dec.action, lane: c.lane, status: dec.status, body: dec.body, wa: dec.wa || null, to: 'lead', lead_id: x.lead ? x.lead.id : null, w10: dec.w10 || null } }];"
       }
     },
     {
-      "id": "n18",
+      "id": "n20",
       "name": "Decision?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        240,
+        720,
         400
       ],
       "parameters": {
@@ -615,12 +674,12 @@
       }
     },
     {
-      "id": "n19",
+      "id": "n21",
       "name": "is_free input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        960,
         400
       ],
       "parameters": {
@@ -629,12 +688,12 @@
       }
     },
     {
-      "id": "n20",
+      "id": "n22",
       "name": "W04 is_free (re-check, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
+        1200,
         400
       ],
       "parameters": {
@@ -651,12 +710,12 @@
       }
     },
     {
-      "id": "n21",
+      "id": "n23",
       "name": "After re-check (w05.afterCheck)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1440,
         400
       ],
       "parameters": {
@@ -665,12 +724,12 @@
       }
     },
     {
-      "id": "n22",
+      "id": "n24",
       "name": "Free?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1200,
+        1680,
         400
       ],
       "parameters": {
@@ -696,19 +755,19 @@
       }
     },
     {
-      "id": "n23",
+      "id": "n25",
       "name": "Insert appointment (re-check overlap + buffer, idempotent)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
-        400
+        0,
+        600
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- Zero double-bookings: the overlap+buffer re-check and the insert are ONE statement. appointments_smc_no_overlap (gist),\n-- appointments_smc_no_double_booking and appointments_smc_idem_uidx are the last line of defence: ON CONFLICT DO NOTHING\n-- turns any of them into \"no row\", and the re-select below decides replay (same key) or taken (next 3).\nINSERT INTO public.appointments (client_id, broker_id, brand_id, cycle_id, appointment_date, ends_at, method, status, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)\nSELECT $1::uuid, $2::uuid, $3::uuid, NULLIF($4, '')::uuid, $5::timestamptz, $6::timestamptz, $7, 'booked', $8, $9, now(), $10, NULLIF($11, '')::uuid, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, '')\n WHERE NOT EXISTS (\n   SELECT 1 FROM public.appointments x\n    WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('booked','confirmed')\n      AND tstzrange(x.appointment_date - make_interval(mins => $15::int), x.ends_at + make_interval(mins => $15::int), '[)')\n          && tstzrange($5::timestamptz, $6::timestamptz, '[)'))\nON CONFLICT DO NOTHING\nRETURNING id, client_id, broker_id, cycle_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key;",
+        "query": "-- Zero double-bookings: the overlap+buffer re-check and the insert are ONE statement. appointments_smc_no_overlap (gist),\n-- appointments_smc_no_double_booking and appointments_smc_idem_uidx are the last line of defence: ON CONFLICT DO NOTHING\n-- turns any of them into \"no row\", and the re-select below decides replay (same key) or taken (next 3).\n-- Verify gate (2026-10-11): $15 = 'pending_verification' (email not verified: a HELD slot, verify_by $16) or 'booked'. A held\n-- slot blocks the time exactly like a booking (same re-check, same exclusion). $17 = the held row to PROMOTE (op finalize,\n-- after the email was verified): pending_verification -> booked, the same row and slot (nothing re-inserted).\nWITH up AS (\n  UPDATE public.appointments SET status = 'booked', verify_by = NULL, booked_at = now(), updated_at = now()\n   WHERE $17 <> '' AND id = NULLIF($17, '')::uuid AND status = 'pending_verification' AND verify_by > now()\n  RETURNING id, client_id, broker_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key, verify_by),\nins AS (\n  INSERT INTO public.appointments (client_id, broker_id, brand_id, appointment_date, ends_at, method, status, verify_by, calendar_provider, booked_via, booked_at, idempotency_key, previous_booking_id, call_number, invite_email_status, schedule_event_id)\n  SELECT $1::uuid, $2::uuid, $3::uuid, $4::timestamptz, $5::timestamptz, $6, $15, NULLIF($16, '')::timestamptz, $7, $8, now(), $9, NULLIF($10, '')::uuid, NULLIF($11, ''), NULLIF($12, ''), NULLIF($13, '')\n   WHERE $17 = '' AND NOT EXISTS (\n     SELECT 1 FROM public.appointments x\n      WHERE x.broker_id = $2::uuid AND x.brand_id IS NOT NULL AND x.status IN ('pending_verification','booked','confirmed')\n        AND tstzrange(x.appointment_date - make_interval(mins => $14::int), x.ends_at + make_interval(mins => $14::int), '[)')\n            && tstzrange($4::timestamptz, $5::timestamptz, '[)'))\n  ON CONFLICT DO NOTHING\n  RETURNING id, client_id, broker_id, appointment_date, ends_at, method, status, booked_at, booked_via, idempotency_key, verify_by)\nSELECT * FROM up UNION ALL SELECT * FROM ins;",
         "options": {
-          "queryReplacement": "={{ (() => { const r = $json.row; const b = $json.ctx.broker || {}; return [r.client_id, r.broker_id, r.brand_id, r.cycle_id || '', r.appointment_date, r.ends_at, r.method, r.calendar_provider, r.booked_via, r.idempotency_key, r.previous_booking_id || '', r.call_number || '', r.invite_email_status || '', r.schedule_event_id || '', b.buffer_minutes == null ? 15 : b.buffer_minutes]; })() }}"
+          "queryReplacement": "={{ (() => { const r = $json.row; const b = $json.ctx.broker || {}; return [r.client_id, r.broker_id, r.brand_id, r.appointment_date, r.ends_at, r.method, r.calendar_provider, r.booked_via, r.idempotency_key, r.previous_booking_id || '', r.call_number || '', r.invite_email_status || '', r.schedule_event_id || '', b.buffer_minutes == null ? 15 : b.buffer_minutes, r.status || 'booked', r.verify_by || '', r.finalize_booking_id || '']; })() }}"
         }
       },
       "credentials": {
@@ -721,13 +780,13 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n24",
+      "id": "n26",
       "name": "Inserted?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1680,
-        400
+        240,
+        600
       ],
       "parameters": {
         "conditions": {
@@ -752,12 +811,12 @@
       }
     },
     {
-      "id": "n25",
+      "id": "n27",
       "name": "Re-select by idempotency key",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        0,
+        480,
         600
       ],
       "parameters": {
@@ -776,12 +835,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n26",
+      "id": "n28",
       "name": "Lost the race: replay or next 3",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
+        720,
         600
       ],
       "parameters": {
@@ -790,13 +849,142 @@
       }
     },
     {
-      "id": "n27",
+      "id": "n29",
+      "name": "Held? (email not verified: no calendar, no broker)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.status === 'pending_verification') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n30",
+      "name": "Hold plan (w05.holdPending)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('After re-check (w05.afterCheck)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst h = L.holdPending(d.ctx, d.dec.plan, row);\nreturn [{ json: { ...d, booking: row, hold: h, f: { response: h.response, lead_wa: h.lead_wa, ask_email: h.ask_email }, lane: d.lane, status: h.response.status, body: h.response.body } }];"
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Save hold: lead email (unverified) + timeline",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The email this booking carries; a NEW address is not verified (the old flag never covers a different email).\nWITH u AS (\n  UPDATE public.leads l\n     SET email = COALESCE(NULLIF($2, ''), l.email),\n         email_status = CASE WHEN $2 <> '' THEN $3 ELSE l.email_status END,\n         email_purpose = CASE WHEN $2 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,\n         email_verified = CASE WHEN $2 <> '' AND lower(coalesce(l.email, '')) <> lower($2) THEN false ELSE l.email_verified END,\n         broker_id = $4::uuid, updated_at = now()\n   WHERE l.id = $1::uuid\n  RETURNING l.id, l.brand_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, $4::uuid, 'W05', 'lead', 'booking_held', $5::jsonb, now(), 'w05:held:' || $6 FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const h = $json.hold; const p = $json.dec.plan; return [p.lead_id, (h.lead_update || {}).email || '', (h.lead_update || {}).email_status || '', p.broker_id, JSON.stringify(h.timeline.payload), $json.booking.id]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n32",
+      "name": "Email verification item (hold)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst h = $('Hold plan (w05.holdPending)').first().json.hold;\nreturn h.issue ? [{ json: h.issue }] : [];"
+      }
+    },
+    {
+      "id": "n33",
+      "name": "-> Email verify (hold: issue)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-email-verify",
+          "cachedResultName": "Email Verify"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Release the hold (finalize lost the slot)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        240,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- op finalize whose re-check failed (the broker filled the time in Outlook meanwhile): the hold goes; the lead got the next times.\nUPDATE public.appointments SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n WHERE id = NULLIF($1, '')::uuid AND status = 'pending_verification'\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [($('Decide (w05.decide + MX)').first().json.dec.plan || {}).finalize_booking_id || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n35",
       "name": "Broker calendar (graph)?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         480,
-        600
+        800
       ],
       "parameters": {
         "conditions": {
@@ -821,13 +1009,13 @@
       }
     },
     {
-      "id": "n28",
+      "id": "n36",
       "name": "graph_token input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         720,
-        600
+        800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -835,13 +1023,13 @@
       }
     },
     {
-      "id": "n29",
+      "id": "n37",
       "name": "W04 graph_token (waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
         960,
-        600
+        800
       ],
       "parameters": {
         "source": "database",
@@ -857,13 +1045,13 @@
       }
     },
     {
-      "id": "n30",
+      "id": "n38",
       "name": "Event body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1200,
-        600
+        800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -871,13 +1059,13 @@
       }
     },
     {
-      "id": "n31",
+      "id": "n39",
       "name": "Graph create event (broker calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         1440,
-        600
+        800
       ],
       "parameters": {
         "method": "POST",
@@ -913,13 +1101,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n32",
+      "id": "n40",
       "name": "Event body (shared)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1680,
-        600
+        800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -927,13 +1115,13 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n41",
       "name": "Shared calendar id?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         0,
-        800
+        1000
       ],
       "parameters": {
         "conditions": {
@@ -958,13 +1146,13 @@
       }
     },
     {
-      "id": "n34",
+      "id": "n42",
       "name": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         240,
-        800
+        1000
       ],
       "parameters": {
         "method": "POST",
@@ -995,13 +1183,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n35",
+      "id": "n43",
       "name": "After event (w05.finish)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         480,
-        800
+        1000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1009,19 +1197,19 @@
       }
     },
     {
-      "id": "n36",
-      "name": "Save event ids + lead (stage, broker, cycle, invite email)",
+      "id": "n44",
+      "name": "Save event ids + lead (stage, broker, invite email)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
         720,
-        800
+        1000
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH a AS (\n  UPDATE public.appointments\n     SET graph_event_id = NULLIF($2, ''), ical_uid = NULLIF($3, ''), join_url = NULLIF($4, ''), ics_url = $5,\n         invite_email_status = NULLIF($6, ''), schedule_event_id = NULLIF($7, ''), updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING client_id)\nUPDATE public.leads l\n   SET stage = 'booked', stage_entered_at = now(), broker_id = $8::uuid, cycle_id = NULLIF($9, '')::uuid,\n       email = CASE WHEN $10 <> '' THEN $10 ELSE l.email END,\n       email_status = CASE WHEN $10 <> '' THEN $11 ELSE l.email_status END,\n       email_purpose = CASE WHEN $10 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,\n       updated_at = now()\n  FROM a WHERE l.id = a.client_id\nRETURNING l.id;",
+        "query": "WITH a AS (\n  UPDATE public.appointments\n     SET graph_event_id = NULLIF($2, ''), ical_uid = NULLIF($3, ''), join_url = NULLIF($4, ''), ics_url = $5,\n         invite_email_status = NULLIF($6, ''), schedule_event_id = NULLIF($7, ''), updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING client_id)\nUPDATE public.leads l\n   SET stage = 'booked', stage_entered_at = now(), broker_id = $8::uuid,\n       email = CASE WHEN $9 <> '' THEN $9 ELSE l.email END,\n       email_status = CASE WHEN $9 <> '' THEN $10 ELSE l.email_status END,\n       email_purpose = CASE WHEN $9 <> '' THEN 'meeting_invite' ELSE l.email_purpose END,\n       updated_at = now()\n  FROM a WHERE l.id = a.client_id\nRETURNING l.id;",
         "options": {
-          "queryReplacement": "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.cycle_id || '', lu.email || '', lu.email_status || '']; })() }}"
+          "queryReplacement": "={{ (() => { const f = $json.f; const u = f.appointment_update; const lu = f.lead_update; return [$json.booking.id, u.graph_event_id || '', u.ical_uid || '', u.join_url || '', u.ics_url, u.invite_email_status || '', u.schedule_event_id || '', lu.broker_id, lu.email || '', lu.email_status || '']; })() }}"
         }
       },
       "credentials": {
@@ -1033,19 +1221,55 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n37",
+      "id": "n45",
+      "name": "Email verification item (invite email stored)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('After event (w05.finish)').first().json;\nconst lu = (d.f && d.f.lead_update) || {};\nreturn lu.email ? [{ json: { op: 'issue', lead_id: d.dec.plan.lead_id } }] : [];"
+      }
+    },
+    {
+      "id": "n46",
+      "name": "-> Email verify (smc-email-verify issue)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-email-verify",
+          "cachedResultName": "Email Verify"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n47",
       "name": "Timeline: booked",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
-        800
+        1440,
+        1000
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, NULLIF($4, '')::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $5::text, 'start', $6::text, 'method', $7::text, 'booked_via', $8::text, 'graph_event', $9::boolean), now(), 'w05:booked:' || $5)\nON CONFLICT (idempotency_key) DO NOTHING RETURNING id;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $4::text, 'start', $5::text, 'method', $6::text, 'booked_via', $7::text, 'graph_event', $8::boolean), now(), 'w05:booked:' || $4)\nON CONFLICT (idempotency_key) DO NOTHING RETURNING id;",
         "options": {
-          "queryReplacement": "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.cycle_id || '', d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"
+          "queryReplacement": "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"
         }
       },
       "credentials": {
@@ -1057,27 +1281,27 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n38",
+      "id": "n48",
       "name": "Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        800
+        1680,
+        1000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : $('Hold plan (w05.holdPending)').isExecuted ? $('Hold plan (w05.holdPending)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];"
       }
     },
     {
-      "id": "n39",
+      "id": "n49",
       "name": "HTTP lane?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1440,
-        800
+        0,
+        1200
       ],
       "parameters": {
         "conditions": {
@@ -1102,13 +1326,13 @@
       }
     },
     {
-      "id": "n40",
+      "id": "n50",
       "name": "Respond (book JSON)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1680,
-        800
+        240,
+        1200
       ],
       "parameters": {
         "respondWith": "json",
@@ -1127,27 +1351,27 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n51",
       "name": "Fan out effects",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        1000
+        480,
+        1200
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));"
+        "jsCode": "const L = require('lv-automation').w05;\nconst j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker && f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.broker && f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));"
       }
     },
     {
-      "id": "n42",
+      "id": "n52",
       "name": "Effect?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        240,
-        1000
+        720,
+        1200
       ],
       "parameters": {
         "rules": {
@@ -1328,13 +1552,13 @@
       }
     },
     {
-      "id": "n43",
+      "id": "n53",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        480,
-        1000
+        960,
+        1200
       ],
       "parameters": {
         "conditions": {
@@ -1359,51 +1583,35 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n54",
       "name": "Send WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
-        720,
-        1000
+        1200,
+        1200
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 8000,
-          "response": {
-            "response": {
-              "fullResponse": true,
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 2000
+      }
     },
     {
-      "id": "n45",
+      "id": "n55",
       "name": "Touch leads.last_contact_at (lead sends)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
-        1000
+        1440,
+        1200
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1421,13 +1629,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n46",
+      "id": "n56",
       "name": "Email from howzit@ (Graph sendMail)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
-        1000
+        1680,
+        1200
       ],
       "parameters": {
         "method": "POST",
@@ -1458,13 +1666,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n47",
+      "id": "n57",
       "name": "-> W06 First touch (booking event)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1440,
-        1000
+        0,
+        1400
       ],
       "parameters": {
         "source": "database",
@@ -1480,13 +1688,13 @@
       }
     },
     {
-      "id": "n48",
+      "id": "n58",
       "name": "-> W09 Reminder sequence (schedule / rebuild)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1680,
-        1000
+        240,
+        1400
       ],
       "parameters": {
         "source": "database",
@@ -1502,13 +1710,13 @@
       }
     },
     {
-      "id": "n49",
+      "id": "n59",
       "name": "-> W07 post-booking contact confirm",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        0,
-        1200
+        480,
+        1400
       ],
       "parameters": {
         "source": "database",
@@ -1524,13 +1732,13 @@
       }
     },
     {
-      "id": "n50",
+      "id": "n60",
       "name": "-> CAPI Send (Schedule, no email)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
-        1200
+        720,
+        1400
       ],
       "parameters": {
         "source": "database",
@@ -1546,13 +1754,13 @@
       }
     },
     {
-      "id": "n51",
+      "id": "n61",
       "name": "-> W28 ask_email",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
-        1200
+        960,
+        1400
       ],
       "parameters": {
         "source": "database",
@@ -1568,13 +1776,13 @@
       }
     },
     {
-      "id": "n52",
+      "id": "n62",
       "name": "-> W22 Alerts",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
-        1200
+        1200,
+        1400
       ],
       "parameters": {
         "source": "database",
@@ -1590,13 +1798,101 @@
       }
     },
     {
-      "id": "n53",
+      "id": "n63",
+      "name": "GET /j/:booking_id (join link)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1400
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "j/:booking_id",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "w05-join-get"
+    },
+    {
+      "id": "n64",
+      "name": "Load booking for the join link (no lead PII)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.method, a.status, a.join_url FROM public.appointments a\n          WHERE a.id::text = $1 AND a.brand_id IS NOT NULL) k) AS booking;",
+        "options": {
+          "queryReplacement": "={{ [String(($json.params || {}).booking_id || '')] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n65",
+      "name": "Join redirect (w05.joinRedirect)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('GET /j/:booking_id (join link)').first().json.params || {};\nreturn [{ json: L.joinRedirect(p, $input.first().json.booking || null) }];"
+      }
+    },
+    {
+      "id": "n66",
+      "name": "Respond (join link)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1600
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Location",
+                "value": "={{ $json.headers.Location || \"\" }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "Referrer-Policy",
+                "value": "no-referrer"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n67",
       "name": "GET /c/:booking_id (.ics)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        960,
-        1200
+        480,
+        1600
       ],
       "parameters": {
         "httpMethod": "GET",
@@ -1607,13 +1903,13 @@
       "webhookId": "w05-ics-get"
     },
     {
-      "id": "n54",
+      "id": "n68",
       "name": "Verify .ics caller (w05.parseIcsRequest)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        1200
+        720,
+        1600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1621,13 +1917,13 @@
       }
     },
     {
-      "id": "n55",
+      "id": "n69",
       "name": ".ics caller ok?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1440,
-        1200
+        960,
+        1600
       ],
       "parameters": {
         "conditions": {
@@ -1652,13 +1948,13 @@
       }
     },
     {
-      "id": "n56",
+      "id": "n70",
       "name": "Load booking for .ics (id only, no lead PII)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1200
+        1200,
+        1600
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1676,13 +1972,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n57",
+      "id": "n71",
       "name": "Build .ics (w05.icsResponse)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        1400
+        1440,
+        1600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1690,13 +1986,13 @@
       }
     },
     {
-      "id": "n58",
+      "id": "n72",
       "name": ".ics not found (404)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
-        1400
+        1680,
+        1600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1704,13 +2000,13 @@
       }
     },
     {
-      "id": "n59",
+      "id": "n73",
       "name": "Respond (.ics)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        480,
-        1400
+        0,
+        1800
       ],
       "parameters": {
         "respondWith": "text",
@@ -1737,17 +2033,17 @@
       }
     },
     {
-      "id": "n60",
+      "id": "n74",
       "name": "Load booking for method change",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        720,
-        1400
+        240,
+        1800
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail, b.current_cycle_id FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
+        "query": "SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,\n       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,\n       (SELECT to_jsonb(r) FROM (SELECT b.id, b.brand_id, b.status, b.adviser_name, b.contact_person, b.practice_name, b.firm_name, b.fsp_number, b.adviser_whatsapp, b.whatsapp_number, b.email,\n         b.methods_supported, b.meeting_hours, b.slot_minutes, b.buffer_minutes, b.min_notice_hours, b.horizon_days, b.max_meetings_per_day,\n         b.max_meetings_per_week, b.bookings_paused, b.add_client_as_attendee, b.calendar_provider, b.calendar_status, b.calendar_mode,\n         b.calendar_email, b.ms_tenant_id, b.calendar_status_at, b.calendar_status_detail FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;",
         "options": {
           "queryReplacement": "={{ [$json.req.booking_id] }}"
         }
@@ -1761,13 +2057,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n61",
+      "id": "n75",
       "name": "Plan method change (w05.planUpdateMethod)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        1400
+        480,
+        1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1775,13 +2071,13 @@
       }
     },
     {
-      "id": "n62",
+      "id": "n76",
       "name": "Method plan?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1200,
-        1400
+        720,
+        1800
       ],
       "parameters": {
         "rules": {
@@ -1857,13 +2153,13 @@
       }
     },
     {
-      "id": "n63",
+      "id": "n77",
       "name": "Method calendar target (w05.graphEventTarget)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        1400
+        960,
+        1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1871,13 +2167,13 @@
       }
     },
     {
-      "id": "n64",
+      "id": "n78",
       "name": "Method event calendar?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1680,
-        1400
+        1200,
+        1800
       ],
       "parameters": {
         "rules": {
@@ -1953,13 +2249,13 @@
       }
     },
     {
-      "id": "n65",
+      "id": "n79",
       "name": "Graph PATCH event (method, howzit@ shared calendar)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        0,
-        1600
+        1440,
+        1800
       ],
       "parameters": {
         "method": "PATCH",
@@ -1990,13 +2286,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n66",
+      "id": "n80",
       "name": "graph_token input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        240,
-        1600
+        1680,
+        1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2004,13 +2300,13 @@
       }
     },
     {
-      "id": "n67",
+      "id": "n81",
       "name": "W04 graph_token (method, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
-        1600
+        0,
+        2000
       ],
       "parameters": {
         "source": "database",
@@ -2026,13 +2322,13 @@
       }
     },
     {
-      "id": "n68",
+      "id": "n82",
       "name": "Graph PATCH event (method, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
-        1600
+        240,
+        2000
       ],
       "parameters": {
         "method": "PATCH",
@@ -2064,13 +2360,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n69",
+      "id": "n83",
       "name": "Save method",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        960,
-        1600
+        480,
+        2000
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -2088,13 +2384,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n70",
+      "id": "n84",
       "name": "Method invite?",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        1600
+        720,
+        2000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2102,13 +2398,13 @@
       }
     },
     {
-      "id": "n71",
+      "id": "n85",
       "name": "ask_email input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        1600
+        960,
+        2000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2116,13 +2412,13 @@
       }
     },
     {
-      "id": "n72",
+      "id": "n86",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1600
+        1200,
+        2000
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -2140,13 +2436,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n73",
+      "id": "n87",
       "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
-        1800
+        1440,
+        2000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2154,13 +2450,91 @@
       }
     },
     {
-      "id": "n74",
+      "id": "n88",
       "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
+        1680,
+        2000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n89",
+      "name": "Every 5 min: release unverified holds",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        2200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n90",
+      "name": "Release held slots past verify_by (+ timeline)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
         240,
-        1800
+        2200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- A HELD slot (pending_verification) whose email was not verified by verify_by (min(+24 h, start - 2 h)) is released for\n-- everyone. Nothing reached the broker (no calendar event, no notice), so nothing is undone there.\nWITH r AS (\n  UPDATE public.appointments a SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND a.verify_by <= now()\n  RETURNING a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.method),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified'), now(), 'w05:hold_released:' || r.id::text\n    FROM r\n  ON CONFLICT (idempotency_key) DO NOTHING)\nSELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phone, l.language\n  FROM r JOIN public.leads l ON l.id = r.client_id\n WHERE l.opted_out_at IS NULL;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n91",
+      "name": "Rebook nudge (w05.holdReleased)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((i) => i.json && i.json.id && i.json.phone).map((i) => ({ json: L.holdReleased(i.json) }));"
+      }
+    },
+    {
+      "id": "n92",
+      "name": "-> WhatsApp Send (booking_hold_released)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        2200
       ],
       "parameters": {
         "source": "database",
@@ -2181,8 +2555,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1000,
-        1000
+        1480,
+        1200
       ],
       "parameters": {
         "conditions": {
@@ -2214,16 +2588,63 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        1160
+        1680,
+        1360
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (email). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
       }
+    },
+    {
+      "id": "34013a17-2668-8889-79f1-724435a035d0",
+      "name": "SUB input (Send WhatsApp)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        1320
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W05\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W05:Send WhatsApp:\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
+    "Every 5 min: release unverified holds": {
+      "main": [
+        [
+          {
+            "node": "Release held slots past verify_by (+ timeline)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Release held slots past verify_by (+ timeline)": {
+      "main": [
+        [
+          {
+            "node": "Rebook nudge (w05.holdReleased)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rebook nudge (w05.holdReleased)": {
+      "main": [
+        [
+          {
+            "node": "-> WhatsApp Send (booking_hold_released)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "POST /book": {
       "main": [
         [
@@ -2391,6 +2812,35 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Load held slot + lead (finalize)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load held slot + lead (finalize)": {
+      "main": [
+        [
+          {
+            "node": "Finalize request (w05.finalizeRequest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize request (w05.finalizeRequest)": {
+      "main": [
+        [
+          {
+            "node": "Load lead, broker, replay, live booking",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -2520,6 +2970,11 @@
             "node": "Answer",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Release the hold (finalize lost the slot)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2539,7 +2994,7 @@
       "main": [
         [
           {
-            "node": "Broker calendar (graph)?",
+            "node": "Held? (email not verified: no calendar, no broker)",
             "type": "main",
             "index": 0
           }
@@ -2547,6 +3002,62 @@
         [
           {
             "node": "Re-select by idempotency key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held? (email not verified: no calendar, no broker)": {
+      "main": [
+        [
+          {
+            "node": "Hold plan (w05.holdPending)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Broker calendar (graph)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hold plan (w05.holdPending)": {
+      "main": [
+        [
+          {
+            "node": "Save hold: lead email (unverified) + timeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save hold: lead email (unverified) + timeline": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email verification item (hold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email verification item (hold)": {
+      "main": [
+        [
+          {
+            "node": "-> Email verify (hold: issue)",
             "type": "main",
             "index": 0
           }
@@ -2681,18 +3192,23 @@
       "main": [
         [
           {
-            "node": "Save event ids + lead (stage, broker, cycle, invite email)",
+            "node": "Save event ids + lead (stage, broker, invite email)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Save event ids + lead (stage, broker, cycle, invite email)": {
+    "Save event ids + lead (stage, broker, invite email)": {
       "main": [
         [
           {
             "node": "Timeline: booked",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email verification item (invite email stored)",
             "type": "main",
             "index": 0
           }
@@ -2715,6 +3231,17 @@
         [
           {
             "node": "HTTP lane?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email verification item (invite email stored)": {
+      "main": [
+        [
+          {
+            "node": "-> Email verify (smc-email-verify issue)",
             "type": "main",
             "index": 0
           }
@@ -2825,7 +3352,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp",
+            "node": "SUB input (Send WhatsApp)",
             "type": "main",
             "index": 0
           }
@@ -3076,6 +3603,39 @@
         ]
       ]
     },
+    "GET /j/:booking_id (join link)": {
+      "main": [
+        [
+          {
+            "node": "Load booking for the join link (no lead PII)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load booking for the join link (no lead PII)": {
+      "main": [
+        [
+          {
+            "node": "Join redirect (w05.joinRedirect)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Join redirect (w05.joinRedirect)": {
+      "main": [
+        [
+          {
+            "node": "Respond (join link)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Mark invite bounced": {
       "main": [
         [
@@ -3119,6 +3679,17 @@
     "Dry-run stub (Email from howzit@ (Graph sendMail))": {
       "main": [
         []
+      ]
+    },
+    "SUB input (Send WhatsApp)": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

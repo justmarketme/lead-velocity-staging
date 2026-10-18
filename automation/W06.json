@@ -471,43 +471,24 @@
     {
       "id": "n19",
       "name": "Send WhatsApp (booking_confirmed)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         3300,
         200
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 3000
+      }
     },
     {
       "id": "n20",
@@ -654,43 +635,24 @@
     {
       "id": "n26",
       "name": "Send WhatsApp (intro card)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         3300,
         0
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 3000
+      }
     },
     {
       "id": "n27",
@@ -1189,6 +1151,34 @@
         "mode": "runOnceForAllItems",
         "jsCode": "return [{ json: { outcome: 'subcall_rejected', reason: 'W06 needs op routed|skip|booking|hold|status and lead_id (or wamid)', keys: Object.keys($input.first().json || {}) } }];"
       }
+    },
+    {
+      "id": "8d7142ad-229b-5ff1-20dc-a54e1dcecdfd",
+      "name": "SUB input (Send WhatsApp (booking_confirmed))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3180,
+        320
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp (booking_confirmed)\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W06\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W06:Send WhatsApp (booking_confirmed):\" + exec + ':' + idx,\n} };"
+      }
+    },
+    {
+      "id": "3a1f6025-b9ab-db84-f76e-abcae9bfb70e",
+      "name": "SUB input (Send WhatsApp (intro card))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3180,
+        120
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp (intro card)\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W06\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W06:Send WhatsApp (intro card):\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
@@ -1392,7 +1382,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp (booking_confirmed)",
+            "node": "SUB input (Send WhatsApp (booking_confirmed))",
             "type": "main",
             "index": 0
           }
@@ -1472,7 +1462,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp (intro card)",
+            "node": "SUB input (Send WhatsApp (intro card))",
             "type": "main",
             "index": 0
           }
@@ -1655,6 +1645,28 @@
         [
           {
             "node": "Log SMS disclosure (status fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send WhatsApp (booking_confirmed))": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (booking_confirmed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send WhatsApp (intro card))": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (intro card)",
             "type": "main",
             "index": 0
           }

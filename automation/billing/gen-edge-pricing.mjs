@@ -2,7 +2,8 @@
 // Generates supabase/functions/_shared/pricing.generated.ts for the edge functions (Deno can't import files
 // outside supabase/functions at deploy time). It is src/lib/pricing.ts with the seed inlined, so the web app and
 // the edge chatbots share one formula set and one source (3.6). Re-run after editing pricing.seed.json:
-//   node automation/billing/gen-edge-pricing.mjs
+//   node automation/billing/gen-edge-pricing.mjs          (write)
+//   node automation/billing/gen-edge-pricing.mjs --check  (exit 1 if the committed copy is stale)
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,5 +20,12 @@ const out =
   `const seed = ${JSON.stringify({ terms: seed.terms, topup: seed.topup, qualified_lead: seed.qualified_lead, pilot: seed.pilot, rows: seed.rows }, null, 2)};\n` +
   lib.replace(IMPORT, '');
 const target = join(root, 'supabase/functions/_shared/pricing.generated.ts');
-writeFileSync(target, out);
-console.log('wrote', target);
+// --check: write nothing; exit 1 when the committed edge copy is stale (automation/billing/pilot.test.js runs this)
+if (process.argv.includes('--check')) {
+  const current = readFileSync(target, 'utf8');
+  if (current !== out) { console.error('STALE: ' + target + ' differs from the seed + src/lib/pricing.ts. Run: node automation/billing/gen-edge-pricing.mjs'); process.exit(1); }
+  console.log('up to date', target);
+} else {
+  writeFileSync(target, out);
+  console.log('wrote', target);
+}

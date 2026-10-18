@@ -1,0 +1,22 @@
+{
+  "name": "lead_low_budget_held",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, thank you for your answers. We're now checking which authorised adviser can help at the monthly budget you chose. This can take a few days. We'll come back to you here on WhatsApp as soon as we know, either way. Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

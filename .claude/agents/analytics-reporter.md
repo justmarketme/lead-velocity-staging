@@ -50,7 +50,7 @@ background: true
 
 **What's in it (same order every week; numbers always as *value · target · last week*):**
 1. **One line:** "Week 2 of your October cycle: 7 of 20 leads delivered, 5 booked, 4 showed up, 3 you rated a good fit. On track."
-2. **Progress:** delivered / committed (bar) · verified · booked · attended · show rate · replacements used / cap · days left in cycle · cycle extension status if any.
+2. **Progress:** delivered / committed (bar) · verified · booked · attended · show rate · replacements used this cycle (no cap shown: replacements are goodwill, 3 requests a calendar week, 0.1) · days left in cycle · cycle extension status if any.
 3. **Your meetings:** last week's list (first name + initial only outside the portal; full name inside) with outcome and his disposition; **next week's booked calls** with method and time; **his to-dos**: outcomes not yet marked (one tap each), good-fit follow-ups due this week (from his own `fit_followup` taps), any leads who said the adviser didn't reach them.
 4. **Quality, in his words:** his average quality score, disposition mix, and the top 3 themes leads asked about before the call (from the pre-call-brief corpus) — this is the part that sharpens his next five calls.
 5. **What you'll notice (only when true, one line each):** a new ad angle live ("more leads mentioning a bond this week"), a change to the quiz, a new contact method, public holiday blocks — never spend, CPL, creative names or anything about other brokers.

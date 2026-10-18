@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +10,14 @@ import logo from "@/assets/lead-velocity-logo.webp";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { openAdminDocument } from "@/lib/adminDocs";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { callLegalAI } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
-import { TIERS, ALL_PLANS, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, REPLACEMENT_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import type { Tables } from "@/integrations/supabase/types";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 // Plan fields for the proposal, built from the pricing source (3.6) - no price is typed in this file.
 // FAIS: nothing here may tie the fee to sales or policies, or promise outcomes (Raspberry Academy v Oaksure).
@@ -20,21 +25,22 @@ const proposalTierFields = (t: PricingTier) => ({
     subtitle: isPilot(t)
         ? `${t.name}: ${t.committed_leads} Qualified Leads in one introductory ${TERMS.cycle_days}-day cycle`
         : `${t.name} plan: ${t.committed_leads} Qualified Leads per ${TERMS.cycle_days}-day cycle`,
+    duration: isPilot(t) ? `One introductory ${TERMS.cycle_days}-day cycle` : `${TERMS.cycle_days} days, month to month`,
     investment: isPilot(t) ? `${zar(t.price_zar)} once-off (excl. VAT)` : `${zar(t.price_zar)} per month (excl. VAT)`,
-    guaranteedLeads: `${t.committed_leads} Qualified Leads per cycle`,
+    guaranteedLeads: isPilot(t) ? `${t.committed_leads} Qualified Leads in one introductory cycle` : `${t.committed_leads} Qualified Leads per cycle`,
     costPerLead: `${zar(perLead(t))} effective per lead`,
     commissionRate: "",
-    alignmentText: `Paid monthly in advance, before each cycle starts. All-inclusive of advertising media spend. Top-ups once the cycle's leads are delivered: ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. ${VAT_NOTE}`,
+    alignmentText: `${isPilot(t) ? "Paid in advance, before the introductory cycle starts." : "Paid monthly in advance, before each cycle starts."} All-inclusive of advertising media spend. Top-ups once the cycle's leads are delivered: ${zar(TOPUP.price_per_lead_zar)} per Qualified Lead, minimum ${TOPUP.min_leads} (${zar(topupMinimumZar())}), with ${TOPUP.notice_days} days' notice. ${VAT_NOTE}`,
     purposeTitle: "Lead Generation & Marketing Services",
-    purposeText: `We run broker-neutral advertising, capture consumer interest and consent, pre-qualify on stated age and budget, and book an introductory appointment into your calendar with reminders. Your ${t.name} plan delivers <strong>${t.committed_leads} Qualified Leads</strong> per cycle.`,
-    purposeSubText: `${isPilot(t) ? `Once-off introductory cycle for first-time clients only, paid upfront as a flat fee; afterwards you may continue on Bronze or higher. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${LATE_PAYMENT_TEXT}`,
+    purposeText: `We run broker-neutral advertising, capture consumer interest and consent, pre-qualify on stated age and budget, and book an introductory appointment into your calendar with reminders. Your ${t.name} plan delivers <strong>${t.committed_leads} Qualified Leads</strong> ${isPilot(t) ? "in one introductory cycle" : "per cycle"}.`,
+    purposeSubText: `${isPilot(t) ? `Once-off introductory ${TERMS.cycle_days}-day cycle for first-time clients only, paid in advance as a flat fee; after the ${t.name} you continue on ${PILOT.continue_on} by paying in advance, otherwise the agreement ends. ` : `Month to month. `}Either party may cancel with ${TERMS.cancel_notice_days} days' written notice before the next cycle. Fees for a cycle that has started are not refundable. ${SHORTFALL_TEXT(t)} ${REPLACEMENT_TEXT} ${LATE_PAYMENT_TEXT}`,
     alignmentBoxText: "The fee pays for marketing and lead-delivery services. It is payable regardless of any appointment outcome, sale or policy, and no commission or success fee is ever payable.",
 });
 
 
 interface ProposalGeneratorProps {
     onBack: () => void;
-    initialData?: any;
+    initialData?: Record<string, unknown>;
 }
 
 // Helper component for inline editing
@@ -48,7 +54,7 @@ const Editable = ({
     value: string;
     onChange: (val: string) => void;
     className?: string;
-    tag?: any;
+    tag?: React.ElementType;
     html?: boolean;
 }) => {
     const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
@@ -118,7 +124,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         "Shorten the qualification criteria",
         "Explain the Qualified Lead definition"
     ]);
-    const [pendingChanges, setPendingChanges] = useState<any>(null);
+    const [pendingChanges, setPendingChanges] = useState<Record<string, unknown> | null>(null);
 
     const [formData, setFormData] = useState({
         // Variables
@@ -147,11 +153,17 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     useEffect(() => {
         if (initialData) {
-            setFormData(initialData);
+            setFormData(initialData as typeof formData);
         }
     }, [initialData]);
 
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<Tables<'admin_documents'>[]>([]);
+
+    // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
+    const viewPdf = async (path: string) => {
+        const r = await openAdminDocument(path);
+        if (!r.ok) toast({ title: "Could not open the PDF", description: r.error, variant: "destructive" });
+    };
 
     const fetchHistory = async () => {
         const { data: { user } } = await supabase.auth.getUser();
@@ -199,7 +211,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     };
 
     // Broker selector populate
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
         const leads = broker.desired_leads_weekly || 0;
@@ -307,11 +319,6 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
                 if (uploadError) throw uploadError;
 
-                // Get Public URL
-                const { data: { publicUrl } } = supabase.storage
-                    .from('admin-documents')
-                    .getPublicUrl(filePath);
-
                 // Get Current User
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
@@ -370,9 +377,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                     toast({ title: "Saved", description: "Proposal saved to documents library." });
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast({ title: "Error", description: error.message || "Failed to generate PDF.", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error) || "Failed to generate PDF.", variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -465,8 +472,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     const toggleListening = () => {
         if (isListening) { setIsListening(false); return; }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported.", variant: "destructive" });
             return;
@@ -474,7 +480,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         const recognition = new SpeechRecognition();
         recognition.lang = 'en-ZA';
         recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);
@@ -500,11 +506,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             }
             if (response && isConversational) speak(response);
             if (response && !isConversational) setAiResponse(response);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("AI Assistant Error:", error);
             const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
             setAiResponse(errorMsg);
-            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+            toast({ title: "AI Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsThinking(false);
         }
@@ -727,9 +733,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             <div key={idx} className="bg-slate-950/40 p-3 rounded-xl border border-white/5 flex flex-col gap-1 text-sm">
                                                 <div className="flex justify-between items-start">
                                                     <span className="font-medium text-slate-200 truncate pr-2">{doc.name}</span>
-                                                    <a href={`${supabase.storage.from('admin-documents').getPublicUrl(doc.file_path).data.publicUrl}`} target="_blank" rel="noreferrer" className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
+                                                    <button type="button" onClick={() => viewPdf(doc.file_path)} className="text-pink-400 hover:text-pink-300 shrink-0 bg-pink-400/10 px-2 py-0.5 rounded cursor-pointer whitespace-nowrap text-xs">
                                                         View PDF
-                                                    </a>
+                                                    </button>
                                                 </div>
                                                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
                                                     {new Date(doc.created_at).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -808,7 +814,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                             <div className="grid grid-cols-2 gap-y-4 gap-x-8">
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Duration</p>
-                                                    <p className="text-slate-900 font-bold text-base">{TERMS.cycle_days} days, month to month</p>
+                                                    <Editable className="text-slate-900 font-bold text-base" value={formData.duration ?? `${TERMS.cycle_days} days, month to month`} onChange={(val) => updateField('duration', val)} />
                                                 </div>
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Investment</p>

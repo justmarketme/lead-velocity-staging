@@ -45,7 +45,7 @@
   stage.insertAdjacentHTML('afterbegin', '<div class="bg"><i class="b1"></i><i class="b2"></i><div class="grid"></div></div><div class="topbar"></div>');
   if (body.dataset.header !== '0') {
     stage.insertAdjacentHTML('beforeend', `<header class="hd"><div class="brand"><img src="assets/lead-velocity-logo-contract.png" alt="">
-      <div><div class="t1">Status update · 7 Oct 2026</div><div class="t2">Where we are</div></div></div>
+      <div><div class="t1">Status update · 13 Oct 2026</div><div class="t2">Where we are</div></div></div>
       <div class="prog"><div class="num"><b>${String(idx + 1).padStart(2, '0')}</b> / ${String(total).padStart(2, '0')}</div>
       <div class="segs">${TM.scenes.map(() => '<span><i></i></span>').join('')}</div></div></header>`);
   }

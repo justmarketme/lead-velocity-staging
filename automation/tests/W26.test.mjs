@@ -97,7 +97,7 @@ test('Code-node runtime (I-35b/I-36e/I-46d): repo mounted read-only at /repo, sa
   assert.match(s, /ANALYTICS_DB_URL\|/, 'step 5 strips the DDL URL from the VPS .env');
 });
 
-test('CORS (I-34c): browser endpoints on API_HOST allow X-Lead-Token + Authorization from the three origins only', () => {
+test('CORS (I-34c): browser endpoints on API_HOST allow X-Lead-Token + Authorization from the four origins only', () => {
   const y = readFileSync(join(A, 'vps/traefik/docker-compose.traefik.yml'), 'utf8');
   const rule = y.match(/routers\.n8n-cors\.rule=(.+)/)[1];
   for (const p of ['lead', 'slots', 'book', 'billing-autorenew']) assert.ok(rule.includes(`Path(\`/webhook/${p}\`)`), p);
@@ -105,11 +105,11 @@ test('CORS (I-34c): browser endpoints on API_HOST allow X-Lead-Token + Authoriza
   assert.match(y, /routers\.n8n-cors\.tls\.certresolver=le/);
   assert.match(y, /routers\.n8n-cors\.middlewares=api-cors,api-ratelimit,sec-headers/);
   const origins = y.match(/accessControlAllowOriginList=\$\{PUBLIC_ALLOWED_ORIGINS:-([^}]+)\}/)[1].split(',');
-  assert.deepEqual(origins, ['https://sortmycover.co.za', 'https://www.sortmycover.co.za', 'https://leadvelocity.co.za'], 'I-37i: production default');
+  assert.deepEqual(origins, ['https://sortmycover.co.za', 'https://www.sortmycover.co.za', 'https://leadvelocity.co.za', 'https://www.leadvelocity.co.za'], 'I-37i: production default (the CRM is served on apex and www)');
   assert.ok(!origins.some((o) => /leadvelocity\.co\.za$/.test(o) && o.includes('sortmycover')), 'staging subdomain never in the production default');
   const ex = readFileSync(join(A, '.env.example'), 'utf8');
-  assert.match(ex, /#\s+Production[^\n]*https:\/\/sortmycover\.co\.za,https:\/\/www\.sortmycover\.co\.za,https:\/\/leadvelocity\.co\.za\s*$/m);
-  assert.match(ex, /#\s+Staging[^\n]*https:\/\/www\.sortmycover\.co\.za,https:\/\/sortmycover\.leadvelocity\.co\.za,https:\/\/leadvelocity\.co\.za\s*$/m);
+  assert.match(ex, /#\s+Production[^\n]*https:\/\/sortmycover\.co\.za,https:\/\/www\.sortmycover\.co\.za,https:\/\/leadvelocity\.co\.za,https:\/\/www\.leadvelocity\.co\.za\s*$/m);
+  assert.match(ex, /#\s+Staging[^\n]*https:\/\/www\.sortmycover\.co\.za,https:\/\/sortmycover\.leadvelocity\.co\.za,https:\/\/leadvelocity\.co\.za,https:\/\/www\.leadvelocity\.co\.za\s*$/m);
   assert.match(ex, /^PUBLIC_ALLOWED_ORIGINS=$/m, 'value empty in the example');
   assert.match(y, /accessControlAllowHeaders=Content-Type,X-Lead-Token,Authorization/);
   assert.match(y, /accessControlAllowCredentials=false/);
@@ -196,7 +196,7 @@ test('I-06: Execute Command enabled for W23 in both compose files (only localFil
 });
 
 test('I-37b: W23/W19/W04 browser webhooks take Allowed Origins from PUBLIC_ALLOWED_ORIGINS, never a hard-coded list', () => {
-  const expr = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za' }}";
+  const expr = "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}";
   const want = { 'W23.json': 8, 'W19.json': 1, 'W04.json': 1 };
   for (const [f, n] of Object.entries(want)) {
     const wf = JSON.parse(readFileSync(join(A, f), 'utf8'));

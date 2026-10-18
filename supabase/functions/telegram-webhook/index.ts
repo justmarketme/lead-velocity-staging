@@ -124,7 +124,7 @@ bot.on("message:text", async (ctx) => {
             .eq('telegram_chat_id', ctx.chat.id.toString())
             .single();
 
-        let role = "public";
+        const role = "public";
         let context = "PUBLIC MODE: Provide only general Lead Velocity info.";
 
         if (profile) {

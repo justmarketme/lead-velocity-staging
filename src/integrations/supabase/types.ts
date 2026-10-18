@@ -788,7 +788,9 @@ export type Database = {
       }
       leads: {
         Row: {
+          address: string | null
           broker_id: string | null
+          company: string | null
           created_at: string | null
           current_status: string | null
           date_uploaded: string | null
@@ -798,11 +800,15 @@ export type Database = {
           last_name: string | null
           notes: string | null
           phone: string
+          role: string | null
           source: string | null
           updated_at: string | null
+          vibe: number | null
         }
         Insert: {
+          address?: string | null
           broker_id?: string | null
+          company?: string | null
           created_at?: string | null
           current_status?: string | null
           date_uploaded?: string | null
@@ -812,11 +818,15 @@ export type Database = {
           last_name?: string | null
           notes?: string | null
           phone: string
+          role?: string | null
           source?: string | null
           updated_at?: string | null
+          vibe?: number | null
         }
         Update: {
+          address?: string | null
           broker_id?: string | null
+          company?: string | null
           created_at?: string | null
           current_status?: string | null
           date_uploaded?: string | null
@@ -826,8 +836,10 @@ export type Database = {
           last_name?: string | null
           notes?: string | null
           phone?: string
+          role?: string | null
           source?: string | null
           updated_at?: string | null
+          vibe?: number | null
         }
         Relationships: [
           {

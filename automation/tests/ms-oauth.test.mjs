@@ -145,14 +145,15 @@ test('edge function source: token reaches only the Vault RPC; never selected, re
   assert.ok(!/decrypted_secret|smc_vault_ms_refresh\b/.test(src), 'the callback never reads a token back');
   assert.ok(!/VITE_/.test(src), 'secrets are function env, never VITE_');
 });
-test('migration: service_role can run the vault wrappers; disconnect deletes the Vault secret', () => {
-  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261007_smc_18_ms_oauth_edge.sql'), 'utf8');
-  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_vault_store_ms_refresh[\s\S]*TO service_role/);
+test('migration: service_role can store / set status / disconnect but never read a token; disconnect deletes the Vault secret', () => {
+  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261011060000_smc_06_storage_calendar.sql'), 'utf8');
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_vault_store_ms_refresh\(uuid, text, text, text\),\s+public\.smc_set_calendar_status\(uuid, text, jsonb\),\s+public\.smc_ms_disconnect\(uuid\) TO service_role/);
+  assert.match(sql, /REVOKE EXECUTE ON FUNCTION public\.smc_vault_ms_refresh\(uuid\) FROM service_role/);
   assert.match(sql, /DELETE FROM vault\.secrets/);
-  assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_ms_disconnect\(uuid\) FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_vault_store_ms_refresh[\s\S]*public\.smc_ms_disconnect\(uuid\) FROM PUBLIC, anon, authenticated/);
 });
 test('W04/W05 still read the stored token the edge function writes (same vault RPC and status gate)', () => {
-  const m13 = readFileSync(join(ROOT, 'supabase/migrations/20261002_smc_13_pass7.sql'), 'utf8');
+  const m13 = readFileSync(join(ROOT, 'supabase/migrations/20261011060000_smc_06_storage_calendar.sql'), 'utf8');
   assert.match(m13, /smc_vault_ms_refresh[\s\S]*calendar_status = 'ok'/);
   assert.ok(readFileSync(join(ROOT, 'automation/build-w04-w05.mjs'), 'utf8').includes('smc_vault_ms_refresh'));
 });
@@ -188,4 +189,35 @@ test('callback banners and the IT-admin note', () => {
   assert.match(note, /cannot read my email/);
   assert.equal(H.msUrl('https://evil.example/https://login.microsoftonline.com/'), '');
   assert.ok(H.msUrl('https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?x=1'));
+});
+
+// ---------------------------------------------------------------- connected mailbox (brokers.calendar_email)
+test('mailbox: Graph /me mail wins, UPN only when mail is empty, guest #EXT# UPNs and errors are refused', () => {
+  assert.equal(L.ME_URL, 'https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName');
+  assert.equal(L.mailboxFromMe({ statusCode: 200, body: { mail: 'Mark@Oracle.co.za', userPrincipalName: 'mark.w@oracle.onmicrosoft.com' } }), 'mark@oracle.co.za');
+  assert.equal(L.mailboxFromMe({ statusCode: 200, body: { mail: null, userPrincipalName: 'mark@oracle.co.za' } }), 'mark@oracle.co.za');
+  assert.equal(L.mailboxFromMe({ statusCode: 200, body: { mail: '', userPrincipalName: 'mark_gmail.com#EXT#@tenant.onmicrosoft.com' } }), null);
+  assert.equal(L.mailboxFromMe({ statusCode: 401, body: { error: { code: 'InvalidAuthenticationToken' } } }), null);
+  assert.equal(L.mailboxFromMe(null), null);
+});
+test('mailbox: falls back to the signed-in account from the id_token, never to anything else', () => {
+  assert.deepEqual(L.chooseMailbox({ statusCode: 200, body: { mail: 'm@x.co.za' } }, { account: 'other@x.co.za' }), { email: 'm@x.co.za', source: 'graph_me' });
+  assert.deepEqual(L.chooseMailbox({ statusCode: 500, body: {} }, { account: 'Signed@X.co.za' }), { email: 'signed@x.co.za', source: 'id_token' });
+  assert.equal(L.chooseMailbox(null, { account: null }), null);
+  assert.equal(L.chooseMailbox(null, { account: 'not-an-email' }), null);
+});
+test('edge function source: stores the /me mailbox through smc_set_calendar_mailbox and never logs the access token', () => {
+  const src = readFileSync(join(ROOT, 'supabase/functions/ms-oauth/index.ts'), 'utf8');
+  assert.ok(src.includes('fetch(ME_URL'), 'calls Graph /me');
+  assert.ok(src.includes('smc_set_calendar_mailbox'), 'stores calendar_email through the RPC');
+  assert.ok(!/console\.\w+\([^)]*access/.test(src), 'never logs the access token');
+  const sql = readFileSync(join(ROOT, 'supabase/migrations/20261013090000_broker_go_live.sql'), 'utf8');
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.smc_set_calendar_mailbox\(uuid, text\) FROM PUBLIC, anon, authenticated/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.smc_set_calendar_mailbox\(uuid, text\) TO service_role/);
+});
+
+test('lib.mjs imports Buffer explicitly (Supabase edge runtime has no global Buffer: start() 500ed "Buffer is not defined")', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../../supabase/functions/ms-oauth/lib.mjs', import.meta.url), 'utf8');
+  assert.match(src, /import \{ Buffer \} from 'node:buffer'/);
 });

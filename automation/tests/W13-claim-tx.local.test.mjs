@@ -1,106 +1,146 @@
-// I-45m local proof: the W13 "Claim replacement" node (automation/W13.json) is ONE implicit transaction (two statements in one
-// query string, queryBatching left at the default 'single'), so pg_advisory_xact_lock serialises claims per cycle. Runs the REAL
-// node SQL, concurrently, against the REAL migration chain in a throwaway Postgres on a unix socket (no network, never the live DB).
-// Skipped when no Postgres binaries exist. psql -c sends the whole string as one simple Query = what n8n/pg-promise sends.
+// Local proof (crm-nurture, 2026-10-11): the W13 "Claim replacement" node (automation/W13.json) is ONE implicit transaction (two
+// statements in one query string, queryBatching left at the default 'single'), so pg_advisory_xact_lock serialises a broker's
+// requests per Calendar Week; and the routing triggers never over-deliver a CRM lead order. Runs the REAL node SQL and the REAL
+// migration chain, concurrently, on the live-schema mirror in a throwaway Postgres (Docker --network none or native binaries;
+// never the live DB). Skipped when neither backend exists. Each claim is one simple-protocol query = what n8n/pg-promise sends.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync, chmodSync, existsSync, copyFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync, execFile } from 'node:child_process';
 import crypto from 'node:crypto';
+import { localPgBackend, startLocalPg, applyRepoMigrations, makeQuery } from './_localpg.mjs';
+import * as R from '../lib/w13.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..', '..');
 const W13 = JSON.parse(readFileSync(join(ROOT, 'automation', 'W13.json'), 'utf8'));
-const PGBIN = ['/usr/lib/postgresql/16/bin', '/usr/lib/postgresql/17/bin', '/usr/local/pgsql/bin'].find((d) => existsSync(join(d, 'initdb')));
 const node = W13.nodes.find((n) => n.name.startsWith('Claim replacement'));
+const BACKEND = localPgBackend();
 
-test('W13 claim node: static shape = one query string, two statements, batching single', () => {
+test('W13 claim node: static shape = one query string, two statements (week lock + claim), batching single', () => {
   assert.ok(node, 'claim node exists');
   const opt = node.parameters.options || {};
-  assert.ok(opt.queryBatching === undefined || opt.queryBatching === 'single', `queryBatching must be default/single, got ${opt.queryBatching}`);
-  const stmts = node.parameters.query.replace(/--[^\n]*/g, '').split(';').map((s) => s.trim()).filter(Boolean);
-  assert.equal(stmts.length, 2, 'lock + insert');
-  assert.match(stmts[0], /^SELECT pg_advisory_xact_lock\(hashtext\('w13:cycle:' \|\| \$4::text\)\)$/);
+  assert.equal(opt.queryBatching, 'single', 'pinned to single: lock and count in one transaction');
+  const stmts = node.parameters.query.replace(/--[^\n]*/g, '').split(/;\s*\n/).map((s) => s.trim().replace(/;$/, '')).filter(Boolean);
+  assert.equal(stmts.length, 2, 'lock + claim');
+  assert.match(stmts[0], /^SELECT pg_advisory_xact_lock\(hashtextextended\('w13:week:' \|\| \$5::uuid::text \|\| ':' \|\| to_char\(public\.smc_week_start\(COALESCE\(\$10::timestamptz, \$9::timestamptz\)\) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'\), 0\)\)$/);
   assert.ok(!/\bCOMMIT\b|\bBEGIN\b/i.test(node.parameters.query), 'no hand-rolled txn control');
+  // the portal RPC uses the very same key expression, so both paths exclude each other
+  const mig = readFileSync(join(ROOT, 'supabase', 'migrations', '20261011030000_smc_03_orders_outcomes.sql'), 'utf8');
+  assert.match(mig, /pg_advisory_xact_lock\(hashtextextended\('w13:week:' \|\| v_broker::text \|\| ':' \|\| to_char\(public\.smc_week_start\(a\.appointment_date\) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI'\), 0\)\)/);
 });
 
-test('W13 claim SQL concurrently: no over-cap claim, one per lead, no partial write (real SQL, real migrations)', { skip: !PGBIN && 'no Postgres binaries on this machine', timeout: 600000 }, async (t) => {
-  const isRoot = process.getuid && process.getuid() === 0;
-  const run = (cmd, args, opts = {}) => isRoot ? ['runuser', ['-u', 'postgres', '--', cmd, ...args], opts] : [cmd, args, opts];
-  const as = (cmd, args, opts = {}) => { const [c, a, o] = run(cmd, args, opts); return execFileSync(c, a, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 26, ...o }); };
-  const dir = mkdtempSync(join(tmpdir(), 'w13pg-')); chmodSync(dir, 0o777);
-  const port = String(57000 + Math.floor(Math.random() * 900));
-  const data = join(dir, 'data');
-  as(join(PGBIN, 'initdb'), ['-D', data, '-A', 'trust', '-U', 'postgres', '--no-locale', '-E', 'UTF8']);
-  as(join(PGBIN, 'pg_ctl'), ['-D', data, '-o', `-k ${dir} -c listen_addresses='' -p ${port}`, '-w', '-l', join(dir, 'log'), 'start']);
-  t.after(() => { try { as(join(PGBIN, 'pg_ctl'), ['-D', data, '-m', 'immediate', 'stop']); } catch {} rmSync(dir, { recursive: true, force: true }); });
-  const base = ['-h', dir, '-p', port, '-U', 'postgres', '-d', 'postgres', '-q', '-v', 'ON_ERROR_STOP=1'];
-  const file = (f, extra = []) => { const c = join(dir, `f${crypto.randomBytes(3).toString('hex')}.sql`); copyFileSync(f, c); chmodSync(c, 0o644); return as('psql', [...base, ...extra, '-f', c]); };
+test('W13 claim SQL + routing triggers concurrently on the live-schema mirror: weekly max 3, one per lead, no partial write, no over-delivery', { skip: !BACKEND && 'no local Postgres (Docker or native binaries)', timeout: 900000 }, async (t) => {
+  const pg = startLocalPg(BACKEND);
+  t.after(() => pg.stop());
+  applyRepoMigrations(pg);
+  const q = makeQuery(pg);
   const lit = (v) => v === null || v === undefined ? 'NULL' : typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`;
   const fill = (sql, params) => sql.replace(/\$(\d+)/g, (_, n) => lit(params[Number(n) - 1]));
-  const q = (sql) => as('psql', [...base, '-At', '-F', '|', '-c', sql]).trim().split('\n').filter(Boolean).map((l) => l.split('|'));
-  // one simple-protocol query string, as the n8n Postgres node sends it; async so claims truly overlap
-  const claimAsync = (p) => new Promise((resolve) => {
-    const [c, a] = run('psql', [...base, '-At', '-F', '|', '-c', fill(node.parameters.query, p)]);
-    execFile(c, a, { encoding: 'utf8' }, (err, stdout, stderr) => resolve({ err, stdout: stdout.trim(), stderr }));
-  });
 
-  file(join(here, 'fixtures', 'pg-stub.sql'));
-  const MIG = join(ROOT, 'supabase', 'migrations');
-  const all = readdirSync(MIG).filter((f) => f.endsWith('.sql')).sort();
-  const legacy = all.filter((f) => !/^2026100\d_smc_/.test(f) && !f.startsWith('20260114094619'));
-  const deferred = [];
-  for (const f of legacy) { try { file(join(MIG, f), ['-1']); } catch { deferred.push(f); } }
-  for (const f of deferred) file(join(MIG, f), ['-1']);
-  for (const f of all.filter((x) => /^2026100\d_smc_/.test(x))) file(join(MIG, f), ['-1']);
-
-  // ---- synthetic seed: one brand, one broker, two cycles (cap 4 and cap 2), many leads
   const uuid = () => crypto.randomUUID();
-  const brand = uuid(), user = uuid(), broker = uuid(), cycA = uuid(), cycB = uuid();
-  q(`INSERT INTO public.brands (id, code, name) VALUES ('${brand}', 'SYNTH', 'Synthetic')`);
-  q(`INSERT INTO auth.users (id, email) VALUES ('${user}', 'synthetic-broker@example.test')`);
-  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person) VALUES ('${broker}', '${user}', 'Synthetic FSP', 'Synthetic')`);
-  const tier = q('SELECT tier_code FROM public.pricing ORDER BY sort_order LIMIT 1')[0][0];
-  for (const [id, no, cap] of [[cycA, 1, 4], [cycB, 2, 2]]) { // only one 'active' cycle per broker; the claim SQL does not look at status
-    q(`INSERT INTO public.cycles (id, broker_id, brand_id, tier_code, cycle_no, price_zar, committed_leads, replacement_cap, media_share_zar, starts_at, ends_at, status)
-       VALUES ('${id}', '${broker}', '${brand}', '${tier}', ${no}, 1000, 20, ${cap}, 0, now(), now() + interval '30 days', '${no === 1 ? 'active' : 'scheduled'}')`);
-  }
-  const mkLead = (i) => { const id = uuid(); q(`INSERT INTO public.leads (id, first_name, last_name, phone) VALUES ('${id}', 'Synthetic', 'L${i}', '+27000000${String(i).padStart(3, '0')}')`); return id; };
-  const params = (lead, cycle, extra = {}) => [lead, null, null, cycle, broker, brand, extra.reason || 'no_show', extra.code || 'no_show', new Date().toISOString()];
+  const brand = q("SELECT id FROM public.brands WHERE code = 'SMC'")[0][0];
+  const user = uuid(), broker = uuid(), order = uuid();
+  q(`INSERT INTO auth.users (id, email) VALUES ('${user}', 'synthetic-claim-broker@example.test')`);
+  // routing_on needs the FSP number, practice, adviser and intro card (brokers_smc_routing_ready, 2026-10-11)
+  const READY = `fsp_number, intro_card_url`; const readyVals = `'12345', 'https://media.sortmycover.co.za/intro/synthetic/card.png'`;
+  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person, email, status, brand_id, routing_on, ${READY}) VALUES ('${broker}', '${user}', 'Synthetic FSP', 'Synthetic', 'synthetic-claim-broker@example.test', 'active', '${brand}', true, ${readyVals})`);
+  q(`INSERT INTO public.lead_orders (id, broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${order}', '${broker}', 'synthetic SMC order', 30, 'paid', now(), '${brand}')`);
+  let n = 0;
+  const mkLead = (routed = true) => {
+    const id = uuid(); n += 1;
+    // email verified (2026-10-11: a lead counts at email verified + attendance confirmed; section 4 covers the unverified order)
+    q(`INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at, email, email_verified, email_verified_at, email_verified_via)
+       VALUES ('${id}', '+27600007${String(n).padStart(3, '0')}', 'Synthetic', 'Search Lead', '${brand}', ${routed ? `'${broker}'` : 'NULL'}, now(), 'consent', 'ctwa', now(), 'synthetic${n}@example.test', true, now(), 'link')`);
+    return id;
+  };
+  // Delivered = email verified + the BROKER marked the meeting attended (agreement 5.2 / 14.3(c), 2026-10-11): the portal's
+  // one-tap Attended (outcomes.outcome attended, not auto-marked) counts the lead on the order. The client's Confirm tap never does.
+  let slot = 0;
+  const deliver = (lead, b = broker) => { slot += 1; q(`WITH a AS (INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
+       VALUES ('${b}', '${lead}', '2026-09-01T06:00:00Z'::timestamptz + interval '${slot} hours', '2026-09-01T06:30:00Z'::timestamptz + interval '${slot} hours', 'confirmed', '${brand}', 'teams', now()) RETURNING id, client_id, broker_id, brand_id)
+       INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome, marked_via) SELECT id, client_id, broker_id, brand_id, 'attended', 'portal' FROM a`); };
+  const monday = '2026-10-12T10:00:00+02:00'; // a Monday in SAST
+  const claimAsync = (lead, extra = {}) => pg.query(fill(node.parameters.query,
+    [lead, null, null, order, broker, brand, extra.reason || 'no_show', extra.code || 'no_show', extra.at || new Date().toISOString(), extra.missed || monday]));
 
-  // ---- (1) 12 concurrent claims on cycle A (cap 4) + 6 on cycle B (cap 2), interleaved
-  const leadsA = Array.from({ length: 12 }, (_, i) => mkLead(i));
-  const leadsB = Array.from({ length: 6 }, (_, i) => mkLead(100 + i));
-  const jobs = [];
-  for (let i = 0; i < 12; i++) { jobs.push(claimAsync(params(leadsA[i], cycA))); if (i < 6) jobs.push(claimAsync(params(leadsB[i], cycB))); }
-  const res = await Promise.all(jobs);
+  // ---- (0) the lock key the SQL computes = lib/w13 weekLockKey (same SAST week boundary in every session)
+  const sqlKey = q(`SELECT 'w13:week:${broker}:' || to_char(public.smc_week_start('2026-10-14T23:30:00+02:00'::timestamptz) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI')`)[0][0];
+  assert.equal(sqlKey, R.weekLockKey(broker, '2026-10-14T23:30:00+02:00'));
+  assert.equal(R.weekStart('2026-10-18T23:59:00+02:00'), '2026-10-11T22:00:00.000Z', 'Sunday 23:59 SAST is still that week');
+  assert.equal(R.weekStart('2026-10-19T00:00:00+02:00'), '2026-10-18T22:00:00.000Z', 'Monday 00:00 SAST starts the next');
+
+  // ---- (1) 8 delivered leads, 8 concurrent claims for missed appointments in ONE Calendar Week: exactly 3 open
+  const leads = Array.from({ length: 8 }, () => mkLead());
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '0', 'routing reserves, it does not count');
+  assert.equal(q(`SELECT count(*) FROM public.leads WHERE lead_order_id = '${order}' AND order_state = 'attached'`)[0][0], '8', 'routing reserved a place for every lead');
+  for (const l of leads) deliver(l);
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order}'`)[0][0], '8', 'the broker\'s attended mark counted every (verified) lead on the order');
+  const res = await Promise.all(leads.map((l) => claimAsync(l)));
   for (const r of res) assert.equal(r.err, null, r.stderr);
-  const tally = (cy) => Object.fromEntries(q(`SELECT status, count(*) FROM public.replacements WHERE cycle_id = '${cy}' GROUP BY 1`));
-  assert.deepEqual(tally(cycA), { due: '4', rejected: '8' }, 'cycle A: exactly cap claims accepted, the rest rejected');
-  assert.deepEqual(tally(cycB), { due: '2', rejected: '4' }, 'cycle B: independent lock, exactly its own cap');
-  assert.equal(q(`SELECT count(*) FROM public.replacements WHERE cycle_id = '${cycA}' AND status <> 'rejected'`)[0][0], '4', 'never over cap');
-  assert.deepEqual(q(`SELECT DISTINCT note FROM public.replacements WHERE status = 'rejected'`).flat(), ['cap_reached']);
-  assert.deepEqual(q(`SELECT cap_position FROM public.replacements WHERE cycle_id = '${cycA}' AND status = 'due' ORDER BY 1`).flat(), ['1', '2', '3', '4'], 'positions contiguous: no gap from a lost race');
+  const tally = Object.fromEntries(q(`SELECT status, count(*) FROM public.replacements WHERE broker_id = '${broker}' GROUP BY 1`));
+  assert.deepEqual(tally, { due: '3' }, 'exactly 3 requests opened; nothing written past the maximum');
+  assert.equal(res.filter((r) => /\|refused\|weekly_max\|/.test(r.stdout)).length, 5, 'the other 5 come back as refused rows (Jonathan alerted)');
+  assert.deepEqual(q(`SELECT cap_position FROM public.replacements WHERE broker_id = '${broker}' ORDER BY 1`).flat(), ['1', '2', '3'], 'positions contiguous: no gap from a lost race');
+  assert.equal(q(`SELECT count(DISTINCT lead_order_id) FROM public.replacements WHERE broker_id = '${broker}' AND lead_order_id = '${order}'`)[0][0], '1', 'linked to the lead order');
+  // the next Calendar Week opens again
+  const nextWeek = await claimAsync(leads[7], { missed: '2026-10-19T09:00:00+02:00' });
+  assert.equal(nextWeek.err, null, nextWeek.stderr);
+  assert.match(nextWeek.stdout, /\|due\|/);
 
-  // ---- (2) the same lead claimed 5x at once in a fresh cycle: one live row only (one per lead)
-  const cycC = uuid();
-  q(`INSERT INTO public.cycles (id, broker_id, brand_id, tier_code, cycle_no, price_zar, committed_leads, replacement_cap, media_share_zar, starts_at, ends_at, status)
-     VALUES ('${cycC}', '${broker}', '${brand}', '${tier}', 3, 1000, 20, 4, 0, now(), now() + interval '30 days', 'scheduled')`);
-  const one = mkLead(200);
-  const dup = await Promise.all(Array.from({ length: 5 }, () => claimAsync(params(one, cycC))));
+  // ---- (2) the same lead claimed 5x at once in a fresh week: one live row only (one per lead)
+  const one = mkLead(); deliver(one);
+  const dup = await Promise.all(Array.from({ length: 5 }, () => claimAsync(one, { missed: '2026-10-26T09:00:00+02:00' })));
   for (const r of dup) assert.equal(r.err, null, r.stderr);
   assert.equal(q(`SELECT count(*) FROM public.replacements WHERE lead_id = '${one}'`)[0][0], '1', 'one row for one lead');
-  assert.equal(dup.filter((r) => r.stdout).length, 1, 'only one caller got a row back; the others no-op');
+  assert.equal(dup.filter((r) => /\|due\|/.test(r.stdout)).length, 1, 'only one caller opened it; the others no-op');
 
-  // ---- (3) no partial write / no leaked lock: a claim that fails mid-query leaves nothing and releases the cycle lock
-  const bad = await claimAsync(params(mkLead(300), cycC, { reason: 'didnt_buy' })); // violates the reason CHECK (2.1.1)
-  assert.ok(bad.err && /reason|check/i.test(bad.stderr), 'bad claim errors');
-  assert.equal(q(`SELECT count(*) FROM public.replacements WHERE cycle_id = '${cycC}'`)[0][0], '1', 'failed claim wrote nothing');
-  assert.equal(q(`SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'`)[0][0], '0', 'xact lock released on rollback');
-  const after = await claimAsync(params(mkLead(301), cycC));
-  assert.equal(after.err, null, after.stderr);
-  assert.equal(q(`SELECT count(*) FROM public.replacements WHERE cycle_id = '${cycC}' AND status = 'due'`)[0][0], '2', 'next claim proceeds');
+  // ---- (3) no partial write / no leaked lock: a claim with a reason outside the agreed rule fails and writes nothing
+  const bad = await claimAsync(mkLead(), { reason: 'disqualified', code: 'nofit_criteria', missed: '2026-11-02T09:00:00+02:00' });
+  assert.ok(bad.err && /reason|check/i.test(bad.stderr), 'disqualified is not a replacement reason');
+  assert.equal(q("SELECT count(*) FROM public.replacements WHERE missed_start_at >= '2026-11-02'")[0][0], '0', 'failed claim wrote nothing');
+  assert.equal(q("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory'")[0][0], '0', 'xact lock released on rollback');
+
+  // ---- (4) capacity: 10 leads routed concurrently to a broker whose order has room for 3 -> 3 reserved, 7 held, never more;
+  //          the 3 then confirm concurrently -> exactly 3 counted
+  const user2 = uuid(), broker2 = uuid(), order2 = uuid();
+  q(`INSERT INTO auth.users (id, email) VALUES ('${user2}', 'synthetic-cap-broker@example.test')`);
+  q(`INSERT INTO public.brokers (id, user_id, firm_name, contact_person, email, status, brand_id, routing_on, ${READY}) VALUES ('${broker2}', '${user2}', 'Synthetic Two', 'Synthetic', 'synthetic-cap-broker@example.test', 'active', '${brand}', true, ${readyVals})`);
+  q(`INSERT INTO public.lead_orders (id, broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${order2}', '${broker2}', 'synthetic small order', 3, 'paid', now(), '${brand}')`);
+  const ins = await Promise.all(Array.from({ length: 10 }, (_, i) => pg.query(
+    `INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at)
+     VALUES ('${uuid()}', '+27600006${String(i).padStart(3, '0')}', 'Cap', 'Search Lead', '${brand}', '${broker2}', now(), 'consent', 'ctwa', now()) RETURNING broker_id`)));
+  for (const r of ins) assert.equal(r.err, null, r.stderr);
+  assert.equal(q(`SELECT count(*) FROM public.leads WHERE lead_order_id = '${order2}' AND order_state = 'attached'`)[0][0], '3', 'never over-reserved');
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'nothing counted at hand-over');
+  assert.equal(q(`SELECT count(*) FROM public.leads WHERE phone LIKE '+27600006%' AND broker_id = '${broker2}'`)[0][0], '3');
+  assert.equal(q("SELECT count(*) FROM public.leads WHERE phone LIKE '+27600006%' AND broker_id IS NULL AND routing_reason = 'held_no_open_order'")[0][0], '7', 'the rest are held, stored, not handed over');
+  assert.deepEqual(q(`SELECT open, remaining FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['f', '0']);
+  const routed = q(`SELECT id FROM public.leads WHERE broker_id = '${broker2}' ORDER BY id`).flat();
+  routed.forEach((l, i) => q(`INSERT INTO public.appointments (broker_id, client_id, appointment_date, ends_at, status, brand_id, method, confirmed_at)
+     VALUES ('${broker2}', '${l}', '2026-09-05T06:00:00Z'::timestamptz + interval '${i * 2} hours', '2026-09-05T06:30:00Z'::timestamptz + interval '${i * 2} hours', 'confirmed', '${brand}', 'teams', now())`));
+  // the client's Confirm tap alone counts nothing; the broker's 3 Attended marks arrive at once
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'the client Confirm tap is a reminder signal only');
+  const conf = await Promise.all(routed.map((l) => pg.query(`INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome, marked_via)
+     SELECT a.id, a.client_id, a.broker_id, a.brand_id, 'attended', 'whatsapp' FROM public.appointments a WHERE a.client_id = '${l}' RETURNING id`)));
+  for (const r of conf) assert.equal(r.err, null, r.stderr);
+  // 2026-10-11: attendance confirmed but the emails are not verified yet -> nothing counted; the 3 verifications arrive at once
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '0', 'broker attended alone counts nothing (email not verified)');
+  const ver = await Promise.all(routed.map((l) => pg.query(`UPDATE public.leads SET email = 'cap-' || left(id::text, 8) || '@example.test', email_verified = true, email_verified_at = now(), email_verified_via = 'code' WHERE id = '${l}' RETURNING id`)));
+  for (const r of ver) assert.equal(r.err, null, r.stderr);
+  assert.equal(q(`SELECT count(*) FROM public.lead_order_items WHERE order_id = '${order2}'`)[0][0], '3', 'the 3 attended + verified leads are counted, never more');
+  assert.deepEqual(q(`SELECT counted, reserved, counted_toward_order FROM public.smc_order_capacity WHERE lead_order_id = '${order2}'`)[0], ['3', '0', '3']);
+
+  // ---- (5) FAIS disclosure: no broker without an FSP number gets routing on, and no lead is ever introduced to one
+  const broker3 = uuid();
+  const noFsp = await pg.query(`INSERT INTO public.brokers (id, firm_name, contact_person, email, status, brand_id, routing_on, intro_card_url)
+     VALUES ('${broker3}', 'No FSP Practice', 'Synthetic', 'synthetic-nofsp@example.test', 'active', '${brand}', true, 'https://media.sortmycover.co.za/x.png')`);
+  assert.ok(noFsp.err && /brokers_smc_routing_ready/.test(noFsp.stderr), 'routing_on refused without an FSP number');
+  q(`INSERT INTO public.brokers (id, firm_name, contact_person, email, status, brand_id, routing_on) VALUES ('${broker3}', 'No FSP Practice', 'Synthetic', 'synthetic-nofsp@example.test', 'active', '${brand}', false)`);
+  q(`INSERT INTO public.lead_orders (broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${broker3}', 'order of a broker without FSP', 5, 'paid', now(), '${brand}')`);
+  const held = uuid();
+  q(`INSERT INTO public.leads (id, phone, first_name, source, brand_id, broker_id, routed_at, consent_text, consent_source, consent_at)
+     VALUES ('${held}', '+27600005001', 'Held', 'Search Lead', '${brand}', '${broker3}', now(), 'consent', 'ctwa', now())`);
+  assert.deepEqual(q(`SELECT coalesce(broker_id::text, 'none'), routing_reason FROM public.leads WHERE id = '${held}'`)[0], ['none', 'held_broker_not_ready'], 'held, never introduced');
 });

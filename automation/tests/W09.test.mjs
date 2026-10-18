@@ -5,7 +5,7 @@
 // lands at the right moment, is sent exactly once, and stops the instant the lead says STOP or the booking moves.
 //   T0 + 10 min  what_to_expect
 //   T-48 h       intro_media (video; voice if no video) — if booked >= 3 days out, else straight after booking
-//   T-24 h       reminder_24h (Confirm / Reschedule) + prep_nudge
+//   T-24 h       topic-aware reminder_24h (Confirm / Reschedule)
 //   T-2 h        reminder_2h
 //   T-10 min     reminder_10m
 //   Booked < 24 h ahead -> compressed: no T-24 h touches.
@@ -175,12 +175,16 @@ test(`W09 [${MODE}] message budget: first touch + reminders + post-call touches 
   }
 });
 
-test(`W09 [${MODE}] reminder copy comes from the real templates (positive norm, Confirm/Reschedule, STOP line)`, () => {
-  const t24 = renderBody('reminder_24h', ['Lerato', 'Microsoft Teams', 'Mark Smith', '10:00']);
-  assert.ok(t24.includes('Most people find 30 minutes is all it takes'));
+test(`W09 [${MODE}] reminder names the chosen broad topic, uses the appointment date, and retains Confirm/Reschedule and STOP`, () => {
+  const t24 = renderBody('reminder_24h', ['Lerato', 'Microsoft Teams', 'Mark Smith', 'Tue 7 Oct at 10:00', R.topicReminder('life')]);
+  assert.ok(t24.includes('You mentioned life cover.'));
+  assert.ok(t24.includes('Tue 7 Oct at 10:00'));
+  assert.ok(!t24.includes('tomorrow'));
   assert.ok(t24.includes('Reply STOP to opt out.'));
   const btns = template('reminder_24h').components.find((c) => c.type === 'BUTTONS').buttons.map((b) => b.text);
   assert.deepEqual(btns, ['Confirm', 'Reschedule']);
+  assert.ok(R.topicReminder('wills').includes('wills'));
+  assert.ok(!R.topicReminder('unknown').includes('You mentioned'));
   for (const name of ['what_to_expect', 'reminder_2h', 'reminder_10m', 'prep_nudge', 'intro_media', 'intro_media_voice'])
     assert.equal(template(name).category, 'UTILITY', name);
 });
@@ -229,7 +233,7 @@ test('W09.json: CONTRACTS entries (schedule, rebuild, cancel_all, pause, resume)
 
 test('W09.json: idempotent per appointment + step (job key, one done row per key), append-only cancels, DRY_RUN guard, last_contact_at after Meta accepts', () => {
   assert.match(node('Insert jobs (one row per key)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
-  assert.match(node('Claim send (w09done key, first tick wins)').parameters.query, /'w09done:' \|\| \$5\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.match(node('Claim send (w09done key, first tick wins)').parameters.query, /'w09done:' \|\| \$4\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
   assert.match(node('Cancel all unsent jobs (booking or lead)').parameters.query, /'cancelled'/);
   assert.ok(!workflowSql(WF).some((q) => /UPDATE public\.lead_activities|DELETE FROM public\.lead_activities/i.test(q.sql)), 'the timeline stays append-only');
   assert.equal(WF.connections['Claimed? (send once)'].main[0][0].node, 'Send item (job)');
@@ -240,7 +244,7 @@ test('W09.json: idempotent per appointment + step (job key, one done row per key
 });
 
 const c09 = (over = {}) => ({ op: 'schedule', now_iso: '2026-10-12T08:14:41+02:00', ...over });
-const planRow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: B.broker_id, cycle_id: 'cyc_1', appointment_date: fx.booking_request.slot_start, status: 'booked', booked_at: fx.booking_request.requested_at, language: 'en', opted_out_at: null, intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, lineage_sent: [], ...over });
+const planRow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: B.broker_id, appointment_date: fx.booking_request.slot_start, status: 'booked', booked_at: fx.booking_request.requested_at, language: 'en', opted_out_at: null, intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, lineage_sent: [], ...over });
 
 test('W09.json "Plan" node (schedule from the booking event): the job rows are the hand-computed fixture schedules', async () => {
   for (const id of ['L01', 'L02', 'L03', 'L04', 'L10']) {
@@ -258,7 +262,7 @@ test('W09.json "Plan" node (schedule from the booking event): the job rows are t
   assert.deepEqual(gone.rows, []);
 });
 
-const dueRow = (over = {}) => ({ key: 'w09:bkg_L01:reminder_2h:2026-10-15T08:00:00+02:00', lead_id: 'lead_test_L01', brand_id: 'brand_smc', broker_id: B.broker_id, cycle_id: 'cyc_1', booking_id: 'bkg_L01', touch: 'reminder_2h', template: 'reminder_2h', at: '2026-10-15T08:00:00+02:00', start: '2026-10-15T10:00:00+02:00', booking_status: 'confirmed', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', first_name: 'Lerato', phone: '+27600000001', language: 'en', opted_out_at: null, adviser_name: 'Mark Smith', contact_person: 'Mark Smith', broker_phone: '+27600000090', broker_whatsapp: '+27600000090', intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, domain: 'sortmycover.co.za', suppressed: false, paused: false, outbound_count: 4, ...over });
+const dueRow = (over = {}) => ({ key: 'w09:bkg_L01:reminder_2h:2026-10-15T08:00:00+02:00', lead_id: 'lead_test_L01', brand_id: 'brand_smc', broker_id: B.broker_id, booking_id: 'bkg_L01', touch: 'reminder_2h', template: 'reminder_2h', at: '2026-10-15T08:00:00+02:00', start: '2026-10-15T10:00:00+02:00', booking_status: 'confirmed', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', first_name: 'Lerato', phone: '+27600000001', language: 'en', opted_out_at: null, adviser_name: 'Mark Smith', contact_person: 'Mark Smith', broker_phone: '+27600000090', broker_whatsapp: '+27600000090', intro_video_url: B.intro_video_url, intro_voice_url: B.intro_voice_url, domain: 'sortmycover.co.za', suppressed: false, paused: false, outbound_count: 4, ...over });
 const due = async (row, now) => (await runCode(WF, 'Decide (w09.dueFromRow)', { json: row, refs: { 'Classify + validate (w09.classifyOp)': { now_iso: now } } })).json;
 
 test('W09.json "Decide" node at send time: sends the right template; stops on STOP, suppression, pause, moved or cancelled booking, meeting started', async () => {
@@ -273,6 +277,17 @@ test('W09.json "Decide" node at send time: sends the right template; stops on ST
   assert.equal(await why({ booking_status: 'cancelled' }), 'booking_not_live');
   assert.equal(await why({ appointment_date: '2026-10-16T10:00:00+02:00' }), 'booking_moved');
   assert.equal(await why({}, '2026-10-15T10:00:00+02:00'), 'meeting_started');
+});
+
+test('W09 24-hour reminder uses the chosen broad topic and a neutral fallback when no topic was recorded', async () => {
+  const base = { touch: 'reminder_24h', template: 'reminder_24h', at: '2026-10-14T10:00:00+02:00' };
+  const selected = await due(dueRow({ ...base, help_with: 'life' }), base.at);
+  assert.equal(selected.action, 'send');
+  assert.equal(selected.send.wa.template.components[0].parameters.length, 5);
+  assert.match(selected.send.wa.template.components[0].parameters[4].text, /You mentioned life cover/);
+  const missing = await due(dueRow(base), base.at);
+  assert.doesNotMatch(missing.send.wa.template.components[0].parameters[4].text, /You mentioned/);
+  assert.match(node('Due jobs (pending, at <= now)').parameters.query, /conv_state->>'help_with' AS help_with/);
 });
 
 test('W09 quiet hours 20:00-08:00 SAST: a touch due at night waits to 08:00 (or is dropped if that is too close to the call); T-10 min is exempt', async () => {

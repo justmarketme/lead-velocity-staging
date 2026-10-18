@@ -1,0 +1,435 @@
+{
+ "lead": 1.0,
+ "tail": 1.3,
+ "voice": "en-US-AndrewNeural",
+ "rate": "-3%",
+ "scenes": [
+  {
+   "id": "s01",
+   "title": "Scene 1: Enter it",
+   "spoken": "In Getting started, find Confirm your FSP number, and tap Enter it. If your signed agreement lists your FSP number, it's already filled in. Check it, and check your practice name, as it appears on your FSP licence.",
+   "audio": 13.752,
+   "clip": 16.052,
+   "words": [
+    {
+     "w": "In",
+     "t": 1.103,
+     "e": 1.193
+    },
+    {
+     "w": "Getting",
+     "t": 1.206,
+     "e": 1.477
+    },
+    {
+     "w": "started,",
+     "t": 1.49,
+     "e": 1.889
+    },
+    {
+     "w": "find",
+     "t": 2.25,
+     "e": 2.546
+    },
+    {
+     "w": "Confirm",
+     "t": 2.559,
+     "e": 2.997
+    },
+    {
+     "w": "your",
+     "t": 3.01,
+     "e": 3.216
+    },
+    {
+     "w": "FSP",
+     "t": 3.229,
+     "e": 3.745
+    },
+    {
+     "w": "number,",
+     "t": 3.758,
+     "e": 4.131
+    },
+    {
+     "w": "and",
+     "t": 4.415,
+     "e": 4.466
+    },
+    {
+     "w": "tap",
+     "t": 4.479,
+     "e": 4.75
+    },
+    {
+     "w": "Enter",
+     "t": 4.763,
+     "e": 5.008
+    },
+    {
+     "w": "it.",
+     "t": 5.021,
+     "e": 5.162
+    },
+    {
+     "w": "If",
+     "t": 5.588,
+     "e": 5.704
+    },
+    {
+     "w": "your",
+     "t": 5.716,
+     "e": 5.845
+    },
+    {
+     "w": "signed",
+     "t": 5.858,
+     "e": 6.155
+    },
+    {
+     "w": "agreement",
+     "t": 6.168,
+     "e": 6.644
+    },
+    {
+     "w": "lists",
+     "t": 6.657,
+     "e": 6.966
+    },
+    {
+     "w": "your",
+     "t": 6.979,
+     "e": 7.186
+    },
+    {
+     "w": "FSP",
+     "t": 7.198,
+     "e": 7.753
+    },
+    {
+     "w": "number,",
+     "t": 7.765,
+     "e": 8.152
+    },
+    {
+     "w": "it's",
+     "t": 8.526,
+     "e": 8.642
+    },
+    {
+     "w": "already",
+     "t": 8.655,
+     "e": 8.99
+    },
+    {
+     "w": "filled",
+     "t": 9.003,
+     "e": 9.325
+    },
+    {
+     "w": "in.",
+     "t": 9.338,
+     "e": 9.557
+    },
+    {
+     "w": "Check",
+     "t": 9.982,
+     "e": 10.188
+    },
+    {
+     "w": "it,",
+     "t": 10.201,
+     "e": 10.369
+    },
+    {
+     "w": "and",
+     "t": 10.691,
+     "e": 10.755
+    },
+    {
+     "w": "check",
+     "t": 10.768,
+     "e": 10.961
+    },
+    {
+     "w": "your",
+     "t": 10.974,
+     "e": 11.09
+    },
+    {
+     "w": "practice",
+     "t": 11.103,
+     "e": 11.541
+    },
+    {
+     "w": "name,",
+     "t": 11.554,
+     "e": 11.812
+    },
+    {
+     "w": "as",
+     "t": 12.237,
+     "e": 12.379
+    },
+    {
+     "w": "it",
+     "t": 12.392,
+     "e": 12.469
+    },
+    {
+     "w": "appears",
+     "t": 12.482,
+     "e": 12.92
+    },
+    {
+     "w": "on",
+     "t": 12.933,
+     "e": 13.01
+    },
+    {
+     "w": "your",
+     "t": 13.023,
+     "e": 13.191
+    },
+    {
+     "w": "FSP",
+     "t": 13.204,
+     "e": 13.68
+    },
+    {
+     "w": "licence.",
+     "t": 13.693,
+     "e": 14.35
+    }
+   ],
+   "cues": [
+    {
+     "text": "In Getting started, find Confirm your FSP number, and tap Enter it.",
+     "t": 1.103,
+     "e": 5.588
+    },
+    {
+     "text": "If your signed agreement lists your FSP number,",
+     "t": 5.588,
+     "e": 8.526
+    },
+    {
+     "text": "it's already filled in.",
+     "t": 8.526,
+     "e": 9.982
+    },
+    {
+     "text": "Check it, and check your practice name,",
+     "t": 9.982,
+     "e": 12.237
+    },
+    {
+     "text": "as it appears on your FSP licence.",
+     "t": 12.237,
+     "e": 14.7
+    }
+   ]
+  },
+  {
+   "id": "s02",
+   "title": "Scene 2: Save and tick",
+   "spoken": "Tap Save, and the step gets its tick. Clients see your FSP number with your practice name. To change it later, tap Edit. Once you're receiving leads, it's locked, so just ask Lead Velocity.",
+   "audio": 12.624,
+   "clip": 14.924,
+   "words": [
+    {
+     "w": "Tap",
+     "t": 1.103,
+     "e": 1.296
+    },
+    {
+     "w": "Save,",
+     "t": 1.309,
+     "e": 1.786
+    },
+    {
+     "w": "and",
+     "t": 2.07,
+     "e": 2.134
+    },
+    {
+     "w": "the",
+     "t": 2.147,
+     "e": 2.211
+    },
+    {
+     "w": "step",
+     "t": 2.224,
+     "e": 2.546
+    },
+    {
+     "w": "gets",
+     "t": 2.559,
+     "e": 2.753
+    },
+    {
+     "w": "its",
+     "t": 2.765,
+     "e": 2.907
+    },
+    {
+     "w": "tick.",
+     "t": 2.92,
+     "e": 3.255
+    },
+    {
+     "w": "Clients",
+     "t": 3.68,
+     "e": 4.131
+    },
+    {
+     "w": "see",
+     "t": 4.235,
+     "e": 4.466
+    },
+    {
+     "w": "your",
+     "t": 4.479,
+     "e": 4.737
+    },
+    {
+     "w": "FSP",
+     "t": 4.75,
+     "e": 5.343
+    },
+    {
+     "w": "number",
+     "t": 5.356,
+     "e": 5.652
+    },
+    {
+     "w": "with",
+     "t": 5.755,
+     "e": 5.884
+    },
+    {
+     "w": "your",
+     "t": 5.897,
+     "e": 5.987
+    },
+    {
+     "w": "practice",
+     "t": 6.0,
+     "e": 6.438
+    },
+    {
+     "w": "name.",
+     "t": 6.451,
+     "e": 6.683
+    },
+    {
+     "w": "To",
+     "t": 7.121,
+     "e": 7.173
+    },
+    {
+     "w": "change",
+     "t": 7.186,
+     "e": 7.469
+    },
+    {
+     "w": "it",
+     "t": 7.482,
+     "e": 7.572
+    },
+    {
+     "w": "later,",
+     "t": 7.585,
+     "e": 7.92
+    },
+    {
+     "w": "tap",
+     "t": 8.165,
+     "e": 8.423
+    },
+    {
+     "w": "Edit.",
+     "t": 8.526,
+     "e": 8.784
+    },
+    {
+     "w": "Once",
+     "t": 9.209,
+     "e": 9.389
+    },
+    {
+     "w": "you're",
+     "t": 9.402,
+     "e": 9.531
+    },
+    {
+     "w": "receiving",
+     "t": 9.544,
+     "e": 10.059
+    },
+    {
+     "w": "leads,",
+     "t": 10.072,
+     "e": 10.536
+    },
+    {
+     "w": "it's",
+     "t": 10.755,
+     "e": 10.871
+    },
+    {
+     "w": "locked,",
+     "t": 10.884,
+     "e": 11.284
+    },
+    {
+     "w": "so",
+     "t": 11.657,
+     "e": 11.838
+    },
+    {
+     "w": "just",
+     "t": 11.851,
+     "e": 12.134
+    },
+    {
+     "w": "ask",
+     "t": 12.147,
+     "e": 12.443
+    },
+    {
+     "w": "Lead",
+     "t": 12.456,
+     "e": 12.637
+    },
+    {
+     "w": "Velocity.",
+     "t": 12.649,
+     "e": 13.242
+    }
+   ],
+   "cues": [
+    {
+     "text": "Tap Save, and the step gets its tick.",
+     "t": 1.103,
+     "e": 3.68
+    },
+    {
+     "text": "Clients see your FSP number with your practice name.",
+     "t": 3.68,
+     "e": 7.121
+    },
+    {
+     "text": "To change it later, tap Edit.",
+     "t": 7.121,
+     "e": 9.209
+    },
+    {
+     "text": "Once you're receiving leads, it's locked, so just ask Lead Velocity.",
+     "t": 9.209,
+     "e": 13.592
+    }
+   ]
+  }
+ ]
+}

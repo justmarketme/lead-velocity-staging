@@ -27,7 +27,17 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 /**
  * Sends a notification to all Discord-enabled admins
  */
-export async function notifyAdmins(message: string, components?: any[]) {
+interface BusinessContext {
+    stats?: {
+        leadCount?: number | null;
+        leadsToday?: number | null;
+        brokerCount?: number | null;
+        pendingResets?: number | null;
+        appointmentsToday?: unknown[] | null;
+    };
+}
+
+export async function notifyAdmins(message: string, components?: unknown[]) {
     try {
         // 1. Get all admins who have Discord enabled
         const { data: admins } = await supabase
@@ -85,7 +95,7 @@ export async function notifyAdmins(message: string, components?: any[]) {
 /**
  * Uses Gemini to interpret a business management request from Discord
  */
-export async function askBusinessAI(query: string, context?: any) {
+export async function askBusinessAI(query: string, context?: BusinessContext) {
     const prompt = `You are the Lead Velocity AI Admin Assistant (Einstein). 
     A user is asking: "${query}"
     

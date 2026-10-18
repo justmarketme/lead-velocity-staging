@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/groupB-errors";
 import React, { useState } from "react";
 import {
     ArrowRight, Sparkles, Target, Zap, ChevronDown, Clock, MoveRight, Users, Settings2, BarChart2, Briefcase, Mail, Phone, CheckCircle2
@@ -185,17 +186,17 @@ const BrokerOnboarding = () => {
             console.log("Submitting onboarding data...");
             const scoringData: OnboardingData = {
                 ...defaultScoringData,
-                monthlySpend: budgetCapacityForm.monthlySpend as any,
-                cplAwareness: budgetCapacityForm.cplAwareness as any,
+                monthlySpend: budgetCapacityForm.monthlySpend as OnboardingData['monthlySpend'],
+                cplAwareness: budgetCapacityForm.cplAwareness as OnboardingData['cplAwareness'],
                 desiredLeadsWeekly: parseInt(budgetCapacityForm.desiredLeadsWeekly) || 10,
                 maxCapacityWeekly: parseInt(budgetCapacityForm.maxCapacityWeekly) || 20,
-                teamSize: budgetCapacityForm.teamSize as any,
-                productFocusClarity: targetMarketForm.idealClient, // Using ideal client description for product focus clarity
-                geographicFocusClarity: targetMarketForm.geographicFocus,
-                crmUsage: systemsProcessForm.crmUsage as any,
-                speedToContact: systemsProcessForm.speedToContact as any,
-                followUpClarity: systemsProcessForm.followUpProcess as any,
-                growthGoalClarity: goalsTargetsForm.growthGoals,
+                teamSize: budgetCapacityForm.teamSize as OnboardingData['teamSize'],
+                productFocusClarity: targetMarketForm.idealClient as OnboardingData['productFocusClarity'], // Using ideal client description for product focus clarity
+                geographicFocusClarity: targetMarketForm.geographicFocus as OnboardingData['geographicFocusClarity'],
+                crmUsage: systemsProcessForm.crmUsage as OnboardingData['crmUsage'],
+                speedToContact: systemsProcessForm.speedToContact as OnboardingData['speedToContact'],
+                followUpClarity: systemsProcessForm.followUpProcess as OnboardingData['followUpClarity'],
+                growthGoalClarity: goalsTargetsForm.growthGoals as OnboardingData['growthGoalClarity'],
             };
 
             const results = calculateScores(scoringData);
@@ -325,11 +326,11 @@ const BrokerOnboarding = () => {
                 description: "Our consultant will review your profile and deterministic scores before our meeting.",
             });
             window.scrollTo({ top: 0, behavior: "smooth" });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Submission catch-all error:", error);
             toast({
                 title: "Submission Error",
-                description: `Error: ${error?.message || "There was a problem submitting your application. Please try again."}`,
+                description: `Error: ${errorMessage(error) || "There was a problem submitting your application. Please try again."}`,
                 variant: "destructive"
             });
         } finally {
@@ -591,7 +592,7 @@ const BrokerOnboarding = () => {
                                         { title: "Define Ideal Client", desc: "We establish exactly who you want to reach. Geographic area, income bracket, product focus." },
                                         { title: "Targeted Generation", desc: "Campaigns designed to attract prospects matching your criteria. Fresh, targeted contacts." },
                                         { title: "Qualified Against Criteria", desc: "Checked against defined profile. Quality over volume." },
-                                        { title: "Weekly Delivery", desc: "Predictable schedule. No surprises." }
+                                        { title: "Consistent Delivery", desc: "Leads arrive as they qualify. A set number every 30-day cycle. No surprises." }
                                     ].map((step, i) => (
                                         <div key={i} className="flex gap-4">
                                             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0 text-primary font-bold border border-primary/20">

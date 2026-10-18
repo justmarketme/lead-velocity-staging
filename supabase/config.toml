@@ -16,7 +16,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-message-notification]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-communication]
 verify_jwt = false
@@ -45,4 +45,14 @@ verify_jwt = false
 # SortMyCover: Microsoft calendar connect. The OAuth callback is called by Microsoft (no Supabase JWT);
 # start/disconnect verify the broker JWT inside the function.
 [functions.ms-oauth]
+verify_jwt = false
+
+[functions.smc-voice]
+verify_jwt = false
+
+[functions.appointment-allocation]
+verify_jwt = false
+
+
+[functions.send-broker-invite]
 verify_jwt = false
