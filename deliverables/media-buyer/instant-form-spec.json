@@ -1,5 +1,6 @@
 {
   "_meta": {
+    "superseded_by": "deliverables/media-buyer/instant-form-spec-v2.json (18 Oct 2026). Do not build this form: it says free / licensed adviser and routes out under-35 / over-50.",
     "purpose": "Create body for POST /{page_id}/leadgen_forms (Graph API, version pinned by ads-api-engineer; event-spec assumes v23.0). Keys starting with underscore are NOT API fields: strip them before sending.",
     "owner": "media-buyer (settings) -> ads-api-engineer (API call) -> meta-operator (UI-only parts, human gate at publish)",
     "form_variant": "A1 Higher Intent (primary). A2 Rich Creative is a second form with the same questions and the content in _rich_creative_a2; build it paused.",

@@ -1,0 +1,397 @@
+{
+  "_meta": {
+    "title": "SortMyCover Meta Instant Form v2 (A/B arm: Instant Form vs click-to-WhatsApp)",
+    "date": "2026-10-18",
+    "supersedes": "deliverables/media-buyer/instant-form-spec.json (5 Oct 2026: said \"free\" and \"licensed adviser\", routed out under-35 / over-50, asked call_ok and bond/children)",
+    "build": "Built by hand in Ads Manager from this file (SortMyCover Page > Instant forms > Create form). Type every string exactly as given; \"chars\" is its length. Meta publishes no character limits for instant-form fields: the builder shows a live counter and refuses anything too long. If the builder ever truncates a string, stop and report it (never shorten the consent text).",
+    "api_alternative": "The same form via the Graph API (POST /{page_id}/leadgen_forms, automation/ads/meta-ads.js createLeadgenForm, human confirm token) sets the question and checkbox keys exactly. A form built by hand may get keys chosen by Meta; W01 then matches each answer on its exact option label, so the labels below must not be edited.",
+    "rules_applied": [
+      "No \"free\", \"costs nothing\", \"no cost\", \"licensed\", \"AI\", \"Lead Velocity\" (except inside the verbatim consent text) or \"Capital Legacy\" anywhere on the form.",
+      "No budget, income or other financial question, no email, no health question (Meta Lead Ads restricted categories, see sources).",
+      "Every age is accepted and nothing routes out on an answer (Jono, 18 Oct 2026, the /start/ decision): no conditional logic, no disqualifying ending.",
+      "Consent box unticked by default and required; the ad-measurement box is a separate optional box, unticked (site rule S22: optional, neither choice preselected)."
+    ],
+    "owner": "media-buyer (strings) -> meta-operator (builds by hand, human gate at publish)"
+  },
+  "form_settings": {
+    "form_name": "SMC_IF_v2_named_OPW_20261018",
+    "form_type": {
+      "ui": "Higher intent",
+      "api": "is_optimized_for_quality: true",
+      "note": "Adds the review screen before submit."
+    },
+    "language": "English (UK)",
+    "sharing": {
+      "ui": "Restricted",
+      "api": "block_display_for_non_targeted_viewer: true",
+      "note": "Only people the ad is delivered to can submit: organic shares would arrive outside the test cell and skew the A/B read."
+    },
+    "tracking_parameters": {
+      "smc_test": "if_vs_ctwa_2026_10",
+      "smc_arm": "instant_form",
+      "note": "Settings > Tracking parameters. Optional; the arm is also known from the campaign / ad ids W01 stores."
+    }
+  },
+  "intro": {
+    "image": "Use the ad image (default).",
+    "headline": {
+      "text": "Book a 30-minute call with an authorised adviser",
+      "chars": 48
+    },
+    "description_layout": "List",
+    "description_bullets": [
+      {
+        "text": "Answer three quick questions.",
+        "chars": 29
+      },
+      {
+        "text": "Lindi from SortMyCover messages you on WhatsApp to pick a time.",
+        "chars": 63
+      },
+      {
+        "text": "You talk to an adviser for 30 minutes, by phone or video.",
+        "chars": 57
+      },
+      {
+        "text": "SortMyCover gives no financial advice, product comparisons or premium quotes.",
+        "chars": 77
+      }
+    ]
+  },
+  "questions_section": {
+    "description": {
+      "text": "These help the adviser prepare for your call.",
+      "chars": 45
+    },
+    "order_note": "Exactly this order: the three custom questions, then the two prefill fields.",
+    "questions": [
+      {
+        "n": 1,
+        "meta_type": "CUSTOM (Multiple choice)",
+        "key": "smc_intent",
+        "label": {
+          "text": "What would you like help with?",
+          "chars": 30
+        },
+        "options": [
+          {
+            "key": "life",
+            "value": "Life cover",
+            "chars": 10
+          },
+          {
+            "key": "disability",
+            "value": "Disability cover",
+            "chars": 16
+          },
+          {
+            "key": "income",
+            "value": "Income protection",
+            "chars": 17
+          },
+          {
+            "key": "illness",
+            "value": "Severe illness cover",
+            "chars": 20
+          },
+          {
+            "key": "review",
+            "value": "Not sure yet",
+            "chars": 12
+          }
+        ],
+        "maps_to": {
+          "life": {
+            "start_intent": "life",
+            "help_with": "life"
+          },
+          "disability": {
+            "start_intent": "income",
+            "help_with": "disability_income"
+          },
+          "income": {
+            "start_intent": "income",
+            "help_with": "disability_income"
+          },
+          "illness": {
+            "start_intent": "illness",
+            "help_with": "severe_illness"
+          },
+          "review": {
+            "start_intent": "review",
+            "help_with": "review"
+          }
+        },
+        "mapping_note": "Disability cover and Income protection are two options on the form and one /start/ intent (income, help_with disability_income); the exact option is kept in conv_state.start.intent_option for the adviser. \"Not sure yet\" = /start/ review. product_interest is life_cover for all five (wills are never offered on this form)."
+      },
+      {
+        "n": 2,
+        "meta_type": "CUSTOM (Multiple choice)",
+        "key": "smc_age_band",
+        "label": {
+          "text": "Which age group are you in?",
+          "chars": 27
+        },
+        "options": [
+          {
+            "key": "lt35",
+            "value": "Under 35",
+            "chars": 8
+          },
+          {
+            "key": "35_44",
+            "value": "35 to 44",
+            "chars": 8
+          },
+          {
+            "key": "45_50",
+            "value": "45 to 50",
+            "chars": 8
+          },
+          {
+            "key": "51plus",
+            "value": "Over 50",
+            "chars": 7
+          }
+        ],
+        "note": "Every answer is accepted. 35 to 50 can be qualified (after the band on WhatsApp); Under 35 / Over 50 book like anyone, are never marked qualified, and get a timeline note (OUT_OF_BAND_AGE_BOOKS)."
+      },
+      {
+        "n": 3,
+        "meta_type": "CUSTOM (Multiple choice)",
+        "key": "smc_has_cover",
+        "label": {
+          "text": "Do you have any life, disability or income cover now?",
+          "chars": 53
+        },
+        "options": [
+          {
+            "key": "yes",
+            "value": "Yes",
+            "chars": 3
+          },
+          {
+            "key": "no",
+            "value": "No",
+            "chars": 2
+          },
+          {
+            "key": "unsure",
+            "value": "Not sure",
+            "chars": 8
+          }
+        ],
+        "note": "Yes / no only: never ask for the insurer, a policy number or amounts (Meta: insurance information needs prior permission). If Meta review rejects the form on this question, delete it and republish; W01 tolerates it missing."
+      },
+      {
+        "n": 4,
+        "meta_type": "FIRST_NAME (prefill)",
+        "key": "first_name",
+        "label": {
+          "text": "First name",
+          "chars": 10
+        },
+        "note": "Prefill question \"First name\" (not \"Full name\")."
+      },
+      {
+        "n": 5,
+        "meta_type": "PHONE (prefill)",
+        "key": "phone_number",
+        "label": {
+          "text": "WhatsApp number",
+          "chars": 15
+        },
+        "note": "Prefill question \"Phone number\". If the builder lets you rename the field, use \"WhatsApp number\"; if not, keep the prefill label: the intro, the section description and the thank-you screen all say WhatsApp. W01 normalises to +27 and checks it is a mobile (Twilio Lookup) before any message."
+      }
+    ],
+    "not_asked": [
+      "budget / monthly premium (asked on WhatsApp: the qualify_budget template, the first message, within 60 s)",
+      "email",
+      "income, debt, health, ID number, policy details",
+      "call preference (the method is chosen when booking)"
+    ]
+  },
+  "privacy_policy": {
+    "link_text": "Privacy notice",
+    "url": "https://sortmycover.co.za/privacy/"
+  },
+  "custom_disclaimer": {
+    "ui": "Privacy > Custom disclaimer: on. Two checkboxes, neither ticked by default.",
+    "title": {
+      "text": "Your consent",
+      "chars": 12
+    },
+    "body": {
+      "text": "Please read and tick to continue. The second box is optional.",
+      "chars": 61
+    },
+    "checkboxes": [
+      {
+        "n": 1,
+        "key": "consent",
+        "required": true,
+        "ticked_by_default": false,
+        "consent_version": "CONSENT-NAMED-v5web",
+        "text": "I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about my call, and may share my details with Oracle Private Wealth (FSP 28418), an adviser from an FSCA-authorised financial services provider, who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP.",
+        "chars": 375,
+        "source": "sites/sortmycover/config/consent.json named.text with {practice_name} = Oracle Private Wealth and {fsp_number} = 28418 (Mark Weston). Must stay EXACTLY equal to consentRegistry({ practice_name: \"Oracle Private Wealth\", fsp_number: \"28418\" })[\"CONSENT-NAMED-v5web\"]; automation/tests/W02-instant-form-v2.test.mjs fails otherwise."
+      },
+      {
+        "n": 2,
+        "key": "consent_ads",
+        "required": false,
+        "ticked_by_default": false,
+        "consent_version": "CONSENT-ADS-v2web",
+        "text": "I give SortMyCover permission to use my details in coded (hashed) form to measure and improve its ads on Facebook and Instagram. It will never use them to send me ads by message. This is optional, and the call does not depend on it.",
+        "chars": 232,
+        "source": "sites/sortmycover/config/consent.json ads.text verbatim. Ticked -> leads.consent_ads_at (the CAPI Lead event is allowed); unticked -> no ad-measurement use."
+      }
+    ],
+    "why_two_boxes": "The ad-measurement consent is optional on the site (rule S22). Folding it into the required box would make it a condition of the call, which its own wording (\"This is optional, and the call does not depend on it\") rules out. So the required box carries the named text alone, exactly the CONSENT-NAMED-v5web registry entry (no new version id needed), and ad measurement is its own optional box with its own version (CONSENT-ADS-v2web)."
+  },
+  "thank_you": {
+    "headline": {
+      "text": "Check WhatsApp",
+      "chars": 14
+    },
+    "description": {
+      "text": "Lindi will message you in a moment to pick a time.",
+      "chars": 50
+    },
+    "button": {
+      "type_ui": "View website",
+      "type_api": "VIEW_WEBSITE",
+      "text": {
+        "text": "Chat on WhatsApp",
+        "chars": 16
+      },
+      "url": "https://wa.me/27600156480"
+    }
+  },
+  "after_submit": [
+    "W02 webhook (leadgen) -> Graph fetch (field_data + custom_disclaimer_responses) -> W01 Lead core: stored unrouted (routing_reason held_budget_pending, conv_state q_budget + start { intent, intent_option, has_cover } + help_with).",
+    "First WhatsApp within 60 s: the approved utility template qualify_budget (the band question). No tap in 3 h: one reminder; still no tap: deleted 24 h after the reminder.",
+    "Band tapped -> W03 finishLeadAd -> W01 routes to Mark -> W06 broker intro card (broker_intro_slots) with practice, FSP number and adviser. qualified_at only for age 35-50 and a band of R750+."
+  ],
+  "w02_contract": {
+    "reader": "automation/lib/w01.mjs normaliseLeadAd (a Graph lead, or the W02 ingest item) via leadAdAnswers / leadAdConsent; W02.json passes lead.answers and consent.responses through (automation/patch-w02-instant-form-v2.mjs).",
+    "question_keys": {
+      "intent": [
+        "smc_intent",
+        "intent",
+        "help_with"
+      ],
+      "age_band": [
+        "smc_age_band",
+        "age_band"
+      ],
+      "has_cover": [
+        "smc_has_cover",
+        "has_cover"
+      ]
+    },
+    "value_codes": {
+      "intent": {
+        "life": {
+          "label": "Life cover",
+          "start_intent": "life",
+          "help_with": "life"
+        },
+        "disability": {
+          "label": "Disability cover",
+          "start_intent": "income",
+          "help_with": "disability_income"
+        },
+        "income": {
+          "label": "Income protection",
+          "start_intent": "income",
+          "help_with": "disability_income"
+        },
+        "illness": {
+          "label": "Severe illness cover",
+          "start_intent": "illness",
+          "help_with": "severe_illness"
+        },
+        "review": {
+          "label": "Not sure yet",
+          "start_intent": "review",
+          "help_with": "review"
+        }
+      },
+      "age_band": {
+        "lt35": "Under 35",
+        "35_44": "35 to 44",
+        "45_50": "45 to 50",
+        "51plus": "Over 50"
+      },
+      "has_cover": {
+        "yes": "Yes",
+        "no": "No",
+        "unsure": "Not sure"
+      }
+    },
+    "matching": "An answer is accepted as its option key or its exact label (case, spaces and hyphens ignored). A field whose name is not one of the keys is matched on its value against the three label sets. Unknown answers are dropped, never guessed.",
+    "prefill_fields": {
+      "first_name": "first_name (or full_name: its first word)",
+      "phone": "phone_number"
+    },
+    "checkbox_keys": {
+      "required_consent": [
+        "consent",
+        "smc_consent"
+      ],
+      "optional_ads": [
+        "consent_ads",
+        "smc_consent_ads"
+      ],
+      "other_keys": "a hand-built form: a ticked box = the consent (Meta refuses a submission without the required box); the ad-measurement choice is then NOT assumed"
+    },
+    "consent_text_version": "CONSENT-NAMED-v5web",
+    "stored": {
+      "leads.age_band": "lt35 | 35_44 | 45_50 | 51plus",
+      "leads.product_interest": "life_cover",
+      "leads.conv_state.help_with": "life | disability_income | severe_illness | review",
+      "leads.conv_state.start": "{ intent, intent_option, has_cover, form_id, at, via: \"lead_ad\" }",
+      "leads.conv_state.age_accepted": "true for lt35 / 51plus (and a missing age)",
+      "leads.consent_text": "the registry text for Mark's practice",
+      "leads.consent_ads_at": "only when consent_ads was ticked",
+      "lead_activities": "lead_ad_age_out_of_band (lt35 / 51plus), consent_audit, budget_question_pending"
+    },
+    "tolerated_missing": [
+      "smc_intent",
+      "smc_has_cover",
+      "smc_age_band (treated like an out-of-band age: books, never qualified)"
+    ]
+  },
+  "disclosure_check": {
+    "start_page": "The /start/ adviser card (sites/sortmycover/src/lib/start.ts, START-DISCLOSE-v1) shows the adviser, the firm, \"an authorised financial services provider (FSP n)\", what is shared, and INTRO_DISCLOSURE: \"Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.\"",
+    "lead_ad_hand_over": "After the band tap: W03 finishLeadAd -> W01 route_and_first_touch -> W06 broker_intro_slots (or _v2 / broker_intro_booked). The approved body names the practice, \"(FSP n)\", \"an authorised financial services provider\" and the adviser, plus STOP. It does NOT say \"Introduced by SortMyCover\", and carries neither the no-advice line nor the fee line (its footer is only \"SortMyCover\").",
+    "gap": "On the lead-ad path the no-advice line appears only on this form (intro bullet 4); the fee-independence line appears nowhere before or at the hand-over. Closing it needs an approved template change (Meta review), not made here."
+  },
+  "sources": [
+    {
+      "url": "https://developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving",
+      "used_for": "custom_disclaimer_responses is a separate Lead field (not in field_data), entries { checkbox_key, is_checked \"1\" | \"\" }."
+    },
+    {
+      "url": "https://developers.facebook.com/docs/marketing-api/guides/lead-ads/create",
+      "used_for": "question { type, key, label, options [{ key, value }] }, is_optimized_for_quality (Higher intent review step), block_display_for_non_targeted_viewer, thank_you_page fields. No character limits are published."
+    },
+    {
+      "url": "https://transparency.meta.com/en-gb/policies/ad-standards/restricted-goods-services/financial-services/",
+      "used_for": "Insurance ads: 18+ targeting; licence / authorisation where the country requires it; ads must not request personally identifiable or financial information such as bank details. South Africa is not named."
+    },
+    {
+      "url": "https://developers.facebook.com/documentation/ads-commerce/marketing-api/audiences/special-ad-category",
+      "used_for": "The Financial products and services special ad category is required for ads based in or targeting the United States (credit ads also Canada and parts of Europe). Not South Africa: no special ad category on this campaign."
+    },
+    {
+      "url": "https://conductatlas.com/platform/meta-ads/meta-advertising-policies/provision/CA-P-053243/lead-ads-cannot-request-insurance-information-without-permission/",
+      "used_for": "Secondary (policy tracker): Lead Ads must not request insurance information, incl. policy numbers, without Meta's prior permission. Meta's own lead-ads terms page (facebook.com/legal/leadgen/tos) could not be fetched (redirect loop); the same tracker logs an unverified July 2026 removal of this clause. Treated as still in force."
+    },
+    {
+      "url": "https://conductatlas.com/platform/meta-ads/meta-advertising-policies/provision/CA-P-053240/lead-ads-cannot-request-financial-information-without-permission/",
+      "used_for": "Secondary: financial information (incl. income, net worth, debt) needs prior permission: why the budget band stays off the form."
+    }
+  ]
+}
