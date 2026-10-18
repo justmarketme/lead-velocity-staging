@@ -451,7 +451,7 @@ function StartFlow() {
           body = (<><Q ref={headRef}>Which age band <em>are you in?</em></Q><p className="st-sub">So {adviserFirst || "your adviser"} can prepare properly.</p>{options(AGES, answers.age_band, (v) => choose("age", "age_band", v), true)}{optionFoot}</>);
           break;
         case "cover":
-          body = (<><Q ref={headRef}>Do you have any life, disability or income cover <em>now?</em></Q><p className="st-sub">Your own or through work.</p>{options(COVER, answers.has_cover, (v) => choose("cover", "has_cover", v))}{optionFoot}</>);
+          body = (<><Q ref={headRef}>Do you have any life, disability or income cover <em>now?</em></Q><p className="st-sub">Pick the one closest.</p>{options(COVER, answers.has_cover, (v) => choose("cover", "has_cover", v))}{optionFoot}</>);
           break;
         case "budget":
           body = hasCoverNow(answers)
