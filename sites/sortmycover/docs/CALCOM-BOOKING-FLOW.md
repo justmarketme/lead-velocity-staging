@@ -44,3 +44,24 @@ The booking page and every confirmation must be SortMyCover's, never Lead Veloci
 4. **Webhook.** Create the Cal.com webhook and put its signing secret into n8n.
 5. **Template.** Submit the WhatsApp template in Twilio Content for Meta approval.
 6. **Go-live.** Approve the deploy. The security policy change is already in the build.
+
+## Status (18 Oct 2026)
+
+**Done in Chrome with Jono:**
+- **Account.** A SortMyCover Cal.com account on the free personal plan, signed in with the Lead Velocity Google account.
+- **Public page.** Username `sortmycover`, name SortMyCover, the tick mark as avatar and a bio. The page is https://cal.com/sortmycover, with a light booking theme.
+- **Event.** `sortmycover/adviser-call`, titled "Your SortMyCover call with an authorised adviser", 30 minutes, on Cal Video.
+- **Booking questions:**
+  - name and email;
+  - a required **WhatsApp number**;
+  - a hidden optional **Reference** (identifier `ref`, filled by the site);
+  - a required **consent checkbox** (identifier `whatsapp_consent`) with the wording above.
+- **Other events.** The default 15-minute event is hidden, and the "secret" event was already hidden.
+- **Site test.** The site's "Pick a time" dialog was tested locally with `calcom_link` set and showed the SortMyCover calendar. The setting was then reverted to empty.
+
+**Still to do before `calcom_link` goes live:**
+1. **Adviser's calendar.** Connect it (Settings > Calendars), so availability is real. It is the default Mon-Fri 9:00-17:00 until then.
+2. **Webhook.** Create the Cal.com webhook to n8n (`/webhook/cal`) and build the n8n flow, so Lindi's WhatsApp follow-up actually fires. The dialog already promises it.
+3. **Teams plan (spend, Jono's call).** Needed for the brand colour `#F5A623` and to remove "Powered by Cal.com".
+4. **Default confirmation emails.** Leave them ON until the n8n branded email exists, so bookers still get a confirmation. They go out from Cal.com, and organiser notices go to the account email.
+5. **Go live.** Set `config/site.json` -> `calcom_link` to `sortmycover/adviser-call`, build and deploy.
