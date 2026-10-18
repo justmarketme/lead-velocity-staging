@@ -16,7 +16,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.send-message-notification]
-verify_jwt = false
+verify_jwt = true
 
 [functions.send-communication]
 verify_jwt = false

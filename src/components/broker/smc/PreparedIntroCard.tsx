@@ -82,15 +82,18 @@ export default function PreparedIntroCard({ broker, reload }: {
         <p className="text-sm text-slate-400">Lead Velocity is preparing your intro card from your details. It appears here for you to approve.</p>
       ) : (
         <>
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+          <div className="group/card relative overflow-hidden rounded-2xl border border-white/10 bg-black/30"
+            tabIndex={!approved && src ? 0 : undefined}
+            aria-label={!approved && src ? "Preview your intro card in colour. Approval is still required." : undefined}>
             {src ? (
               <img src={src} alt={`Intro card for ${broker.contact_person || "you"}`}
-                className={`block w-full aspect-square object-cover transition-[filter,opacity] duration-500 motion-reduce:transition-none ${approved ? "" : "grayscale opacity-50"}`} />
+                className={`block w-full aspect-square object-cover transition-[filter,opacity] duration-500 motion-reduce:transition-none ${approved ? "" : "grayscale opacity-50 group-hover/card:grayscale-0 group-hover/card:opacity-100 group-focus/card:grayscale-0 group-focus/card:opacity-100"}`} />
             ) : (
               <div className="aspect-square grid place-items-center text-sm text-slate-500">Card image unavailable</div>
             )}
             {src && <ApprovalBand show={!approved} />}
           </div>
+          {!approved && src && <p className="text-xs text-slate-400">Hover over the card or focus it with the keyboard to preview the colour. It stays unapproved until you switch on approval below.</p>}
           {approved && (
             <p role="status" className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

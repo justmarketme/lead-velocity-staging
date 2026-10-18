@@ -5,7 +5,7 @@
 //   T0 + 10 min  what_to_expect
 //   T-48 h       intro_media (video; intro_media_voice if no approved video) - only if booked >= 3 days out,
 //                otherwise straight after booking (T0 + 15 min, fixtures _meta)
-//   T-24 h       reminder_24h (Confirm / Reschedule) + prep_nudge        (skipped when booked < 24 h ahead)
+//   T-24 h       reminder_24h (topic-aware; Confirm / Reschedule)         (skipped when booked < 24 h ahead)
 //   T-2 h        reminder_2h                                              (skipped when booked ~2 h ahead)
 //   T-10 min     reminder_10m
 // Rules:
@@ -32,6 +32,16 @@ export const TEMPLATES = ['what_to_expect', 'intro_media', 'intro_media_voice', 
 export const PAUSE_REASONS = new Set(['sensitive', 'human_handoff', 'opt_out']);
 const ONLINE = new Set(['teams', 'zoom', 'meet']);
 
+// The quiz stores only a broad topic in conv_state.help_with. Keep reminder copy deterministic and
+// conservative; other lead sources have no topic, so never imply they told us one.
+export const topicReminder = (helpWith) => ({
+  review: 'You mentioned reviewing your existing cover. If relevant, you can also ask about life, disability, severe-illness or income-protection cover.',
+  life: 'You mentioned life cover. You can also ask about disability, severe-illness or income-protection cover if relevant.',
+  disability_income: 'You mentioned disability or income protection. You can also ask about life or severe-illness cover if relevant.',
+  severe_illness: 'You mentioned severe-illness cover. You can also ask about life, disability or income-protection cover if relevant.',
+  wills: 'You mentioned wills. You can also raise related planning questions and ask the adviser about an appropriate next step.',
+})[helpWith] || 'You can also raise any related cover questions that matter to you during the call.';
+
 /** Which intro media template a broker can send in the lead's language: video first (4.12), voice as fallback. */
 export function mediaTemplate(lead = {}, broker = {}) {
   const lang = lead.language || 'en';
@@ -55,7 +65,6 @@ export function reminderPlan({ bookingId, start, bookedAt, lead: l = {}, broker:
     ['what_to_expect', 'what_to_expect', T0 + 10 * MIN],
     mediaTpl ? ['intro_media', mediaTpl, lt >= 72 * H ? M - 48 * H : T0 + 15 * MIN] : null,
     lt >= 24 * H ? ['reminder_24h', 'reminder_24h', M - 24 * H] : null,
-    lt >= 24 * H ? ['prep_nudge', 'prep_nudge', M - 24 * H] : null,
     ['reminder_2h', 'reminder_2h', M - 2 * H],
     ['reminder_10m', 'reminder_10m', M - 10 * MIN]
   ].filter(Boolean);
@@ -174,7 +183,7 @@ export function methodDetail(booking = {}, broker = {}, lead = {}, brand = {}, w
 /**
  * buildMessage(job, ctx) -> { to: 'lead', template, wa } for one reminder job. Variables follow automation/templates
  * (README index): what_to_expect 1 first_name 2 adviser 3 method + URL 1 booking ref; intro_media 1-4 + VIDEO header;
- * intro_media_voice header 1 adviser + body 1-4; reminder_24h 1 first 2 method 3 adviser 4 time; prep_nudge 1-2;
+ * intro_media_voice header 1 adviser + body 1-4; reminder_24h 1 first 2 method 3 adviser 4 date/time 5 broad-topic reminder; prep_nudge 1-2;
  * reminder_2h 1 first 2 adviser 3 time 4 method detail; reminder_10m 1 first 2 adviser 3 method detail.
  */
 export function buildMessage(job, ctx) {
@@ -189,7 +198,7 @@ export function buildMessage(job, ctx) {
     what_to_expect: { body: [first, adviser, METHOD_LABEL[booking.method] || booking.method], buttons: [{ url: booking.id }] },
     intro_media: { header: { video: broker.intro_video_url?.[lang] }, body: [first, adviser, dateLabel(M), timeLabel(M)], buttons: [qr('looking_forward'), qr('reschedule')] },
     intro_media_voice: { header: { text: adviser }, body: [first, adviser, dateLabel(M), timeLabel(M)], buttons: [qr('play_voice_note'), qr('reschedule')] },
-    reminder_24h: { body: [first, METHOD_LABEL[booking.method] || booking.method, adviser, timeLabel(M)], buttons: [qr('confirm'), qr('reschedule')] },
+    reminder_24h: { body: [first, METHOD_LABEL[booking.method] || booking.method, adviser, `${dateLabel(M)} at ${timeLabel(M)}`, topicReminder(lead.help_with)], buttons: [qr('confirm'), qr('reschedule')] },
     prep_nudge: { body: [first, adviser] },
     reminder_2h: { body: [first, adviser, timeLabel(M), methodDetail(booking, broker, lead, brand, '2h')], buttons: [qr('reschedule')] },
     reminder_10m: { body: [first, adviser, methodDetail(booking, broker, lead, brand, '10m')] }
@@ -229,7 +238,7 @@ export function sendStatus(decision, response, dryRun) {
 export function dueFromRow(r = {}, now) {
   const job = { key: r.key, touch: r.touch, template: r.template, at: r.at, start: r.start };
   const booking = { id: r.booking_id, status: r.booking_status, appointment_date: r.appointment_date, method: r.method, call_number: r.booking_call_number };
-  const lead = { id: r.lead_id, first_name: r.first_name, phone: r.phone, language: r.language, opted_out_at: r.opted_out_at, call_number: r.lead_call_number };
+  const lead = { id: r.lead_id, first_name: r.first_name, phone: r.phone, language: r.language, opted_out_at: r.opted_out_at, call_number: r.lead_call_number, help_with: r.help_with };
   const broker = { adviser_name: r.adviser_name, contact_person: r.contact_person, phone_number: r.broker_phone, whatsapp_number: r.broker_whatsapp, intro_video_url: r.intro_video_url || {}, intro_voice_url: r.intro_voice_url || {} };
   const ctx = { booking, lead, broker, brand: { domain: r.domain }, suppressed: Boolean(r.suppressed), paused: Boolean(r.paused), outbound_count: Number(r.outbound_count || 0) };
   const decision = dueAction(job, ctx, now);

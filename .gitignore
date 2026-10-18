@@ -108,6 +108,11 @@ supabase/.temp/
 supabase/.branches/
 # Local archives, upload bundles (e.g. smc-dist.zip) and scratch areas
 *.zip
+
+# Withdrawn/unreviewed ad-film build and its large local render intermediates.
+deliverables/ads-launch-film/
+# Security review is retained in the private EMMA handoff, never this public repo.
+docs/SECURITY-FIXES-2026-10-14.md
 tmp/
 .tmp/
 scratch/

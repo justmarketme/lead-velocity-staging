@@ -25,12 +25,16 @@
       },
       {
         "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
         "kind": "button",
         "type": "quick_reply",
         "index": 0
       },
       {
-        "n": 6,
+        "n": 7,
         "kind": "button",
         "type": "quick_reply",
         "index": 1
@@ -45,25 +49,26 @@
       "1": "Lerato",
       "2": "Microsoft Teams",
       "3": "Mark Smith",
-      "4": "10:00",
-      "5": "confirm:sample",
-      "6": "reschedule:sample"
+      "4": "Tue 7 Oct at 10:00",
+      "5": "You mentioned life cover. You can also ask about disability, severe-illness or income-protection cover if relevant.",
+      "6": "confirm:sample",
+      "7": "reschedule:sample"
     },
     "types": {
       "whatsapp/card": {
-        "body": "Hi {{1}}, a quick reminder: your {{2}} call with *{{3}}* is tomorrow at *{{4}}*. Most people find 30 minutes is all it takes. Tap Confirm to let us know you can make it. Reply STOP to opt out.",
-        "header_text": "See you tomorrow",
+        "body": "Hi {{1}}, looking forward to your {{2}} call with *{{3}}* on *{{4}}*. {{5}} Tap Confirm to let us know you can make it, or Reschedule if needed. Reply STOP to opt out.",
+        "header_text": "Your upcoming call",
         "footer": "SortMyCover",
         "actions": [
           {
             "type": "QUICK_REPLY",
             "title": "Confirm",
-            "id": "{{5}}"
+            "id": "{{6}}"
           },
           {
             "type": "QUICK_REPLY",
             "title": "Reschedule",
-            "id": "{{6}}"
+            "id": "{{7}}"
           }
         ]
       }

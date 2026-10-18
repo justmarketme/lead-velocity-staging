@@ -5,7 +5,7 @@
   "components": [
     {
       "type": "BODY",
-      "text": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm it, tap the link we emailed you, or reply here with the 6-digit code from that email. If it isn't confirmed by {{5}}, we'll release the time. Reply STOP to opt out.",
+      "text": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm the booking, please tap the confirmation link we sent to your email address. If it isn't confirmed by {{5}}, we'll release the time. Reply STOP to opt out.",
       "example": {
         "body_text": [
           [
