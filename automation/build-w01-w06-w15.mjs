@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
+const { ALLOWED_ORIGINS } = createRequire(import.meta.url)('./lib/public-origins.cjs'); // literal list: n8n does not evaluate expressions in allowedOrigins
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -75,7 +76,7 @@ function buildW01() {
     'Env: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation.', 400));
 
   // ---- entry 1: POST /lead
-  n.push(node('POST /lead (landing page)', 'webhook', 2, pos(0, 0), { httpMethod: 'POST', path: 'lead', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-post' }));
+  n.push(node('POST /lead (landing page)', 'webhook', 2, pos(0, 0), { httpMethod: 'POST', path: 'lead', responseMode: 'responseNode', options: { allowedOrigins: ALLOWED_ORIGINS } }, { webhookId: 'w01-lead-post' }));
   n.push(code('Screen (w01.normaliseSubmission + screen)', pos(1, 0), prelude('w01.mjs') +
 `const brand_id = L.brandUuid(null, $env.BRAND_ID); // I-52b: fail fast on a slug / empty BRAND_ID (rehearsal F1)
 const it = $input.first().json; const h = it.headers || {};
@@ -238,7 +239,7 @@ return $input.all().map((i) => ({ json: L.budgetQuestion(i.json.decision.row) })
   n.push(sub('W06 First touch (< 60 s)', pos(19, 1), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }. The lead row (broker_id, routed_at; attached to the open lead order by the database) is committed before this call. W06 holds page leads 45 s for the in-page booking.'));
 
   // ---- entry 2: POST /lead/skip
-  n.push(node('POST /lead/skip (I\'ll pick on WhatsApp)', 'webhook', 2, pos(0, 4), { httpMethod: 'POST', path: 'lead/skip', responseMode: 'responseNode', options: {} }, { webhookId: 'w01-lead-skip' }));
+  n.push(node('POST /lead/skip (I\'ll pick on WhatsApp)', 'webhook', 2, pos(0, 4), { httpMethod: 'POST', path: 'lead/skip', responseMode: 'responseNode', options: { allowedOrigins: ALLOWED_ORIGINS } }, { webhookId: 'w01-lead-skip' }));
   n.push(code('Verify X-Lead-Token', pos(1, 4),
 `const LT = require('lv-automation').leadToken;
 const h =$input.first().json.headers || {};

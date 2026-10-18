@@ -7,6 +7,8 @@
 import { writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const { ALLOWED_ORIGINS } = createRequire(import.meta.url)('./lib/public-origins.cjs'); // literal list: n8n does not evaluate expressions in allowedOrigins
 
 const OUT = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -76,7 +78,7 @@ SELECT 'whatsapp', 'outbound', 'system', $1, $12, NULLIF($2, '')::uuid, NULLIF($
  WHERE $13::boolean
    AND NOT EXISTS (SELECT 1 FROM public.communications d WHERE d.workflow = 'smc-whatsapp-send' AND d.metadata->>'correlation' = $11)
 RETURNING id::text AS comm_id;`,
-    "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'template' && L.template ? 'template:' + L.template : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + (L.sent_as || L.kind) + ']'))), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null, caller: L.caller || null, provider: L.provider || null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, ''), L.record !== false ]; })() }}"));
+    "={{ (() => { const L = $json; return [ L.lead_id ? 'client' : 'broker', L.lead_id || '', L.broker_id || '', L.brand_id || '', L.action === 'skip' ? '[skipped]' : (L.sent_as === 'template' && L.template ? 'template:' + L.template : (L.sent_as === 'text' ? '[text]' : (L.template ? 'template:' + L.template : '[' + (L.sent_as || L.kind) + ']'))), L.action === 'skip' ? 'failed' : 'pending', L.action === 'dry' ? L.external_id : '', L.action === 'skip' ? L.reason : '', L.template || '', JSON.stringify({ correlation: L.correlation, kind: L.kind, sent_as: L.sent_as || null, dry_run: L.action === 'dry', skip_reason: L.action === 'skip' ? L.reason : null, caller: (Object.entries(L).find(e => e[0] === 'caller') || [])[1] || null, provider: L.provider || null }), L.correlation, '+' + String(L.to || '').replace(/\\D/g, ''), L.record !== false ]; })() }}"));
   // record:false (the caller logs the message itself, keyed by the returned id): no claim row, the send still runs.
   const LIVE = b.add(iff('Claimed and a live send?', "(!!$json.comm_id || $('Decide (suppression, allow-list, window, template, dry run)').item.json.record === false) && $('Decide (suppression, allow-list, window, template, dry run)').item.json.action === 'send'"));
   const H = b.add({ name: 'Graph POST /messages', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, credentials: WA_CRED, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000, onError: 'continueRegularOutput',
@@ -251,7 +253,7 @@ RETURNING proposal_id::text AS proposal_id;`,
 // ---------------------------------------------------------------- smc-visit-beacon (I-32b)
 export function visitBeacon() {
   const b = wfBuilder('smc-visit-beacon', 'Visit beacon (first-party page-view counters, I-32b)');
-  const WH = b.add({ name: 'POST /beacon (landing page sendBeacon)', type: 'n8n-nodes-base.webhook', typeVersion: 2, webhookId: 'smc-visit-beacon', parameters: { httpMethod: 'POST', path: 'beacon', authentication: 'none', responseMode: 'responseNode', options: { rawBody: false } } });
+  const WH = b.add({ name: 'POST /beacon (landing page sendBeacon)', type: 'n8n-nodes-base.webhook', typeVersion: 2, webhookId: 'smc-visit-beacon', parameters: { httpMethod: 'POST', path: 'beacon', authentication: 'none', responseMode: 'responseNode', options: { rawBody: false, allowedOrigins: ALLOWED_ORIGINS } } });
   const N = b.add(code('Validate, DNT, rate limit, count', "// No IP, UA, referrer or session id leaves this node. The session id keys an in-memory 60-s rate window only.\nconst L = require('lv-automation').subVisitBeacon;\nconst it = $input.first().json;\nconst ev = L.normalise({ body: it.body, headers: it.headers || {}, env: $env });\nif (!ev.ok) return { json: { accept: false, reason: ev.reason } };\nconst sd = $getWorkflowStaticData('global');\nconst r = L.rateLimit(sd.rate, ev.sid, Date.now());\nsd.rate = r.state;\nif (!r.allowed) return { json: { accept: false, reason: r.reason } };\nreturn { json: { accept: true, inc: L.increment(ev, Date.now(), $env.BRAND_ID) } };"));
   const R = b.add({ name: 'Respond 204', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1.1, parameters: { respondWith: 'noData', options: { responseCode: 204 } } });
   const OK = b.add(iff('Counted?', '$json.accept === true'));
