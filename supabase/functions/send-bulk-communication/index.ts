@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { bulkCommunicationEmail } from "../_shared/lv_emails.ts";
+import { smcBulkCommunicationEmail, smcLeadIds, SMC_FROM, SMC_REPLY_TO } from "../_shared/smc_email.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -130,6 +131,9 @@ serve(async (req) => {
     let successCount = 0;
     let failCount = 0;
 
+    // SortMyCover leads get the SortMyCover layout and sender; everyone else is unchanged.
+    const smcIds = channel === 'email' && recipient_type === 'lead' ? await smcLeadIds(supabase, recipients.map((r) => r.id)) : new Set<string>();
+
     // Process each recipient
     for (const recipient of recipients) {
       try {
@@ -141,7 +145,11 @@ serve(async (req) => {
         switch (channel) {
           case 'email':
             // Lead Velocity layout (escapes the message, keeps paragraphs and line breaks) + plain-text part
-            result = await sendEmail(recipient.email, bulkCommunicationEmail({ message: personalizedMessage, subject: subject! }));
+            if (smcIds.has(recipient.id)) {
+              result = await sendEmail(recipient.email, smcBulkCommunicationEmail({ message: personalizedMessage, subject: subject! }), { from: SMC_FROM, reply_to: SMC_REPLY_TO });
+            } else {
+              result = await sendEmail(recipient.email, bulkCommunicationEmail({ message: personalizedMessage, subject: subject! }));
+            }
             break;
           case 'sms':
             result = await sendSMS(recipient.phone, personalizedMessage);
@@ -210,7 +218,7 @@ serve(async (req) => {
   }
 });
 
-async function sendEmail(to: string, mail: { subject: string; html: string; text: string }) {
+async function sendEmail(to: string, mail: { subject: string; html: string; text: string }, sender?: { from: string; reply_to: string }) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (!resendApiKey) {
     return { success: false, error: 'RESEND_API_KEY not configured' };
@@ -224,7 +232,8 @@ async function sendEmail(to: string, mail: { subject: string; html: string; text
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Lead Velocity <howzit@leadvelocity.co.za>',
+        from: sender?.from ?? 'Lead Velocity <howzit@leadvelocity.co.za>',
+        ...(sender ? { reply_to: sender.reply_to } : {}),
         to: [to],
         subject: mail.subject,
         html: mail.html,
