@@ -31,6 +31,10 @@ describe("imagery", () => {
     for (const [angle, { scene, article }] of Object.entries(AD_SCENES)) {
       expect(CAMPAIGN_SCENES[angle], angle).toBe(scene);
       expect(ARTICLE_SCENES[article], article).toBe(scene);
+      // Jono, 18 Oct 2026: an ad's photo belongs to its own post only, never to a second post or page
+      const posts = Object.entries(ARTICLE_SCENES).filter(([, v]) => v.src === scene.src).map(([k]) => k);
+      expect(posts, angle).toEqual([article]);
+      expect(Object.values(PAGE_SCENES).some((v) => v.src === scene.src), angle).toBe(false);
     }
   });
   it("every guide has a photo, and apart from the ad pairs no photo is used for two guides or pages", () => {
