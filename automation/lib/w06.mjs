@@ -85,7 +85,12 @@ export function firstTouchTrigger(l, ctx = {}) {
   const booked = ctx.booking ? msOf(ctx.booking.created_at) : NaN;
   const clock = Number.isFinite(routed) ? routed : Number.isFinite(booked) ? booked : Date.now();
   let reason; let trigger;
-  if (l.origin === 'page') {
+  if (l.origin === 'page' && ctx.booking_event === true && ctx.booking && Number.isFinite(booked)) {
+    // 18 Oct 2026: a booking event that wins the one-card claim IS the first touch, however long after routing it came. A
+    // /start/ page web lead is routed by W39 only after the adviser card and books minutes later: the 45-s hold had already
+    // "expired" on paper, so the min() below picked 'hold' and planned a slots card (no slots on a booking event -> Flow card).
+    [reason, trigger] = ['booking', booked];
+  } else if (l.origin === 'page') {
     const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', booked] : null]
       .filter(Boolean).sort((x, y) => x[1] - y[1]);
     [reason, trigger] = cands[0];
@@ -250,7 +255,7 @@ export function lateBookingConfirmed(l, booking) {
 
 export function ctxFromEvent(input = {}, now = Date.now()) {
   const ctx = { bookingUi: input.booking_ui === 'flow' ? 'flow' : 'list', slots: input.slots || [] };
-  if (input.op === 'booking' && input.booking) ctx.booking = { id: input.booking.id, created_at: input.booking.created_at || now, start: input.booking.start, method: input.booking.method };
+  if (input.op === 'booking' && input.booking) { ctx.booking = { id: input.booking.id, created_at: input.booking.created_at || now, start: input.booking.start, method: input.booking.method }; ctx.booking_event = true; }
   if (input.op === 'skip') ctx.skipAt = now;
   return ctx;
 }

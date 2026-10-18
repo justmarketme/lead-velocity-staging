@@ -202,6 +202,40 @@ function threadFromLead(lead) {
   return { stage: STAGE_OF[st], lead_id: lead.id, answers, from_lead: true, broker_id: lead.broker_id || null, origin: lead.origin || null };
 }
 
+// ---------------------------------------------------------------- /start/ page (brand flag start_page, 18 Oct 2026)
+// Jono approved a branded page that replaces the qualifying taps: ONE call-to-action message (header image, body, one URL
+// button) opens sortmycover.co.za/start/#lt=<lt1 token> (token in the fragment, CONTRACTS.md lead_token). The page answers
+// through W39 (POST /start/answers), which routes the lead and shows the slots. Off by default (brands.start_page);
+// with the flag off, or without a token from the workflow, nothing changes. Anything typed or tapped in chat while the
+// page is pending falls back to the tap path (q_age) exactly as before, so the chat still works on its own.
+const START_PAGE_LINK = 'https://sortmycover.co.za/start/#lt=';
+const START_PAGE_HEADER = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png';
+const START_PAGE_BUTTON = 'Start here';
+const firstWord = (s) => String(s || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
+/** The CTA body (no "free", no "AI", no operator name). `greeted`: the opener greeting already said hello and thanks. */
+function startPageBody(profileName, adviserFirst, greeted = false) {
+  const first = firstWord(profileName);
+  const who = firstWord(adviserFirst) || 'an adviser';
+  const lead = greeted ? '' : `Thanks${first ? ` ${first}` : ''}. Lovely to have you here. `;
+  return `${lead}Tap below to answer a few quick questions and pick a time with ${who}. It takes about a minute. Or just reply here if you'd rather chat.`;
+}
+/** ctx -> the token to put in the link, or null (flag off, or the workflow could not mint / send it). */
+const startPageToken = (ctx) => (ctx.brand && ctx.brand.start_page === true && ctx.start_page && typeof ctx.start_page.token === 'string' && ctx.start_page.token ? ctx.start_page.token : null);
+function startPageMessage(token, ctx, greet = null) {
+  return { type: 'cta_url', header_image: START_PAGE_HEADER, button: START_PAGE_BUTTON, url: `${START_PAGE_LINK}${token}`,
+    body: greet ? `${greet}\n\n${startPageBody(ctx.profile_name, ctx.broker && ctx.broker.adviser_first_name, true)}` : startPageBody(ctx.profile_name, ctx.broker && ctx.broker.adviser_first_name) };
+}
+/** A message while the page is pending: back to the tap path, first question, exactly as without the page. */
+function startPageFallback(t, ctx, actions) {
+  const lead = ctx.lead && ctx.lead.id === ctx.existing_open_lead_id ? ctx.lead : null;
+  const base = t && t.stage === 'start_page' ? t : { lead_id: (lead && lead.id) || ctx.existing_open_lead_id, answers: {}, from_lead: true, broker_id: (lead && lead.broker_id) || null, origin: (lead && lead.origin) || null };
+  const thread = { ...base, stage: 'q_age', answers: { ...(base.answers || {}) } };
+  actions.push({ kind: 'update_lead', id: thread.lead_id, set: { conv_state_state: 'q_age' } });
+  actions.push({ kind: 'send', message: question('q_age') });
+  actions.push({ kind: 'schedule_stall', stage: 'q_age', hours: STALL_HOURS, from: ctx.at, replaces: true });
+  return { thread, actions };
+}
+
 const list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });
 const buttons = (body, rows) => ({ type: 'button', body, buttons: rows.map(([id, title]) => ({ id, title })) });
 
@@ -248,6 +282,10 @@ function step(thread, msg, ctx) {
   if (!ctx.brand || !ctx.brand.brand_id) return { thread: null, no_thread: true, actions: [{ kind: 'log_no_brand', phone_number_id: ctx.phone_number_id || null },
     { kind: 'alert', signal_key: 'w03_no_brand', scope: `pnid:${ctx.phone_number_id || 'none'}`, severity: 'red', source: 'W03', what: 'WhatsApp message to a number with no brands row (phone_number_id)', impact: 'CTWA leads on this number get no consent prompt', first_action: 'Set brands.phone_number_id for the receiving number' }] };
   if (ctx.suppressed) return { thread: t, actions: [{ kind: 'ignore', reason: 'suppressed' }] }; // STOP'd number: W15 owns it
+  // /start/ page pending: the lead row is the truth when W03 has it (W39 moves it on once the page is answered), else the thread
+  const openLead = ctx.existing_open_lead_id && ctx.lead && ctx.lead.id === ctx.existing_open_lead_id ? ctx.lead : null;
+  const pagePending = openLead ? (openLead.conv_state && openLead.conv_state.state) === 'start_page' : !!(t && t.stage === 'start_page' && ctx.existing_open_lead_id);
+  if (pagePending) return startPageFallback(t, ctx, actions);
   // a thread W03 rebuilt from a W07-owned lead (from_lead) is a cache only: the lead's conv_state stays the truth
   if (ctx.existing_open_lead_id && (!t || t.stage === 'done' || t.from_lead)) {
     const lt = threadFromLead(ctx.lead && ctx.lead.id === ctx.existing_open_lead_id ? ctx.lead : null);
@@ -311,6 +349,14 @@ function step(thread, msg, ctx) {
         return { thread: t, actions };
       }
       if (ctx.brand.capture_ui === 'flow_v2') actions.push({ kind: 'log', reason: 'capture_flow_unavailable_tap_path' });
+      const sp = startPageToken(ctx);
+      if (sp) {
+        t.stage = 'start_page';
+        row.conv_state = { state: 'start_page' };
+        send(startPageMessage(sp, ctx));
+        stall('start_page');
+        return { thread: t, actions };
+      }
       row.conv_state = { state: 'q_age' }; // I-48k: W03 owns leads.conv_state.state while qualifying
       send(question('q_age'));
       stall('q_age');
@@ -348,6 +394,13 @@ function openerIntake(op, origin, ctx, actions) {
     row.conv_state = { state: 'handoff', topic: op.topic, ref: op.ref };
     send({ type: 'text', body: `${greet.replace(/ If it's something else, just tell me\.$/, '')} Wills are done with a Capital Legacy consultant, so I've asked a person from our team to message you here shortly to set up the call.` });
     return { thread: { stage: 'done', lead_id: row.id, origin, opener: { ref: op.ref, topic: op.topic } }, actions: actions.concat([{ kind: 'escalate', lead_id: row.id, note: `wills opener ${op.ref}: no wills calendar, a person books the Capital Legacy call` }]) };
+  }
+  const sp = startPageToken(ctx);
+  if (sp) {
+    row.conv_state = { state: 'start_page', topic: op.topic, ref: op.ref };
+    send(startPageMessage(sp, ctx, greet));
+    actions.push({ kind: 'schedule_stall', stage: 'start_page', hours: STALL_HOURS, from: ctx.at, replaces: true });
+    return { thread: { stage: 'start_page', origin, answers: {}, first_at: ctx.at, lead_id: row.id, opener: { ref: op.ref, topic: op.topic } }, actions };
   }
   row.conv_state = { state: 'q_age', topic: op.topic, ref: op.ref };
   const q = question('q_age');
@@ -488,10 +541,14 @@ function toCloudApi(to, m) {
   if (m.type === 'button') {
     return { ...base, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map((b) => ({ type: 'reply', reply: { id: b.id, title: b.title.slice(0, 20) } })) } } };
   }
+  if (m.type === 'cta_url') {
+    // Cloud API interactive cta_url (session); under WHATSAPP_PROVIDER=twilio lib/wa-provider.mjs maps it to smc_start_cta
+    return { ...base, type: 'interactive', interactive: { type: 'cta_url', ...(m.header_image ? { header: { type: 'image', image: { link: m.header_image } } } : {}), body: { text: m.body.slice(0, WA_BUTTON_BODY_MAX) }, action: { name: 'cta_url', parameters: { display_text: m.button.slice(0, 20), url: m.url } } } };
+  }
   if (m.type === 'flow') {
     return { ...base, type: 'interactive', interactive: { type: 'flow', body: { text: m.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: m.flow.flow_id, flow_token: m.flow.flow_token, flow_cta: m.flow.flow_cta, flow_action: m.flow.flow_action, flow_action_payload: { screen: m.flow.screen } } } } };
   }
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { startPageBody, startPageMessage, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

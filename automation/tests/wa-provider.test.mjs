@@ -158,3 +158,25 @@ test('twilioMediaRequest: Basic-auth fetch only for api.twilio.com media', () =>
   assert.match(r.headers.Authorization, /^Basic /);
   assert.equal(P.twilioMediaRequest('twilio:https://evil.test/x', {}), null);
 });
+
+test('outbound twilio: the /start/ link (interactive cta_url) -> smc_start_cta, the token as {{2}}; no SID or another URL skips, never a text Body', () => {
+  const tok = 'lt1.11111111-2222-4333-8444-555555555555.1792310000.' + 'B'.repeat(43);
+  const cta = { to: '27820000001', type: 'interactive', interactive: { type: 'cta_url', header: { type: 'image', image: { link: P.START_CTA_HEADER } }, body: { text: 'Thanks Thandi. Tap below.' }, action: { name: 'cta_url', parameters: { display_text: 'Start here', url: P.START_PAGE_LINK + tok } } } };
+  const env = { ...ENV, TWILIO_CONTENT_SIDS: JSON.stringify({ smc_start_cta: 'HXcta' }) };
+  const r = P.toTwilioRequest(cta, env);
+  assert.equal(r.form.ContentSid, 'HXcta');
+  assert.deepEqual(JSON.parse(r.form.ContentVariables), { 1: 'Thanks Thandi. Tap below.', 2: tok });
+  assert.equal(r.form.Body, undefined);
+  const miss = P.toTwilioRequest(cta, ENV);
+  assert.deepEqual([miss.skip, miss.reason], [true, 'twilio_cta_content_missing']);
+  assert.doesNotMatch(JSON.stringify(miss), /lt1\./, 'the skip reason never carries the token');
+  const other = P.toTwilioRequest({ ...cta, interactive: { ...cta.interactive, action: { name: 'cta_url', parameters: { display_text: 'x', url: 'https://evil.test/#lt=' + tok } } } }, env);
+  assert.equal(other.reason, 'twilio_cta_url_unsupported');
+  assert.equal(P.startCtaContent({ action: { parameters: { url: P.START_PAGE_LINK + 'bad token' } } }), null);
+  // the sub (prebuilt) sends it as is under Meta, and logs only [interactive]
+  const d = S.decide(S.normalise({ kind: 'prebuilt', wa: { messaging_product: 'whatsapp', ...cta }, record: false, caller: 'W03', correlation: 'c-cta' }), { last_inbound_at: open }, {}, Date.now());
+  assert.equal(d.action, 'send'); assert.equal(d.payload.interactive.type, 'cta_url');
+  assert.doesNotMatch(S.logContent(d), /lt1\./);
+  const dry = S.decide(S.normalise({ kind: 'prebuilt', wa: { messaging_product: 'whatsapp', ...cta }, record: false, caller: 'W03', correlation: 'c-cta2' }), { last_inbound_at: open }, { DRY_RUN_SENDS: 'true' }, Date.now());
+  assert.equal(dry.action, 'dry', 'DRY_RUN_SENDS still blocks it');
+});

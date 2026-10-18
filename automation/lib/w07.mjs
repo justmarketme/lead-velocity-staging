@@ -156,6 +156,9 @@ function routeCore(msg, ctx) {
   if (ctx.lead.email_verified !== true && !msg.payload && !msg.list_id && typedEmail(msg.text)) return { route: 'email_reply', reason: 'typed email address' };
   const state = ctx.lead.conv_state?.state || 'unbooked';
   if (QUALIFYING_TAP_STATES.includes(state) && (msg.payload || msg.list_id)) return { route: 'W03', reason: 'qualifying tap' };
+  // 18 Oct 2026: the /start/ page link is out (W03, brand flag start_page). Anything in chat meanwhile goes back to W03,
+  // which falls back to the tap path (first question q_age) exactly as without the page.
+  if (state === 'start_page') return { route: 'W03', reason: 'start page pending: chat falls back to the taps' };
   if (/^slot_.+:resched:/u.test(msg.list_id || msg.payload || '')) return { route: 'W10', reason: 'reschedule slot picked' };
   if (msg.list_id && /^slot_/u.test(msg.list_id)) return { route: 'W05', reason: 'slot picked from the 10-slot list' };
   if (msg.list_id && BEST_TIME[msg.list_id]) return { route: 'W07_contact', reason: 'best time tap' };

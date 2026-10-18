@@ -106,7 +106,10 @@ SELECT br.id AS brand_id,
                   AND s.source <> 'no_consent_ctwa') AS suppressed,
        (SELECT t.state FROM public.wa_threads t
          WHERE t.brand_id = br.id AND t.mobile_hash = public.smc_hash_contact($2) AND t.expires_at > now()) AS thread,
-       gen_random_uuid() AS new_lead_id
+       gen_random_uuid() AS new_lead_id,
+       -- /start/ page brand flag (18 Oct 2026, default off): brands.start_page = 'on' (migration 20261018120000). Read through to_jsonb so the
+       -- query never depends on the column existing.
+       coalesce(to_jsonb(br)->>'start_page', 'off') = 'on' AS start_page
   FROM (SELECT 1) one
   LEFT JOIN public.brands br ON br.phone_number_id = $1
   LEFT JOIN LATERAL (
@@ -118,16 +121,24 @@ SELECT br.id AS brand_id,
         ORDER BY (l.id = nullif($3, '')::uuid) DESC, l.created_at DESC LIMIT 1) ol ON true
  LIMIT 1;`,
     '={{ [ $json.phone_number_id || "", $json.mobile, $json.lead_id || "" ] }}'));
-  n.push(code('W03 step', [1560, 200], W3 +
-`const out = [];
+  n.push(code('W03 step', [1560, 200], W3 + LT +
+`// /start/ page (brand flag start_page): the link only goes out when the transport can carry it (Meta interactive cta_url, or the
+// smc_start_cta Content SID under Twilio) and a lead token can be minted for the lead this tap creates; otherwise the tap path.
+const PROVIDER = String($env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
+let SIDS = {}; try { SIDS = JSON.parse($env.TWILIO_CONTENT_SIDS || '{}') || {}; } catch (e) { SIDS = {}; }
+const out = [];
 for (const [i, item] of $input.all().entries()) {
   const ctxRow = item.json;
   const m = $('W07 hand-off -> Cloud API message').all()[i].json;
   const broker = ctxRow.broker || null;
-  const brand = { brand_id: ctxRow.brand_id, consent_mode: broker ? broker.consent_mode : 'named' };
+  const brand = { brand_id: ctxRow.brand_id, consent_mode: broker ? broker.consent_mode : 'named', start_page: ctxRow.start_page === true };
+  let start_page = null;
+  if (brand.start_page && (PROVIDER !== 'twilio' || !!SIDS.smc_start_cta)) {
+    try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
+  }
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
     broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false,
-    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id });
+    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
   const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;

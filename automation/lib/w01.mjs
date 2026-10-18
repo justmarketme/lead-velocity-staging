@@ -117,9 +117,12 @@ export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.tri
 export const productOf = (angle, requested = null) =>
   (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : productChoice(requested) ?? 'life_cover');
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
+/** leads.routing_reason of a /start/ page web lead waiting for its answers and the adviser card (W39 routes it). No CHECK. */
+export const START_PAGE_PENDING = 'start_page_pending';
 export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
 // conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
-export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow']);
+// 'start_page' (18 Oct 2026): the /start/ page link is out and the lead is answering there (W03 / W39).
+export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow', 'start_page']);
 const METHODS = new Set(['teams', 'zoom', 'meet', 'whatsapp_call', 'phone']);
 const METHOD_ALIAS = { google_meet: 'meet', whatsapp: 'whatsapp_call' };
 
@@ -146,7 +149,10 @@ export function normaliseSubmission(body = {}, opts = {}) {
         page_url: body.consent.page_url || body.page_url || null, mode: body.consent.mode || body.consent_mode || null,
         ads: typeof body.consent.includes_ads_sentence === 'boolean' ? body.consent.includes_ads_sentence : adsSentence(body.consent.text, body.consent.version) }
     : { checked: body.consent === true || body.consent === 'yes' || body.consent === 'on', text: body.consent_text || null, version: body.consent_version || null, at: null,
-        page_url: body.page_url || null, mode: body.consent_mode || null, ads: adsSentence(body.consent_text, body.consent_version) };
+        page_url: body.page_url || null, mode: body.consent_mode || null,
+        // the site quiz (and the /start/ page) send the optional ad-measurement choice separately: consent_ads + its own text / version
+        ads: adsSentence(body.consent_text, body.consent_version) || body.consent_ads === true || body.consent_ads === 'true',
+        ads_text: typeof body.consent_ads_text === 'string' ? body.consent_ads_text : null, ads_version: typeof body.consent_ads_version === 'string' ? body.consent_ads_version : null };
   return {
     channel: 'page',
     brand_id: body.brand_id ?? null,
@@ -160,6 +166,8 @@ export function normaliseSubmission(body = {}, opts = {}) {
     product_interest: productChoice(body.product_interest) ?? (helpWithOf(body.help_with) ? (helpWithOf(body.help_with) === 'wills' ? 'wills' : 'life_cover') : null),
     help_with: helpWithOf(body.help_with),
     budget_pending: body.budget_pending === true || body.budget_pending === 'true',
+    // the /start/ page web intake (desktop "Book", no token yet, Jono 18 Oct 2026): no answers yet, never routed here
+    start_page: body.start_page === true || body.start_page === 'true',
     quiz: {
       age_band: AGE_TO_DB[q.age_band] ?? null, budget_band: BUDGET_TO_DB[q.budget_band] ?? null,
       bond: yes(q.has_bond ?? q.bond), dependants: dependantsOf(q.has_dependants ?? q.dependants), work_cover: yes(q.has_work_cover ?? q.work_cover),
@@ -182,12 +190,24 @@ export function normaliseSubmission(body = {}, opts = {}) {
   };
 }
 
-/** The named-consent registry (landing/config/consent.json, CP-v0.1): version -> exact text for a practice. */
+/**
+ * The SortMyCover site's own consent texts (lv-site sites/sortmycover/config/consent.json, v5web, copied verbatim): the /start/
+ * page and the WhatsApp chat widget show these. The ad-measurement choice is a separate optional radio (consent_ads).
+ */
+export const WEB_CONSENT = Object.freeze({
+  named: { version: 'CONSENT-NAMED-v5web', text: 'I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about my call, and may share my details with {practice_name} (FSP {fsp_number}), an adviser from an FSCA-authorised financial services provider, who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP.' },
+  generic: { version: 'CONSENT-GENERIC-v5web', text: 'I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about my call, and may share my details with an adviser from an FSCA-authorised financial services provider (FSP), who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP.' },
+  ads: { version: 'CONSENT-ADS-v2web', text: 'I give SortMyCover permission to use my details in coded (hashed) form to measure and improve its ads on Facebook and Instagram. It will never use them to send me ads by message. This is optional, and the call does not depend on it.' },
+});
+
+/** The named-consent registry (landing/config/consent.json, CP-v0.1, + the site's v5web texts): version -> exact text for a practice. */
 export function consentRegistry(broker = {}) {
   const fill = (t) => t.replace('{practice_name}', broker.practice_name || broker.firm_name || '').replace('{fsp_number}', broker.fsp_number || '');
   return {
     [CONSENT.named.version]: `${fill(CONSENT.named.text)} ${CONSENT.ads}`,
     [CONSENT.generic.version]: `${CONSENT.generic.text} ${CONSENT.ads}`,
+    [WEB_CONSENT.named.version]: fill(WEB_CONSENT.named.text),
+    [WEB_CONSENT.generic.version]: WEB_CONSENT.generic.text,
   };
 }
 
@@ -389,7 +409,8 @@ export function decide(sub, ctx) {
   if (p && (p.brand_id == null || p.brand_id === brandId) && !p.duplicate_of && now - msOf(p.created_at) <= DEDUPE_DAYS * D) {
     // 90-day merge: no new lead, no WhatsApp, no CAPI Lead. The page gets a fresh token for the EXISTING lead and never
     // learns it was a duplicate (CONTRACTS.md "lead_token": "The page never learns whether a lead was a duplicate").
-    const live = !!p.broker_id && !p.opted_out_at;
+    // the /start/ page continues an unrouted lead too (it routes only after the adviser card): a token for any live prior lead
+    const live = !p.opted_out_at && (!!p.broker_id || sub.start_page === true);
     return {
       kind: 'duplicate', lead_id: p.id, mint_token: live && sub.channel === 'page',
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: p.id } },
@@ -427,7 +448,10 @@ export function decide(sub, ctx) {
     payload: { channel: sub.channel, consent_text_version: row.consent_text_version, line_type: lt, bot_check: ctx.bot_check ?? null, lookup_unverified: lt === 'unknown' } };
   activities.push(created);
 
-  const ageOut = !QUAL_AGE.has(row.age_band);
+  // /start/ page web intake: the answers come later on the page (W39) and every age may book (W39 OUT_OF_BAND_AGE_BOOKS), so
+  // nothing here is out of band and nothing is routed: W39 routes after the adviser card (disclosure before routing).
+  const startPage = sub.channel === 'page' && sub.start_page === true;
+  const ageOut = !startPage && !QUAL_AGE.has(row.age_band);
   // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band. A lead-ad lead without
   // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
   // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
@@ -437,7 +461,7 @@ export function decide(sub, ctx) {
   // until the band is known (and the email verified). The band answer can still move it: lt750 -> the database trigger
   // (smc_leads_route_check) holds it as tier C unless the broker has the standing yes.
   const pageBudgetPending = sub.channel === 'page' && sub.budget_pending === true && row.budget_band == null && !ageOut;
-  const budOut = !budgetPending && !pageBudgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
+  const budOut = !startPage && !budgetPending && !pageBudgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
   const tier = pageBudgetPending ? 'B' : tierOf(row.budget_band);
   // help_with has no column on public.leads: it is kept in conv_state (jsonb), no DDL (spec 2a)
   if (sub.channel === 'page' && sub.help_with) row.conv_state = { help_with: sub.help_with };
@@ -452,6 +476,17 @@ export function decide(sub, ctx) {
     Object.assign(row, { stage: 'opted_out', opted_out_at: at, routing_reason: 'suppressed' });
     activities.push({ activity_type: 'suppressed_at_intake', actor_type: 'system', occurred_at: at, idempotency_key: `w01:suppressed:${ctx.lead_id}`, payload: { channel: sub.channel } });
     return { kind: 'insert', outcome: 'suppressed', row, activities, first_touch: null, capi: null, mint_token: false,
+      response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
+  }
+
+  if (startPage) {
+    // Not routed, no first touch, no WhatsApp (the lead has not messaged us: no 24-h session), no CAPI Lead yet: routeExisting()
+    // sends Lead at the hand-over (start_page_pending counts as held, I-49c). The page continues with the token: GET /start,
+    // POST /start/answers (adviser card, then confirm -> W39 routes with first_touch false), W04 /slots, W05 /book.
+    Object.assign(row, { routing_reason: START_PAGE_PENDING, conv_state: { state: 'start_page', via: 'start_page' } });
+    activities.push({ activity_type: 'start_page_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:start_page:${ctx.lead_id}`,
+      payload: { channel: 'page', consent_text_version: row.consent_text_version, ref: c.ref ?? null } });
+    return { kind: 'insert', outcome: 'start_page', row, activities, first_touch: null, capi: null, mint_token: true,
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
@@ -556,8 +591,14 @@ export function capiLead(row) {
  * W03 hand-off ("W01 Lead core", kind route_and_first_touch): the CTWA lead row already exists (consent at the tap,
  * qualified by taps), or a page / lead-ad lead W01 held at intake. Route it and start the first touch; a held page /
  * lead-ad lead gets its CAPI Lead here (I-49c). Idempotent: an already-routed lead is not re-routed.
+ * first_touch: false (W39, the /start/ page, 18 Oct 2026): route exactly the same way but start no W06 first touch, because
+ * the page shows the adviser and the slots itself (the intro card follows the booking: W05 -> W06 op booking). A held tier-C
+ * lead still gets its one notice.
+ * W39 disclosure before routing (18 Oct 2026): expect_broker_id = the adviser the lead was shown and confirmed; any other
+ * pick is NOT routed (action 'skip', reason 'broker_changed'). hold_only: true records a hold (+ the tier-C notice) but
+ * never routes (a broker that became free meanwhile -> 'skip', reason 'not_disclosed').
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named' } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
@@ -565,10 +606,13 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
   if (r.held) return { action: 'held', update: { routing_reason: r.held }, notice: r.held === 'held_low_budget' ? lowBudgetHeld(lead) : null };
   const b = r.broker;
+  if (hold_only) return { action: 'skip', reason: 'not_disclosed' };
+  if (expect_broker_id && String(brokerIdOf(b)) !== String(expect_broker_id)) return { action: 'skip', reason: 'broker_changed' };
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
-  const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';
-  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+  const wasHeld = (String(lead.routing_reason || '').startsWith('held_') || lead.routing_reason === START_PAGE_PENDING) && (lead.origin || 'ctwa') !== 'ctwa';
+  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null,
+    first_touch: first_touch === false ? null : { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
 }
 
 // ---------------------------------------------------------------------------------------------- 5b. tier C (under R750)

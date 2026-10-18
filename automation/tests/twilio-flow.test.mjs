@@ -157,6 +157,15 @@ test('session interactive: buttons and lists use the generic Content templates (
   const defs = buildAll();
   assert.equal(defs['smc_session_list_3.json'].content.types['twilio/list-picker'].items.length, 3);
   assert.equal(defs['smc_session_buttons_2.json']._meta.approval, null, 'session types need no WhatsApp approval');
+  // the /start/ page link (18 Oct 2026): a session card, static header image, '#lt=' STATIC and the token alone as the URL suffix
+  const cta = defs['smc_start_cta.json'];
+  assert.equal(cta._meta.approval, null); assert.equal(cta._meta.session_only, true);
+  const card = cta.content.types['twilio/card'];
+  assert.deepEqual(card.actions, [{ type: 'URL', title: 'Start here', url: 'https://sortmycover.co.za/start/#lt={{2}}' }]);
+  assert.deepEqual(card.media, ['https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png']);
+  assert.equal(card.title, '{{1}}');
+  assert.ok(card.actions[0].title.length <= 20);
+  assert.doesNotMatch(cta.content.variables['1'], /\bfree\b|\bAI\b|Lead Velocity/i);
 });
 
 // ------------------------------------------------------------------ one transport for every workflow send

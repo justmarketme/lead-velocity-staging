@@ -58,7 +58,7 @@ function sameBooking(slots = {}, booking = {}) {
 /**
  * decide(state, nlu, pre, ctx) -> { actions: string[], next_state }
  * nlu = { intent, secondary_intents[], topics[], consent_answer, slots{}, sentiment, language, confidence }
- * pre = prefilter() output. ctx = { booking: {day,date,time,time_band,method}, unanswered: n }
+ * pre = prefilter() output. ctx = { booking: {day,date,time,time_band,method}, unanswered: n, age_accepted?: true (W39 /start/ page) }
  */
 export function decide(state, nlu = {}, pre = {}, ctx = {}) {
   // 17 Oct 2026 live: a lead with a booked call still had conv_state 'booking' (the step that moves it never ran), so
@@ -130,7 +130,8 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
   // 4. Band conflicts typed later (memory: never ask twice, never silently overwrite).
   const ops = [];
   if (outOfBand(slots)) {
-    if (PRE_BOOKING.has(state)) return { actions: ['close_oob'], next_state: 'closed_oob' };
+    // 18 Oct 2026 (Jono): an age the /start/ page accepted (W39, conv_state.age_accepted) is never closed here
+    if (PRE_BOOKING.has(state) && !ctx.age_accepted) return { actions: ['close_oob'], next_state: 'closed_oob' };
     if (BOOKED.has(state)) ops.push('flag_band_conflict');
   }
 
