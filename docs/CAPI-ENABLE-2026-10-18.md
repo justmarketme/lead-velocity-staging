@@ -41,20 +41,20 @@ What the sub-workflow reads:
 | `DRY_RUN_SENDS` | `false` (live sends) |
 | SMC leads with `consent_ads_at` | **0 of 6** |
 
-## Blocker that a token alone does not fix: the consent gate
+## Consent gate: decided for click-to-WhatsApp (Jono, 18 Oct 2026)
 
-`consent_ads_at` is set only by **W01**, when the web form posts `consent_ads: true`. **W03 never sets it**, and W03
-creates every WhatsApp lead: CTWA ads and every website opener (booking is WhatsApp-only). So with the token in place,
-**every WhatsApp lead's Lead, Schedule and Attended event is skipped by the consent gate**. Meta would still optimise blind
-for those leads.
+`consent_ads_at` is set only by **W01**, when the web form posts `consent_ads: true`. W03 never sets it, and W03 creates
+every WhatsApp lead, so the old gate dropped every click-to-WhatsApp (CTWA) event.
 
-This is a decision for Jono (POPIA, the advertising-improvement consent wording), not a config switch. Options:
-
-1. Record the website opener's optional "measure ads" tick. The opener would need to carry it, and W03 would set
-   `consent_ads_at`.
-2. Ask the ads-improvement question in the WhatsApp chat, after the main consent.
-3. Decide that CTWA business-messaging events need no separate consent (Meta already holds the click), and change the
-   gate for `action_source = business_messaging` only.
+**Decision:** CTWA events (`action_source = business_messaging`: W03 `Lead`, W05 `Schedule` for a CTWA lead) carry the
+ad-click reference ONLY. That means `user_data = { ctwa_clid, whatsapp_business_account_id }`, with no hashed phone, name,
+country or external_id, and **no ads-consent gate**.
+- Built in `automation/lib/sub-capi-send.mjs` and tested in `automation/tests/SUB.test.mjs`.
+- It is the default. `CAPI_CTWA_CLID_ONLY=false` in the VPS `.env` restores the old behaviour (gate plus hashed user data).
+- **Instant Form and web events keep the consent gate** whatever the flag says.
+- The lib is shipped by `deploy.sh`; no workflow import is needed. `Attended` (W12) is `system_generated` and keeps the gate.
+- Website openers that ticked "measure ads" still need W03 to record `consent_ads_at`. Without that they send nothing
+  beyond the CTWA rule. That is open.
 
 ## Token: can the system-user token be the CAPI token?
 
@@ -124,14 +124,14 @@ those two events in `sub-capi-send.mjs` / W03 / W05 (a code change, test first).
      - `capi_log` has two rows with a 200 status;
      - `CAPI_EVIDENCE_PATH` has two lines;
      - the Graph response had `events_received: 1` each.
-   - Repeat once for a CTWA lead with `consent_ads_at` set. This checks that Meta accepts business-messaging `Lead` /
+   - Repeat once for a CTWA lead (no ads consent needed; only `ctwa_clid` and the WABA id are sent). This checks that Meta accepts business-messaging `Lead` /
      `Schedule` (see the caveat above).
 7. **Go live:**
    - remove `CAPI_TEST_EVENT_CODE`, then recreate n8n;
    - Events Manager → **Overview** shows server events arriving (source "Server"), and deduplication with the browser
      Pixel works (the same `event_id`);
    - after 24 to 48 h, the **Event Match Quality** for Lead is 6 or higher (target in `event-spec.md`).
-8. **Settle the consent gate (above) with Jono**, or CAPI covers only web-form leads that ticked the ads box.
+8. The CTWA rule is on by default (see "Consent gate" above). Check one CTWA test event in step 6: its user_data has only `ctwa_clid` and the WABA id.
 
 **Rollback:** delete or empty the n8n credential, or deactivate `smc-capi-send`. Events stop and nothing else changes.
 

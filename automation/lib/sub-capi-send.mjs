@@ -61,7 +61,11 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
   const brand_id = n.brand_id || ctx.lead_brand_id || null;
   const log = { lead_id: n.lead_id, brand_id, event_name: n.event_name, event_id: n.event_id, action_source: n.action_source };
   if (!n.valid) return { action: 'skip', reason: 'invalid_input', missing: n.missing, log };
-  const consent = n.lead_id ? !!ctx.consent_ads_at : n.consent_ads;
+  // Click-to-WhatsApp (Jono, 18 Oct 2026): business-messaging events carry the ad-click reference ONLY (ctwa_clid + the
+  // WABA id Meta requires): no hashed phone, name, country or external_id, and no ads-consent gate. Instant Form and web
+  // events keep the gate. CAPI_CTWA_CLID_ONLY=false restores the old behaviour (gate + hashed user data).
+  const clidOnly = n.action_source === 'business_messaging' && String(env.CAPI_CTWA_CLID_ONLY ?? '').toLowerCase() !== 'false';
+  const consent = clidOnly || (n.lead_id ? !!ctx.consent_ads_at : n.consent_ads);
   if (!consent) return { action: 'skip', reason: 'capi_skipped_no_consent', log };
   if (ctx.duplicate === true || ctx.duplicate === 't') return { action: 'duplicate', reason: 'already_sent', log };
   const pixel = n.action_source === 'website' ? (ctx.pixel_id || env.PIXEL_ID) : (ctx.dataset_id || env.DATASET_ID || ctx.pixel_id || env.PIXEL_ID);
@@ -80,6 +84,11 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
     user,
     custom,
   });
+  if (clidOnly) {
+    const waba = ctx.waba_id || env.WABA_ID;
+    ev.user_data = { ctwa_clid: n.ctwa_clid, ...(waba ? { whatsapp_business_account_id: waba } : {}) };
+    log.clid_only = true;
+  }
   const body = { data: [ev] };
   if (env.CAPI_TEST_EVENT_CODE) body.test_event_code = env.CAPI_TEST_EVENT_CODE;
   const version = env.META_GRAPH_VERSION || 'v21.0';

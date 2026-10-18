@@ -168,6 +168,36 @@ test('capi-send: CTWA routes to the dataset with ctwa_clid; offline events are s
   assert.equal(o.body.data[0].action_source, 'system_generated'); assert.equal(o.body.data[0].custom_data.value, 4);
 });
 
+test('capi-send: CTWA (default) sends ctwa_clid + WABA id only, with no consent gate and no hashed data (Jono, 18 Oct)', async () => {
+  const c = await capiBuild({ event_name: 'Lead', event_id: 'evt_l1_ctwa', lead_id: 'l1', action_source: 'business_messaging', ctwa_clid: 'CLID' },
+    { ...leadRow, consent_ads_at: null, waba_id: 'WABA1' });
+  assert.equal(c.action, 'send');
+  assert.deepEqual(c.body.data[0].user_data, { ctwa_clid: 'CLID', whatsapp_business_account_id: 'WABA1' });
+  assert.doesNotMatch(JSON.stringify(c.body), /"ph"|"fn"|"ln"|"country"|"external_id"|"client_ip_address"|"fbc"/);
+  assert.equal(c.body.data[0].messaging_channel, 'whatsapp');
+  assert.equal(c.log.clid_only, true);
+});
+
+test('capi-send: CAPI_CTWA_CLID_ONLY=false restores the consent gate and hashed user data for CTWA', async () => {
+  const off = { CAPI_CTWA_CLID_ONLY: 'false' };
+  const input = { event_name: 'Lead', event_id: 'evt_l1_ctwa', lead_id: 'l1', action_source: 'business_messaging', ctwa_clid: 'CLID' };
+  const gated = await capiBuild(input, { ...leadRow, consent_ads_at: null }, off);
+  assert.equal(gated.action, 'skip'); assert.equal(gated.reason, 'capi_skipped_no_consent');
+  const full = await capiBuild(input, leadRow, off);
+  assert.equal(full.action, 'send');
+  assert.match(full.body.data[0].user_data.ph[0], /^[a-f0-9]{64}$/);
+  assert.equal(full.body.data[0].user_data.ctwa_clid, 'CLID');
+});
+
+test('capi-send: web and Instant Form events keep the consent gate whatever the CTWA flag', async () => {
+  for (const env of [{}, { CAPI_CTWA_CLID_ONLY: 'true' }]) {
+    const web = await capiBuild({ event_name: 'Lead', event_id: 'evt_l1_lead', lead_id: 'l1', action_source: 'website' }, { ...leadRow, consent_ads_at: null }, env);
+    assert.equal(web.reason, 'capi_skipped_no_consent');
+    const form = await capiBuild({ event_name: 'Lead', event_id: 'evt_l1_form', lead_id: 'l1', action_source: 'system_generated' }, { ...leadRow, consent_ads_at: null }, env);
+    assert.equal(form.reason, 'capi_skipped_no_consent');
+  }
+});
+
 test('capi-send: dedupe via capi_log, and a dry run writes nothing (dedupe skip on dry run)', async () => {
   const dup = await capiBuild({ event_name: 'Lead', event_id: 'evt_l1_lead', lead_id: 'l1' }, { ...leadRow, duplicate: true });
   assert.equal(dup.action, 'duplicate');
