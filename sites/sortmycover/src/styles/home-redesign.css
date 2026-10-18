@@ -117,3 +117,6 @@
 .smc-campaign .hero-band h1 em{font-family:"Instrument Serif",Georgia,serif;font-style:italic;font-weight:400;letter-spacing:-.02em;color:var(--sm-charcoal);background:none;background-image:linear-gradient(transparent 60%,var(--sm-amber) 60%,var(--sm-amber) 92%,transparent 92%);-webkit-box-decoration-break:clone;box-decoration-break:clone;padding:0;display:inline;font-size:1.08em}
 .smc-campaign .hero-band h1 em::before{content:"\A";white-space:pre}
 .smc-campaign{position:relative}
+
+/* campaign h1: the markup already breaks before the highlighted line (h1Segments), so drop the highlighter's own break */
+.smc-campaign .hero-band h1 br + em::before{content:none}

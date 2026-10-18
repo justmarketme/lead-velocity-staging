@@ -3,7 +3,7 @@
 import { Seo } from "@/lib/head";
 import {APEX, provider, site} from "@/lib/site";
 import { PageHead } from "@/components/PageFrame";
-import { CalendarCta, WhatsAppCta } from "@/components/ChatWidget";
+import { WhatsAppCta } from "@/components/ChatWidget";
 import { DEFAULT_CHAT, WA_STEPS } from "@/lib/whatsapp";
 import { Link } from "react-router-dom";
 import { WaPreview } from "@/components/Visuals";
@@ -17,7 +17,6 @@ export default function Book() {
         <p className="cta-row">
           <WhatsAppCta ctx={{ ...DEFAULT_CHAT, ref: "w-book" }} className="btn btn-lg">Chat about cover</WhatsAppCta>
           <WhatsAppCta ctx={{ topic: "a will", ref: "w-book-will", wills: true }} className="btn btn-secondary">Chat about a will</WhatsAppCta>
-          <CalendarCta ctx={{ ...DEFAULT_CHAT, ref: "w-book" }} className="btn btn-lg btn-secondary">Pick a time in the calendar</CalendarCta>
         </p>
         <h2>What happens on WhatsApp</h2>
         <WaPreview />

@@ -107,11 +107,6 @@ export const WA_STEPS = (wills?: boolean): string[] => [
 /** One-line version for tight spots (hero micro line, CTA card). */
 export const WA_EXPECT = "On WhatsApp, Lindi asks what you need and a few short questions, then shows you your adviser and times to pick.";
 
-/** Desktop calendar CTAs ask the widget layer to open the Cal.com booking page with their context. */
-export function openCal(c: ChatContext) {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ChatContext>("smc:cal", { detail: c }));
-}
-
 /** Any CTA asks the widget to open with its own context. */
 export const CHAT_EVENT = "smc:chat";
 export function openChat(c: ChatContext) {

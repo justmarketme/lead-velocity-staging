@@ -2,7 +2,7 @@
 import { Fragment } from "react";
 import { Seo } from "@/lib/head";
 import {FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site} from "@/lib/site";
-import ChatWidget, { CalendarCta, WhatsAppCta } from "@/components/ChatWidget";
+import ChatWidget, { WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, campaignContext } from "@/lib/whatsapp";
 import { CampaignFooter } from "@/components/Footer";
 import { Wordmark } from "@/components/Brand";
@@ -35,7 +35,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
             <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
             <p className="mt-4 text-[17px] text-[#d3d7dc] max-w-[40ch]">{angle.sub}</p>
-            <div className="hx-actions" id="chat"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><CalendarCta ctx={campaignContext(angle)} className="btn btn-lg btn-secondary">Pick a time</CalendarCta><a href="#h-how" className="hx-how-link">What happens next ↓</a></div>
+            <div className="hx-actions" id="chat"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><a href="#h-how" className="hx-how-link">What happens next ↓</a></div>
             <p className="mt-3 text-[14px] text-[#56606a] max-w-[46ch]">{isWills(angle) ? WA_EXPECT.replace("your adviser", "your consultant") : WA_EXPECT}</p>
             {angle.note && <p className="mt-3 text-[15px] text-[#c3c8ce] max-w-[44ch]" data-disclosure>{angle.note}</p>}
             {wills && <p className="mt-3 text-[14px] text-[#c3c8ce] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}

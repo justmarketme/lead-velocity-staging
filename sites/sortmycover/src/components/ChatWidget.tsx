@@ -4,8 +4,7 @@
    ad-measurement checkbox (CONSENT-ADS-v2web, the Pixel loads only when ticked), and the button. Rendered closed on the server;
    nothing here hides content or a disclosure. */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openCal, openChat, sourceTag, waHref, type ChatContext } from "@/lib/whatsapp";
-import { CAL_ENABLED, CAL_EVENT, calSrc } from "@/lib/calendar";
+import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, waHref, type ChatContext } from "@/lib/whatsapp";
 import { consentCfg, provider } from "@/lib/site";
 import { beacon } from "@/lib/api";
 import { attribution, beaconOff, grantAds, hasConsent, track } from "@/lib/pixel";
@@ -29,13 +28,6 @@ export function WhatsAppCta({ ctx, className = "btn", children }: { ctx: ChatCon
   );
 }
 
-/** Desktop only (hidden on touch screens and narrow windows): pick a time in the Cal.com calendar. Renders nothing until
-    config/site.json -> calcom_link is set. */
-export function CalendarCta({ ctx, className = "btn btn-secondary", children }: { ctx: ChatContext; className?: string; children?: ReactNode }) {
-  if (!CAL_ENABLED) return null;
-  return <button type="button" className={`${className} desk-only`} onClick={() => openCal(ctx)}>{children ?? "Pick a time"}</button>;
-}
-
 export default function ChatWidget({ base }: { base: ChatContext }) {
   const [open, setOpen] = useState(false);
   const [ctx, setCtx] = useState<ChatContext | null>(null);
@@ -43,12 +35,10 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const [ads, setAds] = useState(false);
   const [adsBefore, setAdsBefore] = useState(false);
   const [nudge, setNudge] = useState(false);
-  const [cal, setCal] = useState<ChatContext | null>(null);
   /* Phones: the launcher waits until the visitor has scrolled half a screen (the header's WhatsApp button is in view at the top),
      so on the first screen it does not sit over text such as a guide's short answer. Once the panel has been opened it stays. */
   const [atTop, setAtTop] = useState(true);
   const [used, setUsed] = useState(false);
-  const calClose = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
@@ -70,20 +60,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     window.addEventListener(CHAT_EVENT, on);
     return () => window.removeEventListener(CHAT_EVENT, on);
   }, [show]);
-  useEffect(() => {
-    const on = (e: Event) => { setOpen(false); setCal((e as CustomEvent<ChatContext>).detail ?? base); };
-    window.addEventListener(CAL_EVENT, on);
-    return () => window.removeEventListener(CAL_EVENT, on);
-  }, [base]);
-  useEffect(() => {
-    if (!cal) return;
-    calClose.current?.focus();
-    beacon(cal.ref, "cal", undefined, beaconOff);
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setCal(null); };
-    document.addEventListener("keydown", esc);
-    return () => document.removeEventListener("keydown", esc);
-  }, [cal]);
-  useEffect(() => { setCtx(null); setOpen(false); setCal(null); }, [base.ref, base.topic]); // a new page: back to that page's context, closed
+  useEffect(() => { setCtx(null); setOpen(false); }, [base.ref, base.topic]); // a new page: back to that page's context, closed
   useEffect(() => {
     if (!open) return;
     setAdsBefore(hasConsent());
@@ -135,20 +112,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
           <a className="btn btn-wa chat-go" href={waHref(c)} target="_blank" rel="noopener noreferrer" aria-disabled={!agreed} onClick={go}>
             <WaIcon size={18} />Open WhatsApp
           </a>
-          {CAL_ENABLED && <button type="button" className="chat-cal desk-only" onClick={() => openCal(c)}>Or pick a time in the calendar</button>}
           <p className="chat-fine">Lindi, our automated assistant, replies. Ask for a person any time, or reply STOP to stop.</p>
-        </div>
-      )}
-      {cal && (
-        <div className="cal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCal(null); }}>
-          <div className="cal-box" role="dialog" aria-modal="true" aria-labelledby={hid + "-cal"}>
-            <div className="chat-top">
-              <p id={hid + "-cal"} className="chat-title">Pick a time for your call</p>
-              <button ref={calClose} type="button" className="chat-x" aria-label="Close the calendar" onClick={() => setCal(null)}>×</button>
-            </div>
-            <iframe className="cal-frame" title="SortMyCover booking calendar" src={calSrc([cal.ref, sourceTag(attribution(), document.referrer)].filter(Boolean).join(" via "), attribution().utm)} />
-            <p className="chat-fine">After you book, Lindi sends you a WhatsApp message to confirm a few details. You can also <button type="button" className="link-inline" onClick={() => { const c2 = cal; setCal(null); show(c2); }}>chat on WhatsApp instead</button>.</p>
-          </div>
         </div>
       )}
       <button ref={launcher} type="button" className="chat-launch" aria-expanded={open} aria-controls="chat-panel" onClick={() => (open ? hide() : show(null))}>

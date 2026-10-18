@@ -412,9 +412,6 @@ legend { padding: 0; width: 100%; }
 .desk-only{display:none!important}
 @media (min-width:900px) and (hover:hover) and (pointer:fine){.desk-only{display:inline-flex!important}}
 .chat-cal{border:0;background:none;padding:6px 0;font:inherit;font-size:14px;font-weight:800;color:var(--sm-charcoal);text-decoration:underline;text-decoration-color:var(--sm-amber);text-decoration-thickness:2px;text-underline-offset:4px;cursor:pointer;justify-content:center}
-.cal-overlay{position:fixed;inset:0;z-index:70;background:rgb(31 41 51 / .55);display:grid;place-items:center;padding:24px}
-.cal-box{width:min(1000px,100%);height:min(820px,calc(100vh - 48px));display:grid;grid-template-rows:auto 1fr auto;gap:10px;padding:16px;border-radius:16px;background:#fff;box-shadow:0 30px 80px #0000004d}
-.cal-frame{width:100%;height:100%;border:0;border-radius:10px;background:var(--sm-surface-raised)}
 .link-inline{border:0;background:none;padding:0;font:inherit;color:inherit;font-weight:800;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:3px;cursor:pointer}
 /* interactive layer (src/lib/pageMotion.ts): spotlights follow the pointer via --gx/--gy; transforms are set by Motion */
 .card-link{position:relative;overflow:hidden;transform-style:preserve-3d;will-change:transform}
