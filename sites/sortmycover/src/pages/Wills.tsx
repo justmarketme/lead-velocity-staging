@@ -2,7 +2,7 @@
    (named only through `provider`); every fact on the guides is one of its verified statements (config/evidence.json, cl-*).
    No fee statement about SortMyCover here: the provider's fee arrangement with SortMyCover is not settled. */
 import { Link } from "react-router-dom";
-import { WhatsAppCta } from "@/components/ChatWidget";
+import { StartCta, WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import PageFrame from "@/components/PageFrame";
 import { FaqItem, Steps } from "@/components/Interactive";
@@ -30,7 +30,7 @@ export default function Wills() {
       <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>
         {PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE} <a href={site.fsca_register_url} rel="noopener noreferrer">You can look the firm up on the FSCA register</a>.
       </p>
-      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/wills/")} /></p>
+      <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/wills/")} /><StartCta ctx={contextFor("/wills/")} /></p>
       <p className="text-[15px] text-[#56606a]">{WA_EXPECT.replace("your adviser", "your will consultant")}</p>
 
       <h2>Guides</h2>

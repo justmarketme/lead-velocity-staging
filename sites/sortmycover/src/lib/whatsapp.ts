@@ -4,7 +4,7 @@
    The opener is the contract with W07 (Lindi), documented in docs/WHATSAPP-OPENERS.md: it names the topic, carries the consent
    statement in the person's own words (so the WhatsApp chat itself records consent, even without JavaScript) and ends with
    "Ref <code>", the page or ad the chat came from. */
-import { consentCfg, site } from "./site";
+import { consentCfg, site, APEX } from "./site";
 
 export const WA_DIGITS: string = String(site.whatsapp_number || "").replace(/\D/g, "");
 export const WA_LABEL = "Chat on WhatsApp";
@@ -111,4 +111,14 @@ export const WA_EXPECT = "On WhatsApp, Lindi asks what you need and a few short 
 export const CHAT_EVENT = "smc:chat";
 export function openChat(c: ChatContext) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<ChatContext>(CHAT_EVENT, { detail: c }));
+}
+
+/** Desktop booking on SortMyCover's own /start/ page (Jono, 18 Oct 2026: "use the branded page, the start on desktop too").
+    `ref` = the page code, `via` = where the visitor came from: the same values the WhatsApp opener carries. Page codes only,
+    never personal data; a lead token only ever goes in the #lt= fragment. Always the apex host, so campaign hosts work too. */
+const START_ORIGIN = APEX;
+export function startHref(c: ChatContext, via?: string): string {
+  const q = new URLSearchParams({ ref: c.ref });
+  if (via) q.set("via", via);
+  return `${START_ORIGIN}/start/?${q.toString()}`;
 }

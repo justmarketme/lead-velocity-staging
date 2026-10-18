@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { WhatsAppCta } from "@/components/ChatWidget";
+import { StartCta, WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
 import {APEX, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, company, provider, site} from "@/lib/site";
@@ -71,6 +71,7 @@ export default function Home() {
             <p className="hx-intro">A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a call with a will consultant about your will.</p>
             <div className="hx-actions">
               <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
+              <StartCta ctx={contextFor("/")} className="btn btn-lg btn-secondary" />
               <a href="#h-how" className="hx-how-link">See how it works ↓</a>
             </div>
             <p className="hx-micro">{WA_EXPECT}</p>
@@ -220,6 +221,7 @@ export default function Home() {
           <div className="flex flex-wrap gap-3">
             <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
             <WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn btn-secondary">Chat about a will</WhatsAppCta>
+            <StartCta ctx={contextFor("/")} className="btn btn-lg btn-ghost" />
           </div>
         </aside>
       </div>

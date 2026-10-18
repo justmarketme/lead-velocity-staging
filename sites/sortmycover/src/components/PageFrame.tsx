@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { PAGE_SCENES } from "@/content/imagery";
 import { Link, useLocation } from "react-router-dom";
-import { WhatsAppCta } from "./ChatWidget";
+import { StartCta, WhatsAppCta } from "./ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
 import {APEX, PROVIDER_COST_LINE, provider} from "@/lib/site";
@@ -87,6 +87,7 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
         <p data-disclosure>Lindi books a call about your will on WhatsApp, at a time that suits.</p>
         <div className="cta-actions">
           <WhatsAppCta ctx={{ ...ctx, wills: true }} />
+          <StartCta ctx={{ ...ctx, wills: true }} className="btn btn-ghost" />
         </div>
         <p className="cta-expect">{WA_EXPECT.replace("your adviser", "your consultant")}</p>
       </aside>
@@ -98,6 +99,7 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
       <p>Lindi books a 30-minute call with an authorised adviser on WhatsApp, at a time that suits.</p>
       <div className="cta-actions">
         <WhatsAppCta ctx={ctx} />
+        <StartCta ctx={ctx} className="btn btn-ghost" />
       </div>
       <p className="cta-expect">{WA_EXPECT}</p>
     </aside>

@@ -61,3 +61,16 @@ describe("desktop booking: no Cal.com (dropped 18 Oct 2026)", () => {
     expect(c).not.toMatch(/cal\.com/);
   });
 });
+
+describe("desktop booking on /start/ (Jono, 18 Oct 2026)", () => {
+  it("links to the apex /start/ page with the page code and, at click time, where the visitor came from; never personal data", async () => {
+    const { startHref } = await import("../src/lib/whatsapp");
+    const u = new URL(startHref({ topic: "cover", ref: "w-home" }, "ig/cycle1/reel"));
+    expect(u.origin + u.pathname).toBe("https://sortmycover.co.za/start/");
+    expect(u.searchParams.get("ref")).toBe("w-home");
+    expect(u.searchParams.get("via")).toBe("ig/cycle1/reel");
+    expect([...u.searchParams.keys()].sort()).toEqual(["ref", "via"]);
+    expect(u.hash).toBe("");
+    expect(new URL(startHref({ topic: "a will", ref: "b01", wills: true })).search).toBe("?ref=b01");
+  });
+});

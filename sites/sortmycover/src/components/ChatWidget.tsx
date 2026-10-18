@@ -4,7 +4,7 @@
    ad-measurement checkbox (CONSENT-ADS-v2web, the Pixel loads only when ticked), and the button. Rendered closed on the server;
    nothing here hides content or a disclosure. */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, waHref, type ChatContext } from "@/lib/whatsapp";
+import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, startHref, waHref, type ChatContext } from "@/lib/whatsapp";
 import { consentCfg, provider } from "@/lib/site";
 import { beacon } from "@/lib/api";
 import { attribution, beaconOff, grantAds, hasConsent, track } from "@/lib/pixel";
@@ -24,6 +24,16 @@ export function WhatsAppCta({ ctx, className = "btn", children }: { ctx: ChatCon
   return (
     <a href={waHref(ctx)} className={`${className} btn-wa`} onClick={(e) => { e.preventDefault(); openChat(ctx); }}>
       <WaIcon size={18} />{children ?? WA_LABEL}
+    </a>
+  );
+}
+
+/** Desktop only (hidden on touch screens and narrow windows): pick a time on SortMyCover's own /start/ page. Phones stay
+    WhatsApp-first. `via` (where the visitor came from) is added at click time, so server and client render the same HTML. */
+export function StartCta({ ctx, className = "btn btn-secondary", children }: { ctx: ChatContext; className?: string; children?: ReactNode }) {
+  return (
+    <a href={startHref(ctx)} className={`${className} desk-only`} onClick={(e) => { try { e.currentTarget.href = startHref(ctx, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain link */ } beacon(ctx.ref, "start", undefined, beaconOff); }}>
+      {children ?? "Pick a time"}
     </a>
   );
 }

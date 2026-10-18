@@ -259,6 +259,11 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(book).toMatch(/automated assistant/);
     expect(book).toMatch(/ask for a person/i);
   });
+  it("desktop booking points at /start/ (desktop-only links), and there is no Cal.com path", () => {
+    const home = pages.find((p) => p.rel === "index.html")!.html;
+    expect(home).toMatch(/<a href="https:\/\/sortmycover\.co\.za\/start\/\?ref=w-home"[^>]*desk-only/);
+    for (const p of pages) expect(p.html, p.rel).not.toMatch(/app\.cal\.com/);
+  });
   it("no public page names or links the will provider (Jono, 18 Oct 2026: named only on WhatsApp)", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/capital\s*legacy|capitallegacy|FSP 43826/i);
     // nor any shipped script or file: the provider's identity is internal (config/will-provider.internal.json)
