@@ -208,6 +208,9 @@ test('10-slot list (launch path): <= 10 rows, spread across days earliest-first,
   assert.deepEqual(rows.map((r) => r.id.slice(5)), offerSlots(slots, 10).map((s) => s.start));
   assert.ok(rows.every((r) => r.title.length <= 24 && /^slot_\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\+02:00$/.test(r.id)));
   assert.equal(new Set(rows.slice(0, 3).map((r) => r.id.slice(5, 15))).size, 3, 'first three rows on three different days');
+  // Jono, 18 Oct 2026: the grey line under each time names the call, it never repeats the time (Twilio needs a description).
+  const first = MARK.adviser_first_name || String(MARK.adviser_name).split(' ')[0];
+  assert.ok(rows.every((r) => r.description === `30 minutes with ${first}` && r.description.length <= 72 && r.description !== r.title));
   assert.ok(body.interactive.action.button.length <= 20);
   assert.equal(body.to, '27600000002');
 });
