@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { FIX, MODE, lead, broker, order, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
-import { runCode, PG_CRED, NOT_RUN, ifBranch } from './_n8ncode.mjs';
+import { runCode, PG_CRED, NOT_RUN, ifBranch, evalParam } from './_n8ncode.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W01 from '../lib/w01.mjs';
 
@@ -1100,4 +1100,92 @@ test('start page web lead at the hand-over (W39 confirm): routed like any page l
   assert.equal(r.capi.event_name, 'Lead');
   const other = { ...OPW, practice_name: 'Another Practice' };
   assert.equal(W01.routeExisting(lead, { brokers: [other], now: TC_NOW, first_touch: false, expect_broker_id: OPW.id }).update.routing_reason, 'held_consent_names_other_practice', 'named consent: only the practice named in the text');
+});
+
+// ============================================================================================
+// Lead-ad disclosure before hand-over (18 Oct 2026): a form lead is routed only after the SortMyCover disclosure
+// ============================================================================================
+const LD_BROKER = { ...OPW, contact_person: 'Mark Smith' };
+const LD_LEAD = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000a1d01', brand_id: 'smc', origin: 'lead_ad', routing_reason: 'held_budget_pending', budget_band: '1500_plus',
+  consent_mode: 'named', consent_text: W01.consentRegistry(OPW)['CONSENT-NAMED-v5web'], consent_ads_at: TC_AT, lead_event_id: 'evt-ld', created_at: TC_AT,
+  phone: '+27600000191', first_name: 'Thandi', disclosed: [], ...over });
+const V3_ENV = { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: JSON.stringify({ broker_intro_slots_v3: 'HXv3' }) };
+const DISCLOSURE = 'Before I introduce you: Mark Smith from Oracle Private Wealth, an authorised financial services provider (FSP 28418), will be the one on the call with you. Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.';
+
+test('lead-ad disclosure: the route REFUSES a lead-ad lead without adviser_disclosed for that broker and asks for the disclosure first', () => {
+  const opts = { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(LD_LEAD(), {}) };
+  assert.equal(opts.require_disclosure, true);
+  const r = W01.routeExisting(LD_LEAD(), opts);
+  assert.equal(r.action, 'disclose'); assert.equal(r.update, undefined, 'nothing to write: no broker_id'); assert.equal(r.first_touch, undefined);
+  assert.deepEqual(r.disclose.send, { to: '+27600000191', kind: 'text', text: DISCLOSURE, lead_id: LD_LEAD().id, correlation: `w01:disclosure:${LD_LEAD().id}:${LD_BROKER.id}` });
+  assert.ok(r.disclose.send.text.length <= 1024);
+  assert.doesNotMatch(r.disclose.send.text, /\bfree\b|\bAI\b|Lead Velocity/i);
+  assert.deepEqual(r.disclose.activity, { activity_type: 'adviser_disclosed', idempotency_key: `w01:disclosed:${LD_LEAD().id}:${LD_BROKER.id}`, broker_id: LD_BROKER.id,
+    payload: { broker_id: LD_BROKER.id, fsp: '28418', firm: 'Oracle Private Wealth', adviser: 'Mark Smith', disclosure_version: 'LEADAD-DISCLOSE-v1', via: 'whatsapp_session' } });
+  // disclosed for ANOTHER broker is not enough
+  assert.equal(W01.routeExisting(LD_LEAD({ disclosed: ['someone-else'] }), opts).action, 'disclose');
+  // disclosed for him: routed, first touch W06, CAPI Lead at the hand-over (held_budget_pending)
+  const ok = W01.routeExisting(LD_LEAD({ disclosed: [LD_BROKER.id] }), opts);
+  assert.deepEqual([ok.action, ok.update.broker_id, ok.first_touch.workflow, ok.capi.event_name], ['routed', LD_BROKER.id, 'W06', 'Lead']);
+  // after the send: routed with the row, held visibly without it
+  assert.equal(W01.routeAfterDisclosure(LD_LEAD(), opts, LD_BROKER.id).action, 'routed');
+  assert.deepEqual(W01.routeAfterDisclosure(LD_LEAD(), opts, null), { action: 'held', update: { routing_reason: 'held_disclosure_failed' }, notice: null });
+  // nobody can take the lead: no disclosure (the held path sends no intro), the held notice as today
+  const held = W01.routeExisting(LD_LEAD({ budget_band: 'lt750' }), opts);
+  assert.deepEqual([held.action, held.notice.template], ['held', 'lead_low_budget_held']);
+});
+
+test('lead-ad disclosure: v3 configured -> no interim text (the card carries it); CTWA and /start/ (W39) leads are unchanged', () => {
+  assert.equal(W01.introV3Ready(V3_ENV), true);
+  assert.equal(W01.introV3Ready({ WHATSAPP_PROVIDER: 'meta', TWILIO_CONTENT_SIDS: V3_ENV.TWILIO_CONTENT_SIDS }), false, 'Meta provider: the v3 SID means nothing');
+  assert.equal(W01.introV3Ready({ WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: '{bad' }), false);
+  assert.equal(W01.disclosureRequired(LD_LEAD(), V3_ENV), false);
+  assert.equal(W01.routeExisting(LD_LEAD(), { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(LD_LEAD(), V3_ENV) }).action, 'routed');
+  for (const origin of ['ctwa', 'page', 'comment', 'dm']) {
+    const l = LD_LEAD({ origin });
+    assert.equal(W01.disclosureRequired(l, {}), false, origin);
+    assert.equal(W01.routeExisting(l, { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(l, {}) }).action, 'routed', origin);
+  }
+  // W39 (origin page / ctwa, expect_broker_id): unchanged
+  assert.equal(W01.routeExisting(LD_LEAD({ origin: 'page' }), { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, expect_broker_id: LD_BROKER.id }).action, 'routed');
+});
+
+test('W01.json lead-ad disclosure branch: Route -> disclosure text -> WhatsApp Send (waits) -> adviser_disclosed row -> Route again -> write; the real Code nodes', async () => {
+  const conn = (from) => WF.connections[from].main.map((o) => o.map((l) => l.node));
+  assert.ok(conn('Route (w01.routeExisting)')[0].includes('Disclose first? (lead ad, before routing)'));
+  assert.deepEqual(conn('Disclose first? (lead ad, before routing)'), [['Disclosure text (w01.leadAdDisclosure)']]);
+  assert.deepEqual(conn('Disclosure text (w01.leadAdDisclosure)'), [['WhatsApp Send (disclosure, waits)']]);
+  assert.deepEqual(conn('WhatsApp Send (disclosure, waits)'), [['Log adviser_disclosed (after the send)']]);
+  assert.deepEqual(conn('Log adviser_disclosed (after the send)'), [['Route after the disclosure (w01.routeExisting)']]);
+  assert.deepEqual(conn('Route after the disclosure (w01.routeExisting)'), [['Routed or held? (write it)']]);
+  const send = WF.nodes.find((n) => n.name === 'WhatsApp Send (disclosure, waits)');
+  assert.equal(send.parameters.options.waitForSubWorkflow, true, 'the route waits for the send');
+  assert.equal(send.parameters.workflowId.value, 'smc-whatsapp-send');
+  const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
+  assert.match(load, /a\.activity_type = 'adviser_disclosed'\) AS disclosed/); assert.match(load, /'contact_person', b\.contact_person/);
+  const logq = WF.nodes.find((n) => n.name === 'Log adviser_disclosed (after the send)').parameters.query;
+  assert.match(logq, /AND \$4 <> ''/, 'no message id, no row');
+  // the Code nodes
+  const lead = LD_LEAD();
+  const [rt] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead, brokers: [LD_BROKER], first_touch: true, expect_broker_id: null, hold_only: false }] });
+  assert.equal(rt.json.r.action, 'disclose'); assert.equal(rt.json.routed, false);
+  assert.equal(ifBranch(WF, 'Routed or held? (write it)', { json: rt.json }), false, 'no write, no W06, no CAPI on the first pass');
+  const [v3] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead, brokers: [LD_BROKER], first_touch: true }] , env: V3_ENV });
+  assert.equal(v3.json.r.action, 'routed', 'v3 configured: no interim text');
+  const [tx] = await runCode(WF, 'Disclosure text (w01.leadAdDisclosure)', { items: [rt.json] });
+  assert.equal(tx.json.text, DISCLOSURE);
+  const refs = { 'Route (w01.routeExisting)': rt.json, 'Load CTWA lead + brokers': { lead, brokers: [LD_BROKER], first_touch: true, expect_broker_id: null, hold_only: false } };
+  const p = evalParam(WF, 'Log adviser_disclosed (after the send)', 'options.queryReplacement', { json: { ok: true, external_id: 'dry:w01:disclosure', messages: [{ id: 'dry:w01:disclosure' }] }, refs });
+  assert.deepEqual([p[0], p[1], p[3], p[4]], [lead.id, LD_BROKER.id, 'dry:w01:disclosure', `w01:disclosed:${lead.id}:${LD_BROKER.id}`]);
+  assert.equal(evalParam(WF, 'Log adviser_disclosed (after the send)', 'options.queryReplacement', { json: { ok: false, error: 'outside_24h_window' }, refs })[3], '', 'a failed send writes no row');
+  const [after] = await runCode(WF, 'Route after the disclosure (w01.routeExisting)', { items: [{ broker_id: LD_BROKER.id }], refs });
+  assert.deepEqual([after.json.r.action, after.json.update.broker_id], ['routed', LD_BROKER.id]);
+  const [failed] = await runCode(WF, 'Route after the disclosure (w01.routeExisting)', { items: [{}], refs });
+  assert.deepEqual(failed.json.update, { routing_reason: 'held_disclosure_failed' });
+  // the hand-over nodes see the second pass: W06 first touch + CAPI for the routed lead
+  const both = { 'Route (w01.routeExisting)': rt.json, 'Route after the disclosure (w01.routeExisting)': after.json };
+  const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: LD_BROKER.id }], refs: both });
+  assert.deepEqual(w06.map((i) => i.json), [{ op: 'routed', lead_id: lead.id, origin: 'ctwa' }]);
+  const capi = await runCode(WF, 'CAPI Lead at hand-over (held -> routed)', { items: [{ lead_id: lead.id, broker_id: LD_BROKER.id }], refs: both });
+  assert.equal(capi.length, 1);
 });

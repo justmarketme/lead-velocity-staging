@@ -25,6 +25,7 @@ const BANNED = [
 ];
 // Marketing jargon is banned in anything a broker or lead reads (W14 R03, portal rule 3); ops_* templates go to Jonathan/KG only.
 const JARGON = [/\bCPL\b/, /\bCPC\b/, /\bCTR\b/, /\bCAPI\b/, /\bEMQ\b/, /\bROAS\b/, /\battribution\b/i, /\bfunnel\b/i, /\bSLA\b/];
+const DISCLOSURE_OK = /SortMyCover gives no financial advice, product comparisons or premium quotes\./g;
 const EMOJI = /\p{Extended_Pictographic}/u;
 const vars = (s) => [...String(s).matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]));
 
@@ -80,7 +81,9 @@ for (const f of files) {
     }
   }
   const all = JSON.stringify(t.components);
-  for (const re of BANNED) if (re.test(all)) err(n, `banned word ${re}`);
+  // The approved SortMyCover disclosure (site footer line, W39 START-DISCLOSE-v1) names what we do NOT give; it is not premium talk.
+  const scan = all.replace(DISCLOSURE_OK, '');
+  for (const re of BANNED) if (re.test(scan)) err(n, `banned word ${re}`);
   if (!n.startsWith('ops_')) for (const re of JARGON) if (re.test(all)) err(n, `jargon ${re} in a broker/lead template`);
   if (EMOJI.test(all)) err(n, 'emoji in template');
   if (!isInternal(n) && !/Reply STOP to opt out\.\s*$/.test(text)) err(n, 'lead-facing body must end with "Reply STOP to opt out."');

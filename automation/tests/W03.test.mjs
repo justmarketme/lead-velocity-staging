@@ -622,3 +622,12 @@ test('W03.json: Load context reads brands.start_page column-agnostically; "W03 s
   assert.doesNotMatch(b.json.content, /lt1\./);
   assert.equal(b.json.body.interactive.type, 'cta_url');
 });
+
+test('lead-ad band tap: W03 records the band and asks W01 core to route (W01 then discloses before any hand-over; see W01.test.mjs)', () => {
+  const lead = { id: 'lead_ld1', origin: 'lead_ad', conv_state: { state: 'q_budget' }, age_band: '45_50', broker_id: null };
+  const r = W3.step(null, { from: '27600000191', id: 'SMld1', timestamp: '1792310000', type: 'button', button: { payload: 'budget_1500_plus' } },
+    { at: '2026-10-18T10:00:00+02:00', mobile: '+27600000191', profile_name: 'Thandi', lead_id: 'unused', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_ld1', lead, suppressed: false, wamid: 'SMld1', is_synthetic: true });
+  const kinds = r.actions.map((a) => a.kind);
+  assert.ok(kinds.includes('route_and_first_touch'));
+  assert.equal(kinds.filter((k) => k === 'send').length, 0, 'W03 itself sends nothing: the disclosure text is W01 core\'s first step');
+});
