@@ -246,7 +246,7 @@ Sources: `docs/SMC-VOICE-RECEPTIONIST.md:9-19`; `smc_receptionist_persona.ts`.
 - The ElevenLabs agent is `agent_7501m4v9sez3eb9b26ge4ykdvqwt`, now named "Lindi SortMyCover on call" (HO:93).
 - Voice "Linet - African & Friendly" (en-ZA) on Eleven v4 Turbo with Expressive mode. The LLM is `glm-52`, hosted by ElevenLabs. 20 sortmycover.co.za pages form her knowledge base.
 - Inbound calls ring about twice (about 5.5 s) before Lindi answers. (`SMC-VOICE-RECEPTIONIST.md:23`)
-- **Opening line** (persona `:17-19`): "Hi, thanks for calling SortMyCover, you're speaking to Lindi, SortMyCover's virtual assistant. Just so you know, this call is recorded and transcribed. I don't give financial advice, but I can set you up with a free call with a licensed adviser. How can I help?"
+- **Opening line** (persona `:17-19`): "Hi, thanks for calling SortMyCover, you're speaking to Lindi, SortMyCover's automated assistant. Just so you know, this call is recorded and transcribed. I don't give financial advice, but I can set you up with a free call with a licensed adviser. How can I help?"
 - **The call** (`SMC-VOICE-RECEPTIONIST.md:24-31`; persona `:35-37, 101-108`):
   1. She explains why she asks questions.
   2. She asks for the first name, age band (35 to 50 only), the topic, a rough budget band and the mobile number.

@@ -242,7 +242,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(n).toBeGreaterThan(20);
   });
   it("Lindi is an automated assistant, never an AI assistant, the adviser is authorised, never licensed, and there is no price wording, in anything a client sees (Jono, 18 Oct 2026)", () => {
-    const AI = /\bAI[- ]assistant\b|\buses AI\b|\bAI booking\b|\bour AI\b/i;
+    const AI = /\bAI[- ]assistant\b|\bvirtual assistant\b|\buses AI\b|\bAI booking\b|\bour AI\b/i;
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(AI);
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(AI);

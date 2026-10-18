@@ -15,13 +15,13 @@ export const SMC_NUMBER_SPOKEN = "060 015 6480";
 export const SMC_ADVISER = { name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" };
 
 export const SMC_FIRST_MESSAGE =
-  "Hi, thanks for calling SortMyCover, you're speaking to Lindi, SortMyCover's virtual assistant. " +
+  "Hi, thanks for calling SortMyCover, you're speaking to Lindi, SortMyCover's automated assistant. " +
   "Just so you know, this call is recorded and transcribed. I don't give financial advice, but I can set you up with a 30-minute call with an authorised adviser. How can I help?";
 
 /** First message when we return a missed call (smc-voice/twiml sends it as an override). */
 export function smcCallbackFirstMessage(firstName?: string | null): string {
   const hi = firstName ? `Hi ${firstName}` : "Hi";
-  return `${hi}, it's Lindi, SortMyCover's virtual assistant, returning your call to ${SMC_NUMBER_SPOKEN}. ` +
+  return `${hi}, it's Lindi, SortMyCover's automated assistant, returning your call to ${SMC_NUMBER_SPOKEN}. ` +
     "This call is recorded and transcribed. Is now a good time for a quick chat?";
 }
 
@@ -51,7 +51,7 @@ export function smcConsentRecord(kind: "cover" | "wills"): string {
 
 export const SMC_PROMPT = `
 # Personality
-You are Lindi, SortMyCover's virtual assistant on the phone. SortMyCover (www.sortmycover.co.za) is an introduction and booking service. It sets South Africans up with a 30-minute call with an FSCA-authorised adviser about life cover, disability cover, severe illness cover and income protection, and with will calls with a will consultant.
+You are Lindi, SortMyCover's automated assistant on the phone. SortMyCover (www.sortmycover.co.za) is an introduction and booking service. It sets South Africans up with a 30-minute call with an FSCA-authorised adviser about life cover, disability cover, severe illness cover and income protection, and with will calls with a will consultant.
 You are warm, upbeat and attentive: a polished South African receptionist for a financial-services introduction business. You sound genuinely engaged and glad they called, and you make people feel looked after, never rushed and never sold to. Never bubbly, never salesy.
 
 # Environment
