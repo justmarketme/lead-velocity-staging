@@ -32,10 +32,14 @@ function AdPreview({ row, skin, pending }: { row: AdRow; skin: ReviewSkin; pendi
   const style = { display: "block", width: "100%", maxHeight: 420, objectFit: "contain" as const, background: "#0b0b10" };
   if (!src) return <div style={{ ...style, height: 180, borderRadius: skin === "portal" ? 10 : 14 }} aria-hidden="true" />;
   const video = isVideo(row.url || "");
-  // Waiting ads show greyed with the diagonal band; a video stays playable (band only, no greying, so he can judge it).
-  const dim = pending && !video ? "grayscale opacity-60" : "";
+  // Waiting ads show greyed with the diagonal band; hover, focus or tap shows the full colour (as the intro card does).
+  // A video stays playable (band only, no greying, so he can judge it).
+  const peek = pending && !video;
+  const dim = peek ? "grayscale opacity-60 group-hover/card:grayscale-0 group-hover/card:opacity-100 group-focus/card:grayscale-0 group-focus/card:opacity-100" : "";
   return (
-    <div className="relative overflow-hidden" style={{ borderRadius: skin === "portal" ? 10 : 14 }}>
+    <div className="group/card relative overflow-hidden" style={{ borderRadius: skin === "portal" ? 10 : 14 }}
+      tabIndex={peek ? 0 : undefined}
+      aria-label={peek ? "Preview this ad in colour. Approval is still required." : undefined}>
       {video
         ? <video src={src} poster={poster || undefined} controls playsInline preload="metadata" style={style} aria-label={`Ad version ${row.version}`} />
         : <img src={src} alt={`SortMyCover ad featuring you, version ${row.version}`} style={style} loading="lazy" className={`transition-[filter,opacity] duration-500 motion-reduce:transition-none ${dim}`} />}
