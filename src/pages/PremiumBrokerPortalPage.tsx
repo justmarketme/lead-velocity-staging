@@ -1,3 +1,5 @@
+import type { PortalBroker, PortalAppointment } from "@/types/groupB-broker";
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,7 +22,7 @@ const TABS = ["dashboard", "leads", "calendar", "intro", "documents", "settings"
 
 const PremiumBrokerPortalPage = () => {
     const [loading, setLoading] = useState(true);
-    const [brokerData, setBrokerData] = useState<any>(null);
+    const [brokerData, setBrokerData] = useState<PortalBroker | null>(null);
     // ?tab=calendar|intro|… opens a tab directly (Microsoft sign-in returns to ?tab=calendar via MsReturnGate).
     const [activeTab, setActiveTabState] = useState(() => {
         const t = new URLSearchParams(window.location.search).get("tab");
@@ -30,7 +32,7 @@ const PremiumBrokerPortalPage = () => {
         setActiveTabState(t);
         try { const u = new URL(window.location.href); u.searchParams.set("tab", t); window.history.replaceState(window.history.state, "", u); } catch { /* ignore */ }
     };
-    const [appointments, setAppointments] = useState<any[]>([]);
+    const [appointments, setAppointments] = useState<PortalAppointment[]>([]);
     const [stats, setStats] = useState({
         totalLeads: 0,
         willsCompleted: 0,
@@ -113,8 +115,8 @@ const PremiumBrokerPortalPage = () => {
                 profiles: profileRow ?? null,
                 tier: broker.tier || TIERS[0].name,
                 is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
-                leads_used: (broker as any).leads_used || 0,
-                lead_quota: (broker as any).lead_quota || planByName(broker.tier || TIERS[0].name)?.committed_leads || TIERS[0].committed_leads
+                leads_used: (broker as PortalBroker).leads_used || 0,
+                lead_quota: (broker as PortalBroker).lead_quota || planByName(broker.tier || TIERS[0].name)?.committed_leads || TIERS[0].committed_leads
             });
             await fetchStats(broker.id);
             await fetchAppointments(broker.id);
@@ -192,8 +194,8 @@ const PremiumBrokerPortalPage = () => {
                 profiles: profileRow ?? null,
                 tier: broker.tier || TIERS[0].name,
                 is_lead_loading: broker.is_lead_loading !== undefined ? broker.is_lead_loading : true,
-                leads_used: (broker as any).leads_used || 0,
-                lead_quota: (broker as any).lead_quota || planByName(broker.tier || TIERS[0].name)?.committed_leads || TIERS[0].committed_leads
+                leads_used: (broker as PortalBroker).leads_used || 0,
+                lead_quota: (broker as PortalBroker).lead_quota || planByName(broker.tier || TIERS[0].name)?.committed_leads || TIERS[0].committed_leads
             };
 
             setBrokerData(enrichedBroker);
@@ -234,8 +236,8 @@ const PremiumBrokerPortalPage = () => {
             }
 
             if (brokerData) await fetchAppointments(brokerData.id);
-        } catch (e: any) {
-            toast({ title: "Update Failed", description: e.message, variant: "destructive" });
+        } catch (e: unknown) {
+            toast({ title: "Update Failed", description: errorMessage(e), variant: "destructive" });
         }
     };
 
@@ -261,7 +263,7 @@ const PremiumBrokerPortalPage = () => {
 
     const tab = activeTab as PortalTab;
     // Saved profile fields (broker_update_profile) update the page without a reload.
-    const patchBroker = (p: Record<string, unknown>) => setBrokerData((prev: any) => ({ ...prev, ...p }));
+    const patchBroker = (p: Record<string, unknown>) => setBrokerData((prev) => ({ ...prev, ...p } as PortalBroker));
     return (
         <>
             <SEO title="Broker Portal" description="Lead Velocity broker portal." noIndex />

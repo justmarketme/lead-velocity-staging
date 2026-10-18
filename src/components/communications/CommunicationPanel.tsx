@@ -130,14 +130,14 @@ export function CommunicationPanel({ recipientType, recipientId, recipientContac
     if (!template) return;
 
     // Replace placeholders with actual values
-    let processedContent = template.content
+    const processedContent = template.content
       .replace(/\{\{name\}\}/g, recipientContact.name || 'there')
       .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
 
     setContent(processedContent);
 
     if (template.subject) {
-      let processedSubject = template.subject
+      const processedSubject = template.subject
         .replace(/\{\{name\}\}/g, recipientContact.name || '')
         .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
       setSubject(processedSubject);

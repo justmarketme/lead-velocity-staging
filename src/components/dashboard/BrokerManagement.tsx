@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
+import { getErrorMessage } from "@/lib/groupA-errors";
+import type { AuditLogEntry } from "@/types/groupA-audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +28,8 @@ import {
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
+interface CoachResult { headline?: string; suggestions?: { action: string; why: string }[]; script?: string }
+
 interface Broker {
   id: string;
   /** Set once the broker has a portal login (auth user). */
@@ -111,8 +116,8 @@ const BrokerManagement = () => {
 
   const loadBrokers = useCallback(async () => {
     const [{ data: bRows, error: bErr }, { data: fRows }] = await Promise.all([
-      (supabase as any).from("brokers").select("id, user_id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at, calendar_status").order("created_at", { ascending: false }),
-      (supabase as any).from("broker_followups").select("*").eq("status", "open"),
+      supabaseUntyped.from("brokers").select("id, user_id, firm_name, contact_person, email, phone_number, status, tier, mgmt_stage, next_follow_up_at, created_at, calendar_status").order("created_at", { ascending: false }),
+      supabaseUntyped.from("broker_followups").select("*").eq("status", "open"),
     ]);
     if (bErr) {
       toast({ title: "Error", description: "Couldn't load brokers.", variant: "destructive" });
@@ -161,7 +166,7 @@ const BrokerManagement = () => {
   );
 
   const completeFollowupInline = async (id: string) => {
-    const { error } = await (supabase as any).from("broker_followups")
+    const { error } = await supabaseUntyped.from("broker_followups")
       .update({ status: "done", completed_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast({ title: "Couldn't update", description: error.message, variant: "destructive" }); return; }
     setOpenFollowups((prev) => prev.filter((f) => f.id !== id));
@@ -347,10 +352,10 @@ const BrokerDrawer = ({
   const [savingFu, setSavingFu] = useState(false);
 
   // Einstein coach + change history
-  const [coach, setCoach] = useState<{ headline?: string; suggestions?: { action: string; why: string }[]; script?: string } | null>(null);
+  const [coach, setCoach] = useState<CoachResult | null>(null);
   const [coachLoading, setCoachLoading] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<AuditLogEntry[]>([]);
   // C-tier switch: null = column not on this DB yet, so the control stays hidden
   const [lowBudget, setLowBudget] = useState<boolean | null>(null);
   // Wills switch: same pattern (null = column not on this DB yet)
@@ -381,9 +386,9 @@ const BrokerDrawer = ({
     (async () => {
       setLoadingDetail(true);
       const [a, f, o] = await Promise.all([
-        (supabase as any).from("broker_activities").select("*").eq("broker_id", broker.id).order("created_at", { ascending: false }),
-        (supabase as any).from("broker_followups").select("*").eq("broker_id", broker.id).order("due_at", { ascending: true }),
-        (supabase as any).from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false }),
+        supabaseUntyped.from("broker_activities").select("*").eq("broker_id", broker.id).order("created_at", { ascending: false }),
+        supabaseUntyped.from("broker_followups").select("*").eq("broker_id", broker.id).order("due_at", { ascending: true }),
+        supabaseUntyped.from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false }),
       ]);
       const acts = (a.data || []) as Activity[];
       const fups = (f.data || []) as Followup[];
@@ -394,8 +399,8 @@ const BrokerDrawer = ({
       setLoadingDetail(false);
 
       // change history (paper trail) for this broker record
-      const hist = await (supabase as any).from("audit_log").select("*").eq("record_id", broker.id).order("changed_at", { ascending: false }).limit(25);
-      setHistory((hist.data || []) as any[]);
+      const hist = await supabaseUntyped.from("audit_log").select("*").eq("record_id", broker.id).order("changed_at", { ascending: false }).limit(25);
+      setHistory((hist.data || []) as AuditLogEntry[]);
 
       // Einstein auto-surfaces its read on this broker as soon as you open them
       runCoach(broker, acts, fups, ords);
@@ -417,12 +422,13 @@ const BrokerDrawer = ({
         },
       });
       if (error) throw error;
-      if ((data as any)?.success === false) throw new Error((data as any).error || "");
-      setCoach(data as any);
-    } catch (e: any) {
+      const result = data as (CoachResult & { success?: boolean; error?: string }) | null;
+      if (result?.success === false) throw new Error(result.error || "");
+      setCoach(result);
+    } catch (e: unknown) {
       // crm-coach answers {success:false, error:"<plain sentence>"} when its model is down; anything else gets a calm default.
       console.error("crm-coach:", e);
-      const msg = String(e?.message || "");
+      const msg = String(getErrorMessage(e) || "");
       setCoachError(/^Einstein /.test(msg) ? msg : "Einstein is unavailable right now. Try again in a minute.");
     } finally {
       setCoachLoading(false);
@@ -439,7 +445,7 @@ const BrokerDrawer = ({
   };
 
   const updateBroker = async (patch: Partial<Broker>, label = "Broker record updated") => {
-    const { error } = await supabase.from("brokers").update(patch as any).eq("id", broker.id);
+    const { error } = await supabaseUntyped.from("brokers").update(patch).eq("id", broker.id);
     if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); return false; }
     onBrokerPatched(broker.id, patch);
     notifyCrmChange("brokers", broker.id, `${label} — ${broker.firm_name || "broker"}`);
@@ -486,7 +492,7 @@ const BrokerDrawer = ({
   const addActivity = async () => {
     if (!actBody.trim() && actType === "note") return;
     setSavingAct(true);
-    const { data, error } = await (supabase as any).from("broker_activities")
+    const { data, error } = await supabaseUntyped.from("broker_activities")
       .insert({ broker_id: broker.id, activity_type: actType, outcome: actType === "note" ? null : actOutcome, body: actBody.trim() || null })
       .select().single();
     setSavingAct(false);
@@ -505,7 +511,7 @@ const BrokerDrawer = ({
     setSetupSending(false);
     if (error || !data?.sent) {
       let message = error?.message || "Unknown error";
-      try { message = (await (error as any)?.context?.json())?.error || message; } catch { /* keep message */ }
+      try { message = (await (error as { context?: Response } | null)?.context?.json())?.error || message; } catch { /* keep message */ }
       setSetupError(message);
       return;
     }
@@ -519,7 +525,7 @@ const BrokerDrawer = ({
     if (!fuTitle.trim() || !fuWhen) { toast({ title: "Add a title and a date", variant: "destructive" }); return; }
     setSavingFu(true);
     const dueIso = new Date(fuWhen).toISOString();
-    const { data, error } = await (supabase as any).from("broker_followups")
+    const { data, error } = await supabaseUntyped.from("broker_followups")
       .insert({ broker_id: broker.id, title: fuTitle.trim(), due_at: dueIso, status: "open" })
       .select().single();
     setSavingFu(false);
@@ -533,7 +539,7 @@ const BrokerDrawer = ({
   };
 
   const completeFollowup = async (id: string) => {
-    const { error } = await (supabase as any).from("broker_followups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabaseUntyped.from("broker_followups").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast({ title: "Couldn't update", description: error.message, variant: "destructive" }); return; }
     setFollowups((prev) => prev.map((f) => (f.id === id ? { ...f, status: "done", completed_at: new Date().toISOString() } : f)));
     onFollowupsChanged();
@@ -733,7 +739,7 @@ const BrokerDrawer = ({
               brokerId={broker.id}
               brokerLabel={broker.contact_person || broker.firm_name || "The broker"}
               onChanged={async () => {
-                const o = await (supabase as any).from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false });
+                const o = await supabaseUntyped.from("lead_orders").select("id, title, lead_count, amount_zar, status").eq("broker_id", broker.id).order("created_at", { ascending: false });
                 setOrders((o.data || []) as OrderLite[]);
                 onFollowupsChanged();
               }}

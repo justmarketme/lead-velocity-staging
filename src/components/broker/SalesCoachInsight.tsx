@@ -14,19 +14,33 @@ import {
     User
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { format } from "date-fns";
+
+/** `call_coaching` row (table is missing from the generated types; read through supabaseUntyped). */
+interface CoachingFeedback { timestamp?: string; technique?: string; comment?: string }
+interface CoachingRecord {
+    total_score?: number;
+    client_name?: string;
+    summary_bullets?: string[];
+    whatsapp_sent?: string;
+    scorecard?: { rapport?: number; listening?: number; objection_handling?: number; close?: number; compliance_bonus?: number };
+    coach_feedback?: { detailed?: CoachingFeedback[] };
+    fsca_compliance?: { is_compliant?: boolean; status_text?: string };
+    created_at: string;
+}
 
 interface SalesCoachInsightProps {
     brokerId: string;
 }
 
 const SalesCoachInsight = ({ brokerId }: SalesCoachInsightProps) => {
-    const [latestCoaching, setLatestCoaching] = useState<any>(null);
+    const [latestCoaching, setLatestCoaching] = useState<CoachingRecord | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchCoaching = async () => {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseUntyped
                 .from('call_coaching')
                 .select('*, ai_call_requests(*)')
                 .eq('broker_id', brokerId)
@@ -34,7 +48,7 @@ const SalesCoachInsight = ({ brokerId }: SalesCoachInsightProps) => {
                 .limit(1)
                 .maybeSingle();
 
-            if (data) setLatestCoaching(data);
+            if (data) setLatestCoaching(data as CoachingRecord);
             setLoading(false);
         };
 
@@ -49,7 +63,7 @@ const SalesCoachInsight = ({ brokerId }: SalesCoachInsightProps) => {
                 table: 'call_coaching',
                 filter: `broker_id=eq.${brokerId}`
             }, (payload) => {
-                setLatestCoaching(payload.new);
+                setLatestCoaching(payload.new as CoachingRecord);
             })
             .subscribe();
 
@@ -135,7 +149,7 @@ const SalesCoachInsight = ({ brokerId }: SalesCoachInsightProps) => {
                         <Zap className="w-3 h-3" /> Technique Analysis
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {feedback.map((f: any, i: number) => (
+                        {feedback.map((f, i) => (
                             <div key={i} className="flex gap-4 p-4 bg-white/[0.02] rounded-2xl border border-white/5">
                                 <div className="text-xs font-black text-pink-500 w-12">{f.timestamp}</div>
                                 <div>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,9 @@ import { getProposalEmailSignature } from "@/utils/emailSignature";
 import { callLegalAI } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
 import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, REPLACEMENT_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import type { Tables } from "@/integrations/supabase/types";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 // Plan fields for the proposal, built from the pricing source (3.6) - no price is typed in this file.
 // FAIS: nothing here may tie the fee to sales or policies, or promise outcomes (Raspberry Academy v Oaksure).
@@ -36,7 +40,7 @@ const proposalTierFields = (t: PricingTier) => ({
 
 interface ProposalGeneratorProps {
     onBack: () => void;
-    initialData?: any;
+    initialData?: Record<string, unknown>;
 }
 
 // Helper component for inline editing
@@ -50,7 +54,7 @@ const Editable = ({
     value: string;
     onChange: (val: string) => void;
     className?: string;
-    tag?: any;
+    tag?: React.ElementType;
     html?: boolean;
 }) => {
     const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
@@ -120,7 +124,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         "Shorten the qualification criteria",
         "Explain the Qualified Lead definition"
     ]);
-    const [pendingChanges, setPendingChanges] = useState<any>(null);
+    const [pendingChanges, setPendingChanges] = useState<Record<string, unknown> | null>(null);
 
     const [formData, setFormData] = useState({
         // Variables
@@ -149,11 +153,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     useEffect(() => {
         if (initialData) {
-            setFormData(initialData);
+            setFormData(initialData as typeof formData);
         }
     }, [initialData]);
 
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<Tables<'admin_documents'>[]>([]);
 
     // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
     const viewPdf = async (path: string) => {
@@ -207,7 +211,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
     };
 
     // Broker selector populate
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Client Company (Pty) Ltd";
         const leads = broker.desired_leads_weekly || 0;
@@ -373,9 +377,9 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                     toast({ title: "Saved", description: "Proposal saved to documents library." });
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast({ title: "Error", description: error.message || "Failed to generate PDF.", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error) || "Failed to generate PDF.", variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }
@@ -468,8 +472,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
 
     const toggleListening = () => {
         if (isListening) { setIsListening(false); return; }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported.", variant: "destructive" });
             return;
@@ -477,7 +480,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
         const recognition = new SpeechRecognition();
         recognition.lang = 'en-ZA';
         recognition.onstart = () => { setIsListening(true); toast({ title: "Listening..." }); };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);
@@ -503,11 +506,11 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
             }
             if (response && isConversational) speak(response);
             if (response && !isConversational) setAiResponse(response);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("AI Assistant Error:", error);
             const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
             setAiResponse(errorMsg);
-            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+            toast({ title: "AI Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsThinking(false);
         }

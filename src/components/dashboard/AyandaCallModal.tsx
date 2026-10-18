@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { UltravoxSession, UltravoxSessionStatus } from "ultravox-client";
 import { supabase } from "@/integrations/supabase/client";
 import { Bot, PhoneOff, Loader2, Mic, AudioLines, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,11 +9,13 @@ interface AyandaCallModalProps {
     isOpen: boolean;
     onClose: () => void;
     lead: {
-        id: string | number;
-        name: string;
-        company?: string;
-        role?: string;
-        phone?: string;
+        id?: string | number;
+        name?: string;
+        first_name?: string | null;
+        last_name?: string | null;
+        company?: string | null;
+        role?: string | null;
+        phone?: string | null;
     } | null;
     brokerId?: string | null;
 }
@@ -24,10 +25,9 @@ export function AyandaCallModal({ isOpen, onClose, lead, brokerId }: AyandaCallM
     const [isConnecting, setIsConnecting] = useState(true);
     const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
     const [duration, setDuration] = useState(0);
-    const uvSessionRef = useRef<UltravoxSession | null>(null);
 
     useEffect(() => {
-        let timer: any;
+        let timer: ReturnType<typeof setInterval> | undefined;
         if (isOpen && !isConnecting) {
             timer = setInterval(() => setDuration(d => d + 1), 1000);
         }
@@ -48,7 +48,7 @@ export function AyandaCallModal({ isOpen, onClose, lead, brokerId }: AyandaCallM
                 body: {
                     leadId: lead?.id,
                     phone: lead?.phone,
-                    recipientName: `${lead?.first_name || ''} ${lead?.last_name || ''}`.trim(),
+                    recipientName: `${lead?.first_name || ''} ${lead?.last_name || ''}`.trim() || lead?.name || '',
                     brokerId
                 }
             });
@@ -58,7 +58,7 @@ export function AyandaCallModal({ isOpen, onClose, lead, brokerId }: AyandaCallM
             setIsConnecting(false);
             setStatus(data?.phoneDialed ? `Dialing ${lead?.phone || 'lead'}...` : "Call Session Active");
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
             setStatus("Neural Bridge Failed");
             setTimeout(onClose, 3000);

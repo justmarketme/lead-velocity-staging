@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,19 @@ import { CallRecordingPlayer } from "./CallRecordingPlayer";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { Bot, Sparkles } from "lucide-react";
 
+/** Shape of `communications.metadata` for AI-call rows (Einstein proposals). */
+interface ProposedChanges {
+  suggested_date?: string;
+  suggested_time?: string;
+  action?: string;
+  [key: string]: Json | undefined;
+}
+interface CommMetadata {
+  proposed_changes?: ProposedChanges | null;
+  ai_call_request_id?: string;
+  [key: string]: Json | undefined | ProposedChanges | null;
+}
+
 interface Communication {
   id: string;
   channel: string;
@@ -51,6 +66,8 @@ interface Communication {
   recipient_contact: string;
   call_duration: number | null;
   call_recording_url: string | null;
+  lead_id: string | null;
+  broker_id: string | null;
   metadata: unknown;
 }
 
@@ -217,14 +234,14 @@ export function UnifiedCommunicationHub({
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
 
-    let processedContent = template.content
+    const processedContent = template.content
       .replace(/\{\{name\}\}/g, recipientContact.name || 'there')
       .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
 
     setContent(processedContent);
 
     if (template.subject) {
-      let processedSubject = template.subject
+      const processedSubject = template.subject
         .replace(/\{\{name\}\}/g, recipientContact.name || '')
         .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
       setSubject(processedSubject);
@@ -445,7 +462,7 @@ export function UnifiedCommunicationHub({
   };
 
   const handleApproveAction = async (comm: Communication) => {
-    const metadata = comm.metadata as any;
+    const metadata = comm.metadata as CommMetadata | null;
     if (!metadata?.proposed_changes) return;
 
     try {
@@ -503,9 +520,9 @@ export function UnifiedCommunicationHub({
         .eq('id', comm.id);
 
       fetchCommunications();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error approving action:', error);
-      toast.error(`Quantum failure: ${error.message}`);
+      toast.error(`Quantum failure: ${errorMessage(error)}`);
     }
   };
 
@@ -904,7 +921,7 @@ export function UnifiedCommunicationHub({
                         </div>
 
                         <div className="space-y-2">
-                          {Object.entries(comm.metadata.proposed_changes as Record<string, any>).map(([key, value]) => (
+                          {Object.entries(comm.metadata.proposed_changes as Record<string, Json | undefined>).map(([key, value]) => (
                             <div key={key} className="flex items-center gap-2 text-xs">
                               <Badge variant="outline" className="text-[9px] uppercase h-4 px-1 border-pink-500/30 text-pink-400 capitalize">
                                 {key.replace('_', ' ')}
@@ -928,7 +945,7 @@ export function UnifiedCommunicationHub({
                             variant="ghost"
                             className="h-7 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-400"
                             onClick={async () => {
-                              const metadata = comm.metadata as any;
+                              const metadata = comm.metadata as CommMetadata | null;
                               await supabase
                                 .from('communications')
                                 .update({

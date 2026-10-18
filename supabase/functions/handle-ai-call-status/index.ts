@@ -70,7 +70,7 @@ serve(async (req) => {
 
     // Sync to communications table if ID provided
     if (communicationId) {
-      const commUpdate: Record<string, any> = {
+      const commUpdate: Record<string, string | number> = {
         status: status,
       };
       if (callDuration) commUpdate.call_duration = parseInt(callDuration, 10);

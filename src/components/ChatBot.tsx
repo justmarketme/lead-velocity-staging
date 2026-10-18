@@ -1,4 +1,6 @@
+import { errorProp } from "@/lib/groupB-errors";
 import { useState, useRef, useCallback, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike, type SpeechRecognitionLike } from "@/lib/speechRecognition";
 import { useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { X, Send, Rocket, Sparkles, Mic, AudioLines, Minimize2, Maximize2, Bot, User, Loader2, PhoneOff } from "lucide-react";
@@ -40,7 +42,7 @@ export function ChatBot() {
     const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
     const conversationRef = useRef<VoiceConversation | null>(null);
 
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
     const location = useLocation();
     const { messages, isLoading, sendMessage, addMessage, scrollRef } = useChatbot();
 
@@ -67,7 +69,7 @@ export function ChatBot() {
             return;
         }
 
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             alert("Speech-to-text is not supported in this browser. Try Chrome or Edge.");
             return;
@@ -80,7 +82,7 @@ export function ChatBot() {
         const originalInput = input;
 
         recognition.onstart = () => setIsListening(true);
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             let currentTranscript = "";
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 currentTranscript += event.results[i][0].transcript;
@@ -107,7 +109,7 @@ export function ChatBot() {
         return () => {
             stopVoiceSession();
             if (recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch { }
+                try { recognitionRef.current.stop(); } catch { /* already stopped */ }
             }
         };
     }, [stopVoiceSession]);
@@ -169,12 +171,13 @@ export function ChatBot() {
 
             conversationRef.current = conversation;
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Voice Call Error:", err);
             setIsConnectingVoice(false);
             setIsVoiceActive(false);
             let errorMessage = "Ze neural link could not be established. Voice chat is unavailable — text chat is still active, ja!";
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            const errName = errorProp(err, 'name');
+            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
                 errorMessage = "Microphone access required for voice mode. Please check your browser settings and try again.";
             }
             addMessage({ id: Date.now().toString(), role: "bot", content: errorMessage });

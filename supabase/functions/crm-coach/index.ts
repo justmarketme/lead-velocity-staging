@@ -53,17 +53,29 @@ ${pricingSummaryText()}`;
 const BROKER_SYSTEM = BASE + `\n\nYou are coaching the team on ONE broker relationship.`;
 const PIPELINE_SYSTEM = BASE + `\n\nYou are coaching the team on their WHOLE lead-sourcing pipeline — the client-facing leads they deliver to brokers. Focus on where leads are stalling, which stage is the bottleneck, and what to do today to convert more. The "script" should be a short outreach/follow-up message template the team can reuse on stalled leads.`;
 
-// deno-lint-ignore no-explicit-any
-function brokerPrompt(c: any) {
-  // deno-lint-ignore no-explicit-any
+interface BrokerCtx {
+  firm_name?: string;
+  contact_person?: string;
+  mgmt_stage?: string;
+  tier?: string;
+  next_follow_up_at?: string;
+  activities?: { activity_type?: string; outcome?: string; body?: string }[];
+  followups?: { title?: string; due_at?: string; overdue?: boolean }[];
+  orders?: { title?: string; lead_count?: number; amount_zar?: number; status?: string }[];
+}
+
+interface PipelineCtx {
+  total_leads?: number;
+  stage_counts?: { stage?: string; count?: number }[];
+}
+
+function brokerPrompt(c: BrokerCtx) {
   const acts = (c.activities || []).slice(0, 8)
-    .map((a: any) => `- ${a.activity_type}${a.outcome ? ` (${a.outcome})` : ""}: ${a.body || "no note"}`).join("\n") || "- none logged yet";
-  // deno-lint-ignore no-explicit-any
+    .map((a: { activity_type?: string; outcome?: string; body?: string }) => `- ${a.activity_type}${a.outcome ? ` (${a.outcome})` : ""}: ${a.body || "no note"}`).join("\n") || "- none logged yet";
   const fus = (c.followups || []).slice(0, 5)
-    .map((f: any) => `- ${f.title} due ${f.due_at}${f.overdue ? " [OVERDUE]" : ""}`).join("\n") || "- none scheduled";
-  // deno-lint-ignore no-explicit-any
+    .map((f: { title?: string; due_at?: string; overdue?: boolean }) => `- ${f.title} due ${f.due_at}${f.overdue ? " [OVERDUE]" : ""}`).join("\n") || "- none scheduled";
   const orders = (c.orders || [])
-    .map((o: any) => `- ${o.title || "order"}: ${o.lead_count ?? 0} leads, R${((o.amount_zar ?? 0) / 100).toFixed(2)}, status ${o.status}`).join("\n") || "- no orders yet";
+    .map((o: { title?: string; lead_count?: number; amount_zar?: number; status?: string }) => `- ${o.title || "order"}: ${o.lead_count ?? 0} leads, R${((o.amount_zar ?? 0) / 100).toFixed(2)}, status ${o.status}`).join("\n") || "- no orders yet";
 
   return `BROKER SNAPSHOT
 Firm: ${c.firm_name || "unknown"}
@@ -84,11 +96,9 @@ ${fus}
 Coach the team on the single best way to move this broker forward right now.`;
 }
 
-// deno-lint-ignore no-explicit-any
-function pipelinePrompt(c: any) {
-  // deno-lint-ignore no-explicit-any
+function pipelinePrompt(c: PipelineCtx) {
   const stages = (c.stage_counts || [])
-    .map((s: any) => `- ${s.stage}: ${s.count}`).join("\n") || "- no stage data";
+    .map((s: { stage?: string; count?: number }) => `- ${s.stage}: ${s.count}`).join("\n") || "- no stage data";
   return `LEAD PIPELINE SNAPSHOT
 Total leads in view: ${c.total_leads ?? 0}
 
@@ -107,8 +117,7 @@ async function callGroq(system: string, user: string, key: string, failures: str
   try {
     const list = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: `Bearer ${key}` } });
     if (!list.ok) { failures.push(`groq models ${list.status}: ${(await list.text()).slice(0, 200)}`); return null; }
-    // deno-lint-ignore no-explicit-any
-    const ids: string[] = ((await list.json())?.data || []).filter((m: any) => m?.active !== false).map((m: any) => String(m.id));
+    const ids: string[] = ((await list.json())?.data || []).filter((m: { active?: boolean; id?: unknown } | null) => m?.active !== false).map((m: { id?: unknown }) => String(m.id));
     const chat = ids.filter((id) => !/whisper|guard|tts|distil|playai|compound|prompt/i.test(id));
     const model = GROQ_PREFER.map((re) => chat.find((id) => re.test(id))).find(Boolean) || chat[0];
     if (!model) { failures.push("groq: no chat model available"); return null; }
@@ -158,8 +167,7 @@ async function callLLM(system: string, user: string, orKey?: string | null, gemK
         });
         if (r.ok) {
           const j = await r.json();
-          // deno-lint-ignore no-explicit-any
-          const t = (j?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || "").join("");
+          const t = (j?.candidates?.[0]?.content?.parts || []).map((p: { text?: string } | null) => p?.text || "").join("");
           if (t) return { text: t, provider: `gemini:${model}` };
           failures.push(`key${ki + 1} ${model}: empty reply (${j?.candidates?.[0]?.finishReason || "no candidates"})`);
         } else {
@@ -216,8 +224,7 @@ serve(async (req) => {
       return json({ success: false, unavailable: true, error: "Einstein is unavailable right now. Try again in a minute.", detail: (e as Error & { failures?: string[] }).failures || [] });
     }
 
-    // deno-lint-ignore no-explicit-any
-    let parsed: any = null;
+    let parsed: Record<string, unknown> | null = null;
     try {
       parsed = JSON.parse(String(result.text).replace(/```json|```/g, "").trim());
     } catch {

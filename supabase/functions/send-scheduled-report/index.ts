@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { scheduledReportEmail, type ReportAnalytics } from "../_shared/lv_emails.ts";
 
 const corsHeaders = {
@@ -92,9 +92,8 @@ serve(async (req) => {
   }
 });
 
-// deno-lint-ignore no-explicit-any
 async function generateAndSendReport(
-  supabase: any,
+  supabase: SupabaseClient,
   report: ScheduledReport,
   resendApiKey: string | undefined
 ): Promise<{ status: string; recipients_count?: number; reason?: string; error?: string }> {
@@ -128,8 +127,7 @@ async function generateAndSendReport(
       .select('id')
       .eq('broker_id', report.broker_id);
     
-    // deno-lint-ignore no-explicit-any
-    const leadIds = brokerLeads?.map((l: any) => l.id) || [];
+    const leadIds = brokerLeads?.map((l: { id: string }) => l.id) || [];
     query = query.in('lead_id', leadIds);
   }
 
@@ -187,9 +185,8 @@ async function generateAndSendReport(
   return { status: 'sent', recipients_count: recipients.length };
 }
 
-// deno-lint-ignore no-explicit-any
 async function getRecipients(
-  supabase: any,
+  supabase: SupabaseClient,
   report: ScheduledReport
 ): Promise<string[]> {
   const emails: string[] = [];
@@ -201,8 +198,7 @@ async function getRecipients(
         .select('user_id')
         .eq('role', 'admin');
       
-      // deno-lint-ignore no-explicit-any
-      for (const role of adminRoles || [] as any[]) {
+      for (const role of adminRoles || [] as { user_id: string }[]) {
         const { data: userData } = await supabase.auth.admin.getUserById(role.user_id);
         if (userData?.user?.email) {
           emails.push(userData.user.email);
@@ -239,8 +235,7 @@ async function getRecipients(
         .select('email')
         .eq('status', 'Active');
       
-      // deno-lint-ignore no-explicit-any
-      for (const broker of brokers || [] as any[]) {
+      for (const broker of brokers || [] as { email: string | null }[]) {
         if (broker.email) {
           emails.push(broker.email);
         }

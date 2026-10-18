@@ -100,9 +100,9 @@ User Command/Intent:
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Legal AI Assistant Error:", err);
-        return new Response(JSON.stringify({ error: err.message || 'Internal Server Error' }), {
+        return new Response(JSON.stringify({ error: (err instanceof Error ? err.message : String(err)) || 'Internal Server Error' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });

@@ -4,6 +4,7 @@
  * that drags down to close. The header gains its background as you scroll (opacity only, fixed height: no layout shift).
  * Tabs cross-fade (AnimatePresence); the active-tab marker glides between items (shared layoutId).
  */
+import type { PortalBroker } from "@/types/groupB-broker";
 import { ReactNode, useEffect, useState } from "react";
 import { AnimatePresence, useScroll, useTransform } from "motion/react";
 import {
@@ -35,7 +36,7 @@ const MORE = NAV.slice(4);
 const initials = (s: string) => s.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("") || "?";
 
 interface ShellProps {
-  broker: any;
+  broker: PortalBroker | null;
   planState: BrokerPlanState | null;
   tab: PortalTab;
   onTab: (t: PortalTab) => void;
@@ -190,7 +191,7 @@ function Shell({ broker, planState, tab, onTab, onLogout, previewName, onExitPre
 }
 
 /** "Your details" tab. */
-export function BrokerDetails({ broker, planState, onBrokerPatch, onGo }: { broker: any; planState: BrokerPlanState | null; onBrokerPatch: (p: ProfilePatch) => void; onGo?: (t: PortalTab) => void }) {
+export function BrokerDetails({ broker, planState, onBrokerPatch, onGo }: { broker: PortalBroker | null; planState: BrokerPlanState | null; onBrokerPatch: (p: ProfilePatch) => void; onGo?: (t: PortalTab) => void }) {
   const rows = (pairs: [string, string | null | undefined][]) => pairs.map(([label, value]) => (
     <div key={label} className="py-3 border-b border-white/[0.06] last:border-0">
       <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</p>

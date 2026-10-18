@@ -19,6 +19,8 @@ import ProposalGenerator from "./ProposalGenerator";
 import InvoiceGenerator from "./InvoiceGenerator";
 import ContractGenerator from "./ContractGenerator";
 import { CLIENT_STATUSES } from "@/lib/brokerCampaign";
+import type { Json } from "@/integrations/supabase/types";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 interface Document {
   id: string;
@@ -29,7 +31,7 @@ interface Document {
   file_size: number | null;
   category: string;
   created_at: string;
-  content_data?: any;
+  content_data?: Json | null;
   /** migration 20261012120000: per-broker documents */
   kind?: string | null;
   broker_id?: string | null;
@@ -80,7 +82,7 @@ const AdminDocuments = () => {
   const [showProposalGenerator, setShowProposalGenerator] = useState(false);
   const [showInvoiceGenerator, setShowInvoiceGenerator] = useState(false);
   const [showContractGenerator, setShowContractGenerator] = useState(false);
-  const [editingDocData, setEditingDocData] = useState<any>(null);
+  const [editingDocData, setEditingDocData] = useState<Record<string, unknown> | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -165,11 +167,11 @@ const AdminDocuments = () => {
       });
       setEmailingDoc(null);
       setEmailRecipient(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error emailing document:", error);
       toast({
         title: "Email Failed",
-        description: error.message || "Failed to send email attachment.",
+        description: getErrorMessage(error) || "Failed to send email attachment.",
         variant: "destructive"
       });
     } finally {
@@ -281,10 +283,10 @@ const AdminDocuments = () => {
 
       fetchAllShares();
       setSharingDocId(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update sharing",
+        description: getErrorMessage(error) || "Failed to update sharing",
         variant: "destructive",
       });
     }
@@ -341,11 +343,11 @@ const AdminDocuments = () => {
 
       setDescription("");
       fetchDocuments();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upload error:", error);
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to upload document",
+        description: getErrorMessage(error) || "Failed to upload document",
         variant: "destructive",
       });
     } finally {
@@ -375,10 +377,10 @@ const AdminDocuments = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Download Failed",
-        description: error.message || "Failed to download document",
+        description: getErrorMessage(error) || "Failed to download document",
         variant: "destructive",
       });
     }
@@ -409,10 +411,10 @@ const AdminDocuments = () => {
       });
 
       fetchDocuments();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Delete Failed",
-        description: error.message || "Failed to delete document",
+        description: getErrorMessage(error) || "Failed to delete document",
         variant: "destructive",
       });
     }
@@ -428,7 +430,7 @@ const AdminDocuments = () => {
       return;
     }
 
-    setEditingDocData(doc.content_data);
+    setEditingDocData(doc.content_data as Record<string, unknown>);
     if (doc.category === 'contracts') setShowContractGenerator(true);
     else if (doc.category === 'invoices') setShowInvoiceGenerator(true);
     else if (doc.category === 'proposals' || doc.category === 'templates') setShowProposalGenerator(true);
@@ -437,7 +439,7 @@ const AdminDocuments = () => {
   const handleView = (doc: Document) => {
     // For documents with content_data, open in editor for viewing/editing
     if (doc.content_data) {
-      setEditingDocData(doc.content_data);
+      setEditingDocData(doc.content_data as Record<string, unknown>);
       if (doc.category === 'contracts') setShowContractGenerator(true);
       else if (doc.category === 'invoices') setShowInvoiceGenerator(true);
       else if (doc.category === 'proposals' || doc.category === 'templates') setShowProposalGenerator(true);

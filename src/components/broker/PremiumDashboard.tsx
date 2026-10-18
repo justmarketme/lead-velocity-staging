@@ -3,6 +3,7 @@
  * his own leads, appointments and paid orders. No sample charts, no performance claims (FAIS): numbers are counts of
  * what actually happened for this broker, and empty states say so plainly.
  */
+import type { PortalBroker } from "@/types/groupB-broker";
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { Calendar as CalendarIcon, Clock, Package, Users } from "lucide-react";
@@ -20,7 +21,7 @@ import { TERMS, zar } from "@/lib/pricing";
 type Tab = "dashboard" | "leads" | "calendar" | "intro" | "documents" | "settings";
 
 interface PremiumDashboardProps {
-    brokerData: any;
+    brokerData: PortalBroker | null;
     stats: { totalLeads: number; appointmentsScheduled: number };
     planState: BrokerPlanState | null;
     onGo: (tab: Tab) => void;

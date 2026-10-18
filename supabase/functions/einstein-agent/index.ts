@@ -131,7 +131,7 @@ async function upsertTools(): Promise<string[]> {
         request_body_schema: { type: "object", description: t.description, properties: t.properties, required: t.required },
       },
     };
-    const existing = tools.find((x: any) => x.tool_config?.name === t.name);
+    const existing = tools.find((x: { tool_config?: { name?: string } }) => x.tool_config?.name === t.name);
     const saved = existing
       ? await el(`/convai/tools/${existing.id}`, { method: "PATCH", body: JSON.stringify({ tool_config }) })
       : await el("/convai/tools", { method: "POST", body: JSON.stringify({ tool_config }) });
@@ -194,13 +194,63 @@ async function sync() {
   return summary(agent);
 }
 
-function summary(a: any) {
+interface AgentJson {
+  agent_id?: string;
+  name?: string;
+  conversation_config?: {
+    agent?: {
+      first_message?: string;
+      prompt?: {
+        llm?: string;
+        temperature?: number;
+        tool_ids?: string[];
+        rag?: { enabled?: boolean };
+        knowledge_base?: { name?: string }[];
+        prompt?: string;
+      };
+    };
+    tts?: {
+      voice_id?: string;
+      model_id?: string;
+      expressive_mode?: boolean;
+      stability?: number;
+      similarity_boost?: number;
+      speed?: number;
+      text_normalisation_type?: string;
+    };
+  };
+  platform_settings?: {
+    overrides?: { conversation_config_override?: unknown };
+    data_collection?: Record<string, unknown>;
+  };
+}
+
+interface VoiceJson {
+  name?: string;
+  voice_id?: string;
+  public_owner_id?: string;
+  gender?: string;
+  age?: string;
+  accent?: string;
+  language?: string;
+  locale?: string;
+  use_case?: string;
+  descriptive?: string;
+  category?: string;
+  cloned_by_count?: number;
+  usage_character_count_1y?: number;
+  description?: string;
+  preview_url?: string;
+  verified_languages?: { language?: string; accent?: string }[];
+}
+
+function summary(a: AgentJson) {
   const c = a.conversation_config ?? {};
   return {
     agent_id: a.agent_id, name: a.name, first_message: c.agent?.first_message,
     llm: c.agent?.prompt?.llm, temperature: c.agent?.prompt?.temperature, tool_ids: c.agent?.prompt?.tool_ids,
     rag: c.agent?.prompt?.rag?.enabled,
-    knowledge_base: (c.agent?.prompt?.knowledge_base ?? []).map((d: any) => d.name),
+    knowledge_base: (c.agent?.prompt?.knowledge_base ?? []).map((d: { name?: string }) => d.name),
     tts: { voice_id: c.tts?.voice_id, model_id: c.tts?.model_id, expressive_mode: c.tts?.expressive_mode, stability: c.tts?.stability, similarity_boost: c.tts?.similarity_boost, speed: c.tts?.speed, text_normalisation: c.tts?.text_normalisation_type },
     overrides: a.platform_settings?.overrides?.conversation_config_override,
     data_collection: Object.keys(a.platform_settings?.data_collection ?? {}),
@@ -366,12 +416,12 @@ Deno.serve(async (req) => {
         if (q.get(k)) params.set(k, q.get(k)!);
       }
       const { voices = [] } = await el(`/shared-voices?${params}`);
-      return Response.json(voices.map((v: any) => ({
+      return Response.json(voices.map((v: VoiceJson) => ({
         name: v.name, voice_id: v.voice_id, public_owner_id: v.public_owner_id, gender: v.gender, age: v.age,
         accent: v.accent, language: v.language, locale: v.locale, use_case: v.use_case, descriptive: v.descriptive,
         category: v.category, cloned_by: v.cloned_by_count, usage_1y: v.usage_character_count_1y,
         description: String(v.description ?? "").slice(0, 200), preview_url: v.preview_url,
-        verified_languages: (v.verified_languages ?? []).map((l: any) => `${l.language}/${l.accent}`),
+        verified_languages: (v.verified_languages ?? []).map((l: { language?: string; accent?: string }) => `${l.language}/${l.accent}`),
       })));
     }
     if (route === "voice-add" && req.method === "POST") {

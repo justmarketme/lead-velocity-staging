@@ -39,7 +39,7 @@ const SA_INSURANCE_SEED = `
 - Indigenous firms: King Price, Outsurance, MiWay
 `;
 
-export async function synthesizeLeads(payload: ResearchPayload): Promise<{ leads: Lead[], context: any }> {
+export async function synthesizeLeads(payload: ResearchPayload): Promise<{ leads: Lead[], context: { sources: string[] } | null }> {
   const { industry, geos, intent, keys } = payload;
   
   console.log(`[AI Service] Starting synthesis for ${industry} in ${geos}...`);

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { BrokerSelector } from "./BrokerSelector";
 import { Switch } from "@/components/ui/switch";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 interface BrokerInviteData {
     id: string;
@@ -19,7 +21,7 @@ interface BrokerInviteData {
     created_at: string;
     expires_at: string;
     used_at: string | null;
-    portal_type: 'referral' | 'marketing';
+    portal_type: string | null;
 }
 
 interface ResetRequestData {
@@ -40,7 +42,7 @@ const BrokerInvite = () => {
     const [generatedLink, setGeneratedLink] = useState("");
     const { toast } = useToast();
 
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         setBrokerName(broker.full_name || "");
         setFirmName(broker.firm_name || broker.company_name || "");
         setBrokerEmail(broker.email || "");
@@ -171,11 +173,11 @@ const BrokerInvite = () => {
                 });
             }
             fetchInvites();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error creating invite:", error);
             toast({
                 title: "Error",
-                description: error.message || "Failed to create invite",
+                description: getErrorMessage(error) || "Failed to create invite",
                 variant: "destructive",
             });
         } finally {
@@ -218,10 +220,10 @@ const BrokerInvite = () => {
             }
             fetchResetRequests();
             fetchInvites();
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast({
                 title: "Error",
-                description: error.message,
+                description: getErrorMessage(error),
                 variant: "destructive",
             });
         } finally {
@@ -250,7 +252,7 @@ const BrokerInvite = () => {
                 title: "Email Sent",
                 description: `Invitation email resent to ${invite.email}.`,
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error resending email:", error);
             toast({
                 title: "Send Failed",
@@ -484,7 +486,7 @@ const BrokerInvite = () => {
 
                                         <div className="flex items-center md:justify-center gap-2">
                                             <Badge variant="outline" className="text-[9px] h-5 px-1.5 font-bold tracking-wider">
-                                                {invite.portal_type.toUpperCase()}
+                                                {(invite.portal_type || '').toUpperCase()}
                                             </Badge>
                                             <span className="text-[10px] text-muted-foreground tabular-nums">
                                                 Ref: {invite.token.substring(0, 6)}...

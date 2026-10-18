@@ -71,7 +71,7 @@ export const ReferralPipeline = ({ referrals, onUpdateStatus, onViewDetails, onA
         };
 
         referrals.forEach((ref) => {
-            let rawStatus = ref.will_status || "Pending";
+            const rawStatus = ref.will_status || "Pending";
             let status = rawStatus.includes('|') ? rawStatus.split('|')[1] : rawStatus;
 
             if (ref.broker_appointment_scheduled && status !== "Completed") {

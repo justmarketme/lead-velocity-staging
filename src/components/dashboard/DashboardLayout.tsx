@@ -18,6 +18,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Search } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -53,7 +54,7 @@ const DashboardLayout = ({ children, activeTab, setActiveTab }: DashboardLayoutP
     document.body.style.cursor = "";
   };
 
-  const [brokers, setBrokers] = useState<any[]>([]);
+  const [brokers, setBrokers] = useState<Tables<"broker_onboarding_responses">[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();

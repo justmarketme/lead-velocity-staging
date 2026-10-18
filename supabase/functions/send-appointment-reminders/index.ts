@@ -10,6 +10,26 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+interface ReminderLead {
+  first_name?: string | null;
+  last_name?: string | null;
+  broker_id?: string | null;
+  brokers?: {
+    id: string;
+    firm_name: string;
+    contact_person: string;
+    email: string | null;
+  } | null;
+}
+
+interface ReminderAppointment {
+  id: string;
+  first_name: string;
+  phone_number: string;
+  appointment_date: string;
+  leads?: unknown;
+}
+
 interface ReminderRequest {
   hoursAhead?: number; // How many hours ahead to look for appointments (default: 24)
 }
@@ -92,7 +112,7 @@ const handler = async (req: Request): Promise<Response> => {
     }> = {};
 
     for (const apt of upcomingAppointments) {
-      const lead = apt.leads as any;
+      const lead = apt.leads as ReminderLead | null;
       const broker = lead?.brokers;
       
       if (!broker?.email) {
@@ -117,9 +137,9 @@ const handler = async (req: Request): Promise<Response> => {
     // Send reminder emails to each broker
     for (const [brokerId, data] of Object.entries(appointmentsByBroker)) {
       const appointmentRows = data.appointments
-        .map((apt: any) => {
+        .map((apt: ReminderAppointment) => {
           const appointmentDate = new Date(apt.appointment_date);
-          const lead = apt.leads as any;
+          const lead = apt.leads as ReminderLead | null;
           return `
             <tr>
               <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${apt.first_name}</td>
@@ -202,9 +222,9 @@ const handler = async (req: Request): Promise<Response> => {
 
         console.log(`Reminder sent to ${data.brokerEmail}:`, emailResponse);
         emailsSent++;
-      } catch (emailError: any) {
+      } catch (emailError: unknown) {
         console.error(`Failed to send reminder to ${data.brokerEmail}:`, emailError);
-        errors.push(`${data.brokerEmail}: ${emailError.message}`);
+        errors.push(`${data.brokerEmail}: ${(emailError instanceof Error ? emailError.message : String(emailError))}`);
       }
     }
 
@@ -217,10 +237,10 @@ const handler = async (req: Request): Promise<Response> => {
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in send-appointment-reminders function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error instanceof Error ? error.message : String(error)) }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
