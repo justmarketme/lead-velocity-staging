@@ -3026,6 +3026,111 @@
         "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nVALUES (nullif($1, '')::uuid, 'needs_human', 'urgent', 'communications', nullif($2, ''), nullif($3, '')::uuid, now(), $4)\nRETURNING id;"
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ns-alert-build",
+      "name": "Never silent: owner alert (lib w07.neverSilentAlert)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3480,
+        2300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('Never silent: wait 25 s').item.json;\nreturn { json: { request: L.neverSilentAlert(j) } };"
+      }
+    },
+    {
+      "id": "ns-alert-send",
+      "name": "Never silent: notify Jono (EMMA /api/notify)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3920,
+        2300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://emmadoesit.cloud/api/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-emma-secret",
+              "value": "={{ $env.EMMA_SHARED_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "notes": "Owner alert for every never-silent fallback (lib/w07.mjs neverSilentAlert): first name, the silent hand-off, the lead id; never the number or the message."
+    },
+    {
+      "id": "05121bfc-43e8-1144-05a5-57b4b20ff3ad",
+      "name": "Live send? (Never silent: notify Jono (EMMA /api/notify))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3720,
+        2300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $env.DRY_RUN_SENDS !== 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2954ae5f-2ddb-bfa8-fa20-616f92b66428",
+      "name": "Dry-run stub (Never silent: notify Jono (EMMA /api/notify))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        2460
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (notify). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
+      }
     }
   ],
   "connections": {
@@ -4213,6 +4318,51 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Never silent: escalation": {
+      "main": [
+        [
+          {
+            "node": "Never silent: owner alert (lib w07.neverSilentAlert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: owner alert (lib w07.neverSilentAlert)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (Never silent: notify Jono (EMMA /api/notify))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (Never silent: notify Jono (EMMA /api/notify))": {
+      "main": [
+        [
+          {
+            "node": "Never silent: notify Jono (EMMA /api/notify)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dry-run stub (Never silent: notify Jono (EMMA /api/notify))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry-run stub (Never silent: notify Jono (EMMA /api/notify))": {
+      "main": [
+        []
       ]
     }
   },

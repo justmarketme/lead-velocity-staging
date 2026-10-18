@@ -621,10 +621,21 @@ export const NEVER_SILENT_ROUTES = ['W03', 'W04', 'W04_list', 'W05', 'W10'];
 export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
   const first = sanitiseField('first_name', first_name || '').value;
   const slots = route === 'W04' || route === 'W04_list';
+  // Lindi never mentions a calendar, a system or a failure to a client (standing rule; KG's test 18 Oct 2026, 23:20). The reply
+  // stays warm and keeps the chat going; the escalation + the owner alert below make sure a person really follows up.
   if (lang === 'af') {
-    return `Dankie vir jou boodskap${first ? ` ${first}` : ''}! Ek is Lindi van SortMyCover. ${slots ? 'Ek kon nie nou die adviseur se oop tye kry nie' : 'Iets het nou aan my kant skeefgeloop'}, so iemand van ons span sal jou kort-kort hier ’n boodskap stuur.`;
+    return `Dankie${first ? ` ${first}` : ''}! Ek is Lindi van SortMyCover. ${slots ? 'Ek kry die adviseur se tye vir jou reg en stuur dit kort-kort hier' : 'Ek het jou boodskap, en iemand van ons span stuur jou kort-kort hier ’n boodskap'}.`;
   }
-  return `Thanks for your message${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. ${slots ? "I couldn't pull up the adviser's open times just now" : 'Something went wrong on my side just now'}, so a person from our team will message you here shortly.`;
+  return `Thanks${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. ${slots ? "I'm lining up the adviser's times for you and will send them here shortly" : "I've got your message, and a person from our team will message you here shortly"}.`;
+}
+/** The internal alert that goes with every fallback (EMMA /api/notify -> Jono): first name, the hand-off that stayed silent,
+    the lead id. Never the number or the message text (same rule as W38). */
+export function neverSilentAlert(j = {}) {
+  const lead = j.lead || {};
+  const first = sanitiseField('first_name', lead.first_name || (j.msg && j.msg.profile_name) || '').value || 'A lead';
+  const what = j.route === 'W04' || j.route === 'W04_list' ? 'open times' : j.route === 'W05' ? 'a booking' : j.route === 'W10' ? 'a reschedule' : 'the next step';
+  const message = `SortMyCover: ${first} is waiting on ${what}. The ${j.route || 'hand-off'} reply did not go out, so Lindi sent a holding line. Please follow up on WhatsApp.${lead.id ? ` Lead ${String(lead.id).slice(0, 8)}.` : ''}`;
+  return { message, source: 'smc-never-silent', title: 'SortMyCover: lead needs a person' };
 }
 /** The guard's send: one prebuilt text through smc-whatsapp-send (record:true, so it lands in communications). */
 export function neverSilentSend(j = {}) {

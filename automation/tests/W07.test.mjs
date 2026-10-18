@@ -637,9 +637,9 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
 });
 
 test('never silent: fallback text per route and language, one prebuilt recorded send keyed to the inbound', () => {
-  assert.equal(W.neverSilentText('W04', { first_name: 'Jono' }), "Thanks for your message, Jono! I'm Lindi from SortMyCover. I couldn't pull up the adviser's open times just now, so a person from our team will message you here shortly.");
-  assert.match(W.neverSilentText('W03', {}), /^Thanks for your message! .*Something went wrong on my side just now/);
-  assert.match(W.neverSilentText('W04_list', { lang: 'af' }), /^Dankie vir jou boodskap!.*oop tye/);
+  assert.equal(W.neverSilentText('W04', { first_name: 'Mortso' }), "Thanks, Mortso! I'm Lindi from SortMyCover. I'm lining up the adviser's times for you and will send them here shortly.");
+  assert.equal(W.neverSilentText('W03', {}), "Thanks! I'm Lindi from SortMyCover. I've got your message, and a person from our team will message you here shortly.");
+  assert.match(W.neverSilentText('W04_list', { lang: 'af' }), /^Dankie! Ek is Lindi van SortMyCover\. Ek kry die adviseur se tye/);
   const s = W.neverSilentSend({ route: 'W04', msg: { from: '+27725548057', wamid: 'SMx', profile_name: 'Jono' }, lead: { id: 'lead_1', first_name: 'TestyC', language: 'en' } });
   assert.equal(s.kind, 'prebuilt');
   assert.equal(s.record, true, 'lands in communications, so a second guard sees it');
@@ -894,4 +894,31 @@ test('/start/ page pending (conv_state start_page): every chat message goes back
   for (const st of ['unbooked', 'q_age', 'booked']) for (const c of [{}, { age_accepted: true }]) assert.equal(decide(st, nlu, {}, c).actions.includes('close_oob'), false, st);
   assert.deepEqual(decide('q_age', { ...nlu, slots: { age_band: '51+' } }, {}, {}).actions.slice(-2), ['record_answer', 'next_question']);
   assert.match(WF.nodes.find((n) => n.name === 'Parse NLU -> decide() -> plan').parameters.jsCode, /age_accepted: cs\.age_accepted === true/);
+});
+
+// Standing rule (KG's test, 18 Oct 2026 23:20): Lindi never tells a client about a failure: no "couldn't", no calendar or
+// system trouble, no errors. Every fixed client line and every fallback is checked; a new line that slips one in fails here.
+const FAILURE_WORDS = /couldn[’']?t|can[’']?t pull|open times just now|\berror\b|\bsystem\b|calendar (?:is |was )?(?:down|not|un)|calendar problem|went wrong|technical|glitch|kon nie|skeefgeloop/i;
+test('client-facing lines never mention a failure, a calendar problem or a system', () => {
+  const strings = [];
+  const walk = (v, at) => { if (typeof v === 'string') strings.push([at, v]); else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, at + '.' + k); };
+  walk(LINES, 'LINES');
+  for (const route of W.NEVER_SILENT_ROUTES) for (const lang of ['en', 'af']) for (const first_name of ['', 'Mortso']) {
+    strings.push([`neverSilentText(${route},${lang})`, W.neverSilentText(route, { first_name, lang })]);
+  }
+  assert.ok(strings.length > 40);
+  for (const [at, text] of strings) assert.doesNotMatch(text, FAILURE_WORDS, `${at}: ${text}`);
+});
+
+test('never silent: every fallback also alerts Jono (gated), without the number or the message', () => {
+  const a = W.neverSilentAlert({ route: 'W04', msg: { from: '+27725548057', profile_name: 'Mortso', text: 'hi' }, lead: { id: '3f0c2a9e-0000-4000-8000-000000000001', first_name: 'Mortso' } });
+  assert.equal(a.source, 'smc-never-silent');
+  assert.match(a.message, /^SortMyCover: Mortso is waiting on open times\..*Please follow up on WhatsApp\. Lead 3f0c2a9e\.$/);
+  assert.doesNotMatch(a.message, /7255|548057|\bhi\b/);
+  const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const next = (name) => ((wf.connections[name] || {}).main || []).flat().map((x) => x.node);
+  assert.deepEqual(next('Never silent: escalation'), ['Never silent: owner alert (lib w07.neverSilentAlert)']);
+  assert.deepEqual(next('Never silent: owner alert (lib w07.neverSilentAlert)'), ['Live send? (Never silent: notify Jono (EMMA /api/notify))']);
+  const send = wf.nodes.find((n) => n.name === 'Never silent: notify Jono (EMMA /api/notify)');
+  assert.equal(send.parameters.url, 'https://emmadoesit.cloud/api/notify');
 });
