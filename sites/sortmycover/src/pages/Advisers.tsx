@@ -1,5 +1,6 @@
 import PageFrame from "@/components/PageFrame";
 import { Link } from "react-router-dom";
+import { CheckSteps } from "@/components/Visuals";
 
 export default function Advisers() {
   return (
@@ -7,6 +8,7 @@ export default function Advisers() {
       <h2>Who the adviser is</h2>
       <p>The adviser works for, or is, a financial services provider authorised by the Financial Sector Conduct Authority (FSCA). SortMyCover is not that provider. The adviser runs their own business and is responsible for the advice they give.</p>
       <h2>How to check them</h2>
+      <CheckSteps />
       <p>You get the adviser’s name, practice and FSP number on WhatsApp before you speak. Put the FSP number into the <a href="https://www.fsca.co.za/FSB-Search/" rel="noopener noreferrer">FSCA register search</a> and compare the details. Step by step: <Link to="/learn/how-to-check-an-adviser/">how to check an adviser</Link>.</p>
       <h2>What an adviser must tell you</h2>
       <p>Under the FAIS General Code of Conduct an adviser must disclose who they are, what they are authorised to do, and how they are paid. They tell you on the call. Ask if they do not.</p>

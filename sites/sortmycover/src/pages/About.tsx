@@ -1,10 +1,12 @@
 import PageFrame from "@/components/PageFrame";
 import { Link } from "react-router-dom";
 import { company } from "@/lib/site";
+import { CompanyCard } from "@/components/Visuals";
 
 export default function About() {
   return (
     <PageFrame title="About SortMyCover | SortMyCover" description="SortMyCover is a trading name of Lead Velocity (Pty) Ltd, registration 2025/637858/07, Menlyn Maine, Pretoria. What we do and what we do not do." path="/about/" h1="About SortMyCover" lede="Who is legally responsible, what we do and what we do not do." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "About", path: "/about/" }]}>
+      <CompanyCard />
       <h2>Who we are</h2>
       <p><strong>{company.legal_name}</strong> trading as <strong>{company.trading_as}</strong>. Registration number {company.registration}. {company.address_lines.join(", ")}. Phone <a href={"tel:" + company.phone_tel}>{company.phone_display}</a>. Email <a href={"mailto:" + company.email}>{company.email}</a>.</p>
       <p>The Information Officer is {company.information_officer}. Registered with the Information Regulator, registration number {company.information_officer_registration} ({company.information_officer_registered_on}).</p>

@@ -6,6 +6,7 @@ import { PageHead } from "@/components/PageFrame";
 import { CalendarCta, WhatsAppCta } from "@/components/ChatWidget";
 import { DEFAULT_CHAT, WA_STEPS } from "@/lib/whatsapp";
 import { Link } from "react-router-dom";
+import { WaPreview } from "@/components/Visuals";
 
 export default function Book() {
   return (
@@ -19,6 +20,7 @@ export default function Book() {
           <CalendarCta ctx={{ ...DEFAULT_CHAT, ref: "w-book" }} className="btn btn-lg btn-secondary">Pick a time in the calendar</CalendarCta>
         </p>
         <h2>What happens on WhatsApp</h2>
+        <WaPreview />
         <ol>{WA_STEPS().map((s) => <li key={s}>{s}</li>)}</ol>
         <p>Lindi is an AI assistant. You can ask for a person at any time, and reply STOP to any message to stop. The number is <strong>{site.whatsapp_number}</strong>.</p>
         <p>Please do not send ID numbers, bank details or health details in a message.</p>

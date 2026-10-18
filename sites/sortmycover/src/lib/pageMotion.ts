@@ -5,7 +5,7 @@
    reduced motion. Phones get the full scroll choreography; pointer effects (tilt, spotlight, magnetic, pan) need a fine pointer. */
 import { animate } from "motion/mini";
 import { hover, inView, press, scroll } from "motion";
-import { prefersReducedMotion, springDuration, springEase } from "./motion";
+import { drawLineOnScroll, drawPath, prefersReducedMotion, springDuration, springEase } from "./motion";
 
 type Off = () => void;
 const fine = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -62,7 +62,7 @@ function pointerGlow(area: HTMLElement): Off {
 
 /** Cards: on a mouse they tilt toward the cursor in 3D with a spotlight; on touch they spring when pressed. */
 function cards(root: ParentNode): Off {
-  const els = Array.from(root.querySelectorAll<HTMLElement>(".card-link"));
+  const els = Array.from(root.querySelectorAll<HTMLElement>(".card-link, .viz-card, .co-card, .wa-phone"));
   if (!els.length) return () => {};
   const ease = springEase(320, 22);
   const dur = springDuration(ease);
@@ -116,6 +116,61 @@ function launcher(): Off {
   return () => window.clearTimeout(t);
 }
 
+/** Code-drawn visuals (src/components/Visuals.tsx). Transforms and decoration only; every word stays on screen. */
+function vizMotion(main: HTMLElement): Off {
+  const offs: Off[] = [];
+  const narrow = () => !!window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+
+  // tokens travel along their link while the visual is on screen (paused off screen)
+  main.querySelectorAll<HTMLElement>(".viz-token").forEach((t) => {
+    let run: { cancel(): void } | null = null;
+    const delay = t.classList.contains("viz-token-2") ? 1.1 : 0;
+    offs.push(inView(t.parentElement as HTMLElement, () => {
+      run = animate(t, { "--t": [0, 1] } as any, { duration: 2.2, delay, repeat: Infinity, ease: "easeInOut" });
+      return () => { run?.cancel(); run = null; };
+    }, { amount: 0.4 }));
+    offs.push(() => run?.cancel());
+  });
+
+  // links and the money line draw in; the who-does-what join runs vertically on a phone
+  main.querySelectorAll<HTMLElement>(".mf-line").forEach((l, i) => offs.push(drawOnEnter(l, "x", 0.1 + i * 0.12)));
+  main.querySelectorAll<HTMLElement>(".viz-join-line").forEach((l) => offs.push(drawOnEnter(l, narrow() ? "y" : "x", 0.15)));
+  main.querySelectorAll<HTMLElement>(".mf-x").forEach((x, i) => offs.push(settleOnEnter(x, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { amount: 0.6, delay: 0.25 + i * 0.12, stiffness: 420, damping: 18 })));
+  main.querySelectorAll<HTMLElement>(".viz-split .viz-card").forEach((c, i) => offs.push(settleOnEnter(c, narrow() ? "translateY(26px)" : `translateX(${i ? 28 : -28}px)`, { amount: 0.3, delay: i * 0.08 })));
+
+  // checking an adviser: the progress line follows the scroll, the cards step in, the tick draws itself
+  main.querySelectorAll<HTMLElement>(".viz-check").forEach((v) => {
+    const line = v.querySelector<HTMLElement>(".ck-line");
+    if (line) offs.push(drawLineOnScroll(v, line, narrow() ? "y" : "x"));
+    v.querySelectorAll<HTMLElement>(".ck-step").forEach((s, i) => offs.push(settleOnEnter(s, "translateY(30px) scale(0.96)", { amount: 0.3, delay: i * 0.12, stiffness: 240, damping: 22 })));
+    const tick = v.querySelector<SVGGeometryElement>(".ck-tick");
+    if (tick) offs.push(inView(tick as unknown as Element, () => { const off = drawPath(tick, 0.5, 0.6); offs.push(off); return undefined; }, { amount: 1 }));
+  });
+
+  // the company card lifts in, and its sheen follows the pointer
+  main.querySelectorAll<HTMLElement>(".co-card").forEach((c) => { offs.push(settleOnEnter(c, "translateY(34px) rotateX(10deg)", { amount: 0.3, stiffness: 200, damping: 20 })); offs.push(pointerGlow(c)); });
+
+  // the chat plays: bubbles settle in turn when the phone comes into view, the dots type, and a tap replays it
+  main.querySelectorAll<HTMLElement>(".wa-phone").forEach((ph) => {
+    const msgs = Array.from(ph.querySelectorAll<HTMLElement>(".wa-msg"));
+    const ease = springEase(360, 24);
+    const play = () => msgs.forEach((m, i) => {
+      const from = m.classList.contains("wa-me") ? "translate(18px, 14px) scale(0.86)" : "translate(-18px, 14px) scale(0.86)";
+      m.style.transform = from;
+      animate(m, { transform: [from, "none"] }, { duration: springDuration(ease), delay: 0.15 + i * 0.55, ease: ease as any }).finished.then(() => { m.style.transform = ""; }, () => { m.style.transform = ""; });
+    });
+    offs.push(inView(ph, () => { play(); return undefined; }, { amount: 0.45 }));
+    const replay = () => play();
+    ph.addEventListener("click", replay);
+    offs.push(() => { ph.removeEventListener("click", replay); msgs.forEach((m) => { m.style.transform = ""; }); });
+    ph.querySelectorAll<HTMLElement>(".wa-typing i").forEach((d, i) => {
+      const a = animate(d, { transform: ["translateY(0px)", "translateY(-4px)", "translateY(0px)"] }, { duration: 0.9, delay: i * 0.15, repeat: Infinity, ease: "easeInOut" });
+      offs.push(() => a.cancel());
+    });
+  });
+  return () => offs.forEach((o) => o());
+}
+
 /** Everything for the current page. Called on every route change with the <main> element. */
 export function pageMotion(main: HTMLElement): Off {
   if (prefersReducedMotion() || !main) return () => {};
@@ -138,6 +193,6 @@ export function pageMotion(main: HTMLElement): Off {
   main.querySelectorAll<HTMLElement>(".page-body .prose-sm > h2").forEach((h) => offs.push(settleOnEnter(h, "translateX(-22px)", { amount: 0.6 })));
   main.querySelectorAll<HTMLElement>(".ab-bar").forEach((b) => offs.push(drawOnEnter(b, "y", 0.1)));
   main.querySelectorAll<HTMLElement>(".cta-quiet").forEach((c) => { offs.push(settleOnEnter(c, "translateY(36px) scale(0.95)", { amount: 0.25, stiffness: 200, damping: 22 })); offs.push(pointerGlow(c)); });
-  offs.push(cards(main), magnetic(main));
+  offs.push(vizMotion(main), cards(main), magnetic(main));
   return () => offs.forEach((o) => o());
 }

@@ -213,6 +213,20 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(paia).toMatch(/DRAFT/);
     expect(paia).toMatch(/noindex/);
   });
+  it("each code-drawn visual ships pre-rendered on its page, with its words in the HTML (readable with no JavaScript)", () => {
+    const want: Record<string, [string, string]> = {
+      "how-it-works/index.html": ["split", "Only the adviser"],
+      "how-we-make-money/index.html": ["money", "Pays a fee for introductions"],
+      "advisers/index.html": ["check", "On the FSCA register"],
+      "about/index.html": ["company", "Legally responsible"],
+      "book/index.html": ["phone", "Lindi is an AI assistant, and you can ask for a person at any time"],
+    };
+    for (const [rel, [viz, words]] of Object.entries(want)) {
+      const h = pages.find((p) => p.rel === rel)!.html;
+      expect(h, rel).toContain(`data-viz="${viz}"`);
+      expect(visible(h), rel).toContain(words);
+    }
+  });
   it("the privacy notice covers call recording (POPIA): automated voice assistant, recorded, 365 days, ElevenLabs, s72, the Information Officer", () => {
     const v = visible(pages.find((p) => p.rel === "privacy/index.html")!.html);
     for (const t of ["Phone calls and recordings", "+27 60 015 6480", "automated voice assistant", "the call is recorded", "365 days", "ElevenLabs", "section 72 of POPIA", "Kgomotso Pule", "2026-069309"]) expect(v, t).toContain(t);
