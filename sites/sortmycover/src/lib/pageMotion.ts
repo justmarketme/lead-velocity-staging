@@ -171,6 +171,89 @@ function vizMotion(main: HTMLElement): Off {
   return () => offs.forEach((o) => o());
 }
 
+/** Reading rhythm: below the fold, paragraphs, lists and boxes rise gently into place as they scroll in. Transform only;
+    disclosures are left exactly where they are. */
+function readingRhythm(main: HTMLElement): Off {
+  const offs: Off[] = [];
+  const sel = ".page-body .prose-sm > p, .page-body .prose-sm > ul, .page-body .prose-sm > ol, .page-body .prose-sm > dl, .page-body .prose-sm > details, .page-body .prose-sm > figure:not(.viz), .page-body .answer-block";
+  main.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+    if (el.matches("[data-disclosure]") || el.querySelector("[data-disclosure]")) return;
+    offs.push(settleOnEnter(el, "translateY(22px)", { amount: 0.15, stiffness: 210, damping: 26 }));
+  });
+  return () => offs.forEach((o) => o());
+}
+
+/** "On this page": names the section being read, springs the marker to it, pins under the header on a phone and sits in the
+    left margin as a rail on a wide screen. Shown only while the reader is inside the guide's sections. */
+function sectionTracker(main: HTMLElement): Off {
+  const nav = main.querySelector<HTMLElement>("[data-toc]");
+  if (!nav) return () => {};
+  const box = nav.querySelector<HTMLDetailsElement>("details")!;
+  const now = nav.querySelector<HTMLElement>("[data-toc-now]")!;
+  const ind = nav.querySelector<HTMLElement>(".toc-ind")!;
+  const links = Array.from(nav.querySelectorAll<HTMLAnchorElement>(".toc-list a"));
+  const heads = links.map((a) => document.getElementById(a.hash.slice(1))).filter(Boolean) as HTMLElement[];
+  const end = main.querySelector<HTMLElement>(".cta-quiet") ?? main.querySelector<HTMLElement>(".page-body");
+  const wide = () => !!window.matchMedia && window.matchMedia("(min-width: 1240px)").matches;
+  const header = document.querySelector<HTMLElement>(".site-header");
+  const offs: Off[] = [];
+  const ease = springEase(380, 30);
+  nav.classList.add("toc-live");
+  const place = () => {
+    nav.style.setProperty("--toc-top", `${(header?.offsetHeight ?? 64) + (wide() ? 28 : 0)}px`);
+    if (wide()) box.open = true;
+  };
+  place();
+  let active = -1;
+  let on = false;
+  const moveTo = (i: number) => {
+    if (i === active) return;
+    active = i;
+    links.forEach((a, j) => a.toggleAttribute("aria-current", j === i));
+    const a = links[Math.max(0, i)];
+    now.textContent = a.textContent;
+    animate(ind, { transform: `translateY(${a.parentElement!.offsetTop}px)`, height: `${a.parentElement!.offsetHeight}px` } as any, { duration: springDuration(ease), ease: ease as any });
+    if (!wide()) animate(now, { transform: ["translateY(8px)", "none"] }, { duration: 0.35, ease: [0.22, 1, 0.36, 1] });
+  };
+  const update = () => {
+    const line = (header?.offsetHeight ?? 64) + 90;
+    let i = 0;
+    heads.forEach((h, j) => { if (h.getBoundingClientRect().top < line) i = j; });
+    moveTo(i);
+    const first = heads[0]?.getBoundingClientRect().top ?? 0;
+    const last = end ? end.getBoundingClientRect().top : Infinity;
+    const show = first < window.innerHeight * 0.85 && last > line;
+    if (show !== on) {
+      on = show;
+      nav.classList.toggle("toc-on", show);
+      if (wide()) animate(box, { transform: show ? ["translateX(-18px)", "none"] : ["none", "translateX(-18px)"] }, { duration: 0.45, ease: [0.22, 1, 0.36, 1] });
+    }
+  };
+  offs.push(scroll(() => update()));
+  const resize = () => { place(); update(); };
+  window.addEventListener("resize", resize);
+  offs.push(() => window.removeEventListener("resize", resize));
+  // a tap on a section closes the phone list and glides to it
+  const click = (e: Event) => {
+    const a = (e.target as HTMLElement).closest("a");
+    if (!a) return;
+    const h = document.getElementById(a.hash.slice(1));
+    if (!h) return;
+    e.preventDefault();
+    if (!wide()) box.open = false;
+    window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - (header?.offsetHeight ?? 64) - 70, behavior: "smooth" });
+    history.replaceState(null, "", a.hash);
+  };
+  nav.addEventListener("click", click);
+  offs.push(() => nav.removeEventListener("click", click));
+  // the phone list springs open
+  const toggle = () => { if (box.open && !wide()) { const ol = box.querySelector<HTMLElement>(".toc-list"); if (ol) animate(ol, { transform: ["translateY(-10px) scale(0.98)", "none"] }, { duration: 0.4, ease: [0.22, 1, 0.36, 1] }); } };
+  box.addEventListener("toggle", toggle);
+  offs.push(() => box.removeEventListener("toggle", toggle));
+  update();
+  return () => { offs.forEach((o) => o()); nav.classList.remove("toc-live", "toc-on"); box.style.transform = ""; };
+}
+
 /** Everything for the current page. Called on every route change with the <main> element. */
 export function pageMotion(main: HTMLElement): Off {
   if (prefersReducedMotion() || !main) return () => {};
@@ -193,6 +276,6 @@ export function pageMotion(main: HTMLElement): Off {
   main.querySelectorAll<HTMLElement>(".page-body .prose-sm > h2").forEach((h) => offs.push(settleOnEnter(h, "translateX(-22px)", { amount: 0.6 })));
   main.querySelectorAll<HTMLElement>(".ab-bar").forEach((b) => offs.push(drawOnEnter(b, "y", 0.1)));
   main.querySelectorAll<HTMLElement>(".cta-quiet").forEach((c) => { offs.push(settleOnEnter(c, "translateY(36px) scale(0.95)", { amount: 0.25, stiffness: 200, damping: 22 })); offs.push(pointerGlow(c)); });
-  offs.push(vizMotion(main), cards(main), magnetic(main));
+  offs.push(vizMotion(main), readingRhythm(main), sectionTracker(main), cards(main), magnetic(main));
   return () => offs.forEach((o) => o());
 }

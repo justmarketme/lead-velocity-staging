@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import PageFrame from "@/components/PageFrame";
-import { ReadProgress } from "@/components/Interactive";
+import { SectionNav, sectionId } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { article as articleLd } from "@/lib/jsonld";
 import { pageTitle } from "@/lib/head";
@@ -28,6 +28,7 @@ export default function ArticlePage({ article }: { article: Article }) {
       ? [{ name: "SortMyCover", path: "/" }, { name: hub.title, path: hubPath(hub) }, { name: meta.title, path }]
       : [{ name: "SortMyCover", path: "/" }, { name: "Learn", path: "/learn/" }, { name: hub.title, path: hubPath(hub) }, { name: meta.title, path }];
   const scene = ARTICLE_SCENES[meta.slug];
+  const sections = body.filter((b) => b.type === "h2").map((b) => (b as { text: string }).text);
   const related = meta.related.map(metaFor).filter(Boolean) as NonNullable<ReturnType<typeof metaFor>>[];
   const head = (
     <>
@@ -42,12 +43,12 @@ export default function ArticlePage({ article }: { article: Article }) {
   );
   return (
     <>
-      <ReadProgress />
       <PageFrame title={pageTitle(meta.titleTag ?? meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path, scene?.src)]} ctaKind={wills ? "wills" : ownSection ? "cover" : "adviser"} ctaHeading={meta.cta} h1={meta.title} meta={head}>
         {scene && <figure className="hub-photo article-photo"><img src={scene.src} alt={scene.alt} width={scene.w} height={scene.h} loading="eager" fetchPriority="high" /></figure>}
         <div className="answer-block" data-answer><span className="ab-bar" aria-hidden="true" /><span className="label">Short answer</span><p>{meta.answer}</p></div>
+        <SectionNav items={sections} />
         {body.map((b, i) => {
-          if (b.type === "h2") return <h2 key={i}>{b.text}</h2>;
+          if (b.type === "h2") return <h2 key={i} id={sectionId(b.text)}>{b.text}</h2>;
           if (b.type === "p") return <p key={i}><Inline text={b.text} /></p>;
           const L = b.type === "ul" ? "ul" : "ol";
           return <L key={i}>{b.items.map((t, j) => <li key={j}><Inline text={t} /></li>)}</L>;

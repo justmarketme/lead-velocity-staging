@@ -4,6 +4,7 @@ import ChatWidget, { WhatsAppCta } from "./ChatWidget";
 import { contextFor } from "@/lib/whatsapp";
 import { Wordmark } from "./Brand";
 import { Footer } from "./Footer";
+import { ReadProgress } from "./Interactive";
 
 /** Desktop nav shows from xl (1280px): seven items do not fit next to the wordmark and the button below that; the menu takes over. */
 const NAV: [string, string][] = [["Cover types", "/cover/"], ["Wills & estate", "/wills/"], ["How it works", "/how-it-works/"], ["How we make money", "/how-we-make-money/"], ["Learn", "/learn/"], ["About", "/about/"], ["Contact", "/contact/"]];
@@ -51,6 +52,13 @@ function PageMotion() {
   return null;
 }
 
+/** The yellow reading-progress bar follows the scroll on every inner page. */
+function Progress() {
+  const { pathname } = useLocation();
+  if (pathname === "/" || NO_MOTION.test(pathname)) return null;
+  return <ReadProgress key={pathname} />;
+}
+
 export function Header() {
   const ctx = contextFor(useLocation().pathname);
   return (
@@ -83,6 +91,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <ScrollToTop />
       <Enhance />
       <PageMotion />
+      <Progress />
       <a className="skip" href="#main">Skip to content</a>
       <Header />
       <main id="main" tabIndex={-1}>{children}</main>

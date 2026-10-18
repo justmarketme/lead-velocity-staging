@@ -213,6 +213,18 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(paia).toMatch(/DRAFT/);
     expect(paia).toMatch(/noindex/);
   });
+  it("every guide with three or more sections has an On this page list, and every link lands on a real heading", () => {
+    let n = 0;
+    for (const p of pages.filter((x) => /^(learn|cover|wills)\/[^/]+\/index\.html$/.test(x.rel))) {
+      const nav = p.html.match(/<nav class="toc"[\s\S]*?<\/nav>/);
+      const h2s = (p.html.match(/<h2 id="s-/g) ?? []).length;
+      if (h2s >= 3) expect(nav, p.rel).toBeTruthy();
+      if (!nav) continue;
+      n++;
+      for (const [, id] of nav[0].matchAll(/href="#([^"]+)"/g)) expect(p.html, `${p.rel} #${id}`).toContain(`id="${id}"`);
+    }
+    expect(n).toBeGreaterThan(20);
+  });
   it("each code-drawn visual ships pre-rendered on its page, with its words in the HTML (readable with no JavaScript)", () => {
     const want: Record<string, [string, string]> = {
       "how-it-works/index.html": ["split", "Only the adviser"],
