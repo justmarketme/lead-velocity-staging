@@ -45,7 +45,7 @@ export default function ArticlePage({ article }: { article: Article }) {
       <ReadProgress />
       <PageFrame title={pageTitle(meta.titleTag ?? meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path, scene?.src)]} ctaKind={wills ? "wills" : ownSection ? "cover" : "adviser"} ctaHeading={meta.cta} h1={meta.title} meta={head}>
         {scene && <figure className="hub-photo article-photo"><img src={scene.src} alt={scene.alt} width={scene.w} height={scene.h} loading="eager" fetchPriority="high" /></figure>}
-        <div className="answer-block" data-answer><span className="label">Short answer</span><p>{meta.answer}</p></div>
+        <div className="answer-block" data-answer><span className="ab-bar" aria-hidden="true" /><span className="label">Short answer</span><p>{meta.answer}</p></div>
         {body.map((b, i) => {
           if (b.type === "h2") return <h2 key={i}>{b.text}</h2>;
           if (b.type === "p") return <p key={i}><Inline text={b.text} /></p>;

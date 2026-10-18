@@ -36,6 +36,7 @@ interface Props {
 export function Crumbs({ items }: { items: Crumb[] }) {
   return (
     <nav aria-label="Breadcrumb" className="breadcrumb">
+      <span className="crumb-rule" aria-hidden="true" />
       {items.map((c, i) => {
         const current = i === items.length - 1;
         return (
@@ -61,6 +62,7 @@ export function Display({ text, accent }: { text: string; accent?: string }) {
 export function PageHead({ crumbs, h1, accent, lede, meta }: { crumbs?: Crumb[]; h1: string; accent?: string; lede?: ReactNode; meta?: ReactNode }) {
   return (
     <div className="page-head">
+      <div className="page-glow" aria-hidden="true" />
       <div className="wrap-narrow">
         {crumbs && crumbs.length > 1 && <Crumbs items={crumbs} />}
         <h1 className="page-h1"><Display text={h1} accent={accent} /></h1>

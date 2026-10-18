@@ -27,7 +27,25 @@ function Enhance() {
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; // reduced motion: the Motion chunk is not even requested by the layout
     let off = () => {};
     let dead = false;
-    import("@/lib/motion").then((m) => { if (!dead) off = m.springGestures(document, ".btn, .card-link"); });
+    // cards and in-page buttons get tilt / magnetic / press from pageMotion; on a mouse the spring stays on header and chat buttons
+    const sel = window.matchMedia("(hover: hover) and (pointer: fine)").matches ? ".site-header .btn, .chat-panel .btn" : ".btn";
+    import("@/lib/motion").then((m) => { if (!dead) off = m.springGestures(document, sel); });
+    return () => { dead = true; off(); };
+  }, [pathname]);
+  return null;
+}
+
+/** Inner-page motion (src/lib/pageMotion.ts): loaded on demand, re-run on every route change. */
+function PageMotion() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (NO_MOTION.test(pathname)) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let off = () => {};
+    let dead = false;
+    const main = document.getElementById("main");
+    if (!main) return;
+    import("@/lib/pageMotion").then((m) => { if (!dead) off = m.pageMotion(main); });
     return () => { dead = true; off(); };
   }, [pathname]);
   return null;
@@ -64,6 +82,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div className="site">
       <ScrollToTop />
       <Enhance />
+      <PageMotion />
       <a className="skip" href="#main">Skip to content</a>
       <Header />
       <main id="main" tabIndex={-1}>{children}</main>
