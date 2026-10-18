@@ -42,8 +42,8 @@
 - topic: bot_identity
 - type: answer
 - asked as: "Is this a real person?" · "Are you a robot?" · "Is jy 'n mens?"
-- en: I'm Lindi, SortMyCover's automated booking assistant. I can help with your booking, and you can ask for a person at any time.
-- af: Ek is Lindi, SortMyCover se outomatiese besprekingsassistent. Ek help met jou bespreking, en jy kan enige tyd vra om met 'n mens te praat.
+- en: I'm Lindi, SortMyCover's automated assistant, not a person. I can help with your booking, or someone from our team or your adviser can chat to you whenever you like.
+- af: Ek is Lindi, SortMyCover se outomatiese assistent, nie 'n mens nie. Ek help met jou bespreking, of iemand van ons span of jou adviseur kan enige tyd met jou praat.
 
 ### FAQ-05 · What happens to my information?
 - topic: privacy
