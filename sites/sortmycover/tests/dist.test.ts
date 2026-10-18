@@ -228,11 +228,15 @@ describe.skipIf(!have)("pre-rendered output", () => {
     }
     expect(n).toBeGreaterThan(20);
   });
-  it("Lindi is an automated assistant, never an AI assistant, in anything a client sees (Jono, 18 Oct 2026)", () => {
+  it("Lindi is an automated assistant, never an AI assistant, and the adviser is authorised, never licensed, in anything a client sees (Jono, 18 Oct 2026)", () => {
     const AI = /\bAI[- ]assistant\b|\buses AI\b|\bAI booking\b|\bour AI\b/i;
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(AI);
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(AI);
+    // the adviser is "authorised" (FSCA wording), never "licensed", as in the ads, Lindi's WhatsApp copy and the phone script
+    const LICENSED = /licensed (financial )?advis[eo]rs?/i;
+    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(LICENSED);
+    for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(LICENSED);
     // the honest wording stays: it is automated, and a person is available
     const book = visible(pages.find((p) => p.rel === "book/index.html")!.html);
     expect(book).toMatch(/automated assistant/);

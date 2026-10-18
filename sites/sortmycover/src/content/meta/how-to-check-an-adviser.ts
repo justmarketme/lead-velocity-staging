@@ -4,7 +4,7 @@ export const meta: ArticleMeta = {
   slug: "how-to-check-an-adviser",
   title: "How do I check that an adviser is authorised?",
   description:
-    "Step by step: use the FSCA public register to look up an adviser or firm, and compare name, FSP number, licensed product categories and representative status.",
+    "Step by step: use the FSCA public register to look up an adviser or firm, and compare name, FSP number, authorised product categories and representative status.",
   hub: 3,
   answer:
     "You can look up any adviser on the FSCA public register, a search form on the FSCA website. Search by FSP number or name, then compare the name, FSP number, product categories and whether the person is listed as a representative. Ask the adviser if anything differs. This is information, not advice.",

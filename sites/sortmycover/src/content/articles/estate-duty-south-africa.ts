@@ -42,7 +42,7 @@ export const body: Block[] = [
   },
   {
     type: "p",
-    text: "How a particular policy is treated depends on its terms and on the Act. That is a question for a licensed adviser, or for the executor once an estate is being wound up.",
+    text: "How a particular policy is treated depends on its terms and on the Act. That is a question for an authorised adviser, or for the executor once an estate is being wound up.",
   },
   { type: "h2", text: "What does this mean for a will?" },
   {
