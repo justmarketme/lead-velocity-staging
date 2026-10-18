@@ -1,0 +1,108 @@
+/* n8n client for /start/ (base API_BASE = n8n_base + api_prefix). Every call carries the lead token in the X-Lead-Token header and
+   nowhere else, never caches, never sends cookies or a referrer, and gives up after 10 s. The token is never logged. */
+import { API_BASE } from "./site";
+import type { Answers, Slot } from "./start";
+
+export interface Adviser { first_name: string; name: string; firm: string; fsp: string | number }
+export interface Booking { start: string; end: string; method: string; held: boolean }
+export interface StartData {
+  first_name: string | null;
+  adviser: Adviser | null;
+  methods: string[];
+  answers: Answers;
+  booking: Booking | null;
+}
+export interface SlotsData { slots: Slot[]; tz?: string; methods?: string[]; adviser_first_name?: string; fallback?: string }
+export interface BookBody { slot_start: string; method: string; email: string; email_confirmed: true; request_id: string; context: { source: "start_page" } }
+export interface BookedInfo { booking_id?: string; start: string; end: string; method: string; join_url?: string; ics_url?: string; verify?: string }
+
+type Fail = { kind: "expired" } | { kind: "error" };
+export type StartResult = { kind: "ok"; data: StartData } | Fail;
+export type AnswersResult = { kind: "ok"; next: "slots" | "chat" } | Fail;
+export type SlotsResult = { kind: "ok"; data: SlotsData } | Fail;
+export type BookResult =
+  | { kind: "booked"; info: BookedInfo }
+  | { kind: "held"; info: BookedInfo }
+  | { kind: "taken"; slots: Slot[] | null }
+  | { kind: "email" }
+  | Fail;
+
+export interface StartApi {
+  getStart(): Promise<StartResult>;
+  postAnswers(body: object): Promise<AnswersResult>;
+  getSlots(days: number): Promise<SlotsResult>;
+  book(body: BookBody): Promise<BookResult>;
+}
+
+const TIMEOUT_MS = 10_000;
+const isAuth = (s: number) => s === 401 || s === 403;
+const isSlotList = (x: unknown): x is Slot[] => Array.isArray(x) && x.every((s) => s && typeof s.start === "string");
+
+/** Maps a /book response to what the page shows (pure; unit tested). */
+export function interpretBook(status: number, body: any): BookResult {
+  if (isAuth(status)) return { kind: "expired" };
+  if (status === 409 || body?.error === "slot_taken") {
+    const list = isSlotList(body?.slots) ? body.slots : isSlotList(body?.next) ? body.next : null;
+    return { kind: "taken", slots: list };
+  }
+  if (status === 422 || (typeof body?.error === "string" && body.error.startsWith("email_"))) return { kind: "email" };
+  if (status >= 200 && status < 300 && body && typeof body.start === "string") {
+    const info: BookedInfo = { booking_id: body.booking_id, start: body.start, end: body.end, method: body.method, join_url: body.join_url, ics_url: body.ics_url, verify: body.verify };
+    if (body.booked === true) return { kind: "booked", info };
+    if (body.held === true) return { kind: "held", info };
+  }
+  return { kind: "error" };
+}
+
+export function interpretAnswers(status: number, body: any): AnswersResult {
+  if (isAuth(status)) return { kind: "expired" };
+  if (status >= 200 && status < 300 && body?.ok === true) return { kind: "ok", next: body.next === "chat" ? "chat" : "slots" };
+  return { kind: "error" };
+}
+
+export function createStartApi(token: string, base: string = API_BASE): StartApi {
+  async function call(method: "GET" | "POST", path: string, body?: object): Promise<{ status: number; data: any }> {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+    try {
+      const headers: Record<string, string> = { "X-Lead-Token": token, Accept: "application/json" };
+      if (body) headers["Content-Type"] = "application/json";
+      const res = await fetch(base + path, {
+        method, headers, body: body ? JSON.stringify(body) : undefined,
+        cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: ctl.signal,
+      });
+      let data: any = null;
+      try { data = await res.json(); } catch { /* empty or non-JSON body */ }
+      return { status: res.status, data };
+    } catch {
+      return { status: 0, data: null }; // network error or timeout
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return {
+    async getStart() {
+      const r = await call("GET", "/start");
+      if (isAuth(r.status)) return { kind: "expired" };
+      if (r.status === 200 && r.data && typeof r.data === "object") {
+        const d = r.data;
+        return { kind: "ok", data: { first_name: d.first_name ?? null, adviser: d.adviser ?? null, methods: Array.isArray(d.methods) ? d.methods : [], answers: d.answers ?? {}, booking: d.booking ?? null } };
+      }
+      return { kind: "error" };
+    },
+    async postAnswers(body) {
+      const r = await call("POST", "/start/answers", body);
+      return interpretAnswers(r.status, r.data);
+    },
+    async getSlots(days) {
+      const r = await call("GET", `/slots?days=${days}`);
+      if (isAuth(r.status)) return { kind: "expired" };
+      if (r.status === 200 && r.data && Array.isArray(r.data.slots)) return { kind: "ok", data: r.data };
+      return { kind: "error" };
+    },
+    async book(body) {
+      const r = await call("POST", "/book", body);
+      return interpretBook(r.status, r.data);
+    },
+  };
+}
