@@ -306,7 +306,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-
     note('20:58','She taps “Send WhatsApp message”','WhatsApp opens with a prefilled line. Meta attaches the ad and campaign ID to the conversation (CTWA referral), so this lead is attributed to this exact Reel without a pixel or a landing page.','W03'); step();
     await sleep(600); $('sc-reel').classList.remove('on'); $('sc-wa').classList.add('on');
     chat.appendChild(el('day','Mon 5 Oct')); chat.appendChild(el('sys','This chat started from a SortMyCover ad · Business account'));
-    inp.innerHTML='Hi, I\'d like to check my life cover'; await sleep(1400); inp.innerHTML=''; outSay('Hi, I\'d like to check my life cover','20:58'); step();
+    inp.innerHTML='Hi, I\'d like to book a 30-minute call with an adviser.'; await sleep(1400); inp.innerHTML=''; outSay('Hi, I\'d like to book a 30-minute call with an adviser.','20:58'); step();
     widget('w-crm'); stages(0,0); kv('Source','Instagram Reels · <code>C2_bondgap_reel_v3</code>'); kv('Number','+27 82 ••• 4471 · valid mobile'); log('20:58','W03','Conversation opened · CTWA referral stored (ad, campaign)');
     await sleep(1200);
 

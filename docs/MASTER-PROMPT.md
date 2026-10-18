@@ -701,7 +701,7 @@ For each: hook (≤ 8 words), primary text (≤ 90 words), headline, CTA, visual
 **Booking rules (config, per broker):** Africa/Johannesburg time zone; broker's meeting hours; 30-min slots; 15-min buffer; minimum notice 2 h; book up to 14 days ahead; max meetings per day; public holidays blocked.
 
 **Click-to-WhatsApp (CTWA) flow — everything happens inside one WhatsApp chat:**
-1. Ad button "Chat on WhatsApp" → chat opens with a prefilled message ("Hi, I'd like to check my life cover") → n8n receives it (CTWA referral data = ad/campaign ID, stored for CAPI).
+1. Ad button "Chat on WhatsApp" → chat opens with a prefilled message ("Hi, I'd like to book a 30-minute call with an adviser."; until 18 Oct 2026 "Hi, I'd like to check my life cover", still recognised) → n8n receives it (CTWA referral data = ad/campaign ID, stored for CAPI).
 2. **Consent first** (interactive buttons): "Before we start: if it's a fit, we'll share your details with an authorised financial services provider who'll contact you about insurance and financial planning. OK to continue?" `Yes, continue` · `No thanks`. Log the exact wording + timestamp.
 3. **Tap-only qualifying** (interactive list/buttons, no typing): age band → budget band → bond / dependants → preferred contact method. Out-of-band answers → polite close, no hand-over.
 4. **Route to broker** (1.3) → send `broker_intro` card with disclosure (adviser, practice, FSP number).
