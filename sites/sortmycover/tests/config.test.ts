@@ -15,6 +15,24 @@ describe("deployment config", () => {
   it("committed hostinger/.htaccess equals the generator output", () => {
     expect(fs.readFileSync(path.join(root, "hostinger/.htaccess"), "utf8")).toBe(htaccess());
   });
+  it(".htaccess: apex /c/<id> and /j/<id> (W05 calendar file and join link) redirect 302 to n8n with ?k= kept, before the campaign host rules", () => {
+    const lines = htaccess().split("\n");
+    const apex = "RewriteCond %{HTTP_HOST} ^sortmycover\\.co\\.za$ [NC]";
+    const ics = lines.indexOf("RewriteRule ^c/([^/]+)/?$ https://n8n.sortmycover.co.za/webhook/w05-ics-get/c/$1 [R=302,L,QSA]");
+    const join = lines.indexOf("RewriteRule ^j/([^/]+)/?$ https://n8n.sortmycover.co.za/webhook/w05-join-get/j/$1 [R=302,L,QSA]");
+    expect(ics).toBeGreaterThan(0);
+    expect(join).toBeGreaterThan(0);
+    expect(lines[ics - 1]).toBe(apex); // apex host only
+    expect(lines[join - 1]).toBe(apex);
+    const firstCampaign = lines.findIndex((l) => l.startsWith("RewriteRule ^$ /_c/"));
+    expect(firstCampaign).toBeGreaterThan(join);
+    // the patterns take one path segment (with or without a trailing slash) and nothing else
+    const re = /^c\/([^/]+)\/?$/;
+    expect(re.exec("c/bk_7f3a-91")?.[1]).toBe("bk_7f3a-91");
+    expect(re.test("c/bk_7f3a-91/")).toBe(true);
+    expect(re.test("c/a/b")).toBe(false);
+    expect(re.test("_c/new-bond/")).toBe(false);
+  });
   it("CSP allows only self, the Pixel domains, the n8n host and Turnstile; no unsafe-inline or unsafe-eval", () => {
     const c = csp();
     expect(c).not.toMatch(/unsafe-/);

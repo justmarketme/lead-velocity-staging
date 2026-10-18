@@ -43,7 +43,8 @@ export function Header() {
           {NAV.map(([t, p]) => <NavLink key={p} to={p} className="nav-link">{t}</NavLink>)}
         </nav>
         <div className="flex items-center gap-2">
-          <WhatsAppCta ctx={ctx} className="btn btn-sm"><span className="hidden sm:inline">Chat on&nbsp;</span>WhatsApp</WhatsAppCta>
+          {/* one label element: the button's flex gap would otherwise split "Chat on" from "WhatsApp" */}
+          <WhatsAppCta ctx={ctx} className="btn btn-sm"><span><span className="hidden sm:inline">Chat on&nbsp;</span>WhatsApp</span></WhatsAppCta>
           {/* Mobile menu: native <details>, works without JavaScript */}
           <details className="menu xl:hidden">
             <summary aria-label="Menu">Menu</summary>

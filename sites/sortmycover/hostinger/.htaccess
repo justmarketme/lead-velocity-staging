@@ -30,6 +30,11 @@ RewriteRule ^learn/how-sortmycover-works\.html$ /learn/how-sortmycover-works/ [L
 RewriteRule ^learn/life-events-that-change-what-you-need\.html$ /learn/life-events/ [L,R=301]
 RewriteRule ^index\.html$ / [L,R=301]
 RewriteRule ^learn/index\.html$ /learn/ [L,R=301]
+# apex: the calendar file (/c/<booking_id>) and join link (/j/<booking_id>) in W05's WhatsApp and email messages are served by n8n (QSA keeps ?k=)
+RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
+RewriteRule ^c/([^/]+)/?$ https://n8n.sortmycover.co.za/webhook/w05-ics-get/c/$1 [R=302,L,QSA]
+RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
+RewriteRule ^j/([^/]+)/?$ https://n8n.sortmycover.co.za/webhook/w05-join-get/j/$1 [R=302,L,QSA]
 # apex: campaign pages live on their own host
 RewriteCond %{HTTP_HOST} ^sortmycover\.co\.za$ [NC]
 RewriteRule ^(?:_c/)?adviser-conversation/?$ https://adviser-conversation.sortmycover.co.za/ [L,R=307]

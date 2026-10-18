@@ -180,11 +180,12 @@ export function JourneyScroll({ steps }: { steps: Step[] }) {
         ))}
       </ol>
       <div className="hx-sticky" aria-hidden="true">
+        {/* caption above the phone: below it, it sat under the floating WhatsApp launcher where "See how it works" lands */}
+        <p className="hx-sticky-cap">Illustration. Names and times are examples.</p>
         <div className="ph-frame ph-big">
           <span className="ph-notch" />
           {steps.map((_, i) => <div key={i} data-screen={i} className="ph-layer" hidden={i !== cur}><Screen i={i} /></div>)}
         </div>
-        <p className="hx-sticky-cap">Illustration. Names and times are examples.</p>
       </div>
     </div>
   );

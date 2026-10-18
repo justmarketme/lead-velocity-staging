@@ -44,6 +44,10 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const [adsBefore, setAdsBefore] = useState(false);
   const [nudge, setNudge] = useState(false);
   const [cal, setCal] = useState<ChatContext | null>(null);
+  /* Phones: the launcher waits until the visitor has scrolled half a screen (the header's WhatsApp button is in view at the top),
+     so on the first screen it does not sit over text such as a guide's short answer. Once the panel has been opened it stays. */
+  const [atTop, setAtTop] = useState(true);
+  const [used, setUsed] = useState(false);
   const calClose = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
@@ -51,8 +55,15 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const hid = useId();
   const c = ctx ?? base;
 
-  const show = useCallback((next: ChatContext | null) => { setCtx(next); setNudge(false); setOpen(true); }, []);
+  const show = useCallback((next: ChatContext | null) => { setCtx(next); setNudge(false); setOpen(true); setUsed(true); }, []);
   const hide = useCallback(() => { setOpen(false); launcher.current?.focus(); }, []);
+
+  useEffect(() => {
+    const on = () => setAtTop(window.scrollY < window.innerHeight / 2);
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
 
   useEffect(() => {
     const on = (e: Event) => show((e as CustomEvent<ChatContext>).detail ?? null);
@@ -97,7 +108,9 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
 
   const who = c.wills ? provider.name : "one authorised adviser";
   return (
-    <div className="chat" data-chat>
+    <div className="chat" data-chat data-rest={atTop && !used ? "" : undefined}>
+      {/* phones: dims the page behind the panel; a tap on it closes the panel like the close button (hidden on wider screens) */}
+      {open && <div className="chat-backdrop" aria-hidden="true" onClick={hide} />}
       {open && (
         <div ref={panel} id="chat-panel" className="chat-panel" role="dialog" aria-modal="false" aria-labelledby={hid}>
           <div className="chat-top">

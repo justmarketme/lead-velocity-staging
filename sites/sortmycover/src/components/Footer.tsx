@@ -11,7 +11,8 @@ function IdentityBlock() {
       <p><strong>{company.legal_name}</strong> trading as <strong>{company.trading_as}</strong></p>
       <p>Registration number {company.registration}</p>
       <p>{company.address_lines.join(", ")}</p>
-      <p><a href={phoneHref}>{company.phone_display}</a> · <a href={"mailto:" + company.email}>{company.email}</a></p>
+      {/* the gap separates phone and email only when they share a line; a typed "·" was left dangling when the email wrapped */}
+      <p className="flex flex-wrap gap-x-5"><a href={phoneHref}>{company.phone_display}</a><a href={"mailto:" + company.email}>{company.email}</a></p>
     </address>
   );
 }
@@ -20,7 +21,7 @@ export function Footer() {
   // The wills and estate section makes no fee statement (the will provider's fee arrangement with SortMyCover is not settled).
   const wills = useLocation().pathname.startsWith("/wills/");
   return (
-    <footer className="site-footer py-8 mt-12" data-footer>
+    <footer className="site-footer pt-8 mt-12" data-footer>
       <div className="wrap grid gap-6 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr]">
         <div className="grid gap-3 content-start">
           <Wordmark plain />
@@ -75,7 +76,7 @@ export function Footer() {
 export function CampaignFooter({ feeLine = true }: { feeLine?: boolean }) {
   const links: [string, string][] = [["Privacy", "/privacy/"], ["Terms", "/terms/"], ["How we make money", "/how-we-make-money/"], ["Complaints", "/complaints/"], ["PAIA manual", "/paia/"], ["Opt out of ad measurement", "/privacy/#opt-out"]];
   return (
-    <footer className="site-footer py-8" data-footer>
+    <footer className="site-footer pt-8" data-footer>
       <div className="wrap grid gap-4">
         <Wordmark plain />
         <IdentityBlock />

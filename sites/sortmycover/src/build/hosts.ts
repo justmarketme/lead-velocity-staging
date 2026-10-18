@@ -111,6 +111,11 @@ export function htaccess(): string {
   p(`RewriteRule ^(.*)$ ${site.site_url}/$1 [L,R=301]`);
   p("# old .html URLs");
   for (const r of OLD_URL_MAP) p(`RewriteRule ^${esc(r.from.replace(/^\//, ""))}$ ${r.to} [L,R=301]`);
+  p("# apex: the calendar file (/c/<booking_id>) and join link (/j/<booking_id>) in W05's WhatsApp and email messages are served by n8n (QSA keeps ?k=)");
+  p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);
+  p(`RewriteRule ^c/([^/]+)/?$ ${N8N}/webhook/w05-ics-get/c/$1 [R=302,L,QSA]`);
+  p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);
+  p(`RewriteRule ^j/([^/]+)/?$ ${N8N}/webhook/w05-join-get/j/$1 [R=302,L,QSA]`);
   p("# apex: campaign pages live on their own host");
   for (const a of campaignAngles()) {
     p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);

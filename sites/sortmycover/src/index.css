@@ -67,7 +67,8 @@
 .hero-band > * { position: relative; }
 .eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; color: var(--sm-amber); }
 
-.site-footer { background: var(--sm-charcoal); color: #c3c8ce; font-size: 14px; }
+/* padding-bottom = safe area: the page's last lines clear the floating WhatsApp launcher (16px offset + 60px + its 6px ring, plus room) */
+.site-footer { background: var(--sm-charcoal); color: #c3c8ce; font-size: 14px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 .site-footer a { color: #e4e7ea; display: inline-flex; align-items: center; min-height: 44px; }
 .site-footer h2 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
 .site-footer address { font-style: normal; }
@@ -327,7 +328,9 @@ legend { padding: 0; width: 100%; }
 .smc-home .svc-card>*:not(.svc-photo){margin-left:28px;margin-right:28px}
 .smc-home .svc-photo{height:270px;border-radius:0;margin-bottom:14px}
 .smc-home .svc-card h2{font-size:clamp(24px,2.5vw,34px);letter-spacing:-.025em}
-.smc-home .svc-who{max-width:56ch}
+.smc-home .svc-who{max-width:56ch;color:var(--sm-text-muted)}
+/* white cards: the dark-card colours above (#d3d7dc, #c3c8ce, yellow text) fail contrast on white; muted is 5.8:1, charcoal for the kicker (no yellow text on light) */
+.smc-home .svc-fine{color:var(--sm-text-muted)}.smc-home .svc-kicker{color:var(--sm-charcoal)}
 .smc-home .svc-list{display:flex;flex-wrap:wrap;gap:4px 12px}
 .smc-home .svc-list a{min-height:31px}
 .home-editorial{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(25px,5vw,80px);align-items:center;margin-bottom:28px}
@@ -390,9 +393,14 @@ legend { padding: 0; width: 100%; }
 .chat-go{width:100%}
 .chat-go[aria-disabled=true]{opacity:.55}
 .chat-fine{margin:0;font-size:12px;line-height:1.5;color:var(--sm-text-muted);text-align:center}
+.chat-backdrop{display:none}
 @media(max-width:640px){
-  .chat-launch{width:60px;padding:0;justify-content:center}
+  .chat-launch{width:60px;padding:0;justify-content:center;transition:transform .25s,visibility .25s}
   .chat-launch-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  /* resting (first half screen, never opened): parked below the screen edge, slides up once the visitor scrolls */
+  .chat[data-rest] .chat-launch{visibility:hidden;transform:translateY(110px)}
+  /* same charcoal scrim as the calendar dialog; z-index -1 keeps it under the panel and launcher, inside .chat's layer */
+  .chat-backdrop{display:block;position:fixed;inset:0;z-index:-1;background:rgb(31 41 51 / .55)}
 }
 .prose-sm .cta-quiet p.cta-expect{margin:16px 0 0;font-size:14px;color:#a9afb7}
 /* desktop calendar (Cal.com): shown only on wide screens with a mouse; phones and tablets book on WhatsApp */

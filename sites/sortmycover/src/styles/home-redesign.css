@@ -68,10 +68,10 @@
 .hx-step-n{position:relative;z-index:1;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;background:#2b3845;border:2px solid #ffffff2e;color:#fff}
 .hx-steps li.is-on .hx-step-n{background:var(--sm-amber);border-color:var(--sm-amber);color:#2a1b02}
 .hx-steps h3{font-size:clamp(22px,2.4vw,30px);letter-spacing:-.03em;margin:8px 0;color:#fff}
-.hx-steps p{margin:0;max-width:38ch;color:#cfd4d9;line-height:1.6}
+.hx-steps h3+p{margin:0;max-width:38ch;color:#cfd4d9;line-height:1.6}/* step text only: the inline phone mock-ups (phones) sit inside the same li */
 .hx-inline-phone{display:none}
 .hx-sticky{position:sticky;top:96px}
-.hx-sticky-cap{font-size:12px;color:#a9afb7;text-align:center;margin-top:12px}
+.hx-sticky-cap{font-size:12px;color:#a9afb7;text-align:center;margin:0 0 12px}
 .ph-frame{position:relative;border-radius:40px;background:#0f151b;padding:12px;box-shadow:0 40px 80px #0000005c,inset 0 0 0 2px #ffffff14}
 .ph-big{height:600px}
 .ph-notch{position:absolute;top:20px;left:50%;width:90px;height:22px;margin-left:-45px;border-radius:20px;background:#000;z-index:2}
