@@ -125,3 +125,17 @@
   .toc-sum::after,.toc-now{display:none}
   .toc:not(.toc-on) .toc-box{visibility:hidden}
 }
+
+/* photos on every page (imagery.ts PAGE_SCENES / ARTICLE_SCENES), card thumbnails and the home photo band */
+.page-photo{margin-top:4px}
+.card-link.card-thumb{display:flex;flex-direction:column;gap:10px}
+.card-thumb>img{display:block;width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:12px;background:#ecedee}
+.card-thumb .card-text{display:flex;flex-direction:column;gap:4px}
+@media (min-width:640px){.prose-sm .card-thumb{flex-direction:row;align-items:center;gap:16px}.prose-sm .card-thumb>img{width:168px;flex:none}}
+@media (max-width:639px){.prose-sm .card-thumb>img{aspect-ratio:16/9}}
+.home-is{display:grid;gap:28px}
+@media (min-width:768px){.home-is{grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:center;gap:48px}}
+.home-band-photo{margin:0;border-radius:22px;overflow:hidden;aspect-ratio:3/2;background:#ecedee;box-shadow:0 26px 50px #1f293324}
+.home-band-photo img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 30%}
+.rf-item{display:flex;align-items:center;gap:12px}
+.rf-thumb{width:56px;height:56px;flex:none;border-radius:12px;object-fit:cover;background:#ecedee}

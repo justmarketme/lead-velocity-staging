@@ -9,7 +9,7 @@ import { FaqItem, Reveal } from "@/components/Interactive";
 import { HeroMosaic, JourneyScroll, MomentPicker, Split, ValueStack, useHomeGestures } from "@/components/HomeMotion";
 import { Inline } from "@/lib/inline";
 import { HOME_FAQ } from "@/content/shared";
-import { SCENES } from "@/content/imagery";
+import { SCENES, ARTICLE_SCENES } from "@/content/imagery";
 import { articlePath, articlesForHub, COVER_HUB, WILLS_HUB } from "@/content";
 
 /* Spec D.1, redesigned 16 Oct 2026 around the funnel research (checklist/creative-intelligence/master-brief.md section 5):
@@ -43,6 +43,12 @@ const JOURNEY = [
   { n: "03", title: "A time that suits", body: "Pick a slot from the message. Move or cancel it the same way, at no cost." },
   { n: "04", title: "A 30-minute conversation", body: "By video, WhatsApp or phone. The adviser explains how they are paid. Nothing is decided on the call." },
 ];
+
+/** A guide's own photo as a small thumbnail (decorative: the link text says where it goes). */
+function Thumb({ slug }: { slug: string }) {
+  const sc = ARTICLE_SCENES[slug];
+  return sc ? <img className="rf-thumb" src={sc.src} alt="" width={sc.w} height={sc.h} loading="lazy" /> : <span className="rf-thumb" aria-hidden="true" />;
+}
 
 export default function Home() {
   const cover = ordered(articlesForHub(COVER_HUB), COVER_ORDER);
@@ -140,7 +146,7 @@ export default function Home() {
         </div>
         <Reveal className="home-guide-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {cover.map((m) => (
-            <Link key={m.slug} to={articlePath(m.slug)} className="card-link card-tall" data-reveal><b>{COVER_NAMES[m.slug] ?? m.title}</b><span>{COVER_LINES[m.slug] ?? m.description}</span><i aria-hidden="true">Read →</i></Link>
+            <Link key={m.slug} to={articlePath(m.slug)} className="card-link card-tall card-thumb" data-reveal>{ARTICLE_SCENES[m.slug] && <img src={ARTICLE_SCENES[m.slug].src} alt="" width={ARTICLE_SCENES[m.slug].w} height={ARTICLE_SCENES[m.slug].h} loading="lazy" />}<b>{COVER_NAMES[m.slug] ?? m.title}</b><span>{COVER_LINES[m.slug] ?? m.description}</span><i aria-hidden="true">Read →</i></Link>
           ))}
         </Reveal>
         <p className="mt-4 max-w-prose text-[15px] text-muted-foreground">What each one is, what it is not, and questions to ask an adviser. Sourced from ASISA, the FSCA and the Policyholder Protection Rules. Information, not advice.</p>
@@ -160,14 +166,16 @@ export default function Home() {
           <p className="mb-5 max-w-prose text-[15px] text-muted-foreground" data-disclosure>Every fact in these guides is a statement {provider.name} publishes, with the source and date on each page. {PROVIDER_ROLE_LINE}</p>
           <Reveal className="home-guide-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {wills.map((m) => (
-              <Link key={m.slug} to={articlePath(m.slug)} className="card-link" data-reveal><b>{m.title}</b><span>{m.description}</span></Link>
+              <Link key={m.slug} to={articlePath(m.slug)} className="card-link card-thumb" data-reveal>{ARTICLE_SCENES[m.slug] && <img src={ARTICLE_SCENES[m.slug].src} alt="" width={ARTICLE_SCENES[m.slug].w} height={ARTICLE_SCENES[m.slug].h} loading="lazy" />}<b>{m.title}</b><span>{m.description}</span></Link>
             ))}
           </Reveal>
         </div>
       </section>
 
       <section className="bg-muted py-12" aria-labelledby="h-is">
-        <div className="wrap grid gap-8 md:grid-cols-2" data-disclosure>
+        <div className="wrap home-is">
+        <figure className="home-band-photo"><img src={SCENES.pHomeWhatWeAre.src} alt={SCENES.pHomeWhatWeAre.alt} width={SCENES.pHomeWhatWeAre.w} height={SCENES.pHomeWhatWeAre.h} loading="lazy" /></figure>
+        <div className="grid gap-6" data-disclosure>
           <div>
             <h2 id="h-is" className="text-[26px] mb-3">What SortMyCover is, and is not</h2>
             <p><strong>Is:</strong> an introduction and booking service run by Lead Velocity (Pty) Ltd. It costs you nothing. Advisers pay it a fee that does not depend on what you buy.</p>
@@ -179,6 +187,7 @@ export default function Home() {
             <p><Link className="underline" to="/how-we-make-money/">Read how we make money</Link>.</p>
           </div>
         </div>
+        </div>
       </section>
 
       <section className="wrap py-12 grid gap-8 md:grid-cols-2" aria-labelledby="h-adv">
@@ -189,15 +198,15 @@ export default function Home() {
         </div>
         <div>
           <h2 className="text-[26px] mb-3">Read first</h2>
-          <ul className="list-none p-0 m-0 grid gap-2">
-            <li><Link className="underline" to="/learn/what-happens-on-a-30-minute-call/">What happens on the call</Link></li>
-            <li><Link className="underline" to="/learn/how-to-check-an-adviser/">How to check an adviser</Link></li>
-            <li><Link className="underline" to="/learn/what-happens-to-your-details/">What happens to your details</Link></li>
-            <li><Link className="underline" to={articlePath("life-cover-and-a-home-loan")}>Life cover and a home loan: what the paperwork says</Link></li>
-            <li><Link className="underline" to={articlePath("income-protection-vs-disability-cover")}>Income protection vs disability cover</Link></li>
-            <li><Link className="underline" to={articlePath("questions-to-ask-a-financial-adviser")}>Questions to ask a financial adviser</Link></li>
-            <li><Link className="underline" to={articlePath("what-is-credit-life-insurance")}>Credit life insurance on a bond, explained</Link></li>
-            <li><Link className="underline" to={articlePath("estate-duty-south-africa")}>Estate duty in South Africa (and why there is no inheritance tax)</Link></li>
+          <ul className="list-none p-0 m-0 grid gap-2 rf-list">
+            <li className="rf-item"><Thumb slug="what-happens-on-a-30-minute-call" /><Link className="underline" to="/learn/what-happens-on-a-30-minute-call/">What happens on the call</Link></li>
+            <li className="rf-item"><Thumb slug="how-to-check-an-adviser" /><Link className="underline" to="/learn/how-to-check-an-adviser/">How to check an adviser</Link></li>
+            <li className="rf-item"><Thumb slug="what-happens-to-your-details" /><Link className="underline" to="/learn/what-happens-to-your-details/">What happens to your details</Link></li>
+            <li className="rf-item"><Thumb slug="life-cover-and-a-home-loan" /><Link className="underline" to={articlePath("life-cover-and-a-home-loan")}>Life cover and a home loan: what the paperwork says</Link></li>
+            <li className="rf-item"><Thumb slug="income-protection-vs-disability-cover" /><Link className="underline" to={articlePath("income-protection-vs-disability-cover")}>Income protection vs disability cover</Link></li>
+            <li className="rf-item"><Thumb slug="questions-to-ask-a-financial-adviser" /><Link className="underline" to={articlePath("questions-to-ask-a-financial-adviser")}>Questions to ask a financial adviser</Link></li>
+            <li className="rf-item"><Thumb slug="what-is-credit-life-insurance" /><Link className="underline" to={articlePath("what-is-credit-life-insurance")}>Credit life insurance on a bond, explained</Link></li>
+            <li className="rf-item"><Thumb slug="estate-duty-south-africa" /><Link className="underline" to={articlePath("estate-duty-south-africa")}>Estate duty in South Africa (and why there is no inheritance tax)</Link></li>
           </ul>
         </div>
       </section>

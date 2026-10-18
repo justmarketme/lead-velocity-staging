@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PAGE_SCENES } from "@/content/imagery";
 import { Link, useLocation } from "react-router-dom";
 import { CalendarCta, WhatsAppCta } from "./ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
@@ -114,6 +115,7 @@ export default function PageFrame({ title, description, path, h1, accent, lede, 
       {h1 ? <PageHead crumbs={crumbs} h1={h1} accent={accent} lede={lede} meta={meta} /> : crumbs && crumbs.length > 1 && <div className="wrap-narrow pt-8"><Crumbs items={crumbs} /></div>}
       <div className="wrap-narrow page-body">
         <div className="prose-sm">
+          {PAGE_SCENES[path] && <figure className="hub-photo page-photo"><img src={PAGE_SCENES[path].src} alt={PAGE_SCENES[path].alt} width={PAGE_SCENES[path].w} height={PAGE_SCENES[path].h} loading="eager" fetchPriority="high" /></figure>}
           {children}
           {cta && <Cta kind={ctaKind} heading={ctaHeading} />}
         </div>

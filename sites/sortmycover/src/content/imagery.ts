@@ -42,19 +42,53 @@ export const SCENES = {
   lAdviser: s("learn-adviser", "A couple on a video call with notes beside them", "Coloured South African couple, early 40s, on a video call at a laptop in a Mitchells Plain living room, notebook open, listening, afternoon light", 1264, 848),
   /* hub pages */
   hubCover: s("hub-cover", "A couple walking in the park", "Black and white mixed South African couple, about 40, walking in Delta Park with a pram, Johannesburg"),
+  /* the cycle-1 ads (Jono, 18 Oct 2026): the article and the campaign page an ad leads to show the ad's own photo, so a reader
+     arriving from Facebook or Instagram sees the same picture. Cropped 3:2 from checklist/creative/ads/cycle1. */
+  adNewBond: s("ad-new-bond", "A family at the front door of their new home", "Black South African couple, late 30s, with their daughter at the door of a new house, the new-bond ad photo", 896, 597),
+  adSalaryStops: s("ad-salary-stops", "A mother getting her son ready for school", "Coloured South African mother, about 40, fixing her son's school blazer at the front door, Table Mountain behind, the salary-stops ad photo", 1440, 960),
+  adOwners: s("ad-owners-directors", "A business owner in his workshop", "White South African man, about 48, owner of a joinery workshop, checking a tablet while his team works, the owners-directors ad photo", 1440, 960),
+  adAdviser: s("ad-adviser-conversation", "A man on a phone call at home", "Indian South African man, about 40, smiling on a phone call at his kitchen counter with a notebook, the adviser-conversation ad photo", 1440, 960),
+  /* every other guide: stills from the same four ad shoots, so the same households carry through the site */
+  aLifeCover: s("a-life-cover", "A family laughing at the dinner table", "Indian South African family, parents about 40 and their son, at dinner", 1440, 960),
+  aIncomeProtection: s("a-income-protection", "A working mother with her coffee before the day starts", "Coloured South African mother, about 40, in work clothes with a mug in her kitchen", 1440, 960),
+  aSevereIllness: s("a-severe-illness", "A mother and son together on the couch", "Coloured South African mother, about 40, on the couch with her son reading", 1440, 960),
+  aDisability: s("a-disability", "A business owner in his bakkie checking his phone", "White South African man, about 48, in the driver's seat of his work bakkie", 1440, 960),
+  aCreditLife: s("a-credit-life", "A couple going through papers at home", "Black South African couple, late 30s, reading papers at a dining table in their new house", 1440, 960),
+  aCoverGap: s("a-cover-gap", "A family looking at a laptop together", "White South African family, parents about 48 and their teenage daughter, at a laptop at home", 1440, 960),
+  aPayslip: s("a-payslip", "A man reading a document at home", "Black South African man, late 30s, reading a sheet of paper at a table, moving boxes behind", 1440, 960),
+  aHowItWorks: s("a-how-it-works", "A woman reading a message on her phone", "Black South African woman, late 30s, on her couch reading a message on her phone", 1440, 960),
+  aTheCall: s("a-the-call", "A couple on a video call at home", "Black South African couple, late 30s, on a video call on a laptop in their living room", 1440, 960),
+  aWhatToBring: s("a-what-to-bring", "A man on a video call with a notebook", "Indian South African man, about 40, on a video call at his kitchen counter with a notebook", 1440, 960),
+  aCheckAdviser: s("a-check-adviser", "A man listening on a video call", "White South African man, about 48, listening on a video call at his desk", 1440, 960),
+  aYourDetails: s("a-your-details", "A man reading a message on his phone", "Indian South African man, about 40, reading his phone on the sofa", 1440, 960),
+  aWhatAWillDoes: s("a-what-a-will-does", "A mother kissing her son goodbye at the door", "Coloured South African mother, about 40, kissing her son at the front door before school", 1440, 960),
+  aGuardians: s("a-guardians", "A father carrying his daughter on his shoulders", "Black South African family, late 30s, the daughter on her father's shoulders in the living room", 1440, 960),
+  aEstateCosts: s("a-estate-costs", "A woman on a video call with notes", "Coloured South African woman, about 40, on a video call at a laptop with a notebook", 1440, 960),
+  aEstateAdmin: s("a-estate-admin", "A woman working at a laptop in an office", "Coloured South African woman, about 40, at a laptop in a bright office", 1440, 960),
+  pFaq: s("p-faq", "A man reading his phone at the kitchen counter", "Indian South African man, about 40, reading a message at his kitchen counter", 1440, 960),
+  pAdvisers: s("p-advisers", "A man at his desk before a call", "Black South African man, about 50, at a desk with a laptop and bookshelves", 896, 597),
+  pHomeWhatWeAre: s("p-home-what-we-are", "A business owner opening his workshop", "White South African man, about 48, pushing up the door of his workshop at sunrise", 1440, 960),
   hubWills: s("hub-wills", "A family looking at old photographs", "White South African family across three generations looking at an old photo album at a dining table, Stellenbosch"),
 } satisfies Record<string, SceneImage>;
 
 /** The four hero mosaic tiles, in reading order. */
 export const HERO_MOSAIC: SceneImage[] = [SCENES.heroKitchen, SCENES.heroBaby, SCENES.heroMove, SCENES.heroMorning];
 
-/** Campaign slug -> its own scene. */
+/** The four angles with a paid ad show the ad's own photo on their campaign page and on the guide the ad links to. */
+export const AD_SCENES: Record<string, { scene: SceneImage; article: string }> = {
+  "new-bond": { scene: SCENES.adNewBond, article: "life-cover-and-a-home-loan" },
+  "salary-stops": { scene: SCENES.adSalaryStops, article: "income-protection-vs-disability-cover" },
+  "owners-directors": { scene: SCENES.adOwners, article: "cover-for-business-owners-and-directors" },
+  "adviser-conversation": { scene: SCENES.adAdviser, article: "questions-to-ask-a-financial-adviser" },
+};
+
+/** Campaign slug -> its scene. */
 export const CAMPAIGN_SCENES: Record<string, SceneImage> = {
-  "adviser-conversation": SCENES.cAdviser,
-  "new-bond": SCENES.cNewBond,
-  "salary-stops": SCENES.cSalaryStops,
+  "adviser-conversation": SCENES.adAdviser,
+  "new-bond": SCENES.adNewBond,
+  "salary-stops": SCENES.adSalaryStops,
   "cover-gap": SCENES.cCoverGap,
-  "owners-directors": SCENES.cOwners,
+  "owners-directors": SCENES.adOwners,
   "new-baby": SCENES.cNewBaby,
   "children-guardian": SCENES.cGuardian,
   "will-myth": SCENES.cWillMyth,
@@ -62,10 +96,40 @@ export const CAMPAIGN_SCENES: Record<string, SceneImage> = {
   "where-is-the-will": SCENES.cWhereWill,
 };
 
-/** Article slug -> its own scene (only the guides the paid ads link to carry a photo; the rest keep the text layout). */
+/** Article slug -> its photo. Every guide has one (Jono, 18 Oct 2026). The four ad guides use the ad's photo. */
 export const ARTICLE_SCENES: Record<string, SceneImage> = {
-  "life-cover-and-a-home-loan": SCENES.lHomeLoan,
-  "income-protection-vs-disability-cover": SCENES.lIncome,
-  "cover-for-business-owners-and-directors": SCENES.lOwners,
-  "questions-to-ask-a-financial-adviser": SCENES.lAdviser,
+  "life-cover-and-a-home-loan": SCENES.adNewBond,
+  "income-protection-vs-disability-cover": SCENES.adSalaryStops,
+  "cover-for-business-owners-and-directors": SCENES.adOwners,
+  "questions-to-ask-a-financial-adviser": SCENES.adAdviser,
+  "life-cover": SCENES.aLifeCover,
+  "income-protection": SCENES.aIncomeProtection,
+  "severe-illness-cover": SCENES.aSevereIllness,
+  "disability-cover": SCENES.aDisability,
+  "life-events": SCENES.cNewBond,
+  "what-is-credit-life-insurance": SCENES.aCreditLife,
+  "what-is-a-life-cover-gap": SCENES.aCoverGap,
+  "how-to-read-your-payslips-cover-line": SCENES.aPayslip,
+  "how-sortmycover-works": SCENES.aHowItWorks,
+  "what-happens-on-a-30-minute-call": SCENES.aTheCall,
+  "what-to-bring-to-your-call": SCENES.aWhatToBring,
+  "how-to-check-an-adviser": SCENES.aCheckAdviser,
+  "what-happens-to-your-details": SCENES.aYourDetails,
+  "how-to-complain": SCENES.lOwners,
+  "estate-duty-south-africa": SCENES.lHomeLoan,
+  "what-a-will-does": SCENES.aWhatAWillDoes,
+  "guardians-and-childrens-trusts": SCENES.aGuardians,
+  "estate-costs-and-a-will": SCENES.aEstateCosts,
+  "estate-administration": SCENES.aEstateAdmin,
+  "the-will-appointment": SCENES.lAdviser,
+  "where-to-keep-a-will": SCENES.lIncome,
+};
+
+/** Page path -> its photo, shown under the page heading by PageFrame. */
+export const PAGE_SCENES: Record<string, SceneImage> = {
+  "/how-it-works/": SCENES.cAdviser,
+  "/about/": SCENES.cOwners,
+  "/advisers/": SCENES.pAdvisers,
+  "/contact/": SCENES.cSalaryStops,
+  "/faq/": SCENES.pFaq,
 };
