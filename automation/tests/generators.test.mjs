@@ -50,6 +50,11 @@ test('W03 keeps the I-40a shape: W07 sub-call, loop guard, no public POST webhoo
   assert.equal(posts.length, 0, 'W03 has no POST webhook (inbound arrives via the WhatsApp trigger / router)');
 });
 
+test('W39: automation/build-w39.mjs regenerates the committed file byte for byte', () => {
+  const out = regenerate('automation/build-w39.mjs', ['W39']);
+  assertSame('W39', out.W39, 'automation/build-w39.mjs');
+});
+
 test('W16-W19 + W25: automation/billing/build-workflows.mjs regenerates the committed files byte for byte', () => {
   const ids = ['W16', 'W17', 'W18', 'W19', 'W25'];
   const out = regenerate('automation/billing/build-workflows.mjs', ids);
