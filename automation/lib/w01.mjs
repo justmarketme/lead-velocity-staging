@@ -119,7 +119,7 @@ export const productOf = (angle, requested = null) =>
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
 export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
 // conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
-// 'start_page' (18 Oct 2026): the /start/ page link is out and the lead is answering there (W03 / W38).
+// 'start_page' (18 Oct 2026): the /start/ page link is out and the lead is answering there (W03 / W39).
 export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow', 'start_page']);
 const METHODS = new Set(['teams', 'zoom', 'meet', 'whatsapp_call', 'phone']);
 const METHOD_ALIAS = { google_meet: 'meet', whatsapp: 'whatsapp_call' };
@@ -557,7 +557,7 @@ export function capiLead(row) {
  * W03 hand-off ("W01 Lead core", kind route_and_first_touch): the CTWA lead row already exists (consent at the tap,
  * qualified by taps), or a page / lead-ad lead W01 held at intake. Route it and start the first touch; a held page /
  * lead-ad lead gets its CAPI Lead here (I-49c). Idempotent: an already-routed lead is not re-routed.
- * first_touch: false (W38, the /start/ page, 18 Oct 2026): route exactly the same way but start no W06 first touch, because
+ * first_touch: false (W39, the /start/ page, 18 Oct 2026): route exactly the same way but start no W06 first touch, because
  * the page shows the adviser and the slots itself (the intro card follows the booking: W05 -> W06 op booking). A held tier-C
  * lead still gets its one notice.
  */

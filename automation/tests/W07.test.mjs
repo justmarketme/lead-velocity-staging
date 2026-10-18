@@ -876,3 +876,16 @@ test('typing dots: Twilio channel in capitals, shown on arrival before anything 
   const gate = JSON.stringify(nd('Show typing dots now? (Twilio)').parameters);
   for (const k of ["WHATSAPP_PROVIDER === 'twilio'", "'W15'", "'paused'", "origin === 'w03'"]) assert.ok(gate.includes(k), k);
 });
+
+test('/start/ page pending (conv_state start_page): every chat message goes back to W03 (tap path fallback); STOP still wins; an age the page accepted is never closed later', () => {
+  const ld = { ...mkLead(L01), conv_state: { state: 'start_page' } };
+  const r = (msg) => W.routeInbound({ from: ld.phone, text: '', ...msg }, { lead: ld, broker_numbers: new Set([B.adviser_whatsapp]) }).route;
+  assert.equal(r({ text: 'Is this legit?' }), 'W03');
+  assert.equal(r({ payload: 'whatever' }), 'W03');
+  assert.equal(r({ text: 'STOP' }), 'W15');
+  assert.equal(W.routeInbound({ from: ld.phone, text: 'hi', origin: 'w03' }, { lead: ld }).route, 'nlu', 'loop guard unchanged');
+  const nlu = { intent: 'other', topics: [], slots: { age_band: '<35' }, confidence: 0.9 };
+  assert.deepEqual(decide('unbooked', nlu, {}, {}).actions, ['close_oob'], 'unchanged without the flag');
+  assert.notDeepEqual(decide('unbooked', nlu, {}, { age_accepted: true }).actions, ['close_oob']);
+  assert.match(WF.nodes.find((n) => n.name === 'Parse NLU -> decide() -> plan').parameters.jsCode, /age_accepted: cs\.age_accepted === true/);
+});

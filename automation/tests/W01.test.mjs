@@ -1012,7 +1012,7 @@ test('quiz v2: the band arrives later on the qualify_budget template -> recorded
   assert.equal(hr.action, 'routed'); assert.equal(hr.first_touch.workflow, 'W06');
 });
 
-test('W38 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the same way with no W06 first touch; a held tier-C lead still gets its notice', async () => {
+test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the same way with no W06 first touch; a held tier-C lead still gets its notice', async () => {
   const lead = { id: '00000000-0000-4000-8000-0000000a0c38', brand_id: 'smc', origin: 'ctwa', phone: '+27600000178', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' };
   const a = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
   const b = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW, first_touch: false });
