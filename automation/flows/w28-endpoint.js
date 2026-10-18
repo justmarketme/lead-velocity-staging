@@ -211,6 +211,12 @@ function askEmailMessage({ to, method, broker = {}, lead = {}, delegate = null, 
   return { lang, message: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace('+', ''), type: 'text', text: { body } } };
 }
 
+/** Grey line under each time row. Twilio requires an item description and otherwise repeats the title (Jono, 18 Oct 2026). */
+function rowDescription(broker = {}) {
+  const first = broker.adviser_first_name || String(broker.adviser_name || '').split(' ')[0];
+  return (first ? `30 minutes with ${first}` : '30-minute call').slice(0, 72);
+}
+
 /** Fallback ladder step 2 (0.3 #3, the launch path): interactive list of the next 10 slots, spread across days. */
 function listFallback(broker, slots, offerSpread, to, { delegate = null, lead = {}, lines = null } = {}) {
   const picks = offerSpread(slots, LIST_ROWS);
@@ -222,7 +228,7 @@ function listFallback(broker, slots, offerSpread, to, { delegate = null, lead = 
       type: 'list',
       body: { text: oneBody('TZ', { delegate, lead, lines, introKey: 'SLOTS_INTRO', vars: { adviser_first: a } }).body },
       footer: { text: 'Reply STOP to opt out' },
-      action: { button: 'See times', sections: [{ title: 'Next free times', rows: picks.map((s) => ({ id: `slot_${s.start}`, title: shortLabel(s.start) })) }] },
+      action: { button: 'See times', sections: [{ title: 'Next free times', rows: picks.map((s) => ({ id: `slot_${s.start}`, title: shortLabel(s.start), description: rowDescription(broker) })) }] },
     },
   };
 }
