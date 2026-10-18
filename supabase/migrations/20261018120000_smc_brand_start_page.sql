@@ -10,3 +10,12 @@ BEGIN
   END IF;
 END $$;
 COMMENT ON COLUMN public.brands.start_page IS 'SMC /start/ page switch (W03 call-to-action link, W39 API): off | on. Default off.';
+
+-- lead_activities.workflow: W36-W39 may write timeline rows. The 11 Oct check allowed W01-W35 only, so W37 (Cal.com) and
+-- W39 (the /start/ page API) rows were refused; W38 (the lead alert) writes none today but is allowed too (found by automation/tests/start-page.local.test.mjs). Widened, nothing else.
+ALTER TABLE public.lead_activities DROP CONSTRAINT IF EXISTS lead_activities_smc_checks;
+ALTER TABLE public.lead_activities ADD CONSTRAINT lead_activities_smc_checks CHECK (
+      (workflow IS NULL   OR workflow ~ '^(W(0[1-9]|[1-3][0-9])|console|portal)$')
+  AND (actor_type IS NULL OR actor_type IN ('system','admin','broker','lead'))
+  AND (lead_id IS NOT NULL OR broker_id IS NOT NULL)
+);
