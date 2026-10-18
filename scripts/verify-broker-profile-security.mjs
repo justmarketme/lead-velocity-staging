@@ -19,7 +19,7 @@ const sql=[file('supabase/tests/fixtures/broker-security-schema.sql'),
   fn('supabase/migrations/20261013160000_broker_bio_review_card_approval.sql','broker_decide_bio_suggestion'),
   'CREATE TRIGGER smc_brokers_guard BEFORE UPDATE ON public.brokers FOR EACH ROW EXECUTE FUNCTION public.smc_brokers_guard();',
   'CREATE TRIGGER broker_approved_items_guard BEFORE UPDATE OF bio_short,headshot_url ON public.brokers FOR EACH ROW EXECUTE FUNCTION public.broker_approved_items_guard();',
-  file('supabase/migrations/20261014143551_broker_profile_guard_generated_columns.sql'),
+  file('supabase/migrations/20261014143717_broker_profile_guard_generated_columns.sql'),
   file('supabase/tests/broker-profile-security.test.sql')].join('\n');
 try{
   // Local throwaway database; no passwords, accounts or terms for an external service.
