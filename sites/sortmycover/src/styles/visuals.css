@@ -123,5 +123,5 @@
   .toc-live .toc-box{box-shadow:none}
   .toc-sum{pointer-events:none}
   .toc-sum::after,.toc-now{display:none}
-  .toc-live:not(.toc-on) .toc-box{visibility:hidden}
+  .toc:not(.toc-on) .toc-box{visibility:hidden}
 }

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import ChatWidget, { WhatsAppCta } from "./ChatWidget";
 import { contextFor } from "@/lib/whatsapp";
@@ -13,7 +13,11 @@ const NO_MOTION = /^\/(privacy|terms|paia)\//;
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
+  const first = useRef(true);
   useEffect(() => {
+    // first load: the browser already placed the pre-rendered page; resetting here would yank a reader who started scrolling
+    // before the app finished loading back to the top
+    if (first.current) { first.current = false; return; }
     if (hash) { document.getElementById(hash.slice(1))?.scrollIntoView(); return; }
     window.scrollTo(0, 0);
   }, [pathname, hash]);
