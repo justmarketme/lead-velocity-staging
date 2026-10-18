@@ -119,7 +119,8 @@ export const productOf = (angle, requested = null) =>
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
 export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
 // conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
-export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow']);
+// 'start_page' (18 Oct 2026): the /start/ page link is out and the lead is answering there (W03 / W38).
+export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow', 'start_page']);
 const METHODS = new Set(['teams', 'zoom', 'meet', 'whatsapp_call', 'phone']);
 const METHOD_ALIAS = { google_meet: 'meet', whatsapp: 'whatsapp_call' };
 
@@ -556,8 +557,11 @@ export function capiLead(row) {
  * W03 hand-off ("W01 Lead core", kind route_and_first_touch): the CTWA lead row already exists (consent at the tap,
  * qualified by taps), or a page / lead-ad lead W01 held at intake. Route it and start the first touch; a held page /
  * lead-ad lead gets its CAPI Lead here (I-49c). Idempotent: an already-routed lead is not re-routed.
+ * first_touch: false (W38, the /start/ page, 18 Oct 2026): route exactly the same way but start no W06 first touch, because
+ * the page shows the adviser and the slots itself (the intro card follows the booking: W05 -> W06 op booking). A held tier-C
+ * lead still gets its one notice.
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named' } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
@@ -568,7 +572,8 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
   const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';
-  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null,
+    first_touch: first_touch === false ? null : { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
 }
 
 // ---------------------------------------------------------------------------------------------- 5b. tier C (under R750)

@@ -70,7 +70,7 @@ function buildW01() {
     'W01 Lead intake (web) - DRAFT pending GATE-TEST-W01 (automation-engineer). Logic: automation/lib/w01.mjs (tested by automation/tests/W01.test.mjs, which also checks this file).\n' +
     'Entry 1 POST /lead (landing page): screen (origin, honeypot, fill time, E.164, consent) -> Context (per-IP + per-number counters in webhook_events, latest lead with the same digits-only hash, suppression, brokers) -> Turnstile siteverify (fail mode per TURNSTILE_FAIL_MODE) -> guard -> Twilio Lookup only when no 30-day cached line type -> decide (landline/VoIP reject, 90-day merge, bands lt35/35_44/45_50/51plus + lt750/750_1250/1250plus, named-consent check, suppression, routing) -> one INSERT (lead + timeline) -> 200 with lead_token (CONTRACTS.md) -> CAPI Send Lead (ids only, never email) -> W06 First touch (fire-and-forget, < 60 s).\n' +
     'Entry 2 POST /lead/skip (X-Lead-Token): the page\'s "I\'ll pick on WhatsApp" -> W06 op skip (slots card at once).\n' +
-    'Entry 3 Execute Workflow "W01 Lead core": W02 { action: ingest, lead } (waits for { outcome, lead_id }) and W03 { kind: route_and_first_touch, lead_id } (routing written before W06 is called).\n' +
+    'Entry 3 Execute Workflow "W01 Lead core": W02 { action: ingest, lead } (waits for { outcome, lead_id }) and W03 { kind: route_and_first_touch, lead_id } (routing written before W06 is called); W38 (the /start/ page) adds first_touch: false (same routing, no W06 first touch).\n' +
     'Email is stored only when the chosen method needs an invite (teams/zoom/meet), purpose meeting_invite. Consent text stored verbatim with its version; registry mismatch logged (consent_audit). Out-of-band: stored with retention_delete_after = +24 h (W34 purge), never routed, never messaged. Tier C (budget under R750, 2026-10-11) is NOT out of band: routed only to a broker with accepts_low_budget, else held (held_low_budget) with one honest WhatsApp; entry 5 hands an admin-assigned lead (manual_low_budget) to W06 and closes one nobody took in 7 days.\n' +
     'Env: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation.', 400));
 
@@ -276,16 +276,18 @@ return out;`));
                    FROM public.brokers b
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
-                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers
+                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,
+       $2 <> 'false' AS first_touch
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
-    '={{ [$json.lead_id] }}'));
+    // first_touch: false = W38 (the /start/ page shows the slots itself): route the same way, no W06 first touch
+    "={{ [$json.lead_id, String($json.first_touch !== false)] }}"));
   n.push(code('Route (w01.routeExisting)', pos(3, 7), prelude('w01.mjs') +
 `const out = [];
 for (const it of $input.all()) {
-  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now() });
+  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
 }
 return out;`));
@@ -314,7 +316,8 @@ return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r
 const written = new Set($input.all().filter((i) => i.json && i.json.lead_id && !i.json.broker_id).map((i) => String(i.json.lead_id)));
 return $('Route (w01.routeExisting)').all().map((i) => i.json).filter((x) => x.r && x.r.notice && written.has(String(x.lead_id))).map((x) => ({ json: x.r.notice }));`));
   n.push(sub('WhatsApp Send (lead_low_budget_held, core)', pos(7, 6), 'WhatsApp Send', false, 'Tier C held at the hand-over. Correlation w01:low_budget_held:<lead>: never twice for one lead.'));
-  n.push(code('W06 input (CTWA)', pos(6, 7), "return $input.all().filter((i) => i.json.broker_id).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"));
+  // only the leads whose routing asked for a first touch (W38's /start/ page routes without one)
+  n.push(code('W06 input (CTWA)', pos(6, 7), "const want = new Set($('Route (w01.routeExisting)').all().filter((i) => i.json.r && i.json.r.first_touch).map((i) => String(i.json.lead_id)));\nreturn $input.all().filter((i) => i.json.broker_id && want.has(String(i.json.lead_id))).map((i) => ({ json: { op: 'routed', lead_id: i.json.lead_id, origin: 'ctwa' } }));"));
   n.push(sub('W06 First touch (CTWA)', pos(7, 7), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin: ctwa }: slots card (or Flow v2) at once.'));
   n.push(code('Unknown core call (logged, never guessed)', pos(2, 9), "return [{ json: { outcome: 'subcall_rejected', reason: 'W01 Lead core needs action=ingest or kind=route_and_first_touch', keys: Object.keys($input.first().json || {}) } }];"));
 

@@ -1011,3 +1011,26 @@ test('quiz v2: the band arrives later on the qualify_budget template -> recorded
   const hr = W01.routeExisting({ ...heldLead, budget_band: '750_1250', suppressed: false }, { brokers: [tcBroker()], now: TC_NOW });
   assert.equal(hr.action, 'routed'); assert.equal(hr.first_touch.workflow, 'W06');
 });
+
+test('W38 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the same way with no W06 first touch; a held tier-C lead still gets its notice', async () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c38', brand_id: 'smc', origin: 'ctwa', phone: '+27600000178', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' };
+  const a = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
+  const b = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW, first_touch: false });
+  assert.deepEqual(b.update, a.update, 'same broker, same routing');
+  assert.equal(a.first_touch.workflow, 'W06');
+  assert.equal(b.first_touch, null, 'the page shows the slots: no broker_intro_slots card');
+  const held = W01.routeExisting({ ...lead, budget_band: 'lt750' }, { brokers: [tcBroker()], now: TC_NOW, first_touch: false });
+  assert.deepEqual([held.action, held.notice.template], ['held', 'lead_low_budget_held']);
+  assert.ok(W01.QUALIFYING_STATES.has('start_page'), 'the low-budget hand-off waits while the page is pending');
+  // the W01.json nodes: the flag rides from the caller through "Load CTWA lead + brokers" ($2) into Route; W06 only for first_touch
+  const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
+  assert.match(load.parameters.query, /\$2 <> 'false' AS first_touch/);
+  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false)] }}");
+  const routeOut = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: false }] });
+  assert.equal(routeOut[0].json.r.first_touch, null);
+  const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': routeOut[0].json } });
+  assert.deepEqual(w06, [], 'no W06 first touch for the page');
+  const ctwa = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: true }] });
+  const w06b = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': ctwa[0].json } });
+  assert.deepEqual(w06b.map((i) => i.json), [{ op: 'routed', lead_id: lead.id, origin: 'ctwa' }], 'W03 path unchanged');
+});
