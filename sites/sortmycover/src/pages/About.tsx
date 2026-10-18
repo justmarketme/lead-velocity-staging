@@ -11,7 +11,7 @@ export default function About() {
       <p><strong>{company.legal_name}</strong> trading as <strong>{company.trading_as}</strong>. Registration number {company.registration}. {company.address_lines.join(", ")}. Phone <a href={"tel:" + company.phone_tel}>{company.phone_display}</a>. Email <a href={"mailto:" + company.email}>{company.email}</a>.</p>
       <p>The Information Officer is {company.information_officer}. Registered with the Information Regulator, registration number {company.information_officer_registration} ({company.information_officer_registered_on}).</p>
       <h2>What we do</h2>
-      <p>When you ask for it, we introduce you to one adviser from an authorised financial services provider and help book a 30-minute call. The call is by video, WhatsApp or phone. The call costs you nothing.</p>
+      <p>When you ask for it, we introduce you to one adviser from an authorised financial services provider and help book a 30-minute call. The call is by video, WhatsApp or phone, at a time you pick.</p>
       <h2>What we do not do</h2>
       <p>SortMyCover is not a financial services provider and gives no financial advice. We do not compare products, rank insurers, quote premiums or recommend anything. Only the adviser can talk about products, and they give their name and FSP number before the call.</p>
       <h2>How we make money</h2>

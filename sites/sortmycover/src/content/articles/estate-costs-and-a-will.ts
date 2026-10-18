@@ -19,5 +19,5 @@ export const body: Block[] = [
   { type: "p", text: "The costs still have to be paid. If an estate has property but little cash, something may have to be sold to settle them, and the heirs receive less. A life policy that names a beneficiary is paid to that person directly. SARS notes that the beneficiary then pays the estate duty that relates to that policy." },
   { type: "p", text: "Whether cover suits a particular family is a question for an authorised adviser, not for this page." },
   { type: "h2", text: "Where SortMyCover fits" },
-  { type: "p", text: "SortMyCover does not draft wills and gives no advice. It books a call with a will consultant about a will and, separately, a call with an authorised adviser about cover. The call costs you nothing." },
+  { type: "p", text: "SortMyCover does not draft wills and gives no advice. It books a call with a will consultant about a will and, separately, a call with an authorised adviser about cover." },
 ];

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CalendarCta, WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
-import { APEX, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, company, provider, site } from "@/lib/site";
+import {APEX, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, company, provider, site} from "@/lib/site";
 import { organization, website } from "@/lib/jsonld";
 import { FaqItem, Reveal } from "@/components/Interactive";
 import { HeroMosaic, JourneyScroll, MomentPicker, Split, ValueStack, useHomeGestures } from "@/components/HomeMotion";
@@ -34,13 +34,13 @@ const VALUES = [
   { k: "Who", v: "An authorised adviser", d: "Name, practice and FSP number arrive on WhatsApp before the call." },
   { k: "How long", v: "About 30 minutes", d: "At a time picked from the WhatsApp message. Video, WhatsApp or phone." },
   { k: "Effort", v: "A few messages", d: "Say hi to Lindi on WhatsApp. She asks what you need and a few short questions." },
-  { k: "Cost", v: "Nothing to pay", d: COST_LINE + " The decision comes afterwards." },
+  { k: "After", v: "You decide", d: "Nothing is decided on the call. The decision comes afterwards." },
 ];
 
 const JOURNEY = [
   { n: "01", title: "Say hi to Lindi on WhatsApp", body: "Tap Chat on WhatsApp and send the message. Lindi asks what the call is about and a few short questions." },
   { n: "02", title: "The adviser’s details on WhatsApp", body: "Name, practice and FSP number, to check on the FSCA register, with times to choose from." },
-  { n: "03", title: "A time that suits", body: "Pick a slot from the message. Move or cancel it the same way, at no cost." },
+  { n: "03", title: "A time that suits", body: "Pick a slot from the message. Move or cancel it the same way." },
   { n: "04", title: "A 30-minute conversation", body: "By video, WhatsApp or phone. The adviser explains how they are paid. Nothing is decided on the call." },
 ];
 
@@ -74,7 +74,7 @@ export default function Home() {
               <CalendarCta ctx={contextFor("/")} className="btn btn-lg btn-secondary">Pick a time</CalendarCta>
               <a href="#h-how" className="hx-how-link">See how it works ↓</a>
             </div>
-            <p className="hx-micro">{WA_EXPECT} {COST_LINE}</p>
+            <p className="hx-micro">{WA_EXPECT}</p>
           </div>
           <HeroMosaic />
         </div>
@@ -111,7 +111,7 @@ export default function Home() {
                 {COVER_ORDER.map((slug) => { const m = cover.find((c) => c.slug === slug); return m ? <li key={slug}><Link to={articlePath(slug)}>{COVER_NAMES[slug]}</Link></li> : null; })}
               </ul>
               <p className="mt-auto pt-2"><WhatsAppCta ctx={{ topic: "cover for my family", ref: "w-home-cover" }} className="btn w-full sm:w-auto" /></p>
-              <p className="svc-fine" data-disclosure>{COST_LINE} {FEE_LINE}</p>
+              <p className="svc-fine" data-disclosure>{FEE_LINE}</p>
             </article>
 
             <article className="svc-card" aria-labelledby="h-svc-wills">
@@ -126,7 +126,6 @@ export default function Home() {
                 <li><Link to={articlePath("estate-administration")}>What estate administration involves</Link></li>
               </ul>
               <p className="mt-auto pt-2"><WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn w-full sm:w-auto">Chat about a will</WhatsAppCta></p>
-              <p className="svc-fine" data-disclosure>{COST_LINE}</p>
             </article>
           </div>
           <p className="mt-6 text-[15px] text-muted-foreground max-w-[70ch]" data-disclosure>SortMyCover is run by Lead Velocity (Pty) Ltd, registration {company.registration}. Not a financial services provider. We give no advice. <a className="underline" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
@@ -178,7 +177,7 @@ export default function Home() {
         <div className="grid gap-6" data-disclosure>
           <div>
             <h2 id="h-is" className="text-[26px] mb-3">What SortMyCover is, and is not</h2>
-            <p><strong>Is:</strong> an introduction and booking service run by Lead Velocity (Pty) Ltd. It costs you nothing. Advisers pay it a fee that does not depend on what you buy.</p>
+            <p><strong>Is:</strong> an introduction and booking service run by Lead Velocity (Pty) Ltd. Advisers pay it a fee that does not depend on what you buy.</p>
             <p><strong>Is not:</strong> an insurer, a financial services provider, an adviser, a will drafter or a comparison site. We do not quote, rank or recommend.</p>
           </div>
           <div>
@@ -218,7 +217,7 @@ export default function Home() {
       <div className="wrap">
         <aside className="hx-final on-dark" aria-label="Book a call">
           <h2 className="hx-h2" data-split><Split text="Ready" em="when you are." /></h2>
-          <p>About 30 minutes, at a time you pick. {WA_EXPECT} {COST_LINE}</p>
+          <p>About 30 minutes, at a time you pick. {WA_EXPECT}</p>
           <div className="flex flex-wrap gap-3">
             <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
             <CalendarCta ctx={contextFor("/")} className="btn btn-lg btn-ghost">Pick a time</CalendarCta>

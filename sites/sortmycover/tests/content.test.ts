@@ -128,7 +128,7 @@ describe("campaign angles", () => {
       expect(all, a.slug).not.toMatch(/\b(check|checks|checked|review|reviews|sort|sorted|arrange|arranged|match|matched|compare|cheapest|cheap|affordable|discount|premium|premiums|guaranteed|regulated|funeral)\b/i);
       // theme A introduces an authorised adviser; theme B a will consultant (the provider is named only on WhatsApp, Jono 18 Oct 2026)
       expect(a.sub + a.description, a.slug).toMatch(a.theme === "B" ? /will consultant/ : /authorised adviser/);
-      expect(a.sub, a.slug).toMatch(/The call costs you nothing\./);
+      expect(a.sub, a.slug).not.toMatch(/costs? (you )?nothing|no cost|free/i); // no price wording (18 Oct 2026)
     }
   });
   it("any rand or percentage figure in angle copy is a sourced fact: proof object with a usable evidence file, month shown (S12, S15, S17)", () => {

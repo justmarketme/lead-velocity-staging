@@ -7,9 +7,9 @@
     "host": true,
     "ad_hook": "Some questions are easier asked out loud.",
     "h1": "Some questions are\n*easier asked out loud.*",
-    "sub": "Book a 30-minute call with an authorised adviser, by video, WhatsApp or phone, at a time you pick. The call costs you nothing.",
+    "sub": "Book a 30-minute call with an authorised adviser, by video, WhatsApp or phone, at a time you pick.",
     "title": "Some questions are easier asked out loud. | SortMyCover",
-    "description": "A 30-minute call with an authorised adviser, booked for a time that suits, by video, WhatsApp or phone. The call costs you nothing.",
+    "description": "A 30-minute call with an authorised adviser, booked for a time that suits, by video, WhatsApp or phone.",
     "status": "after Q1 and Q5. Replaces virtual, what-the-call, c13-check-not-buy."
   },
   {
@@ -20,9 +20,9 @@
     "host": true,
     "ad_hook": "Bond approved. Some families add one more item to the list.",
     "h1": "Bond approved.\n*One more item for the list.*",
-    "sub": "A bond is a long commitment. Book a 30-minute call with an authorised adviser to talk about cover. The call costs you nothing.",
+    "sub": "A bond is a long commitment. Book a 30-minute call with an authorised adviser to talk about cover.",
     "title": "Bond approved. One more item for the list. | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser to talk about cover, at a time that suits. The call costs you nothing.",
+    "description": "Book a 30-minute call with an authorised adviser to talk about cover, at a time that suits.",
     "status": "after Q1 and Q5. Merges bond-paperwork. Do not claim the bank requires cover."
   },
   {
@@ -33,9 +33,9 @@
     "host": true,
     "ad_hook": "Some people insure the car before the salary that pays for it.",
     "h1": "Some people insure the car\n*before the salary.*",
-    "sub": "Book a 30-minute call with an authorised adviser to talk about protecting an income. The call costs you nothing.",
+    "sub": "Book a 30-minute call with an authorised adviser to talk about protecting an income.",
     "title": "Some people insure the car before the salary. | SortMyCover",
-    "description": "A 30-minute call with an authorised adviser about protecting an income, booked for a time that suits. The call costs you nothing.",
+    "description": "A 30-minute call with an authorised adviser about protecting an income, booked for a time that suits.",
     "status": "after Q1 and Q5. No health imagery, no claims-paid statistics."
   },
   {
@@ -46,9 +46,9 @@
     "host": true,
     "ad_hook": "ASISA, October 2025: the average earner holds R0.8m of death cover against R2.1m needed.",
     "h1": "The average earner has R0.8m\n*of death cover against R2.1m needed.*",
-    "sub": "Book a 30-minute call with an authorised adviser to talk about your own cover. The call costs you nothing.",
+    "sub": "Book a 30-minute call with an authorised adviser to talk about your own cover.",
     "title": "ASISA, Oct 2025: average earner death cover | SortMyCover",
-    "description": "ASISA figures on average death cover, with the source and date. Book a 30-minute call with an authorised adviser. The call costs you nothing.",
+    "description": "ASISA figures on average death cover, with the source and date. Book a 30-minute call with an authorised adviser.",
     "proof": {
       "text": "ASISA media release, 28 October 2025: the average formally employed earner holds R0.8m of death cover against R2.1m needed. National averages. General information, not advice.",
       "source": "ASISA",
@@ -66,9 +66,9 @@
     "host": true,
     "ad_hook": "No employer, no group cover. Cover for owners and directors starts with a conversation.",
     "h1": "When the business depends\n*on one person.*",
-    "sub": "Book a 30-minute call with an authorised adviser to talk about cover for owners, directors and the self-employed. The call costs you nothing.",
+    "sub": "Book a 30-minute call with an authorised adviser to talk about cover for owners, directors and the self-employed.",
     "title": "When the business depends on one person. | SortMyCover",
-    "description": "For owners, directors and the self-employed: a 30-minute call with an authorised adviser, booked for a time that suits. The call costs you nothing.",
+    "description": "For owners, directors and the self-employed: a 30-minute call with an authorised adviser, booked for a time that suits.",
     "status": "after Q1 and Q5. Merges self-employed. No key-person or buy-and-sell product names."
   },
   {
@@ -79,9 +79,9 @@
     "host": true,
     "ad_hook": "New baby. New questions about cover.",
     "h1": "New baby.\n*New questions about cover.*",
-    "sub": "Big changes bring questions about cover. Book a 30-minute call with an authorised adviser. The call costs you nothing.",
+    "sub": "Big changes bring questions about cover. Book a 30-minute call with an authorised adviser.",
     "title": "New baby. New questions about cover. | SortMyCover",
-    "description": "Book a 30-minute call with an authorised adviser, at a time that suits. The call costs you nothing.",
+    "description": "Book a 30-minute call with an authorised adviser, at a time that suits.",
     "status": "refresh pool. Third-person copy only."
   },
   {
@@ -92,10 +92,10 @@
     "host": true,
     "ad_hook": "A will can name a guardian for minor children. A will consultant can talk you through it.",
     "h1": "Who looks after\n*the children?*",
-    "sub": "A will can name a guardian for minor children. Book a call with a will consultant about your will. The call costs you nothing.",
+    "sub": "A will can name a guardian for minor children. Book a call with a will consultant about your will.",
     "note": "Under the Children's Act, a sole guardian's appointment of a guardian for a child must be made in a will.",
     "title": "Who looks after the children? | SortMyCover",
-    "description": "A will can name a guardian for minor children. Book a call with a will consultant about your will. The call costs you nothing.",
+    "description": "A will can name a guardian for minor children. Book a call with a will consultant about your will.",
     "sources": [
       "gov-childrens-act-s27",
       "master-guardians-fund"
@@ -110,9 +110,9 @@
     "host": true,
     "ad_hook": "Without a valid will, the law decides who inherits. A will says who gets what.",
     "h1": "A will is not\n*only for the wealthy.*",
-    "sub": "Without a valid will, the Intestate Succession Act decides who inherits. Book a call with a will consultant. The call costs you nothing.",
+    "sub": "Without a valid will, the Intestate Succession Act decides who inherits. Book a call with a will consultant.",
     "title": "A will is not only for the wealthy. | SortMyCover",
-    "description": "Without a valid will, the law decides who inherits. Book a call with a will consultant about your will. The call costs you nothing.",
+    "description": "Without a valid will, the law decides who inherits. Book a call with a will consultant about your will.",
     "sources": [
       "master-intestate"
     ],
@@ -126,10 +126,10 @@
     "host": true,
     "ad_hook": "A will says who inherits. It does not pay the estate's costs, debts and taxes.",
     "h1": "A will says who inherits.\n*It does not pay the costs.*",
-    "sub": "Estate costs and debts are paid before heirs inherit. Book a call with a will consultant. The call costs you nothing.",
+    "sub": "Estate costs and debts are paid before heirs inherit. Book a call with a will consultant.",
     "note": "A will gives instructions but no cash. The executor pays the estate's debts and costs before heirs inherit.",
     "title": "A will, an estate and its costs | SortMyCover",
-    "description": "A will gives instructions, not cash. Book a call with a will consultant about a will and estate costs. The call costs you nothing.",
+    "description": "A will gives instructions, not cash. Book a call with a will consultant about a will and estate costs.",
     "sources": [
       "master-faq"
     ],
@@ -143,10 +143,10 @@
     "host": true,
     "ad_hook": "A signed will helps only if it can be found when it is needed.",
     "h1": "Having a will is one step.\n*Who knows where it is?*",
-    "sub": "A copy of a will is not valid; the original counts. Book a call with a will consultant. The call costs you nothing.",
+    "sub": "A copy of a will is not valid; the original counts. Book a call with a will consultant.",
     "note": "When someone dies, whoever holds the original will must report the death to the Master.",
     "title": "Who knows where the will is? | SortMyCover",
-    "description": "A copy of a will is not valid; the signed original counts. Book a call with a will consultant. The call costs you nothing.",
+    "description": "A copy of a will is not valid; the signed original counts. Book a call with a will consultant.",
     "sources": [
       "master-wills",
       "master-deceased-estates"

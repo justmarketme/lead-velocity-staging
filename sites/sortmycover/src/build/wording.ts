@@ -1,5 +1,5 @@
 /* Compliance wording scan shared by the tests (rules S1, S2, S4, S9-S16, S25 of research/compliance-sa.md section 5).
-   SortMyCover never checks, sorts, reviews, arranges or matches cover; "free" is never used (the approved line is "The call costs you nothing."). */
+   SortMyCover never checks, sorts, reviews, arranges or matches cover; "free" and every other price phrase are never used: copy ends on the call itself (18 Oct 2026). */
 export const BANNED: [RegExp, string][] = [
   [/\bfree\b/i, "free"],
   [/\bguarantee/i, "guarantee"],
@@ -13,4 +13,10 @@ export const BANNED: [RegExp, string][] = [
   [/\b(regulated|approved) by\b/i, "regulated/approved by"],
   [/\btrusted by\b/i, "trusted by"],
   [/\bthousands of\b/i, "thousands of"],
+  // no price wording to clients (Jono, 16 Oct 2026; site 18 Oct): copy ends on the call itself, never on what it costs
+  [/\bcosts? (you )?nothing\b/i, "costs nothing"],
+  [/\bpays? nothing\b/i, "pay nothing"],
+  [/\bno cost\b/i, "no cost"],
+  [/\bat no charge\b/i, "at no charge"],
+  [/\bfree of charge\b/i, "free of charge"],
 ];

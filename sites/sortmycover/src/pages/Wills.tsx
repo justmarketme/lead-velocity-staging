@@ -8,7 +8,7 @@ import PageFrame from "@/components/PageFrame";
 import { FaqItem, Steps } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { SCENES } from "@/content/imagery";
-import { COST_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, provider, site } from "@/lib/site";
+import {PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, provider, site} from "@/lib/site";
 import { WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { articlesForHub, hubFor, WILLS_HUB } from "@/content";
 import { ArticleList } from "./Learn";
@@ -32,7 +32,6 @@ export default function Wills() {
       </p>
       <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/wills/")} /><CalendarCta ctx={contextFor("/wills/")} /></p>
       <p className="text-[15px] text-[#56606a]">{WA_EXPECT.replace("your adviser", "your will consultant")}</p>
-      <p className="text-[15px]" data-disclosure>{COST_LINE}</p>
 
       <h2>Guides</h2>
       <ArticleList items={articlesForHub(WILLS_HUB)} />

@@ -4,7 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { CalendarCta, WhatsAppCta } from "./ChatWidget";
 import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
-import { APEX, COST_LINE, PROVIDER_COST_LINE, provider } from "@/lib/site";
+import {APEX, PROVIDER_COST_LINE, provider} from "@/lib/site";
 import { breadcrumbs } from "@/lib/jsonld";
 
 export interface Crumb { name: string; path: string }
@@ -84,7 +84,7 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
     return (
       <aside className="cta-quiet" aria-label="Book a will call">
         <h2>{heading ?? "Talk to a will consultant"}</h2>
-        <p data-disclosure>Lindi books a call about your will on WhatsApp, at a time that suits. {COST_LINE}</p>
+        <p data-disclosure>Lindi books a call about your will on WhatsApp, at a time that suits.</p>
         <div className="cta-actions">
           <WhatsAppCta ctx={{ ...ctx, wills: true }} />
           <CalendarCta ctx={{ ...ctx, wills: true }} className="btn btn-ghost">Pick a time</CalendarCta>
@@ -96,7 +96,7 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
   return (
     <aside className="cta-quiet" aria-label="Book a call">
       <h2>{heading ?? "Talk to an adviser"}</h2>
-      <p>Lindi books a 30-minute call with an authorised adviser on WhatsApp, at a time that suits. {COST_LINE}</p>
+      <p>Lindi books a 30-minute call with an authorised adviser on WhatsApp, at a time that suits.</p>
       <div className="cta-actions">
         <WhatsAppCta ctx={ctx} />
         <CalendarCta ctx={ctx} className="btn btn-ghost">Pick a time</CalendarCta>

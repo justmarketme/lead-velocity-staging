@@ -17,8 +17,8 @@ export const body: Block[] = [
   { type: "h2", text: "When does the will become valid?" },
   { type: "p", text: "When it is signed and witnessed as the Wills Act requires. The person making the will signs at the end, in front of two or more competent witnesses, who sign in front of that person and of each other. Where the will has more than one page, each page other than the last is signed too. The Master adds that witnesses must be 14 or older." },
   { type: "p", text: "A person who signs as a witness, or writes the will, loses any benefit under it, and the Act counts being named executor, trustee or guardian as a benefit. That is why heirs are not used as witnesses. [What makes a will valid](/wills/what-makes-a-will-valid/) has more." },
-  { type: "h2", text: "What does it cost?" },
-  { type: "p", text: "The call costs you nothing. Ask the consultant about any charges for drafting, storing or updating the will before you go ahead." },
+  { type: "h2", text: "Are there charges for the will?" },
+  { type: "p", text: "Ask the consultant about any charges for drafting, storing or updating the will before you go ahead." },
   { type: "h2", text: "Does SortMyCover join the call?" },
   { type: "p", text: "No. SortMyCover is not a financial services provider. It does not draft wills, does not join the call and gives no advice. It puts you in touch with the consultant and books the time. Reply STOP to any SortMyCover message to stop." },
 ];

@@ -16,7 +16,6 @@ export const campaignOrigin = (slug: string) => `https://${slug}${cfg.campaign_h
 /** Absolute apex URL for a path ("/privacy/"). Campaign hosts link to the apex for every legal page (each page lives on one host). */
 export const apex = (path: string) => APEX + path;
 
-export const COST_LINE = "The call costs you nothing.";
 export const FEE_LINE = "Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything.";
 export const NO_COMMISSION = "SortMyCover takes no commission and no share of any premium.";
 /** FOOTER-v2 (spec C.1): stored once in config/site.json, rendered from there, never retyped. */

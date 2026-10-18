@@ -63,7 +63,6 @@ export function SplitRoles() {
 export function MoneyFlow() {
   const rows = [
     { from: "Adviser", to: "Pays a fee for introductions", live: true },
-    { from: "You", to: "Pay nothing", live: false },
     { from: "Insurer", to: "No commission, no share of premium", live: false },
   ];
   return (

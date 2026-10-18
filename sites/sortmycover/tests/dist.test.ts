@@ -161,7 +161,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const home = visible(pages.find((p) => p.rel === "index.html")!.html);
     expect(home).toContain("Chat on WhatsApp");
     expect(home).not.toMatch(/Book my adviser call|Book my will call/);
-    expect(home).toContain("The call costs you nothing.");
+    expect(home).not.toMatch(/costs? (you )?nothing|no cost|free of charge|at no charge/i); // no price wording (18 Oct 2026)
   });
   it("no placeholder tokens leak into the HTML", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/\[PRACTICE NAME\]|\[FSP NUMBER\]|REPLACE-|lorem ipsum|\bundefined\b|\{\{/i);
@@ -228,7 +228,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
     }
     expect(n).toBeGreaterThan(20);
   });
-  it("Lindi is an automated assistant, never an AI assistant, and the adviser is authorised, never licensed, in anything a client sees (Jono, 18 Oct 2026)", () => {
+  it("Lindi is an automated assistant, never an AI assistant, the adviser is authorised, never licensed, and there is no price wording, in anything a client sees (Jono, 18 Oct 2026)", () => {
     const AI = /\bAI[- ]assistant\b|\buses AI\b|\bAI booking\b|\bour AI\b/i;
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(AI);
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
@@ -237,6 +237,10 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const LICENSED = /licensed (financial )?advis[eo]rs?/i;
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(LICENSED);
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(LICENSED);
+    // no price wording anywhere a client sees it (Jono, 16 Oct 2026)
+    const PRICE = /\bcosts? (you )?nothing\b|\bfree (call|30|of charge)\b|\bno cost\b|\bat no charge\b|\bpays? nothing\b/i;
+    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(PRICE);
+    for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(PRICE);
     // the honest wording stays: it is automated, and a person is available
     const book = visible(pages.find((p) => p.rel === "book/index.html")!.html);
     expect(book).toMatch(/automated assistant/);

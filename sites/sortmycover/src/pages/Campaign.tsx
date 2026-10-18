@@ -1,7 +1,7 @@
 /* One page, one goal: the campaign landing page for an ad angle (spec C.1). No navigation. Served on <label>.sortmycover.co.za. */
 import { Fragment } from "react";
 import { Seo } from "@/lib/head";
-import { COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site } from "@/lib/site";
+import {FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site} from "@/lib/site";
 import ChatWidget, { CalendarCta, WhatsAppCta } from "@/components/ChatWidget";
 import { WA_EXPECT, campaignContext } from "@/lib/whatsapp";
 import { CampaignFooter } from "@/components/Footer";
@@ -27,7 +27,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
     <div className="smc-campaign">
       <Seo title={angle.title} description={angle.description} canonical={origin + "/"} robots="noindex,follow" />
       <a className="skip" href="#h-how">Skip to what happens next</a>
-      <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c3c8ce]">{COST_LINE}</small></div></header>
+      <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c3c8ce]">A 30-minute call, booked on WhatsApp</small></div></header>
       <main id="main">
         <section className="hero-band on-dark">
           <div className="wrap campaign-hero-grid">
@@ -53,7 +53,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={wills ? WILLS_STEPS : HOW_STEPS} /></section>
         <section className="wrap-narrow py-6" aria-labelledby="h-cost" data-disclosure>
           <h2 id="h-cost" className="text-[24px] mb-3">Cost, and who we are</h2>
-          <p>{wills ? <>{COST_LINE}</> : <>{COST_LINE} {FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
+          <p>{wills ? null : <>{FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
         </section>
         <section className="wrap-narrow pb-8" aria-labelledby="h-faq">
           <h2 id="h-faq" className="text-[24px] mb-3">Questions people ask</h2>
@@ -75,7 +75,7 @@ export function CampaignThanks({ angle }: { angle: Angle }) {
       <main id="main" className="wrap-narrow py-12"><div className="prose-sm">
         <h1>Thanks. Check your WhatsApp.</h1>
         <p className="lede">{isWills(angle) ? <>The name of your will consultant is on its way</> : <>Your adviser’s name, practice and FSP number are on their way</>}{site.whatsapp_number ? <> from <strong>{site.whatsapp_number}</strong></> : <> from the SortMyCover WhatsApp number</>}. Save the number so the message does not get lost.</p>
-        <ul><li>You pick a time that suits you, and get reminders before the call.</li><li>The call is about 30 minutes. {COST_LINE} You decide afterwards.</li><li>Reply STOP to any message to stop.</li></ul>
+        <ul><li>You pick a time that suits you, and get reminders before the call.</li><li>The call is about 30 minutes. You decide afterwards.</li><li>Reply STOP to any message to stop.</li></ul>
       </div></main>
       <CampaignFooter feeLine={!isWills(angle)} />
     </>
