@@ -1,0 +1,58 @@
+{
+  "_meta": {
+    "what": "Meta instant form v2 (deliverables/media-buyer/instant-form-spec-v2.json): the leadgen webhook Meta POSTs to W02, and the Graph lead W02 then fetches (GET /{leadgen_id}?fields=...,field_data,...,custom_disclaimer_responses). Synthetic people only; numbers +27 60 000 02xx (clear of the seed's 00xx and align-fixture's 01xx).",
+    "shapes": "webhook = the Page 'leadgen' change (developers.facebook.com/docs/graph-api/webhooks/reference/page/#leadgen). graph_leads.* = the Lead node: field_data [{ name, values }] (a multiple-choice answer arrives as its option text), custom_disclaimer_responses [{ checkbox_key, is_checked: '1' | '' }] (developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving).",
+    "used_by": "automation/tests/W02-instant-form-v2.test.mjs"
+  },
+  "webhook": {
+    "object": "page",
+    "entry": [{ "id": "100000000000001", "time": 1792321200, "changes": [{ "field": "leadgen", "value": {
+      "leadgen_id": "lg_v2_0201", "page_id": "100000000000001", "form_id": "form_v2_01", "ad_id": "ad_v2_01", "adgroup_id": "adset_v2_01", "created_time": 1792321200 } }] }]
+  },
+  "graph_leads": {
+    "keys_in_band": {
+      "id": "lg_v2_0201", "created_time": "2026-10-18T12:00:00+0000", "form_id": "form_v2_01", "ad_id": "ad_v2_01", "ad_name": "C01_H1_if-v2_20261018",
+      "adset_id": "adset_v2_01", "campaign_id": "camp_v2_01", "platform": "fb", "is_organic": false,
+      "field_data": [
+        { "name": "smc_intent", "values": ["Income protection"] },
+        { "name": "smc_age_band", "values": ["45 to 50"] },
+        { "name": "smc_has_cover", "values": ["Not sure"] },
+        { "name": "first_name", "values": ["Thandi"] },
+        { "name": "phone_number", "values": ["+27600000201"] }
+      ],
+      "custom_disclaimer_responses": [{ "checkbox_key": "consent", "is_checked": "1" }, { "checkbox_key": "consent_ads", "is_checked": "1" }]
+    },
+    "under_35": {
+      "id": "lg_v2_0202", "created_time": "2026-10-18T12:05:00+0000", "form_id": "form_v2_01", "ad_id": "ad_v2_01", "adset_id": "adset_v2_01", "campaign_id": "camp_v2_01", "platform": "ig",
+      "field_data": [
+        { "name": "smc_intent", "values": ["Life cover"] },
+        { "name": "smc_age_band", "values": ["Under 35"] },
+        { "name": "smc_has_cover", "values": ["No"] },
+        { "name": "first_name", "values": ["Sipho"] },
+        { "name": "phone_number", "values": ["082 000 0202"] }
+      ],
+      "custom_disclaimer_responses": [{ "checkbox_key": "consent", "is_checked": "1" }, { "checkbox_key": "consent_ads", "is_checked": "" }]
+    },
+    "no_intent": {
+      "id": "lg_v2_0203", "created_time": "2026-10-18T12:10:00+0000", "form_id": "form_v2_01", "ad_id": "ad_v2_01", "adset_id": "adset_v2_01", "campaign_id": "camp_v2_01",
+      "field_data": [
+        { "name": "smc_age_band", "values": ["35 to 44"] },
+        { "name": "first_name", "values": ["Lerato"] },
+        { "name": "phone_number", "values": ["+27600000203"] }
+      ],
+      "custom_disclaimer_responses": [{ "checkbox_key": "consent", "is_checked": "1" }]
+    },
+    "hand_built_over_50": {
+      "_note": "A form built by hand in Ads Manager: Meta's own field names and checkbox keys. W01 matches the answers on their option labels.",
+      "id": "lg_v2_0204", "created_time": "2026-10-18T12:15:00+0000", "form_id": "form_v2_02", "ad_id": "ad_v2_02", "adset_id": "adset_v2_01", "campaign_id": "camp_v2_01",
+      "field_data": [
+        { "name": "what_would_you_like_help_with?", "values": ["Severe illness cover"] },
+        { "name": "which_age_group_are_you_in?", "values": ["Over 50"] },
+        { "name": "do_you_have_any_life,_disability_or_income_cover_now?", "values": ["Yes"] },
+        { "name": "first_name", "values": ["Johan"] },
+        { "name": "phone_number", "values": ["+27600000204"] }
+      ],
+      "custom_disclaimer_responses": [{ "checkbox_key": "optional_1", "is_checked": "1" }, { "checkbox_key": "optional_2", "is_checked": "1" }]
+    }
+  }
+}

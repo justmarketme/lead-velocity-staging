@@ -250,8 +250,9 @@ UPDATE public.leads
        qualified_at           = coalesce(($2::jsonb->>'qualified_at')::timestamptz, qualified_at),
        disqualified_reason    = coalesce($2::jsonb->>'disqualified_reason', disqualified_reason),
        broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE broker_id END,
-       -- a qualified lead keeps nothing scheduled for deletion (lead-ad budget reminder sets reminder + 24 h; a tap in time clears it)
-       retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after) END,
+       -- a qualified lead keeps nothing scheduled for deletion (lead-ad budget reminder sets reminder + 24 h; a tap in time clears it);
+       -- keep_lead: a lead-ad tap that is a real lead but not qualified (age outside 35-50 books, tier C) clears it too
+       retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' OR $2::jsonb ? 'keep_lead' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, retention_delete_after) END,
        -- a stage only moves forward from the pre-booking stages (a lead a broker already booked is never pulled back to 'qualified' by a
        -- late button tap); 'disqualified' / 'opted_out' may be written from any stage
        stage                  = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))

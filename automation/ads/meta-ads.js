@@ -460,7 +460,7 @@ function createClient(opts = {}) {
 
   async function fetchLead(leadgenId) {
     if (!leadgenId) throw new MetaError('leadgenId required', { code: 'BAD_INPUT' });
-    const fields = 'id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data,is_organic,platform,custom_disclosure_responses,partner_name';
+    const fields = 'id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data,is_organic,platform,custom_disclaimer_responses,partner_name';
     const r = await request('GET', String(leadgenId), { query: { fields } });
     return normalizeLead(r.data);
   }
@@ -650,15 +650,21 @@ function planEngagementAudiences({ pageId, igUserId, formIds, videoIds }) {
 function normalizeLead(raw) {
   const answers = {};
   for (const f of raw.field_data || []) answers[f.name] = Array.isArray(f.values) ? (f.values.length > 1 ? f.values : f.values[0]) : f.values;
-  // ASSUMPTION: the custom consent tick is returned in custom_disclosure_responses or as a field_data entry whose name contains "consent".
-  const cdr = raw.custom_disclosure_responses || [];
+  // The custom disclaimer ticks are NOT in field_data: Graph returns them in custom_disclaimer_responses ([{ checkbox_key,
+  // is_checked: "1" | "" }], developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving). Until 18 Oct 2026 fetchLead
+  // asked for "custom_disclosure_responses", a field the Lead node does not have (Graph refuses the whole request, #100).
+  const cdr = raw.custom_disclaimer_responses || [];
   const consentKey = Object.keys(answers).find((k) => /consent|agree/i.test(k));
-  const consentFromCdr = cdr.length ? cdr.some((x) => x && (x.checkbox_key || x.is_checked !== undefined) && x.is_checked !== false) : null;
+  const on = (x) => x && (String(x.is_checked) === '1' || x.is_checked === true || String(x.is_checked).toLowerCase() === 'true');
+  const REQUIRED = new Set(['consent', 'smc_consent']), OPTIONAL = new Set(['consent_ads', 'smc_consent_ads']);
+  const keyed = cdr.some((x) => x && (REQUIRED.has(x.checkbox_key) || OPTIONAL.has(x.checkbox_key)));
+  // the required box by its key; a hand-built form's own keys: any ticked box (Meta refuses a submission without the required one)
+  const consentFromCdr = cdr.length ? (keyed ? cdr.some((x) => x && REQUIRED.has(x.checkbox_key) && on(x)) : cdr.some(on)) : null;
   return {
     leadgen_id: raw.id, created_time: raw.created_time, form_id: raw.form_id, campaign_id: raw.campaign_id, campaign_name: raw.campaign_name,
     adset_id: raw.adset_id, adset_name: raw.adset_name, ad_id: raw.ad_id, ad_name: raw.ad_name, is_organic: !!raw.is_organic, platform: raw.platform || null,
     full_name: answers.full_name || answers.name || null, phone: answers.phone_number || answers.phone || null, email: answers.email || null,
-    answers, consent_raw: consentKey ? answers[consentKey] : (consentFromCdr === null ? null : consentFromCdr), custom_disclosure_responses: cdr,
+    answers, consent_raw: consentKey ? answers[consentKey] : (consentFromCdr === null ? null : consentFromCdr), custom_disclaimer_responses: cdr,
     ad_parts: parseAdName(raw.ad_name),
   };
 }
@@ -673,17 +679,20 @@ const BUDGET_OK = new Set(['750_1250', 'r750-r1,250', '1250plus', 'r1,250 or mor
   '750_1499', 'r750-r1,499', 'lt750', 'under r750', 'lt500', 'under_500', 'under r500', '500_750', 'r500-r750']);
 function qualifyLead(lead) {
   const a = lead.answers || {}, reasons = [];
-  if (!AGE_OK.has(slug(a.age_band))) reasons.push('age_band');
+  // Instant form v2 (Jono, 18 Oct 2026): every age is accepted, as on /start/ (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS): the age is
+  // stored, a lead outside 35-50 is never marked qualified, and nothing is routed out on age. AGE_OK stays for the reports.
+  const ageInBand = AGE_OK.has(slug(a.smc_age_band ?? a.age_band));
   // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band (an income/financial
   // question needs Meta's permission). No band = budget_pending: W01 asks it as the first WhatsApp step and W03 decides
   // with the same bands. A band that does arrive (an older form) is still checked here, so out-of-band never enters.
   const budgetPending = a.budget_band == null || a.budget_band === '';
   if (!budgetPending && !BUDGET_OK.has(slug(a.budget_band))) reasons.push('budget_band');
-  if (!['yes'].includes(slug(a.call_ok))) reasons.push('call_ok');
+  // v1 forms asked call_ok; v2 does not (the 30-minute call is the offer itself). Judged only when the form asked it.
+  if (a.call_ok != null && !['yes'].includes(slug(a.call_ok))) reasons.push('call_ok');
   const c = lead.consent_raw;
   const consent = c === true || (typeof c === 'string' && !['', '0', 'false', 'no', 'unchecked'].includes(slug(c)));
   if (!consent) reasons.push('no_consent');
-  return { qualified: reasons.length === 0, consent, reasons, bond_children: a.bond_children || null, budget_pending: budgetPending };
+  return { qualified: reasons.length === 0, consent, reasons, bond_children: a.bond_children || null, budget_pending: budgetPending, age_in_band: ageInBand };
 }
 /* Hash a campaign-tree spec for requestConfirm params (same stable hash the client verifies). */
 const specHash = (spec) => sha256(stable(spec));

@@ -116,6 +116,96 @@ export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.tri
  *  else derived from the angle ('life_cover'). */
 export const productOf = (angle, requested = null) =>
   (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : productChoice(requested) ?? 'life_cover');
+/**
+ * Under-35 / over-50 (Jono, 18 Oct 2026): they may book with Mark. They are never marked qualified (qualified_at stays null)
+ * and get a timeline note; counting is the database's rule (smc_count_lead), not qualified_at. One switch for every intake
+ * that accepts them: the /start/ page (lib/w39.mjs re-exports it) and the Meta instant form (decide() below, W03 finishLeadAd).
+ */
+export const OUT_OF_BAND_AGE_BOOKS = true;
+export const OOB_AGE_RULE = 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)';
+
+// Meta instant form v2 (deliverables/media-buyer/instant-form-spec-v2.json, 18 Oct 2026). The form mirrors /start/: three
+// multiple-choice custom questions with stable keys, then first name + WhatsApp number. Meta returns a custom question's
+// answer as the option text (and a form built by hand in Ads Manager may get its own field names), so each answer is
+// matched on its option key OR its exact option label, and a field whose name is unknown is matched on its value.
+// Option keys are the /start/ codes where one exists (life / income / illness / review; lt35 / 35_44 / 45_50 / 51plus;
+// yes / no / unsure); 'disability' is the one form-only key.
+// intent -> the /start/ intent (lib/w39.mjs INTENTS) and the W01 HELP_WITH code. Disability and income protection are two
+// options on the form but one /start/ intent ('income'); the option itself is kept for the adviser's brief.
+export const LEAD_AD_QUESTION_KEYS = { intent: ['smc_intent', 'intent', 'help_with'], age_band: ['smc_age_band', 'age_band'], has_cover: ['smc_has_cover', 'has_cover'] };
+export const LEAD_AD_INTENT = Object.freeze({
+  life: { label: 'Life cover', intent: 'life', help_with: 'life' },
+  disability: { label: 'Disability cover', intent: 'income', help_with: 'disability_income' },
+  income: { label: 'Income protection', intent: 'income', help_with: 'disability_income' },
+  illness: { label: 'Severe illness cover', intent: 'illness', help_with: 'severe_illness' },
+  review: { label: 'Not sure yet', intent: 'review', help_with: 'review' },
+});
+export const LEAD_AD_AGE = Object.freeze({ lt35: 'Under 35', '35_44': '35 to 44', '45_50': '45 to 50', '51plus': 'Over 50' });
+export const LEAD_AD_HAS_COVER = Object.freeze({ yes: 'Yes', no: 'No', unsure: 'Not sure' });
+/** The required consent checkbox (custom_disclaimer_responses[].checkbox_key) and the optional ad-measurement one. */
+export const LEAD_AD_CONSENT_KEYS = new Set(['consent', 'smc_consent']);
+export const LEAD_AD_ADS_KEYS = new Set(['consent_ads', 'smc_consent_ads']);
+/** The text version the v2 form's required checkbox shows: the site's named text, filled for the broker (consentRegistry). */
+export const LEAD_AD_CONSENT_VERSION = 'CONSENT-NAMED-v5web';
+const optSlug = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/[\s-]+/g, '_');
+const optionIndex = (codes, labelOf) => {
+  const m = new Map();
+  for (const [code, v] of Object.entries(codes)) { m.set(optSlug(code), code); m.set(optSlug(labelOf(v)), code); }
+  return m;
+};
+const INTENT_IDX = optionIndex(LEAD_AD_INTENT, (v) => v.label);
+const AGE_IDX = optionIndex(LEAD_AD_AGE, (v) => v);
+const COVER_IDX = optionIndex(LEAD_AD_HAS_COVER, (v) => v);
+for (const k of ['35_44', '45_50']) AGE_IDX.set(k.replace('_', '-'), k); // older form labels "35-44" / "45-50"
+AGE_IDX.set('51_or_older', '51plus'); AGE_IDX.set('51+', '51plus');
+
+/**
+ * field_data (as { name: first value }) -> the v2 answers. { intent_option, intent, help_with, age_band, has_cover }; a missing
+ * or unreadable answer is simply absent (tolerated: intent and has_cover are optional for the pipeline, age decides nothing).
+ */
+export function leadAdAnswers(fields = {}) {
+  const out = {};
+  const used = new Set();
+  const take = (slot, idx) => {
+    for (const k of LEAD_AD_QUESTION_KEYS[slot]) {
+      if (fields[k] == null || fields[k] === '') continue;
+      used.add(k);
+      const code = idx.get(optSlug(fields[k]));
+      if (code) return code;
+    }
+    return null;
+  };
+  let intent = take('intent', INTENT_IDX), age = take('age_band', AGE_IDX), cover = take('has_cover', COVER_IDX);
+  // a hand-built form: unknown field names; match the remaining values on the option labels (each set is disjoint)
+  const known = new Set(['first_name', 'full_name', 'last_name', 'phone_number', 'phone', 'email', 'budget_band', 'has_bond', 'has_dependants', 'preferred_method', 'call_ok', 'bond_children', 'language']);
+  for (const [k, v] of Object.entries(fields)) {
+    if (used.has(k) || known.has(k) || typeof v !== 'string') continue;
+    const s = optSlug(v);
+    if (!intent && INTENT_IDX.has(s)) intent = INTENT_IDX.get(s);
+    else if (!age && AGE_IDX.has(s)) age = AGE_IDX.get(s);
+    else if (!cover && COVER_IDX.has(s)) cover = COVER_IDX.get(s);
+  }
+  if (intent) Object.assign(out, { intent_option: intent, intent: LEAD_AD_INTENT[intent].intent, help_with: LEAD_AD_INTENT[intent].help_with });
+  if (age) out.age_band = age;
+  if (cover) out.has_cover = cover;
+  return out;
+}
+
+/** custom_disclaimer_responses -> { consented, ads }. is_checked is "1" / "" in Graph (true / false accepted too). */
+export function leadAdConsent(responses = []) {
+  const on = (r) => r && (String(r.is_checked) === '1' || r.is_checked === true || String(r.is_checked).toLowerCase() === 'true');
+  const list = (Array.isArray(responses) ? responses : []).filter((r) => r && typeof r === 'object');
+  const keyed = list.some((r) => LEAD_AD_CONSENT_KEYS.has(r.checkbox_key) || LEAD_AD_ADS_KEYS.has(r.checkbox_key));
+  // A form built by hand may carry Meta's own checkbox keys. Meta does not accept a submission without the required box,
+  // so a ticked box still proves the consent; the optional ad-measurement choice is then NOT assumed (never ads by default).
+  if (!keyed) return { consented: list.some(on), ads: false, keys_known: false };
+  return {
+    consented: list.some((r) => LEAD_AD_CONSENT_KEYS.has(r.checkbox_key) && on(r)),
+    ads: list.some((r) => LEAD_AD_ADS_KEYS.has(r.checkbox_key) && on(r)),
+    keys_known: true,
+  };
+}
+
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
 /** leads.routing_reason of a /start/ page web lead waiting for its answers and the adviser card (W39 routes it). No CHECK. */
 export const START_PAGE_PENDING = 'start_page_pending';
@@ -211,6 +301,11 @@ export function consentRegistry(broker = {}) {
   };
 }
 
+/** The v2 answers kept for conv_state.start (null when the form carried none of them: an older form). */
+const leadAdBlock = (a, formId) => (a.intent || a.has_cover
+  ? { ...(a.intent ? { intent: a.intent, intent_option: a.intent_option } : {}), ...(a.has_cover ? { has_cover: a.has_cover } : {}), form_id: formId ?? null }
+  : null);
+
 /**
  * Lead Ads -> canonical submission. Accepts the raw Graph lead (field_data + custom_disclaimer_responses, the
  * fixture shape) and the W02 "ingest" item (W02.json "Fetch lead via Graph + backstop": mobile_raw, consent{...}).
@@ -220,29 +315,42 @@ export function normaliseLeadAd(p = {}, opts = {}) {
   const reg = opts.consent_texts || consentRegistry(opts.broker);
   if (Array.isArray(p.field_data)) {
     const f = Object.fromEntries(p.field_data.map((x) => [x.name, x.values?.[0]]));
-    const consented = (p.custom_disclaimer_responses || []).some((r) => r.checkbox_key === 'consent' && String(r.is_checked) === '1');
-    const text = reg[p.consent_text_version] ?? null;
+    const cdr = p.custom_disclaimer_responses || [];
+    const c = leadAdConsent(cdr);
+    const ver = p.consent_text_version ?? LEAD_AD_CONSENT_VERSION;
+    const text = reg[ver] ?? null;
     const from_registry = !opts.consent_texts && text != null;
+    const a = leadAdAnswers(f);
     return {
       channel: 'lead_ad', brand_id: p.brand_id ?? 'smc', is_synthetic: p.is_synthetic === true, submitted_at: p.created_time,
-      first_name: cleanName(f.first_name), mobile_raw: f.phone_number ?? null, language: f.language ?? null,
-      quiz: { age_band: AGE_TO_DB[f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: null },
+      first_name: cleanName(f.first_name ?? String(f.full_name || '').split(' ')[0]), mobile_raw: f.phone_number ?? null, language: f.language ?? null,
+      quiz: { age_band: AGE_TO_DB[a.age_band ?? f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: null },
       preferred_method: methodOf(f.preferred_method), email: f.email ?? null,
-      consent: { checked: consented && !!text, text, version: p.consent_text_version ?? null, at: p.created_time, page_url: null, source: 'lead_ad', ads: adsSentence(text, p.consent_text_version), from_registry },
-      context: { event_id: null, ad_id: p.ad_id ?? null, adset_id: p.adset_id ?? null, campaign_id: p.campaign_id ?? null, leadgen_id: p.leadgen_id ?? null, form_id: p.form_id ?? null },
-      honeypot: '', started_at: null, turnstile_token: null, request_id: p.leadgen_id ?? null,
+      // the v2 form's answers (no column for intent / has_cover: decide() keeps them in conv_state.start, as W39 does)
+      help_with: a.help_with ?? null, product_interest: 'life_cover', lead_ad: leadAdBlock(a, p.form_id),
+      consent: { checked: c.consented && !!text, text, version: ver, at: p.created_time, page_url: null, source: 'lead_ad', ads: adsSentence(text, ver) || c.ads,
+        ads_version: c.ads ? WEB_CONSENT.ads.version : null, from_registry },
+      // a raw Graph Lead carries its id as `id` (the fixture shape as leadgen_id)
+      context: { event_id: null, ad_id: p.ad_id ?? null, adset_id: p.adset_id ?? null, campaign_id: p.campaign_id ?? null, leadgen_id: p.leadgen_id ?? p.id ?? null, form_id: p.form_id ?? null },
+      honeypot: '', started_at: null, turnstile_token: null, request_id: p.leadgen_id ?? p.id ?? null,
     };
   }
   const l = p.lead || p;
   const ver = l.consent?.text_version ?? null;
   const text = reg[ver] ?? l.consent?.text ?? null;
   const from_registry = !opts.consent_texts && reg[ver] != null;
+  // W02 v2 passes the form's answers map (meta-ads normalizeLead) and the checkbox responses through unchanged
+  const a = leadAdAnswers({ ...(l.answers && typeof l.answers === 'object' ? l.answers : {}), ...(l.age_band != null ? { age_band: l.age_band } : {}) });
+  const cdr = Array.isArray(l.consent?.responses) ? leadAdConsent(l.consent.responses) : null;
+  const ads = adsSentence(text, ver) || (cdr ? cdr.ads : false);
   return {
     channel: 'lead_ad', brand_id: l.brand_id ?? null, is_synthetic: l.is_synthetic === true, submitted_at: l.consent?.captured_at ?? null,
     first_name: cleanName(l.first_name ?? String(l.full_name || '').split(' ')[0]), mobile_raw: l.mobile_raw ?? null, language: l.language ?? null,
-    quiz: { age_band: AGE_TO_DB[l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: null },
+    quiz: { age_band: AGE_TO_DB[a.age_band ?? l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: null },
     preferred_method: methodOf(l.preferred_method), email: l.email ?? null,
-    consent: { checked: l.consent?.given === true && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads: adsSentence(text, ver), from_registry },
+    help_with: a.help_with ?? null, product_interest: 'life_cover', lead_ad: leadAdBlock(a, l.form_id),
+    consent: { checked: l.consent?.given === true && (!cdr || cdr.consented) && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads,
+      ads_version: cdr && cdr.ads ? WEB_CONSENT.ads.version : null, from_registry },
     context: { event_id: null, ad_id: l.ad_id ?? null, adset_id: l.adset_id ?? null, campaign_id: l.campaign_id ?? null, leadgen_id: l.leadgen_id ?? null, form_id: l.form_id ?? null },
     honeypot: '', started_at: null, turnstile_token: null, request_id: l.leadgen_id ?? null,
   };
@@ -451,7 +559,11 @@ export function decide(sub, ctx) {
   // /start/ page web intake: the answers come later on the page (W39) and every age may book (W39 OUT_OF_BAND_AGE_BOOKS), so
   // nothing here is out of band and nothing is routed: W39 routes after the adviser card (disclosure before routing).
   const startPage = sub.channel === 'page' && sub.start_page === true;
-  const ageOut = !startPage && !QUAL_AGE.has(row.age_band);
+  // Meta instant form v2 (18 Oct 2026): every age is accepted, as on /start/. An under-35 / over-50 (or a missing) age is
+  // stored and booked like any lead, never marked qualified (W03 finishLeadAd), with a timeline note; nothing is routed out.
+  const leadAdAgeBooks = sub.channel === 'lead_ad' && OUT_OF_BAND_AGE_BOOKS;
+  const ageOut = !startPage && !leadAdAgeBooks && !QUAL_AGE.has(row.age_band);
+  const ageAccepted = leadAdAgeBooks && !QUAL_AGE.has(row.age_band);
   // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band. A lead-ad lead without
   // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
   // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
@@ -465,6 +577,11 @@ export function decide(sub, ctx) {
   const tier = pageBudgetPending ? 'B' : tierOf(row.budget_band);
   // help_with has no column on public.leads: it is kept in conv_state (jsonb), no DDL (spec 2a)
   if (sub.channel === 'page' && sub.help_with) row.conv_state = { help_with: sub.help_with };
+  // lead ad v2: the form's answers, kept like the /start/ page keeps them (conv_state.start + help_with, W01 vocabulary)
+  const leadAdState = sub.channel === 'lead_ad' && (sub.lead_ad || ageAccepted)
+    ? { ...(sub.lead_ad ? { start: { ...sub.lead_ad, at, via: 'lead_ad' } } : {}), ...(sub.lead_ad && sub.lead_ad.intent && sub.help_with ? { help_with: sub.help_with } : {}), ...(ageAccepted ? { age_accepted: true } : {}) }
+    : null;
+  if (leadAdState) row.conv_state = leadAdState;
   if (ageOut || budOut) {
     Object.assign(row, { stage: 'disqualified', disqualified_reason: ageOut ? 'age_band' : 'budget_band', retention_delete_after: isoSast(now + OUT_OF_BAND_RETENTION_H * H) });
     return { kind: 'insert', outcome: 'not_qualified', row, activities, first_touch: null, capi: null, mint_token: false,
@@ -477,6 +594,12 @@ export function decide(sub, ctx) {
     activities.push({ activity_type: 'suppressed_at_intake', actor_type: 'system', occurred_at: at, idempotency_key: `w01:suppressed:${ctx.lead_id}`, payload: { channel: sub.channel } });
     return { kind: 'insert', outcome: 'suppressed', row, activities, first_touch: null, capi: null, mint_token: false,
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
+  }
+
+  // the W39 OUT_OF_BAND_AGE_BOOKS note: the age is on the timeline, counting is unchanged (no qualified_at)
+  if (ageAccepted) {
+    activities.push({ activity_type: 'lead_ad_age_out_of_band', actor_type: 'system', occurred_at: at, idempotency_key: `w01:age_oob:${ctx.lead_id}`,
+      payload: { age_band: row.age_band, budget_band: row.budget_band, books: true, qualified: false, rule: OOB_AGE_RULE, via: 'lead_ad' } });
   }
 
   if (startPage) {
@@ -503,7 +626,7 @@ export function decide(sub, ctx) {
   if (budgetPending) {
     // Not routed, not handed over, no CAPI Lead yet: routeExisting() sends Lead at the hand-over (held_* rule, I-49c).
     // The first WhatsApp (< 60 s, HBR) is the budget question; W07 sends the tap to W03 because conv_state is q_budget.
-    Object.assign(row, { routing_reason: 'held_budget_pending', conv_state: { state: 'q_budget' } });
+    Object.assign(row, { routing_reason: 'held_budget_pending', conv_state: { ...(row.conv_state || {}), state: 'q_budget' } });
     activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: sub.channel } });
     return { kind: 'insert', outcome: 'budget_pending', row, activities, capi: null, mint_token: false,
       first_touch: { workflow: 'W03', op: 'ask_budget', lead_id: row.id, not_before: at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },

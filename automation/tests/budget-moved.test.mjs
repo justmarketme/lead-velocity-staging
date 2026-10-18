@@ -40,7 +40,8 @@ test('W02 backstop (qualifyLead): no band -> qualified + budget_pending; an olde
   for (const b of ['750_1250', '1250plus', '1250_1499', '1500_plus']) assert.equal(M.qualifyLead(lead({ age_band: '35_44', budget_band: b, call_ok: 'yes' })).qualified, true, b);
   for (const b of ['lt500', '500_750']) assert.equal(M.qualifyLead(lead({ age_band: '35_44', budget_band: b, call_ok: 'yes' })).qualified, true, `${b}: tier C, not out of band`);
   assert.deepEqual(M.qualifyLead(lead({ age_band: '35_44', budget_band: 'r100', call_ok: 'yes' })).reasons, ['budget_band'], 'unknown band');
-  assert.deepEqual(M.qualifyLead(lead({ age_band: '51plus', call_ok: 'yes' })).reasons, ['age_band'], 'age still decided in the form');
+  // instant form v2 (Jono, 18 Oct 2026): every age is accepted, as on /start/ (W01 OUT_OF_BAND_AGE_BOOKS)
+  assert.deepEqual([M.qualifyLead(lead({ age_band: '51plus', call_ok: 'yes' })).qualified, M.qualifyLead(lead({ age_band: '51plus' })).age_in_band], [true, false], 'age never routes out');
 });
 
 const sub = () => W01.normaliseLeadAd({ lead: { origin: 'lead_ad', brand_id: 'smc', leadgen_id: 'lg_budget_1', form_id: 'f1', full_name: 'Synthetic Lerato', mobile_raw: '+27600000141',
@@ -59,8 +60,11 @@ test('W01: a lead-ad lead without a band is stored unrouted (q_budget) and its f
   assert.equal(shape.counts.body, q.variables.length); assert.equal(shape.counts.quick_reply, q.buttons.length);
   assert.equal(templateSpec('qualify_budget').category, 'UTILITY');
   assert.deepEqual(q.buttons.map((b) => b.quick_reply), W3.BUDGET_ROWS.map(([id]) => id), 'tap ids are W03 budget row ids');
-  // an out-of-band age still never gets a message; an older form band is judged at intake as before
-  assert.equal(W01.decide({ ...sub(), quiz: { ...sub().quiz, age_band: '51plus' } }, ctx).outcome, 'not_qualified');
+  // instant form v2: an out-of-band age is stored and asked the band like anyone (age_accepted + a timeline note, never qualified);
+  // an older form band is judged at intake as before
+  const old = W01.decide({ ...sub(), quiz: { ...sub().quiz, age_band: '51plus' } }, ctx);
+  assert.deepEqual([old.outcome, old.row.disqualified_reason, old.row.conv_state.age_accepted, old.first_touch.op], ['budget_pending', null, true, 'ask_budget']);
+  assert.ok(old.activities.some((a) => a.activity_type === 'lead_ad_age_out_of_band'));
   const lo = W01.decide({ ...sub(), quiz: { ...sub().quiz, budget_band: 'lt750' } }, ctx);
   assert.deepEqual([lo.outcome, lo.row.routing_reason, lo.row.stage, lo.row.disqualified_reason, lo.row.retention_delete_after], ['held', 'held_low_budget', 'new', null, null], 'tier C: held open, not out of band');
   assert.equal(lo.notice.template, 'lead_low_budget_held');
@@ -90,7 +94,11 @@ test('the tap: W07 routes it to W03; same bands decide; in band -> qualified + r
     const r = W3.step(null, msg, { at: AT, mobile: lead.phone, lead_id: lead.id, lead, existing_open_lead_id: lead.id, brand: { brand_id: 'smc', consent_mode: 'named' }, broker: null });
     const upd = r.actions.filter((a) => a.kind === 'update_lead').map((a) => a.set);
     if (inBand) {
-      assert.equal(upd[0].stage, 'qualified', id);
+      // tier C (under R750): the band only, never qualified here (as finishPageBudget / W39); tiers A/B: qualified
+      const tierC = ['budget_under_500', 'budget_500_750'].includes(id);
+      assert.equal(upd[0].stage, tierC ? undefined : 'qualified', id);
+      assert.equal(!!upd[0].qualified_at, !tierC, id);
+      if (tierC) assert.equal(upd[0].keep_lead, true, 'a real lead: the reminder delete date is cleared');
       assert.equal(upd[0].budget_band, W3.BUDGET_TO_DB[id.slice(7)]);
       assert.ok(r.actions.some((a) => a.kind === 'route_and_first_touch'), 'hand-over goes through W01 routing');
       assert.ok(!r.actions.some((a) => a.kind === 'send'), 'nothing else is asked');
@@ -140,5 +148,5 @@ test('reminder wiring: W01 15-min sweep -> mark before send (at-most-once) -> sh
   assert.match(nd('Mark reminded (at-most-once) + delete 24 h after').parameters.query, /WHERE id = \$1::uuid AND conv_state->>'budget_reminded_at' IS NULL/);
   assert.deepEqual(to('Reminder send input (only rows just marked)'), ['WhatsApp Send (qualify_budget reminder)']);
   assert.equal(nd('WhatsApp Send (qualify_budget reminder)').parameters.workflowId.value, 'smc-whatsapp-send');
-  assert.match(WF03, /retention_delete_after = CASE WHEN \$2::jsonb \? 'qualified_at' THEN NULL/);
+  assert.match(WF03, /retention_delete_after = CASE WHEN \$2::jsonb \? 'qualified_at' OR \$2::jsonb \? 'keep_lead' THEN NULL/);
 });

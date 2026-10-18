@@ -486,7 +486,7 @@ function qualify(t, msg, ctx, actions) {
 
 /**
  * Meta Lead Ads terms (decided 2026-10-05): no income / financial question in an instant form without Meta's permission.
- * The instant form keeps age, call_ok and bond/children; the monthly budget band is the FIRST WhatsApp step instead.
+ * The instant form (v2, 18 Oct 2026: intent, age band, cover today) asks no budget; the monthly band is the FIRST WhatsApp step.
  * W01 stores the lead unrouted (routing_reason held_budget_pending, conv_state q_budget) and sends the qualify_budget
  * template (automation/lib/w01.mjs budgetQuestion, same row ids as BUDGET_ROWS) within 60 s; the tap comes back through W07 -> W03 (qualifying tap) and the SAME QUAL_BUDGET set decides:
  * in band (tiers A/B, and tier C under R750 since 2026-10-11) -> qualified -> W01 routes (tier C only to a broker with the
@@ -495,8 +495,12 @@ function qualify(t, msg, ctx, actions) {
  */
 function finishLeadAd(t, ctx, actions, val) {
   t.stage = 'done';
+  // Instant form v2 (18 Oct 2026): every age books (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as /start/), so an under-35 / over-50
+  // lead is routed here too but NEVER marked qualified; tier C (under R750) gets the band only, as finishPageBudget. Either way
+  // it is a real lead that answered: the budget reminder's 24-h delete date is cleared (keep_lead).
+  const inBand = QUAL_BUDGET.has(val) && QUAL_AGE.has(t.answers.age_band);
   actions.push({ kind: 'cancel_stall' });
-  actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], qualified_at: ctx.at, stage: 'qualified', conv_state_state: NEXT_STATE.q_method } });
+  actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], conv_state_state: NEXT_STATE.q_method, ...(inBand ? { qualified_at: ctx.at, stage: 'qualified' } : { keep_lead: true }) } });
   actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });
   return { thread: t, actions };
 }

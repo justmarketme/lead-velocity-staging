@@ -25,15 +25,16 @@
 //   Always: the answers are kept in conv_state.start (no intent / has-cover column), help_with in conv_state (W01 vocabulary),
 //   W03's pending stall is cancelled, one lead_activities row per call (w39:answers:<lead>:<request_id>[:confirm]).
 import { resolveCaller as w04Caller, brokerConfig, iso, ms } from './w04.mjs';
-import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H, routingFor, tierOf } from './w01.mjs';
+import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H, routingFor, tierOf, OUT_OF_BAND_AGE_BOOKS, OOB_AGE_RULE } from './w01.mjs';
 
 export const WORKFLOW = 'W39';
 /**
  * Under-35 / over-50 on the page. Jono, 18 Oct 2026: true, they may book with Mark. They are never marked qualified
  * (qualified_at stays null) and get a timeline note. NOTE: counting toward the broker's order is the database's rule
  * (smc_count_lead: attended + email verified), not qualified_at; see CONTRACTS.md "W39 Start page API".
+ * One switch, owned by lib/w01.mjs since the instant form v2 (18 Oct 2026) follows the same rule; re-exported here.
  */
-export const OUT_OF_BAND_AGE_BOOKS = true;
+export { OUT_OF_BAND_AGE_BOOKS };
 
 export const INTENTS = ['life', 'income', 'illness', 'review', 'will', 'other'];
 export const AGE_BANDS = ['lt35', '35_44', '45_50', '51plus'];
@@ -174,7 +175,7 @@ export function decideAnswers({ lead, answers, request_id, confirm_adviser = nul
   if (!ageIn) {
     set.conv_state.age_accepted = true;
     return plan('oob_book', { cover: true, notes: [{ activity_type: 'start_page_age_out_of_band', idempotency_key: `w39:age_oob:${lead.id}`,
-      payload: { age_band: a.age_band, budget_band: a.budget_band || null, books: true, qualified: false, rule: 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)' } }] });
+      payload: { age_band: a.age_band, budget_band: a.budget_band || null, books: true, qualified: false, rule: OOB_AGE_RULE } }] });
   }
   return plan(a.budget_band === LOW_BUDGET ? 'route_tier_c' : 'route', { cover: true });
 }

@@ -460,3 +460,18 @@ Cal.com is dropped: on desktop, "Book" opens `/start/?ref=<code>&via=<src>` with
 | 90-day duplicate | `200 { ok: true, status: 'accepted', lead_id: <existing>, lead_token: <fresh for the existing lead> }` whenever the existing lead is not opted out (routed or not); no new lead, no WhatsApp, no CAPI. |
 
 Then the W39 two phases (answers -> adviser card -> confirm -> W01 routes with `first_touch: false` and `expect_broker_id`; the named consent must name that broker's practice + FSP, else `held_consent_names_other_practice`), W04 `/slots` and W05 `/book` exactly as for a WhatsApp lead. **No session text for a web lead**: it never messaged us (no 24-h window), so W39 plans no WhatsApp line for `leads.origin = 'page'`; `will` and `other` open a console escalation (a person follows up) and the page shows its chat / "we'll be in touch" screen for `next: 'chat'`. Templates still go out: a held tier-C lead gets W01's `lead_low_budget_held`, and after booking W06 sends `broker_intro_booked` (the disclosure card with the booked time: since 2026-10-18 a booking event that wins the one-card claim is the first touch, however long after routing it came).
+
+## W02 Meta instant form v2 (Jono, 2026-10-18; A/B arm vs click-to-WhatsApp)
+Form: `deliverables/media-buyer/instant-form-spec-v2.json` (built by hand in Ads Manager). Reader: `lib/w01.mjs normaliseLeadAd` (`leadAdAnswers`, `leadAdConsent`); W02 passes the Graph answers map + `custom_disclaimer_responses` through (`automation/patch-w02-instant-form-v2.mjs`). Tests: `automation/tests/W02-instant-form-v2.test.mjs`.
+
+| Field | Keys accepted | Values (option key or exact label) | Stored |
+|---|---|---|---|
+| intent | `smc_intent`, `intent`, `help_with` | `life` Life cover, `disability` Disability cover, `income` Income protection, `illness` Severe illness cover, `review` Not sure yet | `conv_state.start.intent` (/start/ code: life / income / income / illness / review) + `intent_option`, `conv_state.help_with` (life / disability_income / severe_illness / review), `product_interest = 'life_cover'` |
+| age | `smc_age_band`, `age_band` | `lt35` Under 35, `35_44` 35 to 44, `45_50` 45 to 50, `51plus` Over 50 | `leads.age_band` |
+| cover today | `smc_has_cover`, `has_cover` | `yes`, `no`, `unsure` Not sure | `conv_state.start.has_cover` |
+| consent | checkbox `consent` / `smc_consent` (required) | `is_checked "1"` | `consent_text` = `consentRegistry(broker)['CONSENT-NAMED-v5web']`, audited (`consent_audit`) |
+| ad measurement | checkbox `consent_ads` / `smc_consent_ads` (optional) | `is_checked "1"` | `consent_ads_at` |
+
+A field with an unknown name is matched on its value (a hand-built form). Other checkbox keys: a ticked box is the consent (Meta refuses a submission without the required one); the ads choice is then not assumed. Missing intent / cover answers are tolerated.
+
+**Every age is accepted** (`lib/w01.mjs OUT_OF_BAND_AGE_BOOKS`, the switch W39 re-exports): `lt35` / `51plus` (or no age) are stored and asked the band like anyone, `conv_state.age_accepted = true`, timeline `lead_ad_age_out_of_band`; W03 `finishLeadAd` routes them on the band tap but writes **no `qualified_at`** (nor for tier C), and `keep_lead` clears the budget reminder's delete date. The W02 backstop (`meta-ads qualifyLead`) no longer routes out on age, and judges `call_ok` only when a v1 form asked it. The budget is unchanged: stored `held_budget_pending`, first touch W03 `ask_budget` -> `qualify_budget` template within 60 s.
