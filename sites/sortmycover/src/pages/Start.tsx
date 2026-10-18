@@ -1,17 +1,21 @@
 /* /start/: the private per-lead page Lindi sends on WhatsApp (sortmycover.co.za/start/#lt=<token>). Six one-tap questions, then who the
    adviser is and what is shared with them (confirmed before any open time is fetched), the open times and the email for the invite. noindex,nofollow, no referrer, not in the sitemap or any menu, no site chrome,
    no chat widget, no Meta Pixel. The token lives in the URL fragment, then sessionStorage, and is sent only as X-Lead-Token.
+   No token (a desktop visit from a site CTA, /start/?ref=<page>&via=<source>): step 0 takes the first name, WhatsApp number and the
+   named consent, POSTs /lead, and continues with the token it returns; everything after that is the same as Lindi's link.
    Pure logic: src/lib/start.ts. API: src/lib/start-api.ts. Styles: src/styles/start.css. */
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { animate } from "motion/mini";
 import { Seo } from "@/lib/head";
-import { APEX, site } from "@/lib/site";
+import { APEX, consentCfg, site, strs } from "@/lib/site";
+import { sourceTag, waHref } from "@/lib/whatsapp";
+import { attribution } from "@/lib/pixel";
 import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
-import { createStartApi, type BookedInfo, type StartApi, type StartData } from "@/lib/start-api";
+import { createStartApi, postLead, type BookedInfo, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
 import {
-  TOKEN_KEY, TOTAL_STEPS, adviserDisclosure, afterAnswers, answersPayload, availableMethods, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
-  methodLabel, nextStep, prevStep, readTokenFromHash, requestId, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink,
+  TOKEN_KEY, adviserDisclosure, firstScreen, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
+  methodLabel, nextStep, prevStep, readTokenFromHash, requestId, resumeAt, setAnswer, suggestEmail, validEmail, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
 
@@ -19,13 +23,25 @@ type Screen =
   | { k: "loading" }
   | { k: "expired" }
   | { k: "loadError" }
-  | { k: "chat"; noSlots?: boolean }
+  | { k: "chat"; noSlots?: boolean; wills?: boolean }
+  | { k: "neutral" }
   | { k: "step"; step: StepId }
   | { k: "done"; info: BookedInfo; held: boolean };
 
 const SHOW_ROWS = 8;
 const EMAIL_ERR = "That address doesn't look complete. Could you check it and send it again?";
 const WA = waLink(site.whatsapp_number);
+const CONSENT = namedConsent(consentCfg);
+const RATE_ERR = "Too many tries. Please wait a few minutes.";
+/** ?for=wills on the desktop link: the wills opener (with its consent statement) to the SortMyCover number; the source tag is read
+    only on tap. */
+function willsHref(withVia = false): string {
+  const q = typeof location === "undefined" ? new URLSearchParams() : new URLSearchParams(location.search);
+  const ctx = { topic: "a will", ref: (q.get("ref") || "w-start-will").replace(/[^a-z0-9-]/gi, "").slice(0, 40) || "w-start-will", wills: true };
+  let via = "";
+  if (withVia) { try { via = sourceTag(attribution(), document.referrer) || (q.get("via") || "").replace(/[^a-z0-9_/-]/gi, "").slice(0, 60); } catch { /* none */ } }
+  return waHref(ctx, via || undefined);
+}
 
 interface Opt<V extends string> { v: V; t: string; d?: string }
 const INTENTS: Opt<NonNullable<Answers["intent"]>>[] = [
@@ -121,6 +137,20 @@ function StartFlow() {
   const shown: AdviserInfo | null = adviser ?? (data?.adviser ? { ...data.adviser, id: data.adviser.id || "" } : null);
   const adviserFirst = shown?.first_name || null;
 
+  /* ---------- step 0 (no token) ---------- */
+  const [withDetails, setWithDetails] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [ads, setAds] = useState<"give" | "decline" | null>(null); // neither preselected (rule S22)
+  const [bad, setBad] = useState<{ name?: boolean; phone?: boolean; consent?: boolean }>({});
+  const [formErr, setFormErr] = useState<string | null>(null);
+  const hp = useRef<HTMLInputElement>(null);
+  const startedAt = useRef("");
+  const leadPoster = useRef<LeadPoster>(postLead);
+  const typedName = useRef<string | null>(null);
+  const e164 = toE164(phone);
+
   /* ---------- boot: token from the fragment, then strip it from the address bar ---------- */
   const load = useCallback(async () => {
     const a = api.current!;
@@ -151,15 +181,56 @@ function StartFlow() {
       if (tok) { try { sessionStorage.setItem(TOKEN_KEY, tok); } catch { /* storage blocked: the token still works for this page view */ } }
       if (/(^#|&)lt=/.test(location.hash)) history.replaceState(history.state, "", location.pathname + location.search);
       if (!tok) { try { tok = sessionStorage.getItem(TOKEN_KEY); } catch { /* none */ } }
-      if (!tok) return setScreen({ k: "expired" });
-      let a: StartApi | null = null;
-      if (import.meta.env.DEV) {
-        if (tok === "demo") a = (await import("@/lib/start-mock")).createMockApi();
+      const first0 = firstScreen(tok, location.search);
+      if (first0 === "wills") return setScreen({ k: "chat", wills: true });
+      if (first0 === "details") {
+        if (import.meta.env.DEV) {
+          if (new URLSearchParams(location.search).get("ref") === "demo") leadPoster.current = (await import("@/lib/start-mock")).mockPostLead;
+        }
+        startedAt.current = new Date().toISOString();
+        setWithDetails(true);
+        return setScreen({ k: "step", step: "details" });
       }
-      api.current = a ?? createStartApi(tok);
+      await connect(tok!);
       load();
     })();
-  }, [load]);
+  }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function connect(tok: string) {
+    let a: StartApi | null = null;
+    if (import.meta.env.DEV) {
+      if (tok === "demo") a = (await import("@/lib/start-mock")).createMockApi();
+    }
+    api.current = a ?? createStartApi(tok);
+  }
+
+  /** Step 0: POST /lead. Only a reply carrying lead_token continues; nothing else is sent before that token exists. */
+  async function sendDetails() {
+    const nameOk = validFirstName(name);
+    const b = { name: !nameOk, phone: !e164, consent: !consent };
+    setBad(b); setFormErr(null);
+    if (b.name || b.phone || b.consent) {
+      document.getElementById(b.name ? "st-name" : b.phone ? "st-phone" : "st-consent")?.focus();
+      return;
+    }
+    if (hp.current && hp.current.value) return setScreen({ k: "neutral" }); // honeypot: thank them, send nothing
+    setBusy(true);
+    const key = `lead:${name.trim()}|${e164}|${ads}`;
+    const body = leadBody({ first_name: name, mobile: e164!, ads, honeypot: "", origin: location.origin, search: location.search, started_at: startedAt.current, request_id: idFor(key), user_agent: navigator.userAgent, now: Date.now() }, consentCfg);
+    const r = await leadPoster.current(body);
+    setBusy(false);
+    switch (r.kind) {
+      case "accepted":
+        try { sessionStorage.setItem(TOKEN_KEY, r.token); } catch { /* storage blocked: the token still works for this page view */ }
+        typedName.current = name.trim();
+        await connect(r.token);
+        return load();
+      case "neutral": return setScreen({ k: "neutral" });
+      case "rate": return setFormErr(RATE_ERR);
+      case "mobile": setBad({ phone: true }); return setFormErr(strs.err_mobile_server);
+      default: return setFormErr(strs.err_send);
+    }
+  }
 
   /* ---------- focus and transition on every screen change ---------- */
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -208,7 +279,7 @@ function StartFlow() {
       const n = nextStep(step, a);
       if (n === "chat") submitAnswers(a, true);
       else if (n === "submit") submitAnswers(a, false);
-      else go(n);
+      else if (n !== "lead") go(n);
     }, reducedMotion() ? 60 : 180);
   }
 
@@ -259,8 +330,10 @@ function StartFlow() {
 
   /* ---------- render ---------- */
   const step = screen.k === "step" ? screen.step : null;
-  const n = step ? stepNumber(step) : null;
-  const first = data?.first_name || null;
+  const prog = step ? progress(step, withDetails) : null;
+  const n = prog?.n ?? null;
+  const total = prog?.total ?? 0;
+  const first = data?.first_name || typedName.current || null;
 
   let body: ReactNode;
   const backLink = step && step !== "intent" ? <button type="button" className="st-back" onClick={() => back(step)} disabled={busy}>‹ Back</button> : null;
@@ -293,13 +366,18 @@ function StartFlow() {
     case "expired":
       body = (<><Q ref={headRef}>This link has <em>expired.</em></Q><p className="st-sub">Ask Lindi for a new one on WhatsApp.</p><div className="st-foot"><a className="btn st-btn" href={WA}>Back to WhatsApp</a></div></>);
       break;
+    case "neutral":
+      body = (<><Q ref={headRef}>Thanks. Lindi will message you <em>on WhatsApp.</em></Q></>);
+      break;
     case "loadError":
       body = (<><Q ref={headRef}>Something went <em>wrong.</em></Q><p className="st-sub">Please try again.</p><div className="st-foot"><button type="button" className="btn st-btn" onClick={load}>Try again</button><a className="st-back" href={WA}>Back to WhatsApp</a></div></>);
       break;
     case "chat":
       body = screen.noSlots
         ? (<><Q ref={headRef}>No open times <em>right now.</em></Q><p className="st-sub">Lindi will find you a time on WhatsApp.</p><div className="st-foot"><a className="btn st-btn" href={WA}>Back to WhatsApp</a></div></>)
-        : (<><Q ref={headRef}>Lindi will carry on with you <em>on WhatsApp.</em></Q><div className="st-foot"><a className="btn st-btn" href={WA}>Back to WhatsApp</a></div></>);
+        : screen.wills
+          ? (<><Q ref={headRef}>Lindi will carry on with you <em>on WhatsApp.</em></Q><p className="st-sub">Lindi books calls about a will on WhatsApp, with a will consultant.</p><div className="st-foot"><a className="btn st-btn" href={willsHref()} onClick={(e) => { e.currentTarget.href = willsHref(true); }}>Chat on WhatsApp</a></div></>)
+          : (<><Q ref={headRef}>Lindi will carry on with you <em>on WhatsApp.</em></Q><div className="st-foot"><a className="btn st-btn" href={WA}>Back to WhatsApp</a></div></>);
       break;
     case "done": {
       const { info, held } = screen;
@@ -324,6 +402,48 @@ function StartFlow() {
     }
     case "step":
       switch (screen.step) {
+        case "details":
+          body = (
+            <form className="st-form st-details" noValidate onSubmit={(ev) => { ev.preventDefault(); sendDetails(); }}>
+              <Q ref={headRef}>Let's get you <em>booked</em></Q>
+              <div className={"field" + (bad.name ? " bad" : "")}>
+                <label htmlFor="st-name">First name</label>
+                <input id="st-name" type="text" autoComplete="given-name" autoCapitalize="words" maxLength={60} value={name} aria-invalid={bad.name || undefined} aria-describedby="st-name-err"
+                  onChange={(e) => { setName(e.target.value); if (bad.name) setBad((x) => ({ ...x, name: !validFirstName(e.target.value) })); }} />
+                <span className="err" id="st-name-err">{strs.err_name}</span>
+              </div>
+              <div className={"field" + (bad.phone ? " bad" : "") + (e164 ? " good" : "")}>
+                <label htmlFor="st-phone">WhatsApp number</label>
+                <input id="st-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="082 123 4567" value={phone} aria-invalid={bad.phone || undefined} aria-describedby="st-phone-err"
+                  onChange={(e) => { setPhone(e.target.value); if (bad.phone) setBad((x) => ({ ...x, phone: !toE164(e.target.value) })); }} />
+                <span className="err" id="st-phone-err">{strs.err_mobile}</span>
+                <span className="ok" aria-live="polite">{e164 ? strs.ok_mobile + " " + prettyMobile(e164) : ""}</span>
+              </div>
+              <p className="st-intro" data-disclosure>{startIntroLine()}</p>
+              <div className={"consent-wrap" + (bad.consent ? " bad" : "")} data-disclosure>
+                <label className="consent">
+                  <input id="st-consent" type="checkbox" checked={consent} aria-describedby="st-consent-err" onChange={(e) => { setConsent(e.target.checked); setBad((x) => ({ ...x, consent: !e.target.checked })); }} />
+                  <span>{CONSENT.text} <a href="/privacy/" target="_blank" rel="noopener">{consentCfg.link_text}<span className="sr"> (opens in a new tab)</span></a></span>
+                </label>
+                <span className="err" id="st-consent-err">{strs.err_consent}</span>
+              </div>
+              <fieldset className="ads-choice" data-disclosure>
+                <legend><span className="optional-tag">Optional</span> Ad measurement</legend>
+                <p className="st-ads-text">{consentCfg.ads.text}</p>
+                <div className="ads-pair">
+                  <label><input type="radio" name="st_consent_ads" value="give" checked={ads === "give"} onChange={() => setAds("give")} /> {consentCfg.ads.label}</label>
+                  <label><input type="radio" name="st_consent_ads" value="decline" checked={ads === "decline"} onChange={() => setAds("decline")} /> {consentCfg.ads.decline}</label>
+                </div>
+              </fieldset>
+              <div className="hp" aria-hidden="true"><label>Website<input type="text" tabIndex={-1} autoComplete="off" ref={hp} /></label></div>
+              <div className="st-foot">
+                <p className="st-field-err" aria-live="polite">{formErr}</p>
+                <button type="submit" className="btn st-btn" disabled={busy}>{busy ? "One moment…" : "Continue"}</button>
+                <p className="st-fine">Lindi, SortMyCover's automated assistant, will message you on WhatsApp to confirm and remind you.</p>
+              </div>
+            </form>
+          );
+          break;
         case "intent":
           body = (<><Q ref={headRef}>What brings you to SortMyCover <em>today?</em></Q><p className="st-sub">Pick the one closest.</p>{options(INTENTS, answers.intent, (v) => choose("intent", "intent", v))}{optionFoot}</>);
           break;
@@ -428,9 +548,9 @@ function StartFlow() {
         <div className="st-wrap st-top-in">
           <div className="st-top-row">
             <Wordmark plain />
-            {n && <span className="st-pill"><span className="sr">Step </span>{n} of {TOTAL_STEPS}</span>}
+            {n && <span className="st-pill"><span className="sr">Step </span>{n} of {total}</span>}
           </div>
-          {n && <div className="st-bars" aria-hidden="true">{Array.from({ length: TOTAL_STEPS }, (_, i) => <i key={i} className={i < n ? "on" : undefined} />)}</div>}
+          {n && <div className={"st-bars" + (total === 7 ? " st-bars7" : "")} aria-hidden="true">{Array.from({ length: total }, (_, i) => <i key={i} className={i < n ? "on" : undefined} />)}</div>}
           {step === "intent" && <p className="st-hi">{first && <strong>Hi {first}. </strong>}Six quick taps, then pick a time.</p>}
         </div>
       </header>

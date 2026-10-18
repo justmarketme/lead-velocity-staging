@@ -113,3 +113,14 @@
 .st-skel { display: grid; gap: 10px; }
 .st-skel i { display: block; height: 52px; border-radius: 14px; background: var(--sm-off-white-2); }
 .st-skel i:first-child { height: 26px; width: 75%; border-radius: 8px; }
+
+/* step 0 (no token): details and the named consent; reuses the site's .field / .consent / .ads-choice form styles */
+.st-bars7 { grid-template-columns: repeat(7, 1fr); }
+.st-details .field { margin: 0; }
+.st-details .consent { margin: 0; }
+.st-details .ads-choice { margin: 0; }
+.st-intro { margin: 0; font-size: 15px; line-height: 1.5; }
+.st-ads-text { margin: 0 0 4px; font-size: 13.5px; color: var(--sm-muted); }
+@media (min-width: 768px) {
+  .st-main { padding-top: 40px; }
+}

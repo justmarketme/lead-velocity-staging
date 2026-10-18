@@ -34,13 +34,30 @@ export interface Answers {
 }
 
 /** "adviser" is step 5 part A: who the call is with, and what is shared with them, shown and confirmed before any open time is asked for. */
-export type StepId = "intent" | "age" | "cover" | "budget" | "want" | "adviser" | "time" | "email";
-/** Where a step leads: another step, the WhatsApp handoff, or "submit" (POST the answers, then the server says slots or chat). */
-export type Next = StepId | "chat" | "submit";
+/** "details" is step 0, shown only on the no-token path (desktop CTAs link to /start/?ref=...): name, WhatsApp number, consent. */
+export type StepId = "details" | "intent" | "age" | "cover" | "budget" | "want" | "adviser" | "time" | "email";
+/** Where a step leads: another step, the WhatsApp handoff, "lead" (POST /lead, which returns the token every later call needs) or
+    "submit" (POST the answers, then the server says adviser, slots or chat). */
+export type Next = StepId | "chat" | "submit" | "lead";
 
 export const TOTAL_STEPS = 6;
-const NUMBER: Record<StepId, number> = { intent: 1, age: 2, cover: 3, budget: 4, want: 4, adviser: 5, time: 5, email: 6 };
+const NUMBER: Record<StepId, number> = { details: 0, intent: 1, age: 2, cover: 3, budget: 4, want: 4, adviser: 5, time: 5, email: 6 };
 export const stepNumber = (s: StepId) => NUMBER[s];
+/** The pill and the bars: "n of 6" on Lindi's token link; "n of 7" when the visit started at step 0 (it counts as step 1). */
+export function progress(s: StepId, withDetails: boolean): { n: number; total: number } {
+  return withDetails ? { n: NUMBER[s] + 1, total: TOTAL_STEPS + 1 } : { n: NUMBER[s], total: TOTAL_STEPS };
+}
+/** No token in the fragment or sessionStorage: start at step 0 (a desktop visit from a site CTA, or anyone without Lindi's link),
+    except ?for=wills, which goes straight to the WhatsApp handoff (wills are a separate project, booked by Lindi on WhatsApp).
+    "This link has expired" is kept for a token the API rejected. */
+export function firstScreen(token: string | null, search = ""): "details" | "load" | "wills" {
+  if (token) return "load";
+  const q = new URLSearchParams(search);
+  return q.get("for") === "wills" || isWillsRef(q.get("ref")) ? "wills" : "details";
+}
+/** startHref (src/lib/whatsapp.ts) sends only ?ref and ?via, so a wills page is recognised by its code: w-wills, w-home-wills,
+    w-book-will and the like, or a theme B campaign code (b01 to b04). */
+export const isWillsRef = (ref: string | null | undefined) => !!ref && (/^w-(?:[a-z0-9]+-)*wills?(?:-|$)/i.test(ref) || /^b\d{2}$/i.test(ref));
 
 /** "A will" and "Something else" do not continue on the page: Lindi carries on in the chat. */
 export const isChatIntent = (i?: Intent) => i === "will" || i === "other";
@@ -49,6 +66,7 @@ export const asksWant = (a: Answers) => a.has_cover === "no" || a.has_cover === 
 
 export function nextStep(step: StepId, a: Answers): Next {
   switch (step) {
+    case "details": return "lead";
     case "intent": return isChatIntent(a.intent) ? "chat" : "age";
     case "age": return "cover";
     case "cover": return "budget";
@@ -62,7 +80,8 @@ export function nextStep(step: StepId, a: Answers): Next {
 
 export function prevStep(step: StepId, a: Answers): StepId | null {
   switch (step) {
-    case "intent": return null;
+    case "details": return null;
+    case "intent": return null; // after step 0 the lead exists: there is no going back to re-send the details
     case "age": return "intent";
     case "cover": return "age";
     case "budget": return "cover";
@@ -272,4 +291,60 @@ export function requestId(): string {
   const b = new Uint8Array(16);
   if (c?.getRandomValues) c.getRandomValues(b); else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/* ---------------- step 0 (no token): details and consent ---------------- */
+/** The adviser named in the step 0 consent (consent_mode "named"). One place for the name, practice and FSP number. */
+export const START_ADVISER = { name: "Mark Weston", practice: "Oracle Private Wealth", fsp: "28418" } as const;
+export const startIntroLine = (a: { name: string; practice: string; fsp: string } = START_ADVISER) =>
+  `You'll book a 30-minute call with ${a.name}, ${a.practice}, an authorised financial services provider (FSP ${a.fsp}).`;
+
+/** The named consent text exactly as shown (and posted as consent_text): config/consent.json named.text with the practice and FSP. */
+export function namedConsent(cfg: { named: { text: string; version: string } }, a: { practice: string; fsp: string } = START_ADVISER) {
+  return { text: cfg.named.text.replace(/\{practice_name\}/g, a.practice).replace(/\{fsp_number\}/g, a.fsp), version: cfg.named.version, mode: "named" as const };
+}
+
+/** South African mobile to +27..., or null. Accepts 082 123 4567, +27 82 123 4567, 0027 82..., 27821234567 (06x, 07x, 08x). */
+export function toE164(v: string): string | null {
+  let d = String(v || "").replace(/[^\d+]/g, "");
+  if (d.indexOf("+") > 0) return null;
+  d = d.replace(/^\+/, "");
+  if (d.indexOf("0027") === 0) d = d.slice(4);
+  else if (d.indexOf("27") === 0 && d.length === 11) d = d.slice(2);
+  else if (d.charAt(0) === "0") d = d.slice(1);
+  else return null;
+  return /^[678]\d{8}$/.test(d) ? "+27" + d : null;
+}
+export const prettyMobile = (e: string) => e.replace(/^\+27(\d{2})(\d{3})(\d{4})$/, "+27 $1 $2 $3");
+export const validFirstName = (s: string) => { const v = s.trim(); return v.length >= 1 && v.length <= 60 && /\p{L}/u.test(v); };
+
+/** Where the visit came from, for the lead record: ?ref=<page code>&via=<source>, plus any utm_* (the old quiz's context.utm shape,
+    in which "ref" is one of the keys). */
+export function leadAttribution(search: string): { ref: string | null; utm: Record<string, string> } {
+  const q = new URLSearchParams(search || "");
+  const utm: Record<string, string> = {};
+  for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) { const v = q.get(k); if (v) utm[k] = v.slice(0, 100); }
+  const ref = q.get("ref") ? q.get("ref")!.slice(0, 60) : null;
+  const via = q.get("via");
+  if (via && !utm.utm_source) utm.utm_source = via.slice(0, 60);
+  if (ref) utm.ref = ref;
+  return { ref, utm };
+}
+
+export interface LeadInput {
+  first_name: string; mobile: string; ads: "give" | "decline" | null; honeypot: string;
+  origin: string; search: string; started_at: string; request_id: string; user_agent: string; now: number;
+}
+/** Body for POST /lead from step 0 (the removed quiz's postLead shape, consent_mode "named", start_page: true). */
+export function leadBody(i: LeadInput, cfg: { named: { text: string; version: string }; ads: { text: string; version: string } }) {
+  const c = namedConsent(cfg);
+  const { ref, utm } = leadAttribution(i.search);
+  return {
+    first_name: i.first_name.trim(), mobile: i.mobile, consent: true as const,
+    consent_text: c.text, consent_version: c.version, consent_mode: c.mode,
+    consent_ads: i.ads === "give", consent_ads_text: cfg.ads.text, consent_ads_version: cfg.ads.version,
+    angle: "generic", lang: "en", started_at: i.started_at, request_id: i.request_id, page_url: i.origin + "/start/",
+    company_website: i.honeypot, honeypot: i.honeypot, turnstile_token: "", start_page: true as const,
+    context: { event_id: i.request_id, event_name: "Lead", fbp: null, fbc: null, utm, fbclid: null, ref, page_url: i.origin + "/start/", user_agent: i.user_agent, ts: Math.floor(i.now / 1000) },
+  };
 }
