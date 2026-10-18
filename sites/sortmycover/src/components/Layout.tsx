@@ -7,7 +7,7 @@ import { Footer } from "./Footer";
 import { ReadProgress } from "./Interactive";
 
 /** Desktop nav shows from xl (1280px): seven items do not fit next to the wordmark and the button below that; the menu takes over. */
-const NAV: [string, string][] = [["Cover types", "/cover/"], ["Wills & estate", "/wills/"], ["How it works", "/how-it-works/"], ["How we make money", "/how-we-make-money/"], ["Learn", "/learn/"], ["About", "/about/"], ["Contact", "/contact/"]];
+const NAV: [string, string][] = [["Cover types", "/cover/"], ["Wills & estate", "/wills/"], ["How it works", "/how-it-works/"], ["Learn", "/learn/"], ["About", "/about/"], ["Contact", "/contact/"]];
 /** Static legal pages load no Motion at all. */
 const NO_MOTION = /^\/(privacy|terms|paia)\//;
 
