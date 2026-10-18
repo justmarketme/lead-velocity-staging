@@ -14,7 +14,7 @@ import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
 import { createStartApi, postLead, type BookedInfo, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
 import {
-  TOKEN_KEY, adviserDisclosure, firstScreen, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, hasCoverNow, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
+  TOKEN_KEY, adviserDisclosure, firstScreen, onLoadFailure, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, hasCoverNow, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
   methodLabel, nextStep, prevStep, readTokenFromHash, requestId, resumeAt, setAnswer, suggestEmail, validEmail, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
@@ -149,6 +149,7 @@ function StartFlow() {
   const startedAt = useRef("");
   const leadPoster = useRef<LeadPoster>(postLead);
   const typedName = useRef<string | null>(null);
+  const storedOnly = useRef(false); // the token came from sessionStorage, not from this link
   const e164 = toE164(phone);
 
   /* ---------- boot: token from the fragment, then strip it from the address bar ---------- */
@@ -156,8 +157,16 @@ function StartFlow() {
     const a = api.current!;
     setScreen({ k: "loading" });
     const r = await a.getStart();
-    if (r.kind === "expired") return setScreen({ k: "expired" });
-    if (r.kind === "error") return setScreen({ k: "loadError" });
+    if (r.kind === "expired" || r.kind === "error") {
+      const to = onLoadFailure(r.kind, storedOnly.current, location.search);
+      if (to === "expired" || to === "loadError") return setScreen({ k: to });
+      try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* none */ }
+      storedOnly.current = false;
+      if (to === "wills") return setScreen({ k: "chat", wills: true });
+      startedAt.current = new Date().toISOString();
+      setWithDetails(true);
+      return setScreen({ k: "step", step: "details" });
+    }
     const d = r.data;
     setData(d);
     setAnswers(d.answers || {});
@@ -180,7 +189,7 @@ function StartFlow() {
       let tok = readTokenFromHash(location.hash);
       if (tok) { try { sessionStorage.setItem(TOKEN_KEY, tok); } catch { /* storage blocked: the token still works for this page view */ } }
       if (/(^#|&)lt=/.test(location.hash)) history.replaceState(history.state, "", location.pathname + location.search);
-      if (!tok) { try { tok = sessionStorage.getItem(TOKEN_KEY); } catch { /* none */ } }
+      if (!tok) { try { tok = sessionStorage.getItem(TOKEN_KEY); storedOnly.current = !!tok; } catch { /* none */ } }
       const first0 = firstScreen(tok, location.search);
       if (first0 === "wills") return setScreen({ k: "chat", wills: true });
       if (first0 === "details") {

@@ -9,7 +9,7 @@ import { AdviserIntro } from "../src/pages/Start";
 import { createMockApi, mockPostLead } from "../src/lib/start-mock";
 import consentJson from "../config/consent.json";
 import {
-  INTRO_DISCLOSURE, START_ADVISER, adviserDisclosure, afterAnswers, answersPayload, firstScreen, leadAttribution, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, availableMethods, defaultMethod, formatDay, formatTime, formatWhen, groupSlots, initials, limitGroups, methodLabel,
+  INTRO_DISCLOSURE, START_ADVISER, adviserDisclosure, afterAnswers, answersPayload, firstScreen, onLoadFailure, leadAttribution, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, availableMethods, defaultMethod, formatDay, formatTime, formatWhen, groupSlots, initials, limitGroups, methodLabel,
   hasCoverNow, nextStep, prevStep, readTokenFromHash, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink, type AdviserInfo, type Answers, type StepId,
 } from "../src/lib/start";
 import { interpretAnswers, interpretBook, interpretLead, postLead } from "../src/lib/start-api";
@@ -277,6 +277,15 @@ describe("/start/ copy passes the site wording rules (automated assistant, autho
 });
 
 describe("step 0 (no token: desktop visits from a site CTA)", () => {
+  it("a leftover stored token that fails to load falls back to step 0 (or the wills hand-off), never a dead end", () => {
+    expect(onLoadFailure("expired", true, "?ref=w-home")).toBe("details");
+    expect(onLoadFailure("error", true, "?ref=w-home&via=google")).toBe("details"); // timeout / network / CORS
+    expect(onLoadFailure("error", true, "")).toBe("details");
+    expect(onLoadFailure("expired", true, "?ref=w-learn&for=wills")).toBe("wills");
+    // a token from the link itself keeps the honest screens
+    expect(onLoadFailure("expired", false, "?ref=w-home")).toBe("expired");
+    expect(onLoadFailure("error", false, "")).toBe("loadError");
+  });
   it("starts at step 0 without a token; with one it loads", () => {
     expect(firstScreen(null)).toBe("details");
     expect(firstScreen("")).toBe("details");

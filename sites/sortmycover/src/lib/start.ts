@@ -57,6 +57,13 @@ export function firstScreen(token: string | null, search = ""): "details" | "loa
   const q = new URLSearchParams(search);
   return q.get("for") === "wills" || isWillsRef(q.get("ref")) ? "wills" : "details";
 }
+/** A token that came only from sessionStorage (no #lt in this address) and fails to load is a leftover of an earlier visit, e.g.
+    a desktop "Pick a time" click days later. It is dropped and the visit starts at the details step (or the wills hand-off),
+    never an "expired" or error screen. A token from the link itself keeps the normal expired / error screens. */
+export function onLoadFailure(kind: "expired" | "error", storedOnly: boolean, search = ""): "details" | "wills" | "expired" | "loadError" {
+  if (storedOnly) { const f = firstScreen(null, search); return f === "wills" ? "wills" : "details"; }
+  return kind === "expired" ? "expired" : "loadError";
+}
 /** startHref (src/lib/whatsapp.ts) sends only ?ref and ?via, so a wills page is recognised by its code: w-wills, w-home-wills,
     w-book-will and the like, or a theme B campaign code (b01 to b04). */
 export const isWillsRef = (ref: string | null | undefined) => !!ref && (/^w-(?:[a-z0-9]+-)*wills?(?:-|$)/i.test(ref) || /^b\d{2}$/i.test(ref));
