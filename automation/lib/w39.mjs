@@ -8,7 +8,8 @@
 //
 // Contract (the page codes against this; header X-Lead-Token on every call, CONTRACTS.md "lead_token", lead path only):
 //   GET  /start          -> 200 { first_name, adviser: {first_name, name, firm, fsp} | null, methods, answers, booking }
-//   POST /start/answers  -> 200 { ok: true, next: 'slots' | 'chat' } | 400 { error: 'invalid' }
+//   POST /start/answers  -> 200 { ok: true, next: 'adviser', adviser: {id, first_name, name, firm, fsp} } (phase a, no confirm_adviser)
+//                         | 200 { ok: true, next: 'slots' | 'chat' } (phase b, confirm_adviser = that id; will / other) | 400 { error: 'invalid' }
 //   401 { error: 'try_again' }: no / bad / expired token, a broker JWT, an unknown, opted-out or erased lead (reason logged only).
 //   403 { error: 'try_again' }: Origin not in PUBLIC_ALLOWED_ORIGINS (as W04). 503 { error: 'try_again' }: secrets not set.
 //
@@ -19,11 +20,12 @@
 //            the same polite close). true (Jono, 18 Oct: they may book with Mark) = routed like in band, NEVER qualified_at,
 //            a timeline note, and conv_state.age_accepted so a later chat turn never closes it (logic.mjs decide).
 //   in band -> bands stored; tier A/B = qualified_at + stage qualified, tier C (lt750) = band only (the routing trigger holds
-//            it, W03 finishPageBudget semantics); then W01 core routes it WITHOUT the W06 first touch (the page shows the slots).
+//            it, W03 finishPageBudget semantics). Disclosure before routing: the adviser W01 WOULD pick is shown first (next
+//            'adviser'); only the confirm call routes, after an 'adviser_disclosed' row, WITHOUT the W06 first touch.
 //   Always: the answers are kept in conv_state.start (no intent / has-cover column), help_with in conv_state (W01 vocabulary),
-//   W03's pending stall is cancelled, one lead_activities row per request_id (w39:answers:<lead>:<request_id>).
+//   W03's pending stall is cancelled, one lead_activities row per call (w39:answers:<lead>:<request_id>[:confirm]).
 import { resolveCaller as w04Caller, brokerConfig, iso, ms } from './w04.mjs';
-import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H } from './w01.mjs';
+import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H, routingFor, tierOf } from './w01.mjs';
 
 export const WORKFLOW = 'W39';
 /**
@@ -45,6 +47,9 @@ export const REASONS_OF = { life: ['life_cover'], income: ['disability'], other:
 /** Meeting types the page offers (Jono, 18 Oct 2026): Teams and phone only, and only those the broker supports. */
 export const PAGE_METHODS = ['teams', 'phone'];
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/; // same rule as W05 /book
+const BROKER_ID = /^[A-Za-z0-9_-]{1,64}$/; // brokers.id (uuid) as phase (a) returned it
+/** The disclosure the page shows before routing (adviser card: name, practice, FSP number). Versioned like the consent texts. */
+export const DISCLOSURE_VERSION = 'START-DISCLOSE-v1';
 const ROUTE_INTENTS = new Set(['life', 'income', 'illness', 'review']);
 for (const k of Object.values(HELP_WITH_OF)) if (!HELP_WITH.has(k)) throw new Error(`w39: ${k} is not in w01 HELP_WITH`);
 
@@ -88,8 +93,10 @@ export function parseAnswers(body = {}) {
   if (typeof b.request_id !== 'string' || !REQUEST_ID.test(b.request_id)) return err(400, 'invalid', 'request_id');
   // the cover intents are routed on their bands: both are needed (will / other skip them)
   if (ROUTE_INTENTS.has(a.intent) && (!a.age_band || !a.budget_band)) return err(400, 'invalid', 'bands_required');
+  const c = b.confirm_adviser;
+  if (c !== undefined && c !== null && c !== '' && (typeof c !== 'string' || !BROKER_ID.test(c))) return err(400, 'invalid', 'confirm_adviser');
   const answers = Object.fromEntries(Object.entries(a).filter(([, v]) => v !== undefined));
-  return { ok: true, answers, request_id: b.request_id };
+  return { ok: true, answers, request_id: b.request_id, confirm_adviser: typeof c === 'string' && c ? c : null };
 }
 
 /** GET /start body. Times leave as ISO +02:00 (W04). Nothing else about the lead or the broker is returned. */
@@ -111,7 +118,8 @@ export function startView({ lead = {}, broker = null, booking = null } = {}) {
   return { status: 200, body: { first_name: firstWord(lead.first_name), adviser, methods, answers, booking: bk } };
 }
 
-export const answersKey = (leadId, requestId) => `w39:answers:${leadId}:${requestId}`;
+/** One key per call: phase (a) and the confirm (b) of the same request_id are separate calls, each idempotent. */
+export const answersKey = (leadId, requestId, confirm = false) => `w39:answers:${leadId}:${requestId}${confirm ? ':confirm' : ''}`;
 
 /**
  * One answers post -> the plan the workflow executes.
@@ -121,10 +129,11 @@ export const answersKey = (leadId, requestId) => `w39:answers:${leadId}:${reques
  *         { kind: 'work', path, key, set, activity, notes[], send, escalate, route, thread_stage }
  * set = the leads columns to write (the W39 "Save" statement reads each key; conv_state is MERGED into the row's jsonb).
  */
-export function decideAnswers({ lead, answers, request_id, prior = null, now = Date.now(), oobAgeBooks = OUT_OF_BAND_AGE_BOOKS } = {}) {
+export function decideAnswers({ lead, answers, request_id, confirm_adviser = null, prior = null, now = Date.now(), oobAgeBooks = OUT_OF_BAND_AGE_BOOKS } = {}) {
   const g = leadGate(lead);
   if (!g.ok) return { kind: 'reject', status: g.status, body: g.body, reason: g.reason };
-  if (prior && prior.path) return { kind: 'replay', path: prior.path }; // the same request again: same answer, nothing redone
+  // the same call again: nothing is written twice; a cover path still recomputes the adviser (two phases, below)
+  if (prior && prior.path) return { kind: 'replay', path: prior.path, cover: COVER_PATHS.has(prior.path), confirm_adviser };
   const at = iso(now);
   const a = answers || {};
   const first = firstWord(lead.first_name);
@@ -135,9 +144,9 @@ export function decideAnswers({ lead, answers, request_id, prior = null, now = D
   if (a.budget_band) set.budget_band = a.budget_band;
   if (REASONS_OF[a.intent]) set.reasons = REASONS_OF[a.intent];
   const send = (text, tag) => (lead.phone ? { to: lead.phone, kind: 'text', text, lead_id: lead.id, correlation: `w39:${tag}:${lead.id}` } : null);
-  const key = answersKey(lead.id, request_id);
-  const plan = (path, extra) => ({ kind: 'work', path, key, set, notes: [], send: null, escalate: null, route: false, thread_stage: 'done',
-    ...extra, activity: { activity_type: 'start_page_answers', idempotency_key: key, payload: { path, ...a, request_id, via: 'start_page' } } });
+  const key = answersKey(lead.id, request_id, !!confirm_adviser);
+  const plan = (path, extra) => ({ kind: 'work', path, key, set, notes: [], send: null, escalate: null, cover: false, confirm_adviser, thread_stage: 'done',
+    ...extra, activity: { activity_type: 'start_page_answers', idempotency_key: key, payload: { path, ...a, request_id, via: 'start_page', ...(confirm_adviser ? { confirm_adviser } : {}) } } });
 
   if (a.intent === 'will') {
     set.product_interest = 'wills';
@@ -160,25 +169,68 @@ export function decideAnswers({ lead, answers, request_id, prior = null, now = D
   // tier C (lt750): the band only; the routing trigger holds it unless the broker has the standing yes (finishPageBudget)
   if (!ageIn) {
     set.conv_state.age_accepted = true;
-    return plan('oob_book', { route: true, notes: [{ activity_type: 'start_page_age_out_of_band', idempotency_key: `w39:age_oob:${lead.id}`,
+    return plan('oob_book', { cover: true, notes: [{ activity_type: 'start_page_age_out_of_band', idempotency_key: `w39:age_oob:${lead.id}`,
       payload: { age_band: a.age_band, budget_band: a.budget_band || null, books: true, qualified: false, rule: 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)' } }] });
   }
-  return plan(a.budget_band === LOW_BUDGET ? 'route_tier_c' : 'route', { route: true });
+  return plan(a.budget_band === LOW_BUDGET ? 'route_tier_c' : 'route', { cover: true });
 }
 
-/** next for the page: a routed path with a broker on the row after routing -> 'slots'; anything else -> 'chat'. */
-export function nextOf(path, brokerId) {
-  return ['route', 'route_tier_c', 'oob_book'].includes(path) && brokerId ? 'slots' : 'chat';
+const COVER_PATHS = new Set(['route', 'route_tier_c', 'oob_book']);
+
+// ---------------------------------------------------------------- disclosure before routing (two phases, 18 Oct 2026)
+// A lead sees the adviser card and the disclosure BEFORE it is routed. Phase (a), no confirm_adviser: the answers are stored
+// and the broker W01 WOULD choose is computed (routingFor: the same tier / product / named-consent rules as routeExisting);
+// nothing is written to broker_id -> next 'adviser'. Phase (b), confirm_adviser = that broker's id: the pick is computed
+// again; equal -> 'adviser_disclosed' on the timeline, THEN W01 routes (expect_broker_id: W01 routes nobody else);
+// different -> the new adviser, no routing; none -> chat.
+
+/** brokers row (W39 "Load lead + brokers (pick)") -> the card the page shows. Never an email, number or calendar field. */
+export const adviserCard = (b) => (b ? { id: String(b.id || b.broker_id), first_name: firstWord(b.adviser_name || b.contact_person), name: b.adviser_name || b.contact_person || null,
+  firm: b.firm_name || b.practice_name || null, fsp: b.fsp_number || null } : null);
+
+/**
+ * The adviser this lead has, or would get. lead = { id, broker_id, routed_at, consent_text, consent_mode, brand_id, budget_band,
+ * product_interest, disqualified_reason, opted_out_at, suppressed }, brokers = the W01 core broker list (+ display columns).
+ * Returns { adviser, routed } | { adviser: null, held: reason }.
+ */
+export function pickAdviser(lead = {}, brokers = []) {
+  const byId = (id) => brokers.find((b) => String(b.id || b.broker_id) === String(id)) || null;
+  if (lead.broker_id && lead.routed_at) return { adviser: adviserCard(byId(lead.broker_id) || { id: lead.broker_id }), routed: true };
+  if (lead.opted_out_at || lead.disqualified_reason || lead.suppressed) return { adviser: null, held: 'not_routable' };
+  const r = routingFor(lead.consent_text, lead.consent_mode || 'named', brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
+  return r.held ? { adviser: null, held: r.held } : { adviser: adviserCard(r.broker), routed: false };
+}
+
+/** W01 Lead core input: the same routing as W03's route_and_first_touch, without the W06 first touch, and only to `expect`. */
+export const routeInput = (leadId, expect) => ({ kind: 'route_and_first_touch', lead_id: leadId, first_touch: false, expect_broker_id: expect, source: 'W39' });
+/** W01 Lead core input when nobody can take the lead: record the hold (+ the one tier-C notice), never route. */
+export const holdInput = (leadId) => ({ kind: 'route_and_first_touch', lead_id: leadId, first_touch: false, hold_only: true, source: 'W39' });
+
+/**
+ * A cover path, after the answers are stored: what to do next. `steps` run in this order, so the disclosure row is written
+ * BEFORE the routing call, never after. Returns { next, adviser?, steps: [], disclose?, route?, hold?, held?, changed? }.
+ */
+export function coverStep({ plan, lead, brokers = [] } = {}) {
+  const pick = pickAdviser(lead, brokers);
+  const confirm = plan && plan.confirm_adviser ? String(plan.confirm_adviser) : null;
+  if (!pick.adviser) return lead.broker_id ? { next: 'chat', steps: [], held: pick.held } : { next: 'chat', steps: ['hold'], hold: holdInput(lead.id), held: pick.held };
+  if (!confirm || confirm !== pick.adviser.id) return { next: 'adviser', adviser: pick.adviser, steps: [], ...(confirm ? { changed: true } : {}) };
+  const disclose = { activity_type: 'adviser_disclosed', idempotency_key: `w39:disclosed:${lead.id}:${pick.adviser.id}`, broker_id: pick.adviser.id,
+    payload: { broker_id: pick.adviser.id, fsp: pick.adviser.fsp, firm: pick.adviser.firm, adviser: pick.adviser.name, disclosure_version: DISCLOSURE_VERSION, via: 'start_page' } };
+  if (pick.routed) return { next: 'slots', adviser: pick.adviser, steps: ['disclose'], disclose };
+  return { next: 'slots_if_routed', adviser: pick.adviser, steps: ['disclose', 'route'], disclose, route: routeInput(lead.id, pick.adviser.id) };
 }
 
 /** The answers response + the side effects to run (only for the request that actually claimed its key). */
-export function answer({ plan, broker_id = null, claimed = false } = {}) {
+export function answer({ plan, step = null, broker_id = null, claimed = false } = {}) {
   if (!plan || plan.kind === 'reject') return { status: (plan && plan.status) || 401, body: (plan && plan.body) || { error: 'try_again' }, effects: [] };
-  const next = nextOf(plan.path, broker_id);
+  let body = { ok: true, next: 'chat' };
+  if (plan.cover && step) {
+    if (step.next === 'adviser') body = { ok: true, next: 'adviser', adviser: step.adviser };
+    else if (step.next === 'slots') body = { ok: true, next: 'slots' };
+    // routed by this call: slots only when W01 put the confirmed broker on the row (it routes nobody else)
+    else if (step.next === 'slots_if_routed') body = { ok: true, next: broker_id && String(broker_id) === step.adviser.id ? 'slots' : 'chat' };
+  }
   const effects = plan.kind === 'work' && claimed ? [plan.send && { kind: 'send', message: plan.send }, plan.escalate && { kind: 'escalate', note: plan.escalate.note }].filter(Boolean) : [];
-  return { status: 200, body: { ok: true, next }, effects };
+  return { status: 200, body, effects };
 }
-
-/** W01 Lead core input: the same routing as W03's route_and_first_touch, without the W06 first touch. */
-export const routeInput = (leadId) => ({ kind: 'route_and_first_touch', lead_id: leadId, first_touch: false, source: 'W39' });
-

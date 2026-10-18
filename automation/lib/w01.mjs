@@ -560,8 +560,11 @@ export function capiLead(row) {
  * first_touch: false (W39, the /start/ page, 18 Oct 2026): route exactly the same way but start no W06 first touch, because
  * the page shows the adviser and the slots itself (the intro card follows the booking: W05 -> W06 op booking). A held tier-C
  * lead still gets its one notice.
+ * W39 disclosure before routing (18 Oct 2026): expect_broker_id = the adviser the lead was shown and confirmed; any other
+ * pick is NOT routed (action 'skip', reason 'broker_changed'). hold_only: true records a hold (+ the tier-C notice) but
+ * never routes (a broker that became free meanwhile -> 'skip', reason 'not_disclosed').
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
@@ -569,6 +572,8 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
   if (r.held) return { action: 'held', update: { routing_reason: r.held }, notice: r.held === 'held_low_budget' ? lowBudgetHeld(lead) : null };
   const b = r.broker;
+  if (hold_only) return { action: 'skip', reason: 'not_disclosed' };
+  if (expect_broker_id && String(brokerIdOf(b)) !== String(expect_broker_id)) return { action: 'skip', reason: 'broker_changed' };
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
   const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';

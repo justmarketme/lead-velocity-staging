@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 380,
-        "content": "W39 Start page API (automation-engineer, 18 Oct 2026). The hidden page sortmycover.co.za/start/#lt=<lt1 token> (W03 sends the link as ONE call-to-action when brands.start_page = on) replaces the WhatsApp qualifying taps. Caddy rewrites https://n8n.sortmycover.co.za/webhook/smc/<path> to /webhook/<path>. Header X-Lead-Token, lead path only (a broker JWT is 401), lead row check as W04 (unknown / opted out / erased -> 401 try_again). GET /start -> first name, adviser (practice + FSP from his row), methods (teams / phone only), answers so far, live booking (held = waiting on the email link). POST /start/answers -> bands + conv_state.start, help_with, one timeline row per request_id (idempotent), W03 stall cancelled; will -> a person (escalation) + Lindi says so; other -> Lindi asks for a sentence; age out of band -> OUT_OF_BAND_AGE_BOOKS (lib/w39.mjs); else W01 Lead core routes WITHOUT the W06 first touch (the page shows the slots) -> next slots | chat. Slots and booking stay W04 GET /slots and W05 POST /book. Logic automation/lib/w39.mjs, tests automation/tests/W39.test.mjs. CORS PUBLIC_ALLOWED_ORIGINS. Env LEAD_TOKEN_SECRET (+ _PREVIOUS)."
+        "content": "W39 Start page API (automation-engineer, 18 Oct 2026). The hidden page sortmycover.co.za/start/#lt=<lt1 token> (W03 sends the link as ONE call-to-action when brands.start_page = on) replaces the WhatsApp qualifying taps. Caddy rewrites https://n8n.sortmycover.co.za/webhook/smc/<path> to /webhook/<path>. Header X-Lead-Token, lead path only (a broker JWT is 401), lead row check as W04 (unknown / opted out / erased -> 401 try_again). GET /start -> first name, adviser (practice + FSP from his row), methods (teams / phone only), answers so far, live booking (held = waiting on the email link). POST /start/answers -> bands + conv_state.start, help_with, one timeline row per request_id (idempotent), W03 stall cancelled; will -> a person (escalation) + Lindi says so; other -> Lindi asks for a sentence; age out of band -> OUT_OF_BAND_AGE_BOOKS (lib/w39.mjs); else the adviser card first: phase (a) returns next adviser + the broker W01 would pick (no routing); the confirm call (confirm_adviser = that id) logs adviser_disclosed, THEN W01 Lead core routes only that broker, WITHOUT the W06 first touch -> next slots | chat. Slots and booking stay W04 GET /slots and W05 POST /book. Logic automation/lib/w39.mjs, tests automation/tests/W39.test.mjs. CORS PUBLIC_ALLOWED_ORIGINS. Env LEAD_TOKEN_SECRET (+ _PREVIOUS)."
       }
     },
     {
@@ -174,7 +174,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseAnswers(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, answers: p.answers, request_id: p.request_id, key: L.answersKey(c.lead_id, p.request_id) } }];"
+        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseAnswers(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, answers: p.answers, request_id: p.request_id, confirm_adviser: p.confirm_adviser, key: L.answersKey(c.lead_id, p.request_id, !!p.confirm_adviser) } }];"
       }
     },
     {
@@ -243,7 +243,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst q = $('Resolve caller + parse (answers)').first().json;\nconst plan = L.decideAnswers({ lead: r.lead, answers: q.answers, request_id: q.request_id, prior: r.prior || null, now: Date.now(), oobAgeBooks: L.OUT_OF_BAND_AGE_BOOKS });\nreturn [{ json: { lead_id: q.lead_id, plan } }];"
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst q = $('Resolve caller + parse (answers)').first().json;\nconst plan = L.decideAnswers({ lead: r.lead, answers: q.answers, request_id: q.request_id, confirm_adviser: q.confirm_adviser || null, prior: r.prior || null, now: Date.now(), oobAgeBooks: L.OUT_OF_BAND_AGE_BOOKS });\nreturn [{ json: { lead_id: q.lead_id, plan } }];"
       }
     },
     {
@@ -368,7 +368,7 @@
     },
     {
       "id": "n16",
-      "name": "Claimed + route? (in band / age accepted)",
+      "name": "Cover path? (adviser card first)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
@@ -385,7 +385,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ String($json.claimed > 0 && $('Decide (w39.decideAnswers)').first().json.plan.route === true) }}",
+              "leftValue": "={{ String($('Decide (w39.decideAnswers)').first().json.plan.cover === true) }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -399,25 +399,149 @@
     },
     {
       "id": "n17",
-      "name": "W01 Lead core input (no first touch)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "name": "Load lead + brokers (pick)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
       "position": [
         0,
         400
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w39;\nreturn [{ json: L.routeInput($('Decide (w39.decideAnswers)').first().json.lead_id) }];"
-      }
+        "operation": "executeQuery",
+        "query": "-- The same lead columns and broker list as W01 \"Load CTWA lead + brokers\" (routingFor reads them), plus the card's\n-- display columns (adviser, practice, FSP). Nothing is written here.\nSELECT to_jsonb(q) AS lead,\n       COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,\n                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),\n                  'firm_name', b.firm_name, 'contact_person', b.contact_person))\n                   FROM public.brokers b\n                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining\n                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true\n                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.budget_band, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q;",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
     },
     {
       "id": "n18",
+      "name": "Adviser step (w39.coverStep)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nreturn [{ json: { lead_id: d.lead_id, step: L.coverStep({ plan: d.plan, lead: r.lead || { id: d.lead_id }, brokers: r.brokers || [] }) } }];"
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Disclose? (confirmed adviser)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(($json.step.steps || []).includes('disclose')) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Log adviser_disclosed (before routing)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The page showed this adviser's card (name, practice, FSP number) and the lead confirmed it. Written BEFORE the routing call;\n-- once per lead and broker (idempotency key w39:disclosed:<lead>:<broker>).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, $2::uuid, 'W39', 'lead', 'adviser_disclosed', $3::jsonb, now(), $4\n  FROM public.leads l WHERE l.id = $1::uuid\nON CONFLICT DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Adviser step (w39.coverStep)').first().json.step; return [$('Adviser step (w39.coverStep)').first().json.lead_id, s.disclose.broker_id, JSON.stringify(s.disclose.payload), s.disclose.idempotency_key]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n21",
+      "name": "W01 call? (route the confirmed adviser | record a hold)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String((() => { const s = $('Adviser step (w39.coverStep)').first().json.step; return !!(s.route || s.hold); })()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n22",
+      "name": "W01 Lead core input (no first touch)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst s = $('Adviser step (w39.coverStep)').first().json.step;\nreturn [{ json: s.route || s.hold }];"
+      }
+    },
+    {
+      "id": "n23",
       "name": "W01 Lead core (route, no W06 first touch; waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        1440,
         400
       ],
       "parameters": {
@@ -435,12 +559,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n19",
+      "id": "n24",
       "name": "Re-read broker_id",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        480,
+        1680,
         400
       ],
       "parameters": {
@@ -459,27 +583,27 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n20",
+      "id": "n25",
       "name": "Answer (w39.answer)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
-        400
+        0,
+        600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w39;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nlet claimed = false;\ntry { claimed = Number($('Save answers + timeline + cancel stall (one statement)').first().json.claimed) > 0; } catch (e) { claimed = false; } // replay: Save did not run\nconst plan = d.plan.kind === 'replay' ? { kind: 'replay', path: d.plan.path } : d.plan;\nreturn [{ json: L.answer({ plan, broker_id: $input.first().json.broker_id || null, claimed }) }];"
+        "jsCode": "const L = require('lv-automation').w39;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nlet claimed = false;\ntry { claimed = Number($('Save answers + timeline + cancel stall (one statement)').first().json.claimed) > 0; } catch (e) { claimed = false; } // replay: Save did not run\nlet step = null;\ntry { step = $('Adviser step (w39.coverStep)').first().json.step; } catch (e) { step = null; } // not a cover path\nreturn [{ json: L.answer({ plan: d.plan, step, broker_id: $input.first().json.broker_id || null, claimed }) }];"
       }
     },
     {
-      "id": "n21",
+      "id": "n26",
       "name": "Respond (answers)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        960,
-        400
+        240,
+        600
       ],
       "parameters": {
         "respondWith": "json",
@@ -498,13 +622,13 @@
       }
     },
     {
-      "id": "n22",
+      "id": "n27",
       "name": "Effects (claimed request only)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        400
+        480,
+        600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -512,13 +636,13 @@
       }
     },
     {
-      "id": "n23",
+      "id": "n28",
       "name": "Effect?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1440,
-        400
+        720,
+        600
       ],
       "parameters": {
         "rules": {
@@ -573,13 +697,13 @@
       }
     },
     {
-      "id": "n24",
+      "id": "n29",
       "name": "WhatsApp input (Lindi line)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        400
+        960,
+        600
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -587,12 +711,12 @@
       }
     },
     {
-      "id": "n25",
+      "id": "n30",
       "name": "WhatsApp Send (Lindi line)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        0,
+        1200,
         600
       ],
       "parameters": {
@@ -609,12 +733,12 @@
       }
     },
     {
-      "id": "n26",
+      "id": "n31",
       "name": "Escalate to a person (wills)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        240,
+        1440,
         600
       ],
       "parameters": {
@@ -770,7 +894,7 @@
         ],
         [
           {
-            "node": "Re-read broker_id",
+            "node": "Cover path? (adviser card first)",
             "type": "main",
             "index": 0
           }
@@ -799,14 +923,83 @@
       "main": [
         [
           {
-            "node": "Claimed + route? (in band / age accepted)",
+            "node": "Cover path? (adviser card first)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Claimed + route? (in band / age accepted)": {
+    "Cover path? (adviser card first)": {
+      "main": [
+        [
+          {
+            "node": "Load lead + brokers (pick)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read broker_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + brokers (pick)": {
+      "main": [
+        [
+          {
+            "node": "Adviser step (w39.coverStep)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adviser step (w39.coverStep)": {
+      "main": [
+        [
+          {
+            "node": "Disclose? (confirmed adviser)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disclose? (confirmed adviser)": {
+      "main": [
+        [
+          {
+            "node": "Log adviser_disclosed (before routing)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W01 call? (route the confirmed adviser | record a hold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log adviser_disclosed (before routing)": {
+      "main": [
+        [
+          {
+            "node": "W01 call? (route the confirmed adviser | record a hold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 call? (route the confirmed adviser | record a hold)": {
       "main": [
         [
           {

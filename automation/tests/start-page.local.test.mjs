@@ -6,7 +6,8 @@
 // The chain under test:
 //   W03  a CTWA "Hi" -> consent buttons; "Yes" -> lead row + ONE call-to-action with sortmycover.co.za/start/#lt=<token>
 //        (brands.start_page = 'on'), conv_state start_page, a stall in wa_threads
-//   W39  GET /start (not routed yet) -> POST /start/answers (in band) -> bands + qualified, W01 core routes WITHOUT a first
+//   W39  GET /start (not routed yet) -> POST /start/answers (in band): phase (a) the adviser card, nothing routed; a wrong
+//        confirm routes nothing; phase (b) confirm -> adviser_disclosed, THEN W01 core routes WITHOUT a first
 //        touch -> next 'slots'; the same request again replays; GET /start now shows the adviser
 //   W04  GET /slots with the same token (shared calendar: Mark's hours minus our appointments)
 //   W05  POST /book (Teams, email, no Turnstile secret) -> HELD (pending_verification); the email link (ev1) -> op finalize ->
@@ -30,7 +31,7 @@ const require = createRequire(import.meta.url);
 const LT = require('../security/lead-token.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (f) => JSON.parse(readFileSync(join(ROOT, 'automation', f), 'utf8'));
-const WF01 = load('W01.json'); const WF03 = load('W03.json'); const WF04 = load('W04.json'); const WF05 = load('W05.json'); const WF06 = load('W06.json'); const WF38 = load('W39.json');
+const WF01 = load('W01.json'); const WF03 = load('W03.json'); const WF04 = load('W04.json'); const WF05 = load('W05.json'); const WF06 = load('W06.json'); const WF39 = load('W39.json');
 const sqlOf = (wf, name) => { const n = wf.nodes.find((x) => x.name === name); assert.ok(n, `node ${name}`); return n.parameters.query; };
 const BACKEND = localPgBackend();
 const PNID = '27600156480';
@@ -78,10 +79,10 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
 
   /** GET /start through W39's nodes. */
   const getStart = async (tok) => {
-    const [c] = await runCode(WF38, 'Resolve caller (start)', { items: [{ headers: H(tok) }], env: ENV });
+    const [c] = await runCode(WF39, 'Resolve caller (start)', { items: [{ headers: H(tok) }], env: ENV });
     if (!c.json.ok) return c.json;
-    const r = app(sqlOf(WF38, 'Load lead, adviser, live booking'), evalParam(WF38, 'Load lead, adviser, live booking', 'options.queryReplacement', { json: c.json }))[0];
-    const [v] = await runCode(WF38, 'View (w39.startView)', { items: [{ lead: j(r[0]), broker: j(r[1]), booking: j(r[2]) }] });
+    const r = app(sqlOf(WF39, 'Load lead, adviser, live booking'), evalParam(WF39, 'Load lead, adviser, live booking', 'options.queryReplacement', { json: c.json }))[0];
+    const [v] = await runCode(WF39, 'View (w39.startView)', { items: [{ lead: j(r[0]), broker: j(r[1]), booking: j(r[2]) }] });
     return v.json;
   };
   /** W01 Lead core, route branch, with W39's input: "Load CTWA lead + brokers" -> Route -> "Write routing" -> "W06 input (CTWA)". */
@@ -98,28 +99,36 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   };
   /** POST /start/answers through W39's nodes (and W01 core when the plan routes). */
   const postAnswers = async (tok, body) => {
-    const [c] = await runCode(WF38, 'Resolve caller + parse (answers)', { items: [{ headers: H(tok), body }], env: ENV });
+    const [c] = await runCode(WF39, 'Resolve caller + parse (answers)', { items: [{ headers: H(tok), body }], env: ENV });
     if (!c.json.ok) return { status: c.json.status, body: c.json.body };
-    const r = app(sqlOf(WF38, 'Load lead + earlier answer (same request_id)'), evalParam(WF38, 'Load lead + earlier answer (same request_id)', 'options.queryReplacement', { json: c.json }))[0];
-    const [d] = await runCode(WF38, 'Decide (w39.decideAnswers)', { items: [{ lead: j(r[0]), prior: j(r[1]) }], refs: { 'Resolve caller + parse (answers)': c.json } });
-    if (d.json.plan.kind === 'reject') { const [rj] = await runCode(WF38, 'Reject (401)', { json: d.json }); return { status: rj.json.status, body: rj.json.body }; }
+    const r = app(sqlOf(WF39, 'Load lead + earlier answer (same request_id)'), evalParam(WF39, 'Load lead + earlier answer (same request_id)', 'options.queryReplacement', { json: c.json }))[0];
+    const [d] = await runCode(WF39, 'Decide (w39.decideAnswers)', { items: [{ lead: j(r[0]), prior: j(r[1]) }], refs: { 'Resolve caller + parse (answers)': c.json } });
+    if (d.json.plan.kind === 'reject') { const [rj] = await runCode(WF39, 'Reject (401)', { json: d.json }); return { status: rj.json.status, body: rj.json.body }; }
     const refs = { 'Decide (w39.decideAnswers)': d.json };
     let core = null;
     if (d.json.plan.kind === 'work') {
-      const s = app(sqlOf(WF38, 'Save answers + timeline + cancel stall (one statement)'), evalParam(WF38, 'Save answers + timeline + cancel stall (one statement)', 'options.queryReplacement', { json: d.json }))[0];
+      const s = app(sqlOf(WF39, 'Save answers + timeline + cancel stall (one statement)'), evalParam(WF39, 'Save answers + timeline + cancel stall (one statement)', 'options.queryReplacement', { json: d.json }))[0];
       refs['Save answers + timeline + cancel stall (one statement)'] = { claimed: Number(s[0]), updated: Number(s[1]), threads: Number(s[2]), notes: Number(s[3]) };
-      if (Number(s[0]) > 0 && d.json.plan.route) {
-        const [inp] = await runCode(WF38, 'W01 Lead core input (no first touch)', { items: [{}], refs });
+    }
+    // cover path (also on a replay): the adviser card first; the disclosure row, THEN W01 (route the confirmed adviser | hold)
+    if (d.json.plan.cover) {
+      const pr = app(sqlOf(WF39, 'Load lead + brokers (pick)'), evalParam(WF39, 'Load lead + brokers (pick)', 'options.queryReplacement', { refs }))[0];
+      const [st] = await runCode(WF39, 'Adviser step (w39.coverStep)', { items: [{ lead: j(pr[0]), brokers: j(pr[1]) }], refs });
+      refs['Adviser step (w39.coverStep)'] = st.json;
+      if (st.json.step.steps.includes('disclose')) app(sqlOf(WF39, 'Log adviser_disclosed (before routing)'), evalParam(WF39, 'Log adviser_disclosed (before routing)', 'options.queryReplacement', { refs }));
+      if (st.json.step.route || st.json.step.hold) {
+        const [inp] = await runCode(WF39, 'W01 Lead core input (no first touch)', { items: [{}], refs });
         core = await w01core(inp.json);
       }
     }
-    const bk = app(sqlOf(WF38, 'Re-read broker_id'), evalParam(WF38, 'Re-read broker_id', 'options.queryReplacement', { refs }))[0]; // psql drops an all-NULL row
-    const [a] = await runCode(WF38, 'Answer (w39.answer)', { items: [{ broker_id: (bk && bk[0]) || null }], refs });
+    const bk = app(sqlOf(WF39, 'Re-read broker_id'), evalParam(WF39, 'Re-read broker_id', 'options.queryReplacement', { refs }))[0]; // psql drops an all-NULL row
+    const [a] = await runCode(WF39, 'Answer (w39.answer)', { items: [{ broker_id: (bk && bk[0]) || null }], refs });
     if (a.json.effects.some((e) => e.kind === 'escalate')) {
       const e = a.json.effects.find((x) => x.kind === 'escalate');
-      app(sqlOf(WF38, 'Escalate to a person (wills)'), evalParam(WF38, 'Escalate to a person (wills)', 'options.queryReplacement', { json: e, refs }));
+      app(sqlOf(WF39, 'Escalate to a person (wills)'), evalParam(WF39, 'Escalate to a person (wills)', 'options.queryReplacement', { json: e, refs }));
     }
-    return { status: a.json.status, body: a.json.body, effects: a.json.effects, plan: d.json.plan, save: refs['Save answers + timeline + cancel stall (one statement)'] || null, core };
+    return { status: a.json.status, body: a.json.body, effects: a.json.effects, plan: d.json.plan, save: refs['Save answers + timeline + cancel stall (one statement)'] || null, core,
+      step: refs['Adviser step (w39.coverStep)'] ? refs['Adviser step (w39.coverStep)'].step : null };
   };
 
   // =========================================================================================== 1. W03: the CTA link
@@ -151,11 +160,28 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   const bad = await postAnswers(TOKEN, { intent: 'life', request_id: 'req-sp-0001' });
   assert.deepEqual([bad.status, bad.body], [400, { error: 'invalid' }]);
   const BODY = { intent: 'life', age_band: '35_44', has_cover: 'no', budget_band: '1500_plus', want: 'family', request_id: 'req-sp-0001' };
-  const a1 = await postAnswers(TOKEN, BODY);
+  // phase (a): the answers are stored and the adviser card comes back; NOTHING is routed yet
+  const a0 = await postAnswers(TOKEN, BODY);
+  const CARD = { id: MARK, first_name: 'Mark', name: 'Mark Smith', firm: 'Synthetic Advisory', fsp: '12345' };
+  assert.deepEqual([a0.status, a0.body], [200, { ok: true, next: 'adviser', adviser: CARD }]);
+  assert.equal(a0.core, null, 'no W01 call in phase (a)');
+  assert.deepEqual(a0.save, { claimed: 1, updated: 1, threads: 1, notes: 0 });
+  const la = lead(LEAD_ID);
+  assert.deepEqual([la.broker_id, la.routed_at, la.order_state, la.budget_band, la.stage], [null, null, null, '1500_plus', 'qualified'], 'answers stored, not routed');
+  assert.equal(acts(LEAD_ID).includes('adviser_disclosed'), false);
+  // a confirm for somebody else: his card again, still nothing routed
+  const wrong = await postAnswers(TOKEN, { ...BODY, request_id: 'req-sp-0001b', confirm_adviser: crypto.randomUUID() });
+  assert.deepEqual(wrong.body, { ok: true, next: 'adviser', adviser: CARD });
+  assert.equal(lead(LEAD_ID).broker_id, null); assert.equal(wrong.core, null);
+  // phase (b): confirm Mark -> adviser_disclosed, THEN routed (no W06 first touch) -> slots
+  const a1 = await postAnswers(TOKEN, { ...BODY, confirm_adviser: MARK });
   assert.deepEqual([a1.status, a1.body], [200, { ok: true, next: 'slots' }]);
+  assert.deepEqual(a1.step.steps, ['disclose', 'route']);
   assert.equal(a1.core.r.action, 'routed'); assert.equal(a1.core.r.first_touch, null);
   assert.deepEqual(a1.core.w06, [], 'NO W06 first touch: the page shows the slots');
-  assert.deepEqual(a1.save, { claimed: 1, updated: 1, threads: 1, notes: 0 });
+  const timeline = q(`SELECT activity_type, payload FROM public.lead_activities WHERE lead_id = '${LEAD_ID}' AND activity_type IN ('adviser_disclosed', 'routed') ORDER BY occurred_at`);
+  assert.deepEqual(timeline.map((r) => r[0]), ['adviser_disclosed', 'routed'], 'the disclosure is on the timeline before the routing');
+  assert.deepEqual(j(timeline[0][1]), { broker_id: MARK, fsp: '12345', firm: 'Synthetic Advisory', adviser: 'Mark Smith', disclosure_version: 'START-DISCLOSE-v1', via: 'start_page' });
   const l1 = lead(LEAD_ID);
   assert.deepEqual([l1.age_band, l1.budget_band, l1.stage, l1.broker_id, l1.order_state, l1.lead_tier], ['35_44', '1500_plus', 'qualified', MARK, 'attached', null]);
   assert.ok(l1.qualified_at); assert.equal(l1.first_message_at, null);
@@ -167,9 +193,11 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   assert.equal(acts(LEAD_ID).includes('first_touch_claimed'), false);
   // the same request again: replayed, nothing new
   const before = acts(LEAD_ID).length;
-  const a2 = await postAnswers(TOKEN, BODY);
+  const a2 = await postAnswers(TOKEN, { ...BODY, confirm_adviser: MARK });
   assert.deepEqual([a2.body, a2.plan.kind, a2.effects], [{ ok: true, next: 'slots' }, 'replay', []]);
-  assert.equal(acts(LEAD_ID).length, before);
+  assert.equal(acts(LEAD_ID).length, before, 'no second disclosure row, no second route');
+  const a3 = await postAnswers(TOKEN, { ...BODY, request_id: 'req-sp-0001c' });
+  assert.deepEqual(a3.body, { ok: true, next: 'adviser', adviser: CARD }, 'already routed: the card is his current broker');
   const v1 = await getStart(TOKEN);
   assert.deepEqual(v1.body.adviser, { first_name: 'Mark', name: 'Mark Smith', firm: 'Synthetic Advisory', fsp: '12345' });
   assert.deepEqual(v1.body.methods, ['teams', 'phone']);
@@ -267,7 +295,10 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   const yes2 = await (async () => { const m = '+27820000302'; await w03(m, { type: 'text', text: 'Hi', referral: { source_id: '1', source_type: 'ad' } }, 'Synthetic Sipho'); return w03(m, { type: 'button', payload: 'consent_yes', text: 'Yes' }, 'Synthetic Sipho'); })();
   const TOK2 = yes2.sends[0].url.split('#lt=')[1];
   const ID2 = LT.verifyLeadToken(TOK2, { secret: SECRET }).lead_id;
-  const o = await postAnswers(TOK2, { intent: 'income', age_band: 'lt35', budget_band: '750_1250', request_id: 'req-sp-0002' });
+  const OBODY = { intent: 'income', age_band: 'lt35', budget_band: '750_1250', request_id: 'req-sp-0002' };
+  assert.equal((await postAnswers(TOK2, OBODY)).body.next, 'adviser');
+  assert.equal(lead(ID2).broker_id, null);
+  const o = await postAnswers(TOK2, { ...OBODY, confirm_adviser: MARK });
   assert.deepEqual(o.body, { ok: true, next: 'slots' }, 'Jono, 18 Oct: under-35 may book with Mark');
   const lo = lead(ID2);
   assert.deepEqual([lo.age_band, lo.qualified_at, lo.stage, lo.broker_id, lo.disqualified_reason], ['lt35', null, 'verified', MARK, null], 'routed, never qualified');
@@ -277,8 +308,8 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   const yes3 = await (async () => { const m = '+27820000303'; await w03(m, { type: 'text', text: 'Hi', referral: { source_id: '1', source_type: 'ad' } }, 'Synthetic Lerato'); return w03(m, { type: 'button', payload: 'consent_yes', text: 'Yes' }, 'Synthetic Lerato'); })();
   const TOK3 = yes3.sends[0].url.split('#lt=')[1];
   const ID3 = LT.verifyLeadToken(TOK3, { secret: SECRET }).lead_id;
-  const w = await postAnswers(TOK3, { intent: 'will', request_id: 'req-sp-0003' });
-  assert.deepEqual(w.body, { ok: true, next: 'chat' });
+  const w = await postAnswers(TOK3, { intent: 'will', request_id: 'req-sp-0003', confirm_adviser: MARK });
+  assert.deepEqual(w.body, { ok: true, next: 'chat' }); assert.equal(w.core, null, 'a will never routes, confirm or not');
   assert.deepEqual(lead(ID3).product_interest, 'wills'); assert.equal(lead(ID3).conv_state.state, 'handoff'); assert.equal(lead(ID3).broker_id, null);
   assert.equal(q(`SELECT count(*) FROM public.escalations WHERE lead_id = '${ID3}' AND kind = 'human_handoff'`)[0][0], '1', 'a person is asked');
   const send = w.effects.find((e) => e.kind === 'send').message;

@@ -277,17 +277,19 @@ return out;`));
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
                   WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,
-       $2 <> 'false' AS first_touch
+       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     // first_touch: false = W39 (the /start/ page shows the slots itself): route the same way, no W06 first touch
-    "={{ [$json.lead_id, String($json.first_touch !== false)] }}"));
+    // W39 also passes expect_broker_id (route only the adviser the lead confirmed) or hold_only (record a hold, never route)
+    "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}"));
   n.push(code('Route (w01.routeExisting)', pos(3, 7), prelude('w01.mjs') +
 `const out = [];
 for (const it of $input.all()) {
-  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false });
+  const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,
+    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
 }
 return out;`));

@@ -1025,7 +1025,8 @@ test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the
   // the W01.json nodes: the flag rides from the caller through "Load CTWA lead + brokers" ($2) into Route; W06 only for first_touch
   const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
   assert.match(load.parameters.query, /\$2 <> 'false' AS first_touch/);
-  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false)] }}");
+  assert.match(load.parameters.query, /NULLIF\(\$3, ''\) AS expect_broker_id, \$4 = 'true' AS hold_only/);
+  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}");
   const routeOut = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: false }] });
   assert.equal(routeOut[0].json.r.first_touch, null);
   const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': routeOut[0].json } });
@@ -1033,4 +1034,19 @@ test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the
   const ctwa = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: true }] });
   const w06b = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': ctwa[0].json } });
   assert.deepEqual(w06b.map((i) => i.json), [{ op: 'routed', lead_id: lead.id, origin: 'ctwa' }], 'W03 path unchanged');
+});
+
+test('W39 disclosure before routing: expect_broker_id routes only the confirmed adviser; hold_only records a hold and never routes', async () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c39', brand_id: 'smc', origin: 'ctwa', phone: '+27600000179', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' };
+  const B = tcBroker();
+  const ok = W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, expect_broker_id: B.id });
+  assert.equal(ok.action, 'routed'); assert.equal(ok.update.broker_id, B.id);
+  assert.deepEqual(W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, expect_broker_id: '00000000-0000-4000-8000-00000000ffff' }), { action: 'skip', reason: 'broker_changed' });
+  assert.deepEqual(W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, hold_only: true }), { action: 'skip', reason: 'not_disclosed' }, 'a broker that became free is not routed without the card');
+  const held = W01.routeExisting({ ...lead, budget_band: 'lt750' }, { brokers: [B], now: TC_NOW, first_touch: false, hold_only: true });
+  assert.deepEqual([held.action, held.update.routing_reason, held.notice.template], ['held', 'held_low_budget', 'lead_low_budget_held']);
+  const [rt] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [B], first_touch: false, expect_broker_id: 'someone-else', hold_only: false }] });
+  assert.deepEqual(rt.json.r, { action: 'skip', reason: 'broker_changed' }, 'the Route node passes the options through');
+  const [h] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [B], first_touch: false, expect_broker_id: null, hold_only: true }] });
+  assert.equal(h.json.r.reason, 'not_disclosed');
 });
