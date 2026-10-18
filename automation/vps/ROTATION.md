@@ -10,7 +10,7 @@ Printed by `node automation/vps/credential-copies.mjs` from `automation/W*.json`
 <!-- credential-copies:begin -->
 | Secret | `.env` | n8n credential name | Type | Used by |
 |---|---|---|---|---|
-| Meta system-user token | META_SYSTEM_USER_TOKEN | Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20, W22 |
+| Meta system-user token | META_SYSTEM_USER_TOKEN | Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20 |
 | Meta system-user token | META_SYSTEM_USER_TOKEN | WhatsApp Cloud API (SortMyCover) | `httpHeaderAuth` | W14 |
 | Meta system-user token | META_SYSTEM_USER_TOKEN | WhatsApp Cloud API (system user) | `httpHeaderAuth` | SUB-whatsapp-send |
 | Meta system-user token | META_SYSTEM_USER_TOKEN | WhatsApp Cloud API token (SMC ops) | `httpHeaderAuth` | W32 |
@@ -20,23 +20,22 @@ Printed by `node automation/vps/credential-copies.mjs` from `automation/W*.json`
 | Anthropic API key | ANTHROPIC_API_KEY | Anthropic API (SMC) | `httpHeaderAuth` | W32, W33 |
 | Anthropic API key | ANTHROPIC_API_KEY | Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 |
 | Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio (SMC voice) | `httpBasicAuth` | W32 |
-| Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15, W22 |
+| Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W14, W17, W19, W34 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` | W32 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` | W20 |
-| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W05, W10, W15, W22, W36 |
+| Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W05, W10, W15, W36 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token |
 | Supabase service-role key | SUPABASE_SERVICE_ROLE_KEY | Supabase Storage (service role) | `httpHeaderAuth` | W23 |
 | Supabase service-role key | SUPABASE_SERVICE_ROLE_KEY | Supabase service role (W16 magic link) | `httpHeaderAuth` | W16 |
 | Supabase service-role key | SUPABASE_SERVICE_ROLE_KEY | Supabase service role (n8n, W20) | `httpHeaderAuth` | W20 |
-| Supabase n8n_app database password | SUPABASE_DB_URL (host/db/port); password in the password manager | LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35, W37 |
+| Supabase n8n_app database password | SUPABASE_DB_URL (host/db/port); password in the password manager | LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35, W37 |
 | Supabase Storage S3 key pair | SUPABASE_S3_ACCESS_KEY, SUPABASE_S3_SECRET_KEY (+ SUPABASE_S3_ENDPOINT, SUPABASE_S3_REGION) | MinIO intro media | `s3` | W23 |
 | Paystack secret key | PAYSTACK_SECRET_KEY | Paystack secret key (Authorization: Bearer) | `httpHeaderAuth` | W16, W19, W25 |
 | Transcription API key | TRANSCRIBE_API_KEY (+ TRANSCRIBE_URL) | Transcription API (bearer) | `httpHeaderAuth` | W23 |
 | NCC registry key | - (GATE-NCC) | NCC registry API | `httpHeaderAuth` | W24 |
 | Hostinger SFTP login | - (password manager) | Hostinger SFTP (static sites) | `sftp` | W25 |
 | Console to n8n shared secret | - (password manager; ops.secret_inventory) | Console -> n8n shared secret | `httpHeaderAuth` | W25 |
-| W22 uptime monitor token | - (password manager; ops.secret_inventory) | W22 uptime monitor header token | `httpHeaderAuth` | W22 |
 | W34 DSR webhook token | - (password manager; ops.secret_inventory) | W34 DSR webhook token | `httpHeaderAuth` | W34 |
 | n8n webhook secret (SMC) | - (password manager; ops.secret_inventory) | n8n webhook secret (SMC) | `httpHeaderAuth` | W32, W33 |
 <!-- credential-copies:end -->
@@ -54,11 +53,11 @@ Credential names and types are fixed. `local/pubcheck.mjs` hashes them and the l
 ## 3. What breaks if a copy is missed
 | Secret | A missed copy means |
 |---|---|
-| Meta system-user token | Outbound WhatsApp (`SUB-whatsapp-send`, W03, W28, W14, W32, W23) or CAPI / ads / token-health (`SUB-capi-send`, W20, W22) returns 401 once the old token is revoked. Leads get no 60-second first message |
+| Meta system-user token | Outbound WhatsApp (`SUB-whatsapp-send`, W03, W28, W14, W32, W23) or CAPI / ads / token-health (`SUB-capi-send`, W20) returns 401 once the old token is revoked. Leads get no 60-second first message |
 | Meta Page token | Comment and Messenger replies stop (W30, W31) |
 | Anthropic API key | The workflow holding the stale copy stops replying or judging (W23, W30, W31, W32, W33), others keep working, so it looks like a partial outage |
-| Twilio API key | SMS fallback, voice and call alerts fail in the workflow with the stale copy (W01, W06, W15, W22, W32) |
-| Microsoft Entra app | Booking events, invoices, bounces and broker connect fail (W04, W05, W15, W17, W19, W20, W22, W32, W34). OAuth copies also need reconnecting. An expired client secret takes all six down at once (W22 tracks expiry) |
+| Twilio API key | SMS fallback, voice and call alerts fail in the workflow with the stale copy (W01, W06, W15, W32) |
+| Microsoft Entra app | Booking events, invoices, bounces and broker connect fail (W04, W05, W15, W17, W19, W20, W32, W34). OAuth copies also need reconnecting. An expired client secret takes all six down at once |
 | Supabase service-role key | Magic links (W16, W20) or signed uploads (W23) fail. Also rotate the edge-function secrets (`provision.sh` step 13) |
 | Supabase n8n_app database password | Every workflow fails at its first Postgres node. Change the role password and the one credential together |
 | Supabase Storage S3 key pair | W23 media upload and download fail (intro media stays pending) |

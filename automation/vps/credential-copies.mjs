@@ -36,7 +36,6 @@ export const SECRETS = [
   ['NCC registry key', '- (GATE-NCC)', [['httpHeaderAuth', 'NCC registry API']]],
   ['Hostinger SFTP login', '- (password manager)', [['sftp', 'Hostinger SFTP (static sites)']]],
   ['Console to n8n shared secret', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'Console -> n8n shared secret']]],
-  ['W22 uptime monitor token', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'W22 uptime monitor header token']]],
   ['W34 DSR webhook token', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'W34 DSR webhook token']]],
   ['n8n webhook secret (SMC)', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'n8n webhook secret (SMC)']]],
 ];

@@ -4,40 +4,21 @@
   "category": "UTILITY",
   "components": [
     {
-      "type": "HEADER",
-      "format": "TEXT",
-      "text": "Red alert"
-    },
-    {
       "type": "BODY",
-      "text": "*{{1}}* since {{2}}. Impact: {{3}}. First action: {{4}}. Open the console for the detail.",
+      "text": "Hi {{1}}, a SortMyCover system alert needs your attention. What happened: {{2}}. Impact: {{3}}. The full details are in your email.",
       "example": {
         "body_text": [
           [
-            "WhatsApp template rejected: reminder_24h",
-            "09:14",
-            "T-24 h reminders paused for 2 bookings",
-            "Edit wording in console and resubmit"
+            "Jono",
+            "W05 Book failed at \"Graph create event\"",
+            "A lead or booking step did not finish"
           ]
         ]
       }
     },
     {
       "type": "FOOTER",
-      "text": "Lead Velocity ops"
-    },
-    {
-      "type": "BUTTONS",
-      "buttons": [
-        {
-          "type": "URL",
-          "text": "Open console",
-          "url": "https://leadvelocity.co.za/{{1}}",
-          "example": [
-            "https://leadvelocity.co.za/alerts/al_7731"
-          ]
-        }
-      ]
+      "text": "SortMyCover"
     }
   ]
 }

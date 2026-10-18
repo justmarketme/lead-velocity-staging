@@ -46,6 +46,8 @@ export const FLOW_TEMPLATES = [
   // broker side of the flow
   'broker_new_booking', 'broker_booking_changed', 'broker_outcome_check', 'broker_disposition', 'broker_quality', 'broker_lead_offer',
   'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief',
+  // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
+  'ops_alert',
 ];
 export const CORE = FLOW_TEMPLATES.slice(0, 7);
 // Session Flow launches (inside the 24-h window, W10 flow_session): body {{1}}, flow_token {{2}}.
