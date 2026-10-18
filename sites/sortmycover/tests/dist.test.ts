@@ -19,8 +19,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (73 files) with real content", () => {
-    expect(pages.length).toBe(73); // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
+  it("renders every route (74 files) with real content", () => {
+    expect(pages.length).toBe(74); // + /start/ (Lindi's per-lead page, 18 Oct 2026) // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -141,6 +141,19 @@ describe.skipIf(!have)("pre-rendered output", () => {
         expect(land, a.slug).toMatch(/Advisers pay SortMyCover a fee/);
       }
     }
+  });
+  it("/start/ (per-lead page): noindex,nofollow, no referrer, self-canonical, not in the sitemap, no site navigation or chat widget, dev mock not shipped", () => {
+    const h = pages.find((p) => p.rel === "start/index.html")!.html;
+    expect(h).toContain('<meta name="robots" content="noindex,nofollow">');
+    expect(h).toContain('<meta name="referrer" content="no-referrer">');
+    expect(h).toContain('<link rel="canonical" href="https://sortmycover.co.za/start/">');
+    expect(h).not.toMatch(/aria-label="Main/);
+    expect(h).not.toMatch(/data-chat/);
+    expect(fs.readFileSync(path.join(dist, "sitemap.xml"), "utf8")).not.toContain("/start/");
+    const htaccess = fs.readFileSync(path.join(dist, ".htaccess"), "utf8");
+    expect(htaccess).toContain('Header always set X-Robots-Tag "noindex, nofollow" env=START_PAGE');
+    expect(htaccess).toContain('Header always set Referrer-Policy "no-referrer" env=START_PAGE');
+    for (const f of walk(path.join(dist, "assets")).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(/Naledi|createMockApi/);
   });
   it("campaign pages have no site navigation", () => {
     for (const p of pages.filter(isCampaign)) expect(p.html, p.rel).not.toMatch(/aria-label="Main/);

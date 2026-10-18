@@ -14,6 +14,8 @@ export interface HeadData {
   ogType?: "website" | "article";
   ogImage?: string;
   jsonld?: object[];
+  /** <meta name="referrer">, e.g. "no-referrer" on the private per-lead /start/ page. */
+  referrer?: string;
 }
 
 export const HeadCtx = createContext<{ collect?: (d: HeadData) => void }>({});
@@ -35,6 +37,7 @@ export function renderHead(h: HeadData): string {
     `<title>${esc(h.title)}</title>`,
     `<meta name="description" content="${esc(h.description)}">`,
     `<meta name="robots" content="${esc(robots)}">`,
+    ...(h.referrer ? [`<meta name="referrer" content="${esc(h.referrer)}">`] : []),
     `<link rel="canonical" href="${esc(h.canonical)}">`,
     `<meta property="og:type" content="${h.ogType || "website"}">`,
     `<meta property="og:site_name" content="SortMyCover">`,
