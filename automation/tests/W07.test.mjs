@@ -890,7 +890,8 @@ test('/start/ page pending (conv_state start_page): every chat message goes back
   assert.equal(r({ text: 'STOP' }), 'W15');
   assert.equal(W.routeInbound({ from: ld.phone, text: 'hi', origin: 'w03' }, { lead: ld }).route, 'nlu', 'loop guard unchanged');
   const nlu = { intent: 'other', topics: [], slots: { age_band: '<35' }, confidence: 0.9 };
-  assert.deepEqual(decide('unbooked', nlu, {}, {}).actions, ['close_oob'], 'unchanged without the flag');
-  assert.notDeepEqual(decide('unbooked', nlu, {}, { age_accepted: true }).actions, ['close_oob']);
+  // 18 Oct 2026 (Jono): every age books and counts, so no typed age closes the chat, flag or not
+  for (const st of ['unbooked', 'q_age', 'booked']) for (const c of [{}, { age_accepted: true }]) assert.equal(decide(st, nlu, {}, c).actions.includes('close_oob'), false, st);
+  assert.deepEqual(decide('q_age', { ...nlu, slots: { age_band: '51+' } }, {}, {}).actions.slice(-2), ['record_answer', 'next_question']);
   assert.match(WF.nodes.find((n) => n.name === 'Parse NLU -> decide() -> plan').parameters.jsCode, /age_accepted: cs\.age_accepted === true/);
 });

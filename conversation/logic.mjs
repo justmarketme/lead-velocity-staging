@@ -45,8 +45,8 @@ const PRE_BOOKING = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_c
 const QUAL = { q_age: ['age_band', 'q_budget'], q_budget: ['budget_band', 'q_bond'], q_budget_clarify: ['budget_band', 'q_bond'], q_bond: ['bond', 'q_method'], q_dependants: ['dependants', 'q_method'], q_method: ['method', 'unbooked'] };
 
 // Tier C (Jonathan, 2026-10-11): a budget under R750 is NOT out of band any more (recorded, the questions go on; routing
-// decides who can take it, automation/lib/w01.mjs tierOf). Only the age bands close the conversation.
-const outOfBand = (s = {}) => s.age_band === '<35' || s.age_band === '51+';
+// decides who can take it, automation/lib/w01.mjs tierOf). 18 Oct 2026 (Jono): every age books and counts, so no age closes the
+// conversation either; the only close left in qualifying is a second "not sure" on the budget.
 
 function sameBooking(slots = {}, booking = {}) {
   if (!booking) return false;
@@ -58,7 +58,7 @@ function sameBooking(slots = {}, booking = {}) {
 /**
  * decide(state, nlu, pre, ctx) -> { actions: string[], next_state }
  * nlu = { intent, secondary_intents[], topics[], consent_answer, slots{}, sentiment, language, confidence }
- * pre = prefilter() output. ctx = { booking: {day,date,time,time_band,method}, unanswered: n, age_accepted?: true (W39 /start/ page) }
+ * pre = prefilter() output. ctx = { booking: {day,date,time,time_band,method}, unanswered: n } (age_accepted, still passed by W07, is no longer read)
  */
 export function decide(state, nlu = {}, pre = {}, ctx = {}) {
   // 17 Oct 2026 live: a lead with a booked call still had conv_state 'booking' (the step that moves it never ran), so
@@ -113,7 +113,6 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
 
   // 3. Qualifying (tap-first; typed answers accepted and mapped to bands by the intent model).
   if (QUAL[state]) {
-    if (outOfBand(slots)) return { actions: ['close_oob'], next_state: 'closed_oob' };
     const [key, next] = QUAL[state];
     const answered = key === 'bond' ? slots.bond != null || slots.dependants != null : slots[key] !== undefined && slots[key] !== null;
     if (answered) {
@@ -127,13 +126,8 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
     return { actions: [...answers, ...tail(), 'repeat_question'], next_state: state };
   }
 
-  // 4. Band conflicts typed later (memory: never ask twice, never silently overwrite).
+  // 4. Band conflicts typed later: no age is out of band any more (18 Oct 2026), so a typed age changes nothing here.
   const ops = [];
-  if (outOfBand(slots)) {
-    // 18 Oct 2026 (Jono): an age the /start/ page accepted (W39, conv_state.age_accepted) is never closed here
-    if (PRE_BOOKING.has(state) && !ctx.age_accepted) return { actions: ['close_oob'], next_state: 'closed_oob' };
-    if (BOOKED.has(state)) ops.push('flag_band_conflict');
-  }
 
   // 5. Operational intents.
   let next = state;

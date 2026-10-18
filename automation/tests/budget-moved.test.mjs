@@ -60,11 +60,11 @@ test('W01: a lead-ad lead without a band is stored unrouted (q_budget) and its f
   assert.equal(shape.counts.body, q.variables.length); assert.equal(shape.counts.quick_reply, q.buttons.length);
   assert.equal(templateSpec('qualify_budget').category, 'UTILITY');
   assert.deepEqual(q.buttons.map((b) => b.quick_reply), W3.BUDGET_ROWS.map(([id]) => id), 'tap ids are W03 budget row ids');
-  // instant form v2: an out-of-band age is stored and asked the band like anyone (age_accepted + a timeline note, never qualified);
+  // instant form v2 + 18 Oct 2026 (every age books and counts): an under-35 / over-50 is stored and asked the band like anyone;
   // an older form band is judged at intake as before
   const old = W01.decide({ ...sub(), quiz: { ...sub().quiz, age_band: '51plus' } }, ctx);
-  assert.deepEqual([old.outcome, old.row.disqualified_reason, old.row.conv_state.age_accepted, old.first_touch.op], ['budget_pending', null, true, 'ask_budget']);
-  assert.ok(old.activities.some((a) => a.activity_type === 'lead_ad_age_out_of_band'));
+  assert.deepEqual([old.outcome, old.row.disqualified_reason, old.row.conv_state.age_accepted, old.first_touch.op], ['budget_pending', null, undefined, 'ask_budget']);
+  assert.equal(old.activities.some((a) => a.activity_type === 'lead_ad_age_out_of_band'), false, 'no special note: every age is treated the same');
   const lo = W01.decide({ ...sub(), quiz: { ...sub().quiz, budget_band: 'lt750' } }, ctx);
   assert.deepEqual([lo.outcome, lo.row.routing_reason, lo.row.stage, lo.row.disqualified_reason, lo.row.retention_delete_after], ['held', 'held_low_budget', 'new', null, null], 'tier C: held open, not out of band');
   assert.equal(lo.notice.template, 'lead_low_budget_held');

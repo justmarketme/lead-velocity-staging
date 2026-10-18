@@ -126,7 +126,7 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 
 ## 8. Out-of-band close (3.3, 2.1.7)
 
-- Tapped or typed age `Under 35` / `51 or over` → `CLOSE_OOB_AGE`. Budget `Under R750` (or `Really not sure` after the clarify step) → `CLOSE_OOB_BUDGET`. No hand-over to any broker, no adviser named.
+- Any age band is recorded and the questions go on (18 Oct 2026: every age books and counts; there is no age close). Budget `Under R750` (or `Really not sure` after the clarify step) → `CLOSE_OOB_BUDGET`. No hand-over to any broker, no adviser named.
 - Data: deleted within 24 h; for CTWA "no consent", only a hashed number is kept for suppression.
 - After booking, a contradiction is not auto-closed: it is flagged for a human (SUMMARY `needs_human`).
 

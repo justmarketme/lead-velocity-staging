@@ -322,7 +322,7 @@ async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient,
   const age = ageBand(p.age_band);
   if (!age) return fail("missing_age", "Ask which age group they're in: under 35, 35 to 44, 45 to 50, or over 50.");
   if (!IN_CRITERIA.has(age)) {
-    // Outside 35-50: nothing is stored on a lead (POPIA minimality). The call record notes the outcome.
+    // A band outside IN_CRITERIA (none since 18 Oct 2026: every age books): nothing is stored on a lead (POPIA minimality).
     return json({ ok: true, out_of_criteria: true, say: "Explain kindly that SortMyCover's advisers only take people aged 35 to 50 at the moment, suggest they speak to any FSCA-authorised adviser directly, thank them and close. Do not collect anything else." });
   }
   if (String(p.consent ?? "").toLowerCase() !== "yes") return fail("no_consent", "Nothing was saved. Read the consent line and only call this tool once they clearly say yes.");

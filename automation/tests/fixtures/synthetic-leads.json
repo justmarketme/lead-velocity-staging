@@ -414,7 +414,7 @@
     {
       "fixture_id": "L06",
       "lead_id": "lead_test_L06",
-      "branches": ["out_of_band_age"],
+      "branches": ["any_age_books"],
       "origin": "ctwa",
       "lookup": { "line_type": "mobile" },
       "submission": {
@@ -429,7 +429,7 @@
         "consent_text_version": "ctwa-generic-v3"
       },
       "expected": {
-        "W01": { "via": "W03", "qualified": false, "disqualified_reason": "age_band", "broker_id": null, "first_touch": false, "delete_after": "2026-10-14T07:30:45+02:00", "polite_close": true }
+        "W01": { "via": "W03", "age_band": "51plus", "disqualified_reason": null, "next_question": "q_budget", "polite_close": false, "_note": "18 Oct 2026 (Jono): every age books and counts; was out_of_band_age (closed, deleted in 24 h)" }
       }
     },
 

@@ -155,24 +155,20 @@ test('out-of-band age, OUT_OF_BAND_AGE_BOOKS = false: the W03 outOfBand outcome 
   }
 });
 
-test('out-of-band age, OUT_OF_BAND_AGE_BOOKS = true (shipping, Jono 18 Oct): routed like in band, NEVER qualified_at, age_accepted + a timeline note -> slots', () => {
-  assert.equal(W39.OUT_OF_BAND_AGE_BOOKS, true, 'Jono, 18 Oct 2026: under-35 / over-50 may book with Mark');
-  for (const age of ['lt35', '51plus']) {
+test('any age, OUT_OF_BAND_AGE_BOOKS = true (Jono, 18 Oct: every age books and counts): exactly like 35-50, qualified on the budget -> the adviser card', () => {
+  assert.equal(W39.OUT_OF_BAND_AGE_BOOKS, true);
+  for (const age of ['lt35', '35_44', '45_50', '51plus']) {
     const p = decide({ intent: 'income', age_band: age, budget_band: '1500_plus' }, {}, { oobAgeBooks: true });
-    assert.equal(p.path, 'oob_book'); assert.equal(p.cover, true);
+    assert.equal(p.path, 'route', age); assert.equal(p.cover, true);
     assert.equal(p.set.age_band, age);
-    assert.equal(p.set.qualified_at, undefined, 'never qualified'); assert.equal(p.set.stage, undefined);
+    assert.equal(p.set.qualified_at, '2026-10-19T09:00:00+02:00', `${age}: qualified on the band`); assert.equal(p.set.stage, 'qualified');
     assert.equal(p.set.disqualified_reason, undefined);
     assert.equal(p.set.conv_state.state, 'unbooked');
-    assert.equal(p.set.conv_state.age_accepted, true, 'logic.mjs decide() never closes it later');
-    assert.equal(p.notes.length, 1);
-    assert.deepEqual(p.notes[0].payload, { age_band: age, budget_band: '1500_plus', books: true, qualified: false, rule: 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)' });
-    assert.equal(p.notes[0].idempotency_key, `w39:age_oob:${LEAD_ID}`);
-    assert.equal(W39.coverStep({ plan: p, lead: LEAD({ consent_mode: 'generic' }), brokers: [PICK] }).next, 'adviser', 'the card first, like any cover lead');
+    assert.equal(p.set.conv_state.age_accepted, undefined, 'no special flag: nothing closes an age any more');
+    assert.deepEqual(p.notes, []);
+    assert.equal(W39.coverStep({ plan: p, lead: LEAD({ consent_mode: 'generic' }), brokers: [PICK] }).next, 'adviser');
   }
-  // the default is the shipped value
-  assert.equal(decide({ intent: 'life', age_band: 'lt35', budget_band: '1500_plus' }).path, 'oob_book');
-  // W01 routing never refuses it (no disqualified_reason; the age is not a routing rule)
+  assert.equal(decide({ intent: 'life', age_band: 'lt35', budget_band: 'lt750' }).set.qualified_at, undefined, 'tier C: band only, any age');
   const r = W01.routeExisting({ id: LEAD_ID, brand_id: 'smc', origin: 'ctwa', age_band: 'lt35', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' },
     { brokers: [{ id: BROKER_ID, broker_id: BROKER_ID, brand_id: 'smc', status: 'active', routing_on: true, active: true, order_remaining: 5, order_capacity: 20, order_attached: 1 }], first_touch: false });
   assert.equal(r.action, 'routed'); assert.equal(r.first_touch, null);

@@ -98,15 +98,15 @@
 - topic: age_over
 - type: answer
 - asked as: "I'm 54, can I still book?" · "Is there an age limit?" · "Ek is ouer as 50"
-- en: Right now, the advisers on this service work with people aged 35 to 50. You can still talk to any licensed financial adviser yourself.
-- af: Die adviseurs op hierdie diens werk tans met mense van 35 tot 50. Jy is welkom om enige gelisensieerde finansiële adviseur self te kontak.
+- en: Yes, you can. The advisers on this service talk to adults of any age, so you can book a call with {adviser_first}.
+- af: Ja, dit kan. Die adviseurs op hierdie diens praat met volwassenes van enige ouderdom, so jy kan 'n oproep met {adviser_first} bespreek.
 
 ### FAQ-13 · What if I'm younger than 35?
 - topic: age_under
 - type: answer
 - asked as: "I'm 29, can I book?" · "Ek is 30"
-- en: Right now, the advisers on this service work with people aged 35 to 50. You can still talk to any licensed financial adviser yourself.
-- af: Die adviseurs op hierdie diens werk tans met mense van 35 tot 50. Jy is welkom om enige gelisensieerde finansiële adviseur self te kontak.
+- en: Yes, you can. The advisers on this service talk to adults of any age, so you can book a call with {adviser_first}.
+- af: Ja, dit kan. Die adviseurs op hierdie diens praat met volwassenes van enige ouderdom, so jy kan 'n oproep met {adviser_first} bespreek.
 
 ### FAQ-14 · How did you get my number?
 - topic: number_source
@@ -295,6 +295,7 @@ Every entry below is answered with the fixed deferral line from `conversation/li
 
 | Version | Date | Change | Source |
 |---|---|---|---|
+| `faq-v1.0.4` | 2026-10-18 | FAQ-12 and FAQ-13: no age turn-away; every age books with the adviser (Jono). | Jono, 18 Oct 2026 |
 | `faq-v1.0.3` | 2026-10-02 | FAQ-23: privacy link written as sortmycover.co.za/privacy (WhatsApp has no relative links; review 4 #13). | compliance-qa phase4-review-4 |
 | `faq-v1.0.2` | 2026-10-02 | FAQ-23: service-provider line added (review 3 §9). | compliance-qa phase4-review-3 |
 | `faq-v1.0.1` | 2026-10-02 | FAQ-05 and FAQ-23: "only to {practice}" replaced; details go to {practice} as the only adviser, providers listed at /privacy (K-1, K-2, NH-17). FAQ-09: flat fee per 30-day cycle, never a commission or a share of any policy (K-3, 2.1.1). FAQ-25: names the one follow-up question after the call (W35 lead pulse) (K-4). FAQ-11: unsourced "many people who book already have some cover" removed (K-5, 2.1.5). FAQ-02, FAQ-10, FAQ-16: "nothing to buy / no selling / not a sale" replaced with "no obligation to buy" / "any next step is your choice" (K-6, NH-new-B default b). Part B: DEF-09 claims (+ a person for refused claims), DEF-10 investments / RAs / savings / medical aid, DEF-11 wills / estate / beneficiaries, DEF-12 adviser commission (K-7). Self-harm and bereavement note. | compliance-qa phase4-review-2 §3a |

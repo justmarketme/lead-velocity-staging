@@ -16,10 +16,9 @@
 // What an answer does (decideAnswers), mirroring W03 so the chat and the page give one outcome:
 //   will   -> product_interest wills, conv_state handoff, a person is asked (escalation, as W03's wills opener), Lindi says so
 //   other  -> conv_state unbooked, Lindi asks for a sentence (W07 treats the next message as free text), next 'chat'
-//   age outside QUAL_AGE (lt35 / 51plus): OUT_OF_BAND_AGE_BOOKS decides. false = W03 outOfBand (disqualified, deleted in 24 h,
-//            the same polite close). true (Jono, 18 Oct: they may book with Mark) = routed like in band, NEVER qualified_at,
-//            a timeline note, and conv_state.age_accepted so a later chat turn never closes it (logic.mjs decide).
-//   in band -> bands stored; tier A/B = qualified_at + stage qualified, tier C (lt750) = band only (the routing trigger holds
+//   any age (Jono, 18 Oct 2026: every age books and counts; OUT_OF_BAND_AGE_BOOKS true): exactly like 35-50. With the switch
+//            false an under-35 / over-50 would get the old close (disqualified, deleted in 24 h).
+//   cover   -> bands stored; tier A/B = qualified_at + stage qualified, tier C (lt750) = band only (the routing trigger holds
 //            it, W03 finishPageBudget semantics). Disclosure before routing: the adviser W01 WOULD pick is shown first (next
 //            'adviser'); only the confirm call routes, after an 'adviser_disclosed' row, WITHOUT the W06 first touch.
 //   Always: the answers are kept in conv_state.start (no intent / has-cover column), help_with in conv_state (W01 vocabulary),
@@ -173,13 +172,9 @@ export function decideAnswers({ lead, answers, request_id, confirm_adviser = nul
     return plan('oob_close', { send: send(OOB_TEXT, 'oob'), thread_stage: 'closed' });
   }
   set.conv_state.state = 'unbooked'; // the state W07 is in after qualifying (offers times, handles chat)
-  if (ageIn && QUAL_BUDGET.has(a.budget_band)) Object.assign(set, { qualified_at: at, stage: 'qualified' }); // tier A/B
+  // every age books and counts (Jono, 18 Oct 2026): qualified follows the budget band alone (tier A/B), as in the chat and the lead ad
+  if (QUAL_BUDGET.has(a.budget_band)) Object.assign(set, { qualified_at: at, stage: 'qualified' });
   // tier C (lt750): the band only; the routing trigger holds it unless the broker has the standing yes (finishPageBudget)
-  if (!ageIn) {
-    set.conv_state.age_accepted = true;
-    return plan('oob_book', { cover: true, notes: [{ activity_type: 'start_page_age_out_of_band', idempotency_key: `w39:age_oob:${lead.id}`,
-      payload: { age_band: a.age_band, budget_band: a.budget_band || null, books: true, qualified: false, rule: OOB_AGE_RULE } }] });
-  }
   return plan(a.budget_band === LOW_BUDGET ? 'route_tier_c' : 'route', { cover: true });
 }
 

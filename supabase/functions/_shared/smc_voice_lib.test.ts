@@ -1,7 +1,7 @@
 // deno test supabase/functions/_shared/smc_voice_lib.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
-  ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, leadInterest,
+  ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
   mintLeadToken, nextCallWindow, sastIso, twilioSignature, twilioSignatureOk,
 } from "./smc_voice_lib.ts";
 
@@ -89,4 +89,11 @@ Deno.test("twilioSignature round-trips through twilioSignatureOk", async () => {
   const sig = await twilioSignature("token", "https://x.test/twiml", params);
   assertEquals(await twilioSignatureOk("token", "https://x.test/twiml", params, sig), true);
   assertEquals(await twilioSignatureOk("other", "https://x.test/twiml", params, sig), false);
+});
+
+Deno.test("every age group books (Jono, 18 Oct 2026): no band is out of criteria; the persona still asks the age, never turns it away", async () => {
+  for (const b of ["lt35", "35_44", "45_50", "51plus"]) assert(IN_CRITERIA.has(b), b);
+  const persona = await Deno.readTextFile(new URL("./smc_receptionist_persona.ts", import.meta.url));
+  assert(persona.includes("Which age group are you in: under 35, 35 to 44, 45 to 50, or over 50?"));
+  assert(!/only take 35 to 50|out of criteria/i.test(persona));
 });

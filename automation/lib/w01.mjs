@@ -117,9 +117,12 @@ export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.tri
 export const productOf = (angle, requested = null) =>
   (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : productChoice(requested) ?? 'life_cover');
 /**
- * Under-35 / over-50 (Jono, 18 Oct 2026): they may book with Mark. They are never marked qualified (qualified_at stays null)
- * and get a timeline note; counting is the database's rule (smc_count_lead), not qualified_at. One switch for every intake
- * that accepts them: the /start/ page (lib/w39.mjs re-exports it) and the Meta instant form (decide() below, W03 finishLeadAd).
+ * Every age books AND counts (Jono, 18 Oct 2026). The age is still asked (Mark wants it) but under-35 / over-50 are treated
+ * exactly like 35-50 on the three intakes: the /start/ page (lib/w39.mjs re-exports this), the Meta instant form (decide()
+ * below, W03 finishLeadAd) and the chat (W03 qualify, conversation/logic.mjs). qualified_at follows the budget band alone
+ * (tier A/B), whatever the age, which is consistent with counting: smc_count_lead counts an attended, email-verified lead and
+ * never looks at age or qualified_at (pinned by tests/count-all-ages.local.test.mjs). The legacy page quiz (/lead without
+ * start_page) keeps its old age rule; the site no longer posts it.
  */
 export const OUT_OF_BAND_AGE_BOOKS = true;
 export const OOB_AGE_RULE = 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)';
@@ -579,7 +582,6 @@ export function decide(sub, ctx) {
   // stored and booked like any lead, never marked qualified (W03 finishLeadAd), with a timeline note; nothing is routed out.
   const leadAdAgeBooks = sub.channel === 'lead_ad' && OUT_OF_BAND_AGE_BOOKS;
   const ageOut = !startPage && !leadAdAgeBooks && !QUAL_AGE.has(row.age_band);
-  const ageAccepted = leadAdAgeBooks && !QUAL_AGE.has(row.age_band);
   // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band. A lead-ad lead without
   // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
   // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
@@ -594,8 +596,8 @@ export function decide(sub, ctx) {
   // help_with has no column on public.leads: it is kept in conv_state (jsonb), no DDL (spec 2a)
   if (sub.channel === 'page' && sub.help_with) row.conv_state = { help_with: sub.help_with };
   // lead ad v2: the form's answers, kept like the /start/ page keeps them (conv_state.start + help_with, W01 vocabulary)
-  const leadAdState = sub.channel === 'lead_ad' && (sub.lead_ad || ageAccepted)
-    ? { ...(sub.lead_ad ? { start: { ...sub.lead_ad, at, via: 'lead_ad' } } : {}), ...(sub.lead_ad && sub.lead_ad.intent && sub.help_with ? { help_with: sub.help_with } : {}), ...(ageAccepted ? { age_accepted: true } : {}) }
+  const leadAdState = sub.channel === 'lead_ad' && sub.lead_ad
+    ? { start: { ...sub.lead_ad, at, via: 'lead_ad' }, ...(sub.lead_ad.intent && sub.help_with ? { help_with: sub.help_with } : {}) }
     : null;
   if (leadAdState) row.conv_state = leadAdState;
   if (ageOut || budOut) {
@@ -610,12 +612,6 @@ export function decide(sub, ctx) {
     activities.push({ activity_type: 'suppressed_at_intake', actor_type: 'system', occurred_at: at, idempotency_key: `w01:suppressed:${ctx.lead_id}`, payload: { channel: sub.channel } });
     return { kind: 'insert', outcome: 'suppressed', row, activities, first_touch: null, capi: null, mint_token: false,
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
-  }
-
-  // the W39 OUT_OF_BAND_AGE_BOOKS note: the age is on the timeline, counting is unchanged (no qualified_at)
-  if (ageAccepted) {
-    activities.push({ activity_type: 'lead_ad_age_out_of_band', actor_type: 'system', occurred_at: at, idempotency_key: `w01:age_oob:${ctx.lead_id}`,
-      payload: { age_band: row.age_band, budget_band: row.budget_band, books: true, qualified: false, rule: OOB_AGE_RULE, via: 'lead_ad' } });
   }
 
   if (startPage) {

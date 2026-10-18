@@ -44,7 +44,6 @@ export const LINES = {
     // utility template invite_email_bounced carries the same ask. Next free text that looks like an email = EMAIL_Q answer.
     EMAIL_BOUNCED: "The {method} invite we sent didn't reach your inbox. When you have a moment, please reply with the email address you'd like us to use.",
     // Out-of-band close (3.3, 4.6 step 3). No reason that judges the person; no advice; nothing stored after 24 h.
-    CLOSE_OOB_AGE: "Thanks for your time. The advisers on this service work with people aged 35 to 50 at the moment, so we won't set up a call, and we'll delete your details. You're welcome to contact any licensed financial adviser directly.",
     CLOSE_OOB_BUDGET: "Thanks for your time. The advisers on this service aren't able to take this on at the moment, so we won't set up a call, and we'll delete your details. You're welcome to contact any licensed financial adviser directly.",
     CLOSE_NO_CONSENT: "No problem, we won't keep your details. Take care.",
     CLOSE_UNBOOKED: "No problem. We won't message you about this again.",
@@ -128,7 +127,6 @@ export const LINES = {
     STOP_ACK_CANCELLED: "Klaar. Jy sal nie weer boodskappe van ons kry nie, en jou oproep met {adviser_first} op {date} om {time} is gekanselleer. As jy van plan verander, stuur net vir ons 'n boodskap hier.",
     BROKER_NO_SHOW_APOLOGY: "Jammer, {first_name}, dit lyk of jou oproep met {adviser_first} nie vandag plaasgevind het nie. Ek stuur nou vir jou 'n paar nuwe tye, en daar is steeds niks om te betaal nie.",
     EMAIL_BOUNCED: "Die {method}-uitnodiging wat ons gestuur het, het nie jou e-pos bereik nie. Wanneer jy 'n oomblik het, antwoord asseblief met die e-posadres wat ons moet gebruik.",
-    CLOSE_OOB_AGE: "Dankie vir jou tyd. Die adviseurs op hierdie diens werk tans met mense van 35 tot 50, so ons sal nie 'n oproep reël nie, en ons sal jou besonderhede uitvee. Jy is welkom om enige gelisensieerde finansiële adviseur self te kontak.",
     CLOSE_OOB_BUDGET: "Dankie vir jou tyd. Die adviseurs op hierdie diens kan dit tans nie aanneem nie, so ons sal nie 'n oproep reël nie, en ons sal jou besonderhede uitvee. Jy is welkom om enige gelisensieerde finansiële adviseur self te kontak.",
     CLOSE_NO_CONSENT: "Geen probleem nie, ons hou nie jou besonderhede nie. Mooi bly.",
     CLOSE_UNBOOKED: "Geen probleem nie. Ons sal jou nie weer hieroor boodskap nie.",

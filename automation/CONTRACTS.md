@@ -495,3 +495,11 @@ Instant Form leads (`leads.origin = 'lead_ad'`) are introduced by W06's `broker_
 | legacy `not_sure` | `unsure` | unchanged |
 
 Paths: /start/ (W39 `POST /start/answers`, stored in `conv_state.start.has_cover`; `GET /start` returns it as stored), the Instant Form (W01 `normaliseLeadAd`, Graph lead or the W02 ingest item's answers map; `conv_state.start.has_cover` + the insert's `work_cover`). Lindi's chat asks no cover question (the 3b/3c copy in lindi-flow-copy.md is not built), so there is no chat mapping. Test: `W02-instant-form-v2.test.mjs` "cover answer (4 options ...)".
+
+## Every age books and counts (Jono, 2026-10-18)
+Under-35 and over-50 leads book with the adviser AND count toward his order, on every intake. The age is still asked (the adviser wants it) but never closes a conversation or disqualifies:
+- **Chat** (W03 qualify, `conversation/logic.mjs`): any age band is recorded and the flow goes on to the budget; `CLOSE_OOB_AGE` is gone (lines.mjs, deferral-lines.md); FAQ-12 / FAQ-13 say any adult can book (`faq-v1.0.4`). The only qualifying close left is a second "not sure" on the budget.
+- **/start/** (W39) and the **Instant Form** (W01 decide + W03 finishLeadAd): exactly like 35-50; no `age_accepted` flag, no `*_age_out_of_band` note.
+- **qualified_at** follows the budget band alone (tier A/B) for every age. Counting is unchanged and never read age or qualified_at: `smc_count_lead` counts a routed lead whose meeting the broker marked attended and whose email is verified (pinned: `tests/count-all-ages.local.test.mjs`).
+- **Phone** (Lindi on call): `smc_receptionist_persona.ts` still asks the age group, no turn-away; `smc_voice_lib.ts IN_CRITERIA` holds all four bands, so `save_caller_details` never returns `out_of_criteria` on age.
+- The legacy page quiz (`POST /lead` without `start_page`, no longer posted by the site) keeps its old age rule.

@@ -87,7 +87,9 @@ export function ageBand(raw: unknown): "lt35" | "35_44" | "45_50" | "51plus" | n
   return n < 35 ? "lt35" : n <= 44 ? "35_44" : n <= 50 ? "45_50" : "51plus";
 }
 
-export const IN_CRITERIA = new Set(["35_44", "45_50"]);
+// 18 Oct 2026 (Jono): every age group books with the adviser and counts; the age is still asked. Kept as a set so the
+// out_of_criteria plumbing (classifyOutcome, POPIA minimality in smc-voice) stays in place should a band ever be closed again.
+export const IN_CRITERIA = new Set(["lt35", "35_44", "45_50", "51plus"]);
 
 /** Budget band words -> leads.budget_band (null = "not sure"). */
 export function budgetBand(raw: unknown): "lt750" | "750_1499" | "1500_plus" | null {

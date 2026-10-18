@@ -170,19 +170,17 @@ test('decide: in band -> stored unrouted, answers in conv_state like /start/, fi
   assert.equal(ifBranch(W01WF, 'Budget question first? (lead ad, no band in the form)', { json: { first_touch: d.first_touch } }), true);
 });
 
-test('decide: under 35 is accepted (no out-of-band close, no 24-h delete), age_accepted + a timeline note, never qualified', () => {
+test('decide: under 35 is accepted exactly like 35-50 (no close, no 24-h delete, no special flag or note)', () => {
   const d = decideOf(W01.normaliseLeadAd(lead('under_35')), ctx({ mobile: '+27820000202' }));
   assert.deepEqual([d.outcome, d.row.stage, d.row.disqualified_reason, d.row.retention_delete_after, d.row.age_band], ['budget_pending', 'new', null, null, 'lt35']);
-  assert.equal(d.row.conv_state.age_accepted, true);
+  assert.equal(d.row.conv_state.age_accepted, undefined);
   assert.equal(d.row.conv_state.state, 'q_budget');
-  const note = d.activities.find((a) => a.activity_type === 'lead_ad_age_out_of_band');
-  assert.deepEqual(note.payload, { age_band: 'lt35', budget_band: null, books: true, qualified: false, rule: W39.OUT_OF_BAND_AGE_BOOKS && 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)', via: 'lead_ad' });
-  assert.equal(note.idempotency_key, `w01:age_oob:${LEAD_ID}`);
+  assert.equal(d.activities.some((a) => a.activity_type === 'lead_ad_age_out_of_band'), false);
   assert.equal(d.first_touch.op, 'ask_budget', 'same first touch as anyone');
   assert.equal(W01.OUT_OF_BAND_AGE_BOOKS, W39.OUT_OF_BAND_AGE_BOOKS, 'one switch for /start/ and the instant form');
   // over 50 from a hand-built form: same
   const o = decideOf(W01.normaliseLeadAd(lead('hand_built_over_50')), ctx({ mobile: '+27600000204' }));
-  assert.deepEqual([o.outcome, o.row.age_band, o.row.conv_state.age_accepted, o.row.consent_ads_at], ['budget_pending', '51plus', true, null]);
+  assert.deepEqual([o.outcome, o.row.age_band, o.row.conv_state.age_accepted, o.row.consent_ads_at], ['budget_pending', '51plus', undefined, null]);
 });
 
 test('decide: a missing intent (and missing cover answer) is tolerated: stored, asked the band, no help_with', () => {
@@ -190,14 +188,14 @@ test('decide: a missing intent (and missing cover answer) is tolerated: stored, 
   assert.deepEqual([s.lead_ad, s.help_with, s.quiz.age_band, s.consent.checked], [null, null, '35_44', true]);
   const d = decideOf(s, ctx({ mobile: '+27600000203' }));
   assert.deepEqual([d.outcome, d.row.conv_state.state, d.row.conv_state.help_with, d.row.conv_state.start, d.first_touch.op], ['budget_pending', 'q_budget', undefined, undefined, 'ask_budget']);
-  // no age at all: accepted like an out-of-band age (books, never qualified)
+  // no age at all: accepted like any age
   const noAge = W01.normaliseLeadAd({ ...lead('no_intent'), field_data: lead('no_intent').field_data.filter((f) => f.name !== 'smc_age_band') });
   const n = decideOf(noAge, ctx({ mobile: '+27600000203' }));
-  assert.deepEqual([n.outcome, n.row.age_band, n.row.conv_state.age_accepted], ['budget_pending', null, true]);
+  assert.deepEqual([n.outcome, n.row.age_band, n.row.conv_state && n.row.conv_state.state], ['budget_pending', null, 'q_budget']);
 });
 
 // ------------------------------------------------------------------------------------------- the band tap (W03)
-test('band tap: in band -> qualified + routed; under 35 -> routed, NO qualified_at, delete date cleared', () => {
+test('band tap: in band -> qualified + routed; under 35 -> the same (qualified on the band, every age counts), delete date cleared', () => {
   const tap = (row, id) => {
     const msg = { from: row.phone.replace('+', ''), type: 'button', button: { payload: id }, payload: id };
     return W3.step(null, msg, { at: '2026-10-18T14:05:00+02:00', mobile: row.phone, lead_id: row.id, lead: row, existing_open_lead_id: row.id, brand: { brand_id: 'smc', consent_mode: 'named' }, broker: null });
@@ -210,7 +208,7 @@ test('band tap: in band -> qualified + routed; under 35 -> routed, NO qualified_
   const young = decideOf(W01.normaliseLeadAd(lead('under_35')), ctx({ mobile: '+27820000202' })).row;
   const r2 = tap(young, 'budget_1500_plus');
   const u2 = r2.actions.find((a) => a.kind === 'update_lead').set;
-  assert.deepEqual([u2.budget_band, u2.qualified_at, u2.stage, u2.keep_lead], ['1500_plus', undefined, undefined, true]);
+  assert.deepEqual([u2.budget_band, !!u2.qualified_at, u2.stage], ['1500_plus', true, 'qualified'], 'qualified on the band, whatever the age');
   assert.ok(r2.actions.some((a) => a.kind === 'route_and_first_touch'), 'routed to Mark like anyone');
   assert.ok(!r2.actions.some((a) => a.kind === 'send'), 'no close message');
   // hand-over: routeExisting routes it (no age rule there), W06 sends the intro card
@@ -251,7 +249,7 @@ test('W02 webhook -> Graph lead -> ingest item -> W01 core: same answers, consen
   assert.equal(n.json.scr.ok, true);
   assert.deepEqual([n.json.mobile, s.first_name, s.quiz.age_band, s.lead_ad.intent, s.lead_ad.has_cover, s.help_with, s.consent.checked, s.consent.ads], ['+27820000202', 'Sipho', 'lt35', 'life', 'no', 'life', true, false]);
   const d = decideOf(s, ctx({ mobile: n.json.mobile }));
-  assert.deepEqual([d.outcome, d.row.conv_state.age_accepted, d.first_touch.op, d.row.consent_text], ['budget_pending', true, 'ask_budget', SPEC.custom_disclaimer.checkboxes[0].text]);
+  assert.deepEqual([d.outcome, d.row.conv_state.age_accepted, d.first_touch.op, d.row.consent_text], ['budget_pending', undefined, 'ask_budget', SPEC.custom_disclaimer.checkboxes[0].text]);
   // without a consent tick the W02 backstop routes it out (anonymous counter only)
   const no = await w02({ ...lead('keys_in_band'), custom_disclaimer_responses: [{ checkbox_key: 'consent', is_checked: '' }] });
   assert.deepEqual([no.out.action, no.out.reasons], ['routed_out', ['no_consent']]);

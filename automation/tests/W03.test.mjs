@@ -92,16 +92,19 @@ test('L05 consent no: no lead row, only the hashed number, one reply after "No",
   assert.equal(thread.origin, undefined, 'origin/referral dropped on "No thanks"');
 });
 
-test('L06 out-of-band age: polite close, no hand-over, deleted within 24 h, no first touch', () => {
+test('L06 over 50 (18 Oct 2026): the age is asked and recorded, the chat goes on to the budget; never closed or disqualified on age', () => {
   const fx = lead('L06');
-  const { actions } = run(fx);
-  assert.equal(actions.filter((a) => a.kind === 'route_and_first_touch').length, 0);
+  const { actions, thread } = run(fx);
   const upd = actions.filter((a) => a.kind === 'update_lead').at(-1).set;
-  assert.equal(upd.disqualified_reason, fx.expected.W01.disqualified_reason);
-  assert.equal(upd.broker_id, null);
-  assert.equal(upd.age_band, '51plus', 'fixture code mapped to the leads_smc_checks code');
-  assert.equal(ms(upd.retention_delete_after), ms(fx.expected.W01.delete_after));
-  assert.match(sends(actions).at(-1).message.body, /not the right fit/);
+  assert.deepEqual(upd, { age_band: '51plus', conv_state_state: 'q_budget' }, 'fixture code mapped to the leads_smc_checks code; no disqualified_reason, no delete date');
+  assert.equal(thread.stage, 'q_budget');
+  assert.match(sends(actions).at(-1).message.body, /put towards cover each month/);
+  assert.equal(actions.some((a) => a.kind === 'update_lead' && (a.set.disqualified_reason || a.set.retention_delete_after)), false);
+  // every band, tapped: the same next step
+  for (const id of ['age_under_35', 'age_35_44', 'age_45_50', 'age_51_plus']) {
+    const r = W3.step({ stage: 'q_age', lead_id: 'l1', answers: {} }, { type: 'interactive', interactive: { type: 'list_reply', list_reply: { id } } }, { at: '2026-10-18T10:00:00+02:00', mobile: '+27600000106', broker: MARK, brand: BRAND, suppressed: false });
+    assert.equal(r.thread.stage, 'q_budget', id);
+  }
 });
 
 test('generic consent mode uses the 4.6 CTWA text with the v3 scope (fixture ctwa-generic-v3)', () => {
@@ -235,12 +238,11 @@ test('I-47a: typed "I\'m 47" at q_age with no wa_thread -> age_band 45_50 record
   assert.equal(r.actions.some((a) => a.kind === 'forward_w07'), false);
 });
 
-test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; lt750/750_1250/1250plus); out-of-band closes', () => {
-  for (const [nlu, db] of [['35-44', '35_44'], ['45-50', '45_50']]) assert.equal(typedStep('q_age', { age_band: nlu }).actions.find((a) => a.kind === 'update_lead').set.age_band, db);
-  for (const [nlu, db] of [['<35', 'lt35'], ['51+', '51plus']]) {
+test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; lt750/750_1250/1250plus); no age closes (18 Oct 2026)', () => {
+  for (const [nlu, db] of [['<35', 'lt35'], ['35-44', '35_44'], ['45-50', '45_50'], ['51+', '51plus']]) {
     const r = typedStep('q_age', { age_band: nlu });
-    const u = r.actions.find((a) => a.kind === 'update_lead').set;
-    assert.equal(u.age_band, db); assert.equal(u.stage, 'disqualified'); assert.equal(u.conv_state_state, 'closed_oob'); assert.equal(r.thread.stage, 'closed');
+    assert.deepEqual(r.actions.find((a) => a.kind === 'update_lead').set, { age_band: db, conv_state_state: 'q_budget' }, nlu);
+    assert.equal(r.thread.stage, 'q_budget');
   }
   for (const [nlu, db] of [['750-1250', '750_1250'], ['1250+', '1250plus'], ['1250-1499', '1250_1499'], ['1500+', '1500_plus']]) {
     const r = typedStep('q_budget', { budget_band: nlu }, { age_band: '45_50' });

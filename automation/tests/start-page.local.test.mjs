@@ -293,7 +293,7 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   assert.match(comm[0][4], /Synthetic Advisory \(FSP 12345\)/);
   assert.ok(lead(LEAD_ID).first_message_at, 'first_message_at is stamped by the intro card');
 
-  // =========================================================================================== 7. under 35 (OUT_OF_BAND_AGE_BOOKS) and a will
+  // =========================================================================================== 7. under 35 (every age books and counts) and a will
   const yes2 = await (async () => { const m = '+27820000302'; await w03(m, { type: 'text', text: 'Hi', referral: { source_id: '1', source_type: 'ad' } }, 'Synthetic Sipho'); return w03(m, { type: 'button', payload: 'consent_yes', text: 'Yes' }, 'Synthetic Sipho'); })();
   const TOK2 = yes2.sends[0].url.split('#lt=')[1];
   const ID2 = LT.verifyLeadToken(TOK2, { secret: SECRET }).lead_id;
@@ -301,11 +301,11 @@ test('the /start/ page on the real schema: CTA link -> answers -> routed without
   assert.equal((await postAnswers(TOK2, OBODY)).body.next, 'adviser');
   assert.equal(lead(ID2).broker_id, null);
   const o = await postAnswers(TOK2, { ...OBODY, confirm_adviser: MARK });
-  assert.deepEqual(o.body, { ok: true, next: 'slots' }, 'Jono, 18 Oct: under-35 may book with Mark');
+  assert.deepEqual(o.body, { ok: true, next: 'slots' }, 'Jono, 18 Oct: under-35 books with Mark');
   const lo = lead(ID2);
-  assert.deepEqual([lo.age_band, lo.qualified_at, lo.stage, lo.broker_id, lo.disqualified_reason], ['lt35', null, 'verified', MARK, null], 'routed, never qualified');
-  assert.equal(lo.conv_state.age_accepted, true);
-  assert.ok(acts(ID2).includes('start_page_age_out_of_band'));
+  assert.deepEqual([lo.age_band, lo.stage, lo.broker_id, lo.disqualified_reason], ['lt35', 'qualified', MARK, null], 'routed and qualified on the band, like any age');
+  assert.ok(lo.qualified_at);
+  assert.equal(acts(ID2).includes('start_page_age_out_of_band'), false, 'no special note any more');
 
   const yes3 = await (async () => { const m = '+27820000303'; await w03(m, { type: 'text', text: 'Hi', referral: { source_id: '1', source_type: 'ad' } }, 'Synthetic Lerato'); return w03(m, { type: 'button', payload: 'consent_yes', text: 'Yes' }, 'Synthetic Lerato'); })();
   const TOK3 = yes3.sends[0].url.split('#lt=')[1];

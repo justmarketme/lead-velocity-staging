@@ -152,7 +152,9 @@ const BUDGET_ROWS = [['budget_under_500', 'Under R500 a month'], ['budget_500_75
 // same list and the same wording; the tap ids are the template's, so one vocabulary serves lead-ad and web leads.
 const BOND_ROWS = [['bond_yes_dependants_yes', 'Bond and dependants'], ['bond_yes_dependants_no', 'Bond, no dependants'], ['bond_no_dependants_yes', 'Dependants, no bond'], ['bond_no_dependants_no', 'Neither']];
 const METHOD_TITLES = { teams: 'Teams video call', zoom: 'Zoom video call', meet: 'Google Meet', whatsapp_call: 'WhatsApp call', phone: 'Phone call' };
-const QUAL_AGE = new Set(['35_44', '45_50']); // 0.1 bands; 45-50 qualifies, 51+ does not
+// 18 Oct 2026 (Jono): every age books AND counts toward the broker's order, so the age is asked (Mark wants it) but never closes
+// the chat or disqualifies: QUAL_AGE is gone from W03; 'qualified' is the budget band alone (tier A/B), the same on /start/ (W39)
+// and the Instant Form (W01 / finishLeadAd).
 const QUAL_BUDGET = new Set(['750_1250', '750_1499', '1250_plus', '1250_1499', '1500_plus']); // 0.1: every band from R750 up qualifies (1250_plus = legacy pre-split)
 // Tier C (Jonathan, 2026-10-11): under R750 is NOT out of band. The answer is recorded (lt750) and the questions go on; W01
 // routes it only to a broker with the standing yes (brokers.accepts_low_budget) or holds it (held_low_budget).
@@ -441,8 +443,7 @@ function qualify(t, msg, ctx, actions) {
   const from = t.stage;
   let set;
   if (from === 'q_age') {
-    t.answers.age_band = val;
-    if (!QUAL_AGE.has(val)) return outOfBand(t, ctx, 'age_band', actions);
+    t.answers.age_band = val; // any band: the flow goes on to the budget
     t.stage = 'q_budget';
     set = { age_band: AGE_TO_DB[val] };
   } else if (from === 'q_budget' || from === 'q_budget_clarify') {
@@ -495,10 +496,10 @@ function qualify(t, msg, ctx, actions) {
  */
 function finishLeadAd(t, ctx, actions, val) {
   t.stage = 'done';
-  // Instant form v2 (18 Oct 2026): every age books (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as /start/), so an under-35 / over-50
-  // lead is routed here too but NEVER marked qualified; tier C (under R750) gets the band only, as finishPageBudget. Either way
-  // it is a real lead that answered: the budget reminder's 24-h delete date is cleared (keep_lead).
-  const inBand = QUAL_BUDGET.has(val) && QUAL_AGE.has(t.answers.age_band);
+  // Instant form v2 (18 Oct 2026): every age books and counts (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as /start/), so qualified is the
+  // band alone (tier A/B); tier C (under R750) gets the band only, as finishPageBudget. Either way it is a real lead that
+  // answered: the budget reminder's 24-h delete date is cleared (keep_lead).
+  const inBand = QUAL_BUDGET.has(val);
   actions.push({ kind: 'cancel_stall' });
   actions.push({ kind: 'update_lead', id: t.lead_id, set: { budget_band: BUDGET_TO_DB[val], conv_state_state: NEXT_STATE.q_method, ...(inBand ? { qualified_at: ctx.at, stage: 'qualified' } : { keep_lead: true }) } });
   actions.push({ kind: 'route_and_first_touch', lead_id: t.lead_id, template_hint: 'broker_intro_slots', deadline_s: 60 });

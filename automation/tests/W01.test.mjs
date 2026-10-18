@@ -546,16 +546,16 @@ test(`W03 parity [${MODE}] CTWA consent-no (L05): no lead row, only a hashed num
   } else assert.ok(!JSON.stringify(msgs).includes(broker().practice_name), 'broker not named to a non-consenting person');
 });
 
-test(`W03 parity [${MODE}] CTWA out-of-band age (L06): polite close, no hand-over, deleted within 24 h`, async () => {
+test(`W03 parity [${MODE}] CTWA over-50 (L06, 18 Oct 2026): the age is recorded and the budget asked next; no close, no 24-h delete`, async () => {
   const sys = fresh();
   const fx = lead('L06');
   const { lead: l, messages } = await sys.ctwa(fx);
   const e = fx.expected.W01;
-  assert.equal(l.qualified, false);
-  assert.equal(l.disqualified_reason, e.disqualified_reason);
-  assert.equal(l.broker_id ?? null, null);
-  assert.equal(ms(l.retention_delete_after), ms(e.delete_after));
-  assert.ok(messages.some((m) => m.kind === 'polite_close'));
+  assert.equal(l.age_band, e.age_band);
+  assert.equal(l.disqualified_reason ?? null, null);
+  assert.equal(l.retention_delete_after ?? null, null);
+  assert.equal(messages.some((m) => m.kind === 'polite_close'), false);
+  assert.match(messages.at(-1).text, /put towards cover each month/, 'the budget question is next');
 });
 
 // ============================================================================================
