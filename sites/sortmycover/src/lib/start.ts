@@ -307,6 +307,8 @@ export function requestId(): string {
 
 /* ---------------- step 0 (no token): details and consent ---------------- */
 /** The adviser named in the step 0 consent (consent_mode "named"). One place for the name, practice and FSP number. */
+/** Under the WhatsApp number on step 0 (Jono, 18 Oct 2026): why WhatsApp, and what arrives there next. */
+export const WHY_WHATSAPP = "Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold. Your booking confirmation and reminders come here too.";
 export const START_ADVISER = { name: "Mark Weston", practice: "Oracle Private Wealth", fsp: "28418" } as const;
 export const startIntroLine = (a: { name: string; practice: string; fsp: string } = START_ADVISER) =>
   `You'll book a 30-minute call with ${a.name}, ${a.practice}, an authorised financial services provider (FSP ${a.fsp}).`;

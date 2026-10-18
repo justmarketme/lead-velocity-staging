@@ -14,7 +14,7 @@ import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
 import { createStartApi, postLead, type BookedInfo, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
 import {
-  TOKEN_KEY, adviserDisclosure, firstScreen, onLoadFailure, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, hasCoverNow, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
+  TOKEN_KEY, WHY_WHATSAPP, adviserDisclosure, firstScreen, onLoadFailure, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, validFirstName, afterAnswers, answersPayload, availableMethods, hasCoverNow, countRows, defaultMethod, formatWhen, groupSlots, initials, limitGroups,
   methodLabel, nextStep, prevStep, readTokenFromHash, requestId, resumeAt, setAnswer, suggestEmail, validEmail, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
@@ -423,8 +423,9 @@ function StartFlow() {
               </div>
               <div className={"field" + (bad.phone ? " bad" : "") + (e164 ? " good" : "")}>
                 <label htmlFor="st-phone">WhatsApp number</label>
-                <input id="st-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="082 123 4567" value={phone} aria-invalid={bad.phone || undefined} aria-describedby="st-phone-err"
+                <input id="st-phone" type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="082 123 4567" value={phone} aria-invalid={bad.phone || undefined} aria-describedby="st-phone-why st-phone-err"
                   onChange={(e) => { setPhone(e.target.value); if (bad.phone) setBad((x) => ({ ...x, phone: !toE164(e.target.value) })); }} />
+                <span className="st-why" id="st-phone-why">{WHY_WHATSAPP}</span>
                 <span className="err" id="st-phone-err">{strs.err_mobile}</span>
                 <span className="ok" aria-live="polite">{e164 ? strs.ok_mobile + " " + prettyMobile(e164) : ""}</span>
               </div>
