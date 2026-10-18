@@ -857,3 +857,22 @@ test('a cancel turn never adds FAQ-06 ("Tap Reschedule or Cancel") next to the Y
   assert.doesNotMatch(dl.body, /Tap Reschedule or Cancel/);
   assert.match(dl.body, /^Do you want me to cancel your call on /);
 });
+
+test('typing dots: Twilio channel in capitals, shown on arrival before anything else, never blocking the reply', () => {
+  const nd = (x) => WF.nodes.find((n) => n.name === x);
+  for (const name of ['Typing indicator (Lindi, Twilio)', 'Typing indicator on arrival (Lindi, Twilio)']) {
+    const n = nd(name);
+    assert.equal(n.parameters.url, 'https://messaging.twilio.com/v3/Indicators/Typing.json', name);
+    assert.match(n.parameters.jsonBody, /channel: 'WHATSAPP'/, `${name}: lowercase 'whatsapp' gets a 400 (tested live 18 Oct)`);
+    assert.equal(n.onError, 'continueRegularOutput', name);
+  }
+  const outs = WF.connections['Route (deterministic) + prefilter'].main[0].map((t) => t.node);
+  assert.ok(outs.includes('Show typing dots now? (Twilio)'));
+  assert.ok(outs.includes('Known lead or broker? (store)'), 'the normal flow still runs');
+  // n8n executionOrder v1 runs parallel branches top to bottom: the dots branch must sit above the main flow
+  assert.ok(nd('Show typing dots now? (Twilio)').position[1] < nd('Known lead or broker? (store)').position[1]);
+  assert.equal(WF.settings.executionOrder, 'v1');
+  assert.deepEqual(WF.connections['Typing indicator on arrival (Lindi, Twilio)'], undefined, 'a dead end: nothing waits on it');
+  const gate = JSON.stringify(nd('Show typing dots now? (Twilio)').parameters);
+  for (const k of ["WHATSAPP_PROVIDER === 'twilio'", "'W15'", "'paused'", "origin === 'w03'"]) assert.ok(gate.includes(k), k);
+});
