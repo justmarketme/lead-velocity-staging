@@ -1,46 +1,11 @@
-/* n8n API client. Contracts: landing/README.md "API contract expected from n8n" + automation/CONTRACTS.md.
- * The site has no backend of its own: every call goes to the n8n webhooks under site.n8n_base + site.api_prefix. */
+/* First-party visit beacon to n8n (site.n8n_base + site.api_prefix). Since 17 Oct 2026 the site has no booking form: every
+   booking goes through WhatsApp (Lindi, W07), so the beacon is the only call the site makes to n8n. */
 import { API_BASE } from "./site";
-import type { HelpWith } from "./quiz";
-
-export interface ApiResult { status: number; ok: boolean; json: Record<string, any> }
-
-export function api(path: string, opt: RequestInit = {}): Promise<ApiResult> {
-  const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const t = setTimeout(() => ctl && ctl.abort(), 15000);
-  if (ctl) opt.signal = ctl.signal;
-  return fetch(API_BASE + path, opt).then(
-    (r) => { clearTimeout(t); return r.json().catch(() => ({})).then((j) => ({ status: r.status, ok: r.ok, json: (j || {}) as Record<string, any> })); },
-    (err) => { clearTimeout(t); throw err; },
-  );
-}
-
-export interface LeadBody {
-  first_name: string; mobile: string; consent: true; consent_text: string; consent_version: string; consent_mode: string;
-  consent_ads: boolean; consent_ads_text: string; consent_ads_version: string;
-  age_band: string;
-  /** No budget is asked on the page (Jono, 2026-10-13): the self-declared band is the first qualifying step on WhatsApp. W01 must
-   *  read this flag and hold the budget as pending (as for Meta instant-form leads) instead of disqualifying a lead without one:
-   *  see deliverables/website/quiz-v2-and-whatsapp-step.md, "W01 change". */
-  budget_pending: true;
-  /** First quiz answer: "review" | "life" | "disability_income" | "severe_illness" | "wills". Additive (W01 ignores unknown fields). */
-  help_with: HelpWith;
-  /** "life_cover" (cover adviser call) or "wills" (will and estate call with the will provider). Additive field: n8n W01 ignores
-   *  unknown fields, so older workflows keep working; routing on it is a W01 change (see automation/CONTRACTS.md). */
-  product_interest: "life_cover" | "wills";
-  angle: string; lang: string; started_at: string; request_id: string; page_url: string;
-  company_website: string; turnstile_token: string; context: unknown;
-}
-
-export const postLead = (body: LeadBody) => api("/lead", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-export const getSlots = (token: string) => api("/slots?days=5", { method: "GET", headers: { Accept: "application/json", "X-Lead-Token": token } });
-export const postBook = (token: string, body: Record<string, unknown>) => api("/book", { method: "POST", headers: { "Content-Type": "application/json", "X-Lead-Token": token }, body: JSON.stringify(body) });
-export const postSkip = (token: string, leadId: string) => api("/lead/skip", { method: "POST", headers: { "Content-Type": "application/json", "X-Lead-Token": token }, body: JSON.stringify({ lead_id: leadId }) });
 
 /* First-party visit beacon (I-32b): page views and quiz steps reached, per angle. No cookie, no IP, no fingerprint: an anonymous
    random id in sessionStorage only. Off with DNT / Global Privacy Control / the opt-out cookie. Never sends answers, name, phone or email. */
 const sent: Record<string, 1> = {};
-export function beacon(angle: string, ev: "view" | "step", step?: number, off: () => boolean = () => false) {
+export function beacon(angle: string, ev: "view" | "step" | "wa" | "cal", step?: number, off: () => boolean = () => false) {
   try {
     const key = ev + (step ?? "");
     if (!angle || sent[key] || off() || !navigator.sendBeacon) return;

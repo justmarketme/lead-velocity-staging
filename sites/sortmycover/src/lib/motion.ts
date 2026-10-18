@@ -134,6 +134,13 @@ export function slideIn(el: Element) {
   animate(el, { transform: ["translateY(100%)", "translateY(0%)"], opacity: [0.4, 1] }, { duration: springDuration(ease), ease: ease as any });
 }
 
+/** Pop a freshly opened panel in (the chat widget). */
+export function popIn(el: Element) {
+  if (prefersReducedMotion()) return;
+  const ease = springEase(460, 30);
+  animate(el, { transform: ["translateY(14px) scale(0.98)", "translateY(0px) scale(1)"], opacity: [0, 1] }, { duration: springDuration(ease), ease: ease as any });
+}
+
 /* ---- (e) smooth <details> (FAQ) ---- */
 /** Smooth open/close for a native <details> (content stays in the HTML for crawlers and no-JS). */
 export function toggleDetails(d: HTMLDetailsElement, body: HTMLElement, e: { preventDefault(): void }) {

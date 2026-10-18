@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { vercelConfig, SECURITY_HEADERS } from "../src/build/hosts";
 import { OLD_URL_MAP } from "../src/build/redirects";
 import { ANGLES, hostLabel } from "../src/campaigns";
+import { CAMPAIGN_SCENES } from "../src/content/imagery";
 
 const dist = path.resolve(__dirname, "../dist");
 const have = fs.existsSync(path.join(dist, "index.html"));
@@ -76,6 +77,12 @@ describe.skipIf(!have)("routing acceptance matrix (emulated)", () => {
       expect(request(host, "/robots.txt").served).toBe("/robots.txt");
       expect(files.has("/assets/" + fs.readdirSync(path.join(dist, "assets"))[0])).toBe(true);
       expect(request(host, "/assets/" + fs.readdirSync(path.join(dist, "assets")).find((f) => f.endsWith(".js"))!).served).toBeTruthy();
+    });
+    it(`B-07: ${hostLabel(a)}.sortmycover.co.za serves its own scene image (img-src 'self': a 307 to the apex would leave the photo blank)`, () => {
+      const img = CAMPAIGN_SCENES[a.slug].src;
+      const r = request(`${hostLabel(a)}.sortmycover.co.za`, img);
+      expect(r.status, a.slug).not.toBe(307);
+      expect(r.served, a.slug).toBe(img);
     });
     it(`B-06: apex /${a.slug}/ redirects 307 to its host with the query kept by the platform`, () => {
       const r = request("sortmycover.co.za", `/${a.slug}/`);

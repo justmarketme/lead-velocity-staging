@@ -1,43 +1,16 @@
 /* One page, one goal: the campaign landing page for an ad angle (spec C.1). No navigation. Served on <label>.sortmycover.co.za. */
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment } from "react";
 import { Seo } from "@/lib/head";
-import { BOOK_LABEL, COST_LINE, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site } from "@/lib/site";
-import Quiz from "@/components/Quiz";
+import {FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE, campaignOrigin, provider, site} from "@/lib/site";
+import ChatWidget, { WhatsAppCta } from "@/components/ChatWidget";
+import { WA_EXPECT, campaignContext } from "@/lib/whatsapp";
 import { CampaignFooter } from "@/components/Footer";
 import { Wordmark } from "@/components/Brand";
 import { FaqItem, Steps } from "@/components/Interactive";
 import { Inline } from "@/lib/inline";
 import { CAMPAIGN_FAQ, HOW_STEPS, WILLS_FAQ, WILLS_STEPS } from "@/content/shared";
 import { h1Segments, hostLabel, type Angle } from "@/campaigns";
-import { slideIn, watchInView } from "@/lib/motion";
-import { productForTheme } from "@/lib/quiz";
-
-/** Sticky CTA (spec C.1): shown only after the quiz card has left the viewport upwards, hidden while the card is on screen and at the footer. */
-function CampaignSticky() {
-  const [show, setShow] = useState(false);
-  const bar = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const card = document.getElementById("quiz");
-    const foot = document.querySelector("[data-footer]");
-    if (!card) return;
-    let cardVisible = true, footVisible = false;
-    const update = () => setShow(!cardVisible && !footVisible && card.getBoundingClientRect().bottom < 0);
-    const a = watchInView(card, (v) => { cardVisible = v; update(); });
-    const b = foot ? watchInView(foot, (v) => { footVisible = v; update(); }) : () => {};
-    cardVisible = card.getBoundingClientRect().bottom > 0; // first paint: the card is normally already on screen
-    return () => { a(); b(); };
-  }, []);
-  useEffect(() => { if (show && bar.current) slideIn(bar.current); }, [show]);
-  if (!show) return null;
-  return (
-    <div ref={bar} className="sticky-bar" role="region" aria-label="Book a call">
-      <div className="wrap flex items-center justify-between gap-3">
-        <small className="hidden sm:block">{COST_LINE}</small>
-        <a className="btn btn-sm" href="#quiz">{BOOK_LABEL}</a>
-      </div>
-    </div>
-  );
-}
+import { CAMPAIGN_SCENES } from "@/content/imagery";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 /** "2025-10" -> "October 2025" (the proof line always shows its source month, rule S15). */
@@ -45,37 +18,42 @@ const proofMonth = (ym: string) => { const [y, m] = ym.split("-"); return MONTHS
 
 /** Theme B (wills and estate) pages name the will provider and say what SortMyCover does not do. */
 const isWills = (a: Angle) => a.theme === "B";
+const campaignImage = (a: Angle) => CAMPAIGN_SCENES[a.slug];
 
 export function CampaignLanding({ angle }: { angle: Angle }) {
   const origin = campaignOrigin(hostLabel(angle));
   const wills = isWills(angle);
   return (
-    <>
+    <div className="smc-campaign">
       <Seo title={angle.title} description={angle.description} canonical={origin + "/"} robots="noindex,follow" />
-      <a className="skip" href="#quiz">Skip to the booking</a>
-      <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c9c3b8]">{COST_LINE}</small></div></header>
+      <a className="skip" href="#h-how">Skip to what happens next</a>
+      <header className="site-header"><div className="wrap bar"><Wordmark plain /><small className="text-[12px] text-[#c3c8ce]">A 30-minute call, booked on WhatsApp</small></div></header>
       <main id="main">
         <section className="hero-band on-dark">
-          <div className="wrap-narrow py-8">
+          <div className="wrap campaign-hero-grid">
+            <div className="campaign-hero-copy">
+            <p className="eyebrow campaign-kicker">A conversation, not a quote.</p>
             <h1 className="text-[clamp(30px,8vw,44px)] leading-[1.05]">{h1Segments(angle.h1).map((s, i) => s.br ? <br key={i} /> : s.em ? <em key={i} className="not-italic text-amber">{s.text}</em> : <Fragment key={i}>{s.text}</Fragment>)}</h1>
-            <p className="mt-4 text-[17px] text-[#d7d2c8] max-w-[40ch]">{angle.sub}</p>
-            {angle.note && <p className="mt-3 text-[15px] text-[#c9c3b8] max-w-[44ch]" data-disclosure>{angle.note}</p>}
-            {wills && <p className="mt-3 text-[14px] text-[#c9c3b8] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}
+            <p className="mt-4 text-[17px] text-[#d3d7dc] max-w-[40ch]">{angle.sub}</p>
+            <div className="hx-actions" id="chat"><WhatsAppCta ctx={campaignContext(angle)} className="btn btn-lg" /><a href="#h-how" className="hx-how-link">What happens next ↓</a></div>
+            <p className="mt-3 text-[14px] text-[#56606a] max-w-[46ch]">{isWills(angle) ? WA_EXPECT.replace("your adviser", "your consultant") : WA_EXPECT}</p>
+            {angle.note && <p className="mt-3 text-[15px] text-[#c3c8ce] max-w-[44ch]" data-disclosure>{angle.note}</p>}
+            {wills && <p className="mt-3 text-[14px] text-[#c3c8ce] max-w-[46ch]" data-disclosure data-provider>{PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE}</p>}
             {angle.proof && (
-              <p className="mt-4 text-[14px] text-[#c9c3b8] max-w-[46ch] border-l-2 border-amber pl-3" data-proof data-disclosure>
+              <p className="mt-4 text-[14px] text-[#c3c8ce] max-w-[46ch] border-l-2 border-amber pl-3" data-proof data-disclosure>
                 {angle.proof.text} <span>Source: {angle.proof.source}, {proofMonth(angle.proof.month)}.</span>
               </p>
             )}
+            </div>
+            <figure className="campaign-hero-photo">
+              <img src={campaignImage(angle).src} alt={campaignImage(angle).alt} width={campaignImage(angle).w} height={campaignImage(angle).h} fetchPriority="high" />
+            </figure>
           </div>
-        </section>
-        <section className="wrap-narrow py-6" id="quiz" aria-label="Book my adviser call">
-          <Quiz angle={angle.slug} metaCode={angle.meta_code} product={productForTheme(angle.theme)} />
-          <p className="fine mt-3" data-disclosure>Run by Lead Velocity (Pty) Ltd. Not a financial services provider. {COST_LINE}</p>
         </section>
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={wills ? WILLS_STEPS : HOW_STEPS} /></section>
         <section className="wrap-narrow py-6" aria-labelledby="h-cost" data-disclosure>
           <h2 id="h-cost" className="text-[24px] mb-3">Cost, and who we are</h2>
-          <p>{wills ? <>{COST_LINE} {PROVIDER_COST_LINE}</> : <>{COST_LINE} {FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
+          <p>{wills ? null : <>{FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
         </section>
         <section className="wrap-narrow pb-8" aria-labelledby="h-faq">
           <h2 id="h-faq" className="text-[24px] mb-3">Questions people ask</h2>
@@ -83,8 +61,8 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
         </section>
       </main>
       <CampaignFooter feeLine={!wills} />
-      <CampaignSticky />
-    </>
+      <ChatWidget base={campaignContext(angle)} />
+    </div>
   );
 }
 
@@ -96,8 +74,8 @@ export function CampaignThanks({ angle }: { angle: Angle }) {
       <header className="site-header"><div className="wrap bar"><Wordmark plain /></div></header>
       <main id="main" className="wrap-narrow py-12"><div className="prose-sm">
         <h1>Thanks. Check your WhatsApp.</h1>
-        <p className="lede">{isWills(angle) ? <>The name of your {provider.name} consultant is on its way</> : <>Your adviser’s name, practice and FSP number are on their way</>}{site.whatsapp_number ? <> from <strong>{site.whatsapp_number}</strong></> : <> from the SortMyCover WhatsApp number</>}. Save the number so the message does not get lost.</p>
-        <ul><li>You pick a time that suits you, and get reminders before the call.</li><li>The call is about 30 minutes. {COST_LINE} You decide afterwards.</li><li>Reply STOP to any message to stop.</li></ul>
+        <p className="lede">{isWills(angle) ? <>The name of your will consultant is on its way</> : <>Your adviser’s name, practice and FSP number are on their way</>}{site.whatsapp_number ? <> from <strong>{site.whatsapp_number}</strong></> : <> from the SortMyCover WhatsApp number</>}. Save the number so the message does not get lost.</p>
+        <ul><li>You pick a time that suits you, and get reminders before the call.</li><li>The call is about 30 minutes. You decide afterwards.</li><li>Reply STOP to any message to stop.</li></ul>
       </div></main>
       <CampaignFooter feeLine={!isWills(angle)} />
     </>

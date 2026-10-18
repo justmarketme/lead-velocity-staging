@@ -57,7 +57,7 @@ export function vercelConfig() {
   routes.push({ src: "/(.*)", has: [{ type: "host", value: ".*\\.vercel\\.app" }], headers: { "X-Robots-Tag": "noindex, nofollow, noarchive" }, continue: true });
   routes.push({ src: "/assets/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
   routes.push({ src: "/fonts/(.*)", headers: { "Cache-Control": "public, max-age=31536000, immutable" }, continue: true });
-  routes.push({ src: "/(.*)\\.(png|ico|svg|webmanifest)", headers: { "Cache-Control": "public, max-age=86400" }, continue: true });
+  routes.push({ src: "/(.*)\\.(png|webp|avif|jpg|ico|svg|webmanifest)", headers: { "Cache-Control": "public, max-age=86400" }, continue: true });
   // /sitemap.xml exists on the apex only (spec C.5): a campaign host answers 404
   routes.push({ src: "^/sitemap\\.xml$", has: [{ type: "host", value: ".+" + esc(CAMPAIGN_SUFFIX) }], status: 404, dest: "/404.html" });
   // 5. campaign hosts: "/" and "/thanks/" are the only pages; shared files pass through; everything else goes to the apex
@@ -67,7 +67,7 @@ export function vercelConfig() {
     routes.push({ src: "^/thanks/?$", has: h, dest: `/_c/${a.slug}/thanks/index.html` });
   }
   routes.push({
-    src: "^/(?!assets/|fonts/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
+    src: "^/(?!assets/|fonts/|img/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
     has: [{ type: "host", value: ".+" + esc(CAMPAIGN_SUFFIX) }],
     status: 307,
     headers: { Location: `${site.site_url}/$1` },
@@ -111,6 +111,11 @@ export function htaccess(): string {
   p(`RewriteRule ^(.*)$ ${site.site_url}/$1 [L,R=301]`);
   p("# old .html URLs");
   for (const r of OLD_URL_MAP) p(`RewriteRule ^${esc(r.from.replace(/^\//, ""))}$ ${r.to} [L,R=301]`);
+  p("# apex: the calendar file (/c/<booking_id>) and join link (/j/<booking_id>) in W05's WhatsApp and email messages are served by n8n (QSA keeps ?k=)");
+  p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);
+  p(`RewriteRule ^c/([^/]+)/?$ ${N8N}/webhook/w05-ics-get/c/$1 [R=302,L,QSA]`);
+  p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);
+  p(`RewriteRule ^j/([^/]+)/?$ ${N8N}/webhook/w05-join-get/j/$1 [R=302,L,QSA]`);
   p("# apex: campaign pages live on their own host");
   for (const a of campaignAngles()) {
     p(`RewriteCond %{HTTP_HOST} ^${esc(APEX_HOST)}$ [NC]`);
@@ -126,7 +131,8 @@ export function htaccess(): string {
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
   p("RewriteRule ^sitemap\\.xml$ - [R=404,L]");
   p(`RewriteCond %{HTTP_HOST} ^[a-z0-9-]+${esc(CAMPAIGN_SUFFIX)}$ [NC]`);
-  p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/)");
+  // images (top level and /img/) stay on the campaign host: a redirect to the apex would be blocked by the CSP (img-src 'self')
+  p("RewriteCond %{REQUEST_URI} !^/(assets/|fonts/|img/|robots\\.txt|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile|_c/|[^/]+\\.(webp|avif|jpg|png)$)");
   p(`RewriteRule ^(.+)$ ${site.site_url}/$1 [L,R=307]`);
   p("</IfModule>");
   p("");
@@ -140,7 +146,7 @@ export function htaccess(): string {
   p("<FilesMatch \"\\.(js|css|woff2)$\">");
   p('  Header set Cache-Control "public, max-age=31536000, immutable"');
   p("</FilesMatch>");
-  p("<FilesMatch \"\\.(png|ico|svg|webmanifest)$\">");
+  p("<FilesMatch \"\\.(png|webp|avif|jpg|ico|svg|webmanifest)$\">");
   p('  Header set Cache-Control "public, max-age=86400"');
   p("</FilesMatch>");
   p("</IfModule>");

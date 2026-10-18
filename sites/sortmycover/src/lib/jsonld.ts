@@ -40,7 +40,7 @@ export function breadcrumbs(items: { name: string; path: string }[]) {
   };
 }
 
-export function article(m: ArticleMeta, path: string) {
+export function article(m: ArticleMeta, path: string, image?: string) {
   const url = APEX + path;
   return {
     "@context": "https://schema.org",
@@ -55,6 +55,6 @@ export function article(m: ArticleMeta, path: string) {
     dateModified: m.lastReviewed,
     author: m.author.kind === "person" ? { "@type": "Person", name: m.author.name } : { "@type": "Organization", name: m.author.name, url: `${APEX}/about/` },
     publisher: { "@id": ORG_ID },
-    image: `${APEX}/og-image.png`,
+    image: image ? APEX + image : `${APEX}/og-image.png`,
   };
 }

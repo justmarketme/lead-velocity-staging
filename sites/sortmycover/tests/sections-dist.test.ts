@@ -1,5 +1,6 @@
 /* Finished-HTML checks for the home page's two calls, the /wills/ and /cover/ sections, navigation, sitemap and the quiz payload
    field on campaign pages (run `npm run build` first). */
+import WP from "../config/will-provider.internal.json";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -12,22 +13,23 @@ const dist = path.resolve(__dirname, "../dist");
 const have = fs.existsSync(path.join(dist, "index.html"));
 const read = (rel: string) => fs.readFileSync(path.join(dist, rel), "utf8");
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
-const WILLS = ["what-a-will-does", "guardians-and-childrens-trusts", "estate-costs-and-a-will", "where-to-keep-a-will", "the-will-appointment", "estate-administration"];
+const WILLS = ["what-a-will-does", "guardians-and-childrens-trusts", "estate-costs-and-a-will", "where-to-keep-a-will", "the-will-appointment", "estate-administration", "intestate-succession", "reporting-a-deceased-estate", "what-makes-a-will-valid", "small-estates-letters-of-authority", "guardians-fund"];
 const COVER = ["life-cover", "disability-cover", "severe-illness-cover", "income-protection"];
-const wp = site.will_provider;
+const wp = WP;
 
 describe.skipIf(!have)("home: the two calls", () => {
   const html = have ? read("index.html") : "";
   const doc = new JSDOM(html).window.document;
-  it("shows a cover adviser card and a will card, each linking into the quiz with the product chosen", () => {
+  it("shows a cover adviser card and a will card, each opening WhatsApp with its own opener", () => {
     const cards = [...doc.querySelectorAll(".svc-card")];
     expect(cards).toHaveLength(2);
     expect(cards[0].textContent).toMatch(/Talk to a cover adviser/);
     for (const t of ["Life cover", "Disability cover", "Severe illness cover", "Income protection"]) expect(cards[0].textContent).toContain(t);
-    expect(cards[0].querySelector('a[href="/book/?for=cover"]')?.textContent).toMatch(/Book my adviser call/);
+    expect(cards[0].querySelector('a.btn-wa')?.getAttribute("href")).toMatch(/^https:\/\/wa\.me\/27600156480\?text=.*Ref%20w-home-cover$/);
     expect(cards[1].textContent).toMatch(/Get your will drafted/);
-    expect(cards[1].textContent).toContain(`${wp.legal_name}, ${wp.status} (FSP ${wp.fsp_number})`);
-    expect(cards[1].querySelector('a[href="/book/?for=wills"]')?.textContent).toMatch(/Book my will call/);
+    expect(cards[1].textContent).toMatch(/will consultant/);
+    expect(cards[1].textContent).not.toContain(wp.name);
+    expect(cards[1].querySelector('a.btn-wa')?.getAttribute("href")).toMatch(/a%20will%20consultant.*Ref%20w-home-wills$/);
     // the will card makes no statement about adviser fees; the cover card carries the fee line
     expect(cards[1].textContent).not.toMatch(/Advisers pay SortMyCover/);
     expect(cards[0].textContent).toMatch(/Advisers pay SortMyCover a fee/);
@@ -45,22 +47,23 @@ describe.skipIf(!have)("home: the two calls", () => {
 });
 
 describe.skipIf(!have)("/wills/ and /cover/ sections", () => {
-  it("the wills hub and every guide name the provider with its FSP number in a disclosure, and make no fee statement", () => {
+  it("the wills hub and every guide carry the generic will disclosure, never name the provider, and make no fee statement", () => {
     for (const rel of ["wills/index.html", ...WILLS.map((s) => `wills/${s}/index.html`)]) {
       const html = read(rel);
       const doc = new JSDOM(html).window.document;
       const d = doc.querySelector("[data-provider][data-disclosure]");
       expect(d, rel).toBeTruthy();
-      expect(d!.textContent, rel).toContain(`${wp.legal_name}, ${wp.status} (FSP ${wp.fsp_number})`);
+      expect(d!.textContent, rel).toMatch(/on WhatsApp before the call/);
+      expect(html, rel).not.toMatch(new RegExp(`${wp.name}|capitallegacy|FSP ${wp.fsp_number}`, "i"));
       expect(d!.textContent, rel).toContain("SortMyCover does not draft wills and gives no advice");
       expect(visible(html), rel).not.toMatch(/Advisers pay SortMyCover|commission/);
-      expect(html, rel).toContain('href="/book/?for=wills"');
+      expect(html, rel).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*a%20will%20consultant[^"]*Ref%20w-wills"/);
     }
   });
-  it("cover pages link the adviser quiz with cover chosen and never mention funeral cover", () => {
+  it("cover pages open WhatsApp with the cover opener and never mention funeral cover", () => {
     for (const rel of ["cover/index.html", ...COVER.map((s) => `cover/${s}/index.html`)]) {
       const html = read(rel);
-      expect(html, rel).toContain('href="/book/?for=cover"');
+      expect(html, rel).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Ref%20w-cover"/);
       expect(visible(html), rel).not.toMatch(/funeral/i);
     }
   });
@@ -114,13 +117,13 @@ describe.skipIf(!have)("navigation, footer and sitemap", () => {
   });
 });
 
-describe.skipIf(!have)("quiz product on campaign pages (no-JS fallback carries the same field)", () => {
-  it("theme B pages send product_interest=wills, theme A pages life_cover", () => {
+describe.skipIf(!have)("campaign pages book on WhatsApp only (Jono, 17 Oct 2026)", () => {
+  it("each landing page leads with WhatsApp, the opener carries the angle's meta code, and there is no booking form", () => {
     for (const a of ANGLES) {
       const html = read(`_c/${a.slug}/index.html`);
-      const want = a.theme === "B" ? "wills" : "life_cover";
-      expect(html, a.slug).toContain(`<input type="hidden" name="product_interest" value="${want}"/>`);
-      expect(visible(html), a.slug).not.toContain("What would you like the call to be about?");
+      expect(html, a.slug).toMatch(new RegExp(`href="https://wa\\.me/27600156480\\?text=[^"]*Ref%20${a.meta_code}"`));
+      if (a.theme === "B") expect(html, a.slug).toContain("a%20will%20consultant");
+      expect(html, a.slug).not.toMatch(/<form|name="mobile"|name="help_with"|id="quiz"/);
     }
   });
 });

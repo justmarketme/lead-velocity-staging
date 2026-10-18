@@ -305,7 +305,7 @@
       "continue": true
     },
     {
-      "src": "/(.*)\\.(png|ico|svg|webmanifest)",
+      "src": "/(.*)\\.(png|webp|avif|jpg|ico|svg|webmanifest)",
       "headers": {
         "Cache-Control": "public, max-age=86400"
       },
@@ -523,7 +523,7 @@
       "dest": "/_c/where-is-the-will/thanks/index.html"
     },
     {
-      "src": "^/(?!assets/|fonts/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
+      "src": "^/(?!assets/|fonts/|img/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
       "has": [
         {
           "type": "host",

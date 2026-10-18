@@ -32,10 +32,10 @@ export const body: Block[] = [
     type: "p",
     text: "Service providers also handle data for SortMyCover. They host the website, the database and the messaging systems. They may use your details only to give SortMyCover their service. Some of them keep data outside South Africa. When that happens, they must be bound by law or by a written agreement to protect it to a standard like POPIA.",
   },
-  { type: "h2", text: "Is there an AI assistant?" },
+  { type: "h2", text: "Is there an automated assistant?" },
   {
     type: "p",
-    text: "Yes. The WhatsApp assistant uses AI to answer questions about the call and help with booking. It never gives advice. Type PERSON at any time to reach a human.",
+    text: "Yes. Lindi, the WhatsApp assistant, is an automated assistant, not a person. It answers questions about the call and helps with booking. It never gives advice. Type PERSON at any time to reach a human.",
   },
   { type: "h2", text: "What is ad measurement, and is it on?" },
   {

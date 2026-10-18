@@ -22,7 +22,7 @@ function resolve(host, p) {
   if (slug && fs.existsSync(path.join(root, "_c", slug))) {
     if (p === "/") return { file: `_c/${slug}/index.html`, campaign: true };
     if (/^\/thanks\/?$/.test(p)) return { file: `_c/${slug}/thanks/index.html`, campaign: true };
-    if (/^\/(assets|fonts)\//.test(p) || /\.(png|ico|svg|txt|webmanifest|xml)$/.test(p)) return { file: p.slice(1), campaign: true };
+    if (/^\/(assets|fonts)\//.test(p) || /\.(png|webp|avif|jpg|ico|svg|txt|webmanifest|xml)$/.test(p)) return { file: p.slice(1), campaign: true };
     return { redirect: `${cfg.site_url}${p}` };
   }
   return { file: p.endsWith("/") ? p.slice(1) + "index.html" : p.slice(1) };

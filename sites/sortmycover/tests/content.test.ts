@@ -1,3 +1,4 @@
+import WP from "../config/will-provider.internal.json";
 import { describe, expect, it } from "vitest";
 import { articleMetas, articleLoaders, metaFor } from "../src/content";
 import { glossary } from "../src/content/glossary";
@@ -14,13 +15,15 @@ const words = (s: string) => plainText(s).split(/\s+/).filter(Boolean).length;
 const text = (b: Block[]) => b.flatMap((x) => (x.type === "ul" || x.type === "ol" ? x.items : [x.text])).join(" ");
 const SCOPE = "This is information, not advice.";
 describe("articles", () => {
-  it("has the 9 Wave-1 pieces, the 6 wills and estate guides and the 4 cover type pages", () => {
-    expect(articleMetas.map((a) => a.slug).sort()).toEqual([
-      "disability-cover", "estate-administration", "estate-costs-and-a-will", "guardians-and-childrens-trusts",
-      "how-sortmycover-works", "how-to-check-an-adviser", "how-to-complain", "how-to-read-your-payslips-cover-line", "income-protection", "life-cover", "life-events",
+  it("has the 9 Wave-1 pieces, the 2 search-led definitions (16 Oct 2026), the 4 cycle-1 ad guides (17 Oct 2026), the 11 wills and estate guides (5 added 18 Oct 2026) and the 4 cover type pages", () => {
+    expect(articleMetas.map((a) => a.slug).sort()).toEqual([...[
+      "cover-for-business-owners-and-directors", "disability-cover", "estate-administration", "estate-costs-and-a-will", "estate-duty-south-africa", "guardians-and-childrens-trusts",
+      "how-sortmycover-works", "how-to-check-an-adviser", "how-to-complain", "how-to-read-your-payslips-cover-line", "income-protection", "income-protection-vs-disability-cover", "life-cover", "life-cover-and-a-home-loan", "life-events",
+      "questions-to-ask-a-financial-adviser",
       "severe-illness-cover", "the-will-appointment",
-      "what-a-will-does", "what-happens-on-a-30-minute-call", "what-happens-to-your-details", "what-is-a-life-cover-gap", "what-to-bring-to-your-call", "where-to-keep-a-will",
-    ]);
+      "guardians-fund", "intestate-succession", "reporting-a-deceased-estate", "small-estates-letters-of-authority", "what-makes-a-will-valid",
+      "what-a-will-does", "what-happens-on-a-30-minute-call", "what-happens-to-your-details", "what-is-a-life-cover-gap", "what-is-credit-life-insurance", "what-to-bring-to-your-call", "where-to-keep-a-will",
+    ].sort()]);
   });
   for (const m of articleMetas) {
     describe(m.slug, () => {
@@ -123,9 +126,9 @@ describe("campaign angles", () => {
       expect(all, a.slug).not.toMatch(/\blicensed\b/i);
       // site-spec I.2 word scan (SortMyCover never checks, reviews, sorts, arranges or matches cover; no comparison; no guarantee)
       expect(all, a.slug).not.toMatch(/\b(check|checks|checked|review|reviews|sort|sorted|arrange|arranged|match|matched|compare|cheapest|cheap|affordable|discount|premium|premiums|guaranteed|regulated|funeral)\b/i);
-      // theme A introduces an authorised adviser; theme B names the will provider's consultant (config/site.json -> will_provider)
-      expect(a.sub + a.description, a.slug).toMatch(a.theme === "B" ? new RegExp(`${site.will_provider.name} consultant`) : /authorised adviser/);
-      expect(a.sub, a.slug).toMatch(/The call costs you nothing\./);
+      // theme A introduces an authorised adviser; theme B a will consultant (the provider is named only on WhatsApp, Jono 18 Oct 2026)
+      expect(a.sub + a.description, a.slug).toMatch(a.theme === "B" ? /will consultant/ : /authorised adviser/);
+      expect(a.sub, a.slug).not.toMatch(/costs? (you )?nothing|no cost|free/i); // no price wording (18 Oct 2026)
     }
   });
   it("any rand or percentage figure in angle copy is a sourced fact: proof object with a usable evidence file, month shown (S12, S15, S17)", () => {
@@ -144,7 +147,7 @@ describe("campaign angles", () => {
       }
     }
   });
-  it("theme B (wills and estate) pages are attached, name the provider only through {provider}, and every fact is a verified evidence entry", () => {
+  it("theme B (wills and estate) pages are attached, never name the will provider, and every fact is a verified evidence entry", () => {
     const ev = evidence as { id: string; status: string }[];
     const ok = (id: string) => { const e = ev.find((x) => x.id === id); expect(e, id).toBeTruthy(); expect(["usable", "verified"], id).toContain(e!.status); };
     for (const a of ANGLES.filter((x) => x.theme === "B")) {
@@ -153,14 +156,17 @@ describe("campaign angles", () => {
       a.sources!.forEach(ok);
       expect(JSON.stringify(a), a.slug).not.toMatch(/\{(provider|legal_name|status)\}/);
     }
-    // the provider's name is typed once, in config/site.json: angles.json carries only the token
-    for (const a of (anglesRaw as { theme?: string }[]).filter((x) => x.theme === "B")) expect(JSON.stringify(a)).not.toContain(site.will_provider.name);
-    expect(JSON.stringify(anglesRaw)).toContain("{provider}");
-    site.will_provider.evidence.forEach(ok);
+    // Jono, 18 Oct 2026: the provider is not named or relied on in public copy, and no theme B fact rests on the provider's own pages
+    for (const a of (anglesRaw as { theme?: string; sources?: string[] }[]).filter((x) => x.theme === "B")) {
+      expect(JSON.stringify(a)).not.toContain(WP.name);
+      expect(JSON.stringify(a)).not.toContain("{provider}");
+      for (const id of a.sources ?? []) expect(id, "theme B source").not.toMatch(/^cl-/);
+    }
   });
-  it("the wills FAQ names the provider, makes no fee statement and passes the wording scan", () => {
+  it("the wills FAQ does not name the provider, says it is named on WhatsApp, makes no fee statement and passes the wording scan", () => {
     const all = WILLS_FAQ.map((f) => f.q + " " + f.a).join(" ");
-    expect(all).toContain(site.will_provider.legal_name);
+    expect(all).not.toContain(WP.name);
+    expect(all).toMatch(/on WhatsApp before the call/);
     expect(all).not.toMatch(/Advisers pay SortMyCover|commission/);
     for (const f of WILLS_FAQ) for (const [re, label] of BANNED) expect(f.a + f.q, `${f.id}: ${label}`).not.toMatch(re);
   });
@@ -184,10 +190,6 @@ describe("campaign hosts (spec C.3)", () => {
 describe("quiz copy", () => {
   it("no angle carries budget wording (no budget question on the page since 2026-10-13)", () => {
     expect(JSON.stringify(anglesRaw)).not.toMatch(/budget_topic/);
-  });
-  it("the first-question labels pass the wording scan", async () => {
-    const { HELP_OPTIONS } = await import("../src/lib/quiz");
-    for (const o of HELP_OPTIONS) for (const [re, label] of BANNED) expect(o.label, `${o.value}: ${label}`).not.toMatch(re);
   });
 });
 

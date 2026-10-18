@@ -45,7 +45,7 @@ export const body: Block[] = [
   { type: "h2", text: "Does it cost me anything?" },
   {
     type: "p",
-    text: "The call costs you nothing. If you later choose a product, your adviser tells you how they are paid.",
+    text: "If you later choose a product, your adviser tells you how they are paid.",
   },
   { type: "h2", text: "How is an adviser paid?" },
   {

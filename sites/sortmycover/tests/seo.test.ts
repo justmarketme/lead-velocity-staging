@@ -12,11 +12,13 @@ describe("sitemap", () => {
     expect(locs.length).toBeGreaterThan(20);
     for (const l of locs) {
       expect(l.startsWith("https://sortmycover.co.za/")).toBe(true);
-      expect(l).not.toMatch(/_c\/|thanks|404|privacy|terms|paia/);
+      expect(l).not.toMatch(/_c\/|thanks|404|paia/);
       expect(l.endsWith("/")).toBe(true);
     }
     expect(locs).toContain("https://sortmycover.co.za/");
     expect(locs).toContain("https://sortmycover.co.za/learn/how-to-check-an-adviser/");
+    expect(locs).toContain("https://sortmycover.co.za/privacy/");
+    expect(locs).toContain("https://sortmycover.co.za/terms/");
   });
   it("has a lastmod date on every url", () => {
     expect((xml.match(/<url>/g) || []).length).toBe((xml.match(/<lastmod>\d{4}-\d\d-\d\d<\/lastmod>/g) || []).length);

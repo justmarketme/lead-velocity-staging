@@ -36,5 +36,5 @@ export const meta: ArticleMeta = {
       used_for: "Where an adviser's FSP number can be looked up",
     },
   ],
-  related: ["how-to-check-an-adviser", "what-to-bring-to-your-call"],
+  related: ["questions-to-ask-a-financial-adviser", "what-to-bring-to-your-call"],
 };

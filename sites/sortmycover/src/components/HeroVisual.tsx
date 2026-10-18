@@ -23,7 +23,7 @@ export default function HeroVisual() {
   }, []);
   return (
     <svg ref={ref} className="w-full max-w-[420px] justify-self-center hidden sm:block" viewBox="0 0 320 260" role="img" aria-label="" aria-hidden="true" focusable="false">
-      <rect x="10" y="10" width="300" height="240" rx="18" fill="#2B3845" stroke="rgba(255,255,255,.18)" />
+      <rect x="10" y="10" width="300" height="240" rx="18" fill="#1F2933" stroke="rgba(255,255,255,.18)" />
       <rect x="10" y="10" width="300" height="52" rx="18" fill="#F5A623" />
       <rect x="10" y="40" width="300" height="22" fill="#F5A623" />
       <text x="28" y="44" fontSize="20" fontWeight="800" fill="#2A1B02">Your call</text>

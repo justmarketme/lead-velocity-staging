@@ -59,3 +59,22 @@ export function ReadProgress() {
   useEffect(() => (ref.current ? linkReadProgress(ref.current) : undefined), []);
   return <div className="read-progress" aria-hidden="true"><i ref={ref as React.RefObject<HTMLElement>} /></div>;
 }
+
+/** 5. "On this page" for guides (Jono, 18 Oct 2026: as you scroll and read, it follows you). Static HTML is a native
+    <details> list that works with no JavaScript. pageMotion pins it under the header on a phone, sets it as a side rail on a
+    wide screen, names the section being read and springs a marker to it. */
+export const sectionId = (t: string) => "s-" + t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+export function SectionNav({ items }: { items: string[] }) {
+  if (items.length < 3) return null;
+  return (
+    <nav className="toc" aria-label="On this page" data-toc>
+      <details className="toc-box">
+        <summary className="toc-sum"><span className="toc-k">On this page</span><span className="toc-now" data-toc-now>{items[0]}</span></summary>
+        <ol className="toc-list">
+          <span className="toc-ind" aria-hidden="true" />
+          {items.map((t) => <li key={t}><a href={"#" + sectionId(t)}>{t}</a></li>)}
+        </ol>
+      </details>
+    </nav>
+  );
+}

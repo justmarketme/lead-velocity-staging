@@ -16,8 +16,9 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(here(rel), "utf8"));
 export const WATCH_FILE = here("../config/capital-legacy-watch.json");
 export const loadWatch = () => readJson("../config/capital-legacy-watch.json");
 export const loadAngles = () => readJson("../config/angles.json");
-export const loadEvidence = () => readJson("../config/evidence.json");
-export const loadProvider = () => readJson("../config/site.json").will_provider;
+export const loadEvidence = () => [...readJson("../config/evidence.json"), ...readJson("../config/evidence-archive-capital-legacy.json")];
+/* RETIRED 18 Oct 2026: no public page rests on the will provider any more, so nothing this watcher finds affects the site. */
+export const loadProvider = () => readJson("../config/will-provider.internal.json");
 export const CAMPAIGN_HOST_SUFFIX = ".sortmycover.co.za";
 
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", ndash: "–", mdash: "—", hellip: "…", reg: "®", trade: "™" };

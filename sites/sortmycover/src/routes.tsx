@@ -50,7 +50,6 @@ const campaignRoutes = (a: Angle): RouteDef[] => [
 export const apexRoutes: RouteDef[] = [
   page("/", () => import("./pages/Home")),
   page("/book/", () => import("./pages/Book")),
-  page("/book/thanks/", () => import("./pages/BookThanks"), { indexable: false }),
   page("/how-it-works/", () => import("./pages/HowItWorks")),
   page("/how-we-make-money/", () => import("./pages/HowWeMakeMoney")),
   page("/advisers/", () => import("./pages/Advisers")),
@@ -65,12 +64,14 @@ export const apexRoutes: RouteDef[] = [
   ...hubs.filter((h) => h.n !== 1 && !h.path).map((h) => page(hubPath(h), () => import("./pages/Learn").then((m) => ({ default: () => <m.HubPage hub={h} /> })))),
   articleRoute(HUB1_INTRO),
   page("/learn/glossary/", () => import("./pages/Glossary")),
+  page("/learn/sources/", () => import("./pages/Sources"), { lastmod: "2026-10-18" }),
   ...articleMetas.filter((a) => a.slug !== HUB1_INTRO).map((a) => articleRoute(a.slug)),
   page("/editorial-policy/", () => import("./pages/EditorialPolicy")),
   page("/accessibility/", () => import("./pages/Accessibility")),
-  // DRAFT legal pages: noindex until the compliance practitioner signs them off and the DRAFT marks are removed.
-  page("/privacy/", () => import("./pages/Legal").then((m) => ({ default: m.Privacy })), { indexable: false }),
-  page("/terms/", () => import("./pages/Legal").then((m) => ({ default: m.Terms })), { indexable: false }),
+  // Privacy notice and terms: signed off 17 Oct 2026 (Jono), DRAFT marks removed, indexable.
+  page("/privacy/", () => import("./pages/Legal").then((m) => ({ default: m.Privacy })), { lastmod: "2026-10-17" }),
+  page("/terms/", () => import("./pages/Legal").then((m) => ({ default: m.Terms })), { lastmod: "2026-10-17" }),
+  // PAIA manual: not published yet, the page is a placeholder with the contact route, so it stays noindex.
   page("/paia/", () => import("./pages/Legal").then((m) => ({ default: m.Paia })), { indexable: false }),
 ];
 

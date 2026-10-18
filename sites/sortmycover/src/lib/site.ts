@@ -16,24 +16,17 @@ export const campaignOrigin = (slug: string) => `https://${slug}${cfg.campaign_h
 /** Absolute apex URL for a path ("/privacy/"). Campaign hosts link to the apex for every legal page (each page lives on one host). */
 export const apex = (path: string) => APEX + path;
 
-export const BOOK_LABEL = "Book my adviser call";
-/** Wills and estate call to action (the call is with the will provider's consultant, not an insurance adviser). */
-export const WILLS_BOOK_LABEL = "Book my will call";
-/** Quiz entry points with the product chosen: the quiz reads ?for= and skips its first question. */
-export const BOOK_COVER = "/book/?for=cover";
-export const BOOK_WILLS = "/book/?for=wills";
-export const COST_LINE = "The call costs you nothing.";
 export const FEE_LINE = "Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything.";
 export const NO_COMMISSION = "SortMyCover takes no commission and no share of any premium.";
 /** FOOTER-v2 (spec C.1): stored once in config/site.json, rendered from there, never retyped. */
 export const FOOTER_LINE: string = cfg.footer_line;
 export const NOT_FSP_LINE = "SortMyCover is not a financial services provider and gives no financial advice.";
 
-/** Wills and estate (theme B) provider: config/site.json -> will_provider is the only place it is named.
-    {provider} = name, {legal_name}, {status} are filled here, so angles.json and the lines below never retype it. */
+/** Wills and estate (theme B): public lines only. Jono, 18 Oct 2026: the will provider is not named on the site; its identity lives in
+    config/will-provider.internal.json, which no browser code imports, and Lindi names it on WhatsApp before the call. */
 export const provider = cfg.will_provider;
-export const fillProvider = (s: string) =>
-  s.replace(/\{provider\}/g, provider.name).replace(/\{legal_name\}/g, provider.legal_name).replace(/\{status\}/g, provider.status).replace(/\{fsp\}/g, provider.fsp_number);
+/** Kept for angle copy: a stray {provider} token renders as the generic label, never a name. */
+export const fillProvider = (s: string) => s.replace(/\{provider\}/g, provider.public_label);
 export const PROVIDER_SERVICE_LINE = fillProvider(provider.service_line);
 export const PROVIDER_COST_LINE = fillProvider(provider.cost_line);
 export const PROVIDER_ROLE_LINE = fillProvider(provider.role_line);
