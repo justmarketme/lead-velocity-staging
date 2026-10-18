@@ -327,3 +327,129 @@ test('W10 held slot: move in place, stays held, verify_by = min(booked_at + 24 h
   const out = await runCode(WF, 'Held move reply (lead only)', { items: [{ lead_id: 'l1' }], refs: { 'Decide move (w10.applyReschedule)': { d: far, new_start: '2026-10-16T11:00:00+02:00', ld: { phone: '+27600000310' } } } });
   assert.equal(out.length, 1); assert.equal(out[0].json.to, 'lead'); assert.match(out[0].json.wa.text.body, /holding .* confirm your email/);
 });
+
+// x14 (17 Oct 2026): a second slot tap whose re-check finds no alternatives must still get a reply.
+test('slotTakenWa: with offer slots it sends the open-times list (unchanged)', () => {
+  const offer = [{ start: '2026-10-20T07:00:00.000Z' }, { start: '2026-10-20T08:00:00.000Z' }];
+  const wa = R.slotTakenWa({ phone: '+27600000003', offer, booking: bk(), lead: ld(), broker: BR });
+  assert.equal(wa.interactive.type, 'list');
+  assert.equal(wa.interactive.action.sections[0].rows.length, 2);
+  assert.match(wa.interactive.action.sections[0].rows[0].id, /^slot_2026-10-20T07:00:00.000Z:resched:bk_L03$/);
+});
+test('slotTakenWa: with no offer slots it sends one "See open times" button, never silence or a calendar error', () => {
+  const wa = R.slotTakenWa({ phone: '+27600000003', offer: [], booking: bk(), lead: ld(), broker: BR });
+  assert.ok(wa, 'a payload is always returned');
+  assert.equal(wa.interactive.type, 'button');
+  assert.deepEqual(wa.interactive.action.buttons.map((b) => b.reply.id), ['see_open_times']);
+  assert.match(wa.interactive.body.text, /^Sorry, that time was just taken\. Tap below/);
+  assert.doesNotMatch(wa.interactive.body.text, /calendar|error|system|problem/i);
+  const af = R.slotTakenWa({ phone: '+27600000003', offer: null, booking: bk(), lead: ld({ language: 'af' }), broker: BR });
+  assert.equal(af.interactive.action.buttons[0].reply.title, 'Sien oop tye');
+});
+test('W10 "Slot taken: next 3" node uses slotTakenWa', () => {
+  const n = WF.nodes.find((x) => x.name === 'Slot taken: next 3');
+  assert.match(n.parameters.jsCode, /L\.slotTakenWa\(/);
+});
+
+// 17 Oct 2026 live cancel test (booking 997c6752): W04 rejected every W10 call, the client heard nothing after "Yes, cancel".
+test('offerMessage after a cancel: confirms in words, with times as a list or alone as text', () => {
+  const slots = slotsAt(RESCHED_TAP, [bk()]);
+  const withTimes = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
+  assert.equal(withTimes.kind, 'list_session');
+  assert.match(withTimes.body, /^Done, your call is cancelled\. If you'd like another time, pick one below/);
+  assert.ok(withTimes.rows.length > 0, 'times offered');
+  for (const r of withTimes.rows) assert.equal(r.id, `slot_${slots.find((s) => r.id === `slot_${s.start}`)?.start}`, 'a pick after a cancel is a new booking (W05), never a move of the cancelled one');
+  const tpl = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'rebook_after_cancel' });
+  assert.ok(tpl.buttons.slice(0, 3).every((b) => /^slot_/.test(b) && !b.includes(':resched:')));
+  const none = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
+  assert.deepEqual(none, { kind: 'text_session', body: "Done, your call is cancelled. If you'd like another time later, just say." });
+  const af = R.offerMessage({ booking: bk(), lead: ld({ language: 'af' }), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
+  assert.match(af.body, /^Klaar, jou oproep is gekanselleer/);
+  // a lead reschedule with no times still escalates (unchanged); outside the window a cancel never sends free text
+  assert.equal(R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP }).kind, 'no_slots');
+  assert.equal(R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'rebook_after_cancel' }).kind, 'no_slots');
+});
+
+test('W10 sends W04 its documented request at every W04 call (never W10\'s own item)', () => {
+  const into = (name) => Object.entries(WF.connections).filter(([, o]) => (o.main || []).some((l) => (l || []).some((t) => t.node === name))).map(([s]) => s);
+  const calls = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.value === 'smc-w04');
+  assert.equal(calls.length, 4);
+  for (const n of calls) {
+    const src = into(n.name);
+    assert.equal(src.length, 1, `${n.name} has one input`);
+    assert.match(src[0], /^W04 request \(/, `${n.name} is fed by a W04 request node`);
+    const req = WF.nodes.find((x) => x.name === src[0]).parameters.jsCode;
+    assert.match(req, /op: '(list|is_free|graph_token)', broker_id: /);
+  }
+});
+
+test('W10 build offer sends the text confirmation; Merge context carries the brand code and verified email', () => {
+  const offer = WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode;
+  assert.match(offer, /o\.kind === 'text_session'\) wa = \{ type: 'text', text: \{ body: o\.body \} \}/);
+  const merge = WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode;
+  assert.match(merge, /code: r\.brand_code/);
+  assert.match(merge, /email_verified: r\.email_verified === true/);
+  const q = WF.nodes.find((x) => x.name === 'Load booking, lead, broker, brand').parameters.query;
+  assert.match(q, /br\.code AS brand_code/);
+  assert.match(q, /b\.fsp_number, b\.practice_name, b\.firm_name/);
+});
+
+test('SortMyCover W10 emails: adviser notice via smc-email-send, client cancel / move via smc-client-email', () => {
+  const brand = { code: 'SMC' };
+  const relay = R.smcBrokerRelay({ brand, bk_id: 'bk_L03', email_kind: 'cancelled', email: { to: 'adviser@example.co.za', subject: 'SortMyCover booking cancelled', body: 'Anele K. cancelled.' } }, 120_000);
+  assert.equal(relay.body.from, 'SortMyCover <hello@sortmycover.co.za>');
+  assert.deepEqual(relay.body.to, ['adviser@example.co.za']);
+  assert.equal(relay.body.text, 'Anele K. cancelled.');
+  assert.deepEqual(relay.body.tags, [{ name: 'kind', value: 'broker_booking_changed' }]);
+  assert.equal(relay.idempotency_key, 'w10:broker:bk_L03:cancelled:2');
+  assert.equal(R.smcBrokerRelay({ brand: { code: 'LV' }, email: { to: 'a@b.co' } }), null);
+  assert.equal(R.smcBrokerRelay({ brand, email: { to: null } }), null);
+
+  const j = { brand, bk: bk({ calendar_provider: null }), ld: ld({ email: 'anele@example.co.za', email_verified: true }), br: { ...BR, fsp_number: '12345', practice_name: 'Test Practice' } };
+  const cancel = R.smcClientChangeEmail(j, 'booking_cancelled', 0);
+  assert.equal(cancel.kind, 'booking_cancelled');
+  assert.equal(cancel.to, 'anele@example.co.za');
+  assert.equal(cancel.booking_id, 'bk_L03');
+  assert.equal(Date.parse(cancel.slot_start), ms(start0));
+  const moved = R.smcClientChangeEmail(j, 'booking_updated', 0, { start: iso(ms(start0) + 24 * H), end: iso(ms(start0) + 24 * H + 30 * MIN) });
+  assert.equal(moved.kind, 'booking_updated');
+  assert.equal(Date.parse(moved.slot_start), ms(start0) + 24 * H);
+  assert.equal(R.smcClientChangeEmail({ ...j, ld: ld({ email: 'anele@example.co.za', email_verified: false }) }, 'booking_cancelled', 0), null, 'never to an unverified email');
+  assert.equal(R.smcClientChangeEmail({ ...j, brand: { code: 'LV' } }, 'booking_cancelled', 0), null);
+});
+
+test('W10 email wiring: SMC adviser relay before howzit@, client email gated by DRY_RUN, both never stop the flow', () => {
+  const C = WF.connections;
+  const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  assert.deepEqual(outs('Email to broker?'), ['Adviser email route (w10.smcBrokerRelay)']);
+  assert.deepEqual(outs('SortMyCover adviser email?', 0), ['Email adviser from SortMyCover (smc-email-send)']);
+  assert.deepEqual(outs('SortMyCover adviser email?', 1), ['Email broker from howzit@ (Graph sendMail)']);
+  const howzit = WF.nodes.find((x) => x.name === 'Email broker from howzit@ (Graph sendMail)');
+  assert.equal(howzit.parameters.authentication, 'genericCredentialType');
+  assert.ok(!JSON.stringify(howzit.parameters).includes('howzit_token'));
+  for (const name of ['Email adviser from SortMyCover (smc-email-send)', 'Email client from SortMyCover (smc-client-email)', 'Email broker from howzit@ (Graph sendMail)']) {
+    assert.equal(WF.nodes.find((x) => x.name === name).onError, 'continueRegularOutput', name);
+  }
+  assert.match(WF.nodes.find((x) => x.name === 'SortMyCover client email + live?').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.ok(outs('Broker notice (cancelled) + rebook once?').includes('SMC client email (cancelled)'));
+  assert.ok(outs('Lead + broker messages (moved)').includes('SMC client email (moved)'));
+});
+
+test('cancelDoneWa: a cancel with no rebooking offer is still confirmed (in window, not opted out)', () => {
+  const wa = R.cancelDoneWa({ booking: bk(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP });
+  assert.deepEqual(wa, { messaging_product: 'whatsapp', to: '+27600000003', type: 'text', text: { body: "Done, your call is cancelled. If you'd like another time later, just say." } });
+  assert.equal(R.cancelDoneWa({ booking: bk(), lead: ld({ opted_out_at: '2026-10-13T08:00:00Z' }), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP }), null, 'W15 owns the STOP confirmation');
+  assert.equal(R.cancelDoneWa({ booking: bk(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H }), null, 'never free text outside the window');
+  const C = WF.connections['Offer rebooking once?'].main;
+  assert.deepEqual(C[1].map((t) => t.node), ['Cancel confirmation (no rebook offer)']);
+  assert.deepEqual(WF.connections['Cancel confirmation (no rebook offer)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
+});
+
+test('Build offer passes W10\'s op: a cancel tap (op "cancel") gets the cancel confirmation, not the reschedule intro', () => {
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_L03' } }), 'cancel');
+  const slots = slotsAt(RESCHED_TAP, [bk()]);
+  const o = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'cancel' });
+  assert.match(o.body, /^Done, your call is cancelled\./);
+  assert.doesNotMatch(o.body, /other times|Same as before/);
+  assert.match(WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode, /reason: j\.op/);
+});

@@ -348,10 +348,14 @@ export function resolveCaller(headers = {}, query = {}, env = {}, nowMs = Date.n
  * shapes the existing callers send: W28 token-context rows ({ lead, broker, booking }), W28 list rows
  * ({ lead_id, broker_id, ... }), W07 W04_list ({ source:'W07', route, msg, lead, booking, delegate } -> W28 send_list).
  */
+/** A W07 hand-off item: { source:'W07' } or W07's routed shape (route 'W04' from a delegation, 'W04_list' from a tap). */
+export const fromW07 = (j = {}) => j.source === 'W07' || ((j.route === 'W04' || j.route === 'W04_list') && !!j.msg);
 export function subcallInput(j = {}) {
   const broker_id = j.broker_id || j.broker?.broker_id || j.broker?.id || j.lead?.broker_id || null;
   const lead_id = j.lead_id || j.lead?.id || null;
-  if (j.source === 'W07' && !j.op) {
+  // 17 Oct 2026: W07 never set source, so its hand-off fell through to op 'list', computed slots for a caller that does not
+  // wait (W07 -> W04 is fire-and-forget) and nothing reached the client. A W07 item is recognised by its route as well.
+  if (fromW07(j) && !j.op) {
     return lead_id ? { op: 'send_list', lead_id, delegate: j.delegate || null, reason: 'see_open_times' } : { op: 'reject', reason: 'lead_id missing', lead_id: null };
   }
   const op = ['list', 'is_free', 'graph_token'].includes(j.op) ? j.op : (j.op ? 'reject' : 'list');

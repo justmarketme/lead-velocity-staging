@@ -71,6 +71,8 @@ describe("desktop booking on /start/ (Jono, 18 Oct 2026)", () => {
     expect(u.searchParams.get("via")).toBe("ig/cycle1/reel");
     expect([...u.searchParams.keys()].sort()).toEqual(["ref", "via"]);
     expect(u.hash).toBe("");
-    expect(new URL(startHref({ topic: "a will", ref: "b01", wills: true })).search).toBe("?ref=b01");
+    expect(new URL(startHref({ topic: "a will", ref: "b01", wills: true })).search).toBe("?ref=b01&for=wills");
+    // the wills card on a guide carries the guide's ref, so for=wills tells /start/ to open the wills flow
+    expect(new URL(startHref({ topic: "a will", ref: "w-learn", wills: true }, "fb")).search).toBe("?ref=w-learn&via=fb&for=wills");
   });
 });

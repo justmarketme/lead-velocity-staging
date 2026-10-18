@@ -1,4 +1,4 @@
-# Thandi rubric (6B.1 eval gate, W33 daily judge, 4.11 weekly 30-sample review)
+# Lindi rubric (6B.1 eval gate, W33 daily judge, 4.11 weekly 30-sample review)
 
 | | |
 |---|---|

@@ -1,5 +1,5 @@
 // conversation/guardrail.mjs
-// Deterministic layer of Thandi's guardrail (4.11, 2.1.1, 2.1.7). No dependencies, Node 18+.
+// Deterministic layer of Lindi's guardrail (4.11, 2.1.1, 2.1.7). No dependencies, Node 18+.
 // Imported by evals/run.mjs and pasted into the W07 n8n Code node (NODE_FUNCTION_ALLOW_BUILTIN not needed).
 //
 // Jobs, all deterministic and all run on EVERY turn:
@@ -524,7 +524,8 @@ export function toneCheck(text, opts = {}) {
   let gen = full;
   for (const line of opts.fixed_lines || []) if (line) gen = gen.split(line).join(' ');
   if (!opts.lead_used_emoji && /\p{Extended_Pictographic}/u.test(full)) issues.push('emoji without the lead using one');
-  if (/!/u.test(gen)) issues.push('exclamation mark');
+  // Jono 17 Oct (persona-v2, upbeat Lindi): one '!' per message is fine; more reads as sales.
+  if ((gen.match(/!/gu) || []).length > 1) issues.push('more than one exclamation mark');
   const maxS = opts.max_sentences ?? 2;
   const ns = countSentences(gen);
   if (ns > maxS) issues.push(`${ns} generated sentences (max ${maxS})`);

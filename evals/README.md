@@ -1,6 +1,6 @@
-# evals/ : Thandi eval gate (6B.1)
+# evals/ : Lindi eval gate (6B.1)
 
-Any change to a Thandi prompt, `conversation/*.mjs`, `knowledge/faq.md` or these fixtures runs this eval in CI and **cannot merge** below FAIS 100%, tone 95%, STOP 100%, or below the rates in `baseline.json`. Rollback is one commit.
+Any change to a Lindi prompt, `conversation/*.mjs`, `knowledge/faq.md` or these fixtures runs this eval in CI and **cannot merge** below FAIS 100%, tone 95%, STOP 100%, or below the rates in `baseline.json`. Rollback is one commit.
 
 ## Files
 

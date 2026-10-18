@@ -253,9 +253,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)\nVALUES (NULLIF($1, '')::uuid, 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now())\nRETURNING id;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)\nSELECT l.id, COALESCE(l.brand_id, b.brand_id), COALESCE(l.broker_id, b.id), 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now()\n  FROM (SELECT 1) one\n  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid\n  LEFT JOIN public.brokers b ON b.id = NULLIF($3, '')::uuid\n WHERE COALESCE(l.brand_id, b.brand_id) IS NOT NULL\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown'] }}"
+          "queryReplacement": "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.broker_id || ''] }}"
         }
       },
       "credentials": {
@@ -264,7 +264,8 @@
           "name": "LV Supabase - n8n_app (least privilege)"
         }
       },
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
     },
     {
       "id": "n12",
@@ -530,45 +531,27 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Plan (w04.planRequest)').first().json.tk.url }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpCustomAuth",
-        "sendBody": true,
-        "contentType": "form-urlencoded",
-        "bodyParameters": {
+        "url": "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/ms-oauth' }}",
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
-              "name": "client_id",
-              "value": "={{ $env.MS_GRAPH_CLIENT_ID }}"
-            },
-            {
-              "name": "grant_type",
-              "value": "refresh_token"
-            },
-            {
-              "name": "refresh_token",
-              "value": "={{ $json.rt || \"\" }}"
-            },
-            {
-              "name": "scope",
-              "value": "offline_access User.Read Calendars.ReadWrite OnlineMeetings.ReadWrite"
+              "name": "x-api-key",
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
             }
           ]
         },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ action: 'refresh', broker_id: $('Plan (w04.planRequest)').first().json.broker.id, refresh_token: $json.rt || '' }) }}",
         "options": {
-          "timeout": 10000,
+          "timeout": 15000,
           "response": {
             "response": {
               "fullResponse": true,
               "neverError": true
             }
           }
-        }
-      },
-      "credentials": {
-        "httpCustomAuth": {
-          "id": "",
-          "name": "Microsoft Graph broker-connect client secret (W20)"
         }
       },
       "retryOnFail": true,

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>07 The four guides</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .grid { position: absolute; left: 120px; top: 300px; display: grid; grid-template-columns: repeat(2, 400px); gap: 22px; }
+  .g { width: 400px; border-radius: 18px; overflow: hidden; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); }
+  .g .im { height: 214px; background-size: cover; background-position: center 30%; }
+  .g .tx { padding: 14px 18px 16px; }
+  .g .k { font-size: 13px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--y-2); }
+  .g b { display: block; font-size: 20px; line-height: 1.2; color: var(--ink); margin-top: 6px; }
+  .browser { position: absolute; left: 990px; top: 290px; width: 810px; height: 660px; border-radius: 18px; overflow: hidden; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow-lg); }
+  .browser .chromebar { height: 44px; background: var(--soft); border-bottom: 1.5px solid var(--line); display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+  .browser .chromebar i { width: 12px; height: 12px; border-radius: 50%; background: #d7dade; }
+  .browser .chromebar .url { margin-left: 14px; flex: 1; height: 28px; border-radius: 8px; background: #fff; border: 1px solid var(--line); font-size: 14px; color: var(--slate); display: flex; align-items: center; padding: 0 12px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+  .browser .view { position: absolute; left: 0; right: 0; top: 44px; bottom: 0; overflow: hidden; }
+  .browser .view img { position: absolute; left: 0; top: 0; width: 100%; }
+  .chips { position: absolute; left: 990px; top: 196px; display: flex; gap: 10px; }
+</style></head>
+<body data-scene="s07"><div class="stage">
+  <div class="top"><div class="eyebrow">Learn</div><h1 class="h">A guide behind <em>every ad</em></h1></div>
+  <div class="grid">
+    <div class="g"><div class="im" style="background-image:url(assets/content/learn-life-cover-and-a-home-loan.jpg)"></div><div class="tx"><div class="k">New bond</div><b>Life cover and a home loan: what the paperwork says</b></div></div>
+    <div class="g"><div class="im" style="background-image:url(assets/content/learn-income-protection-vs-disability-cover.jpg)"></div><div class="tx"><div class="k">Salary stops</div><b>Income protection vs disability cover: what each one pays</b></div></div>
+    <div class="g"><div class="im" style="background-image:url(assets/content/learn-cover-for-business-owners-and-directors.jpg)"></div><div class="tx"><div class="k">Owners and directors</div><b>Cover for business owners and directors</b></div></div>
+    <div class="g"><div class="im" style="background-image:url(assets/content/learn-questions-to-ask-a-financial-adviser.jpg)"></div><div class="tx"><div class="k">Adviser conversation</div><b>Questions to ask an authorised financial adviser</b></div></div>
+  </div>
+  <div class="chips"><span class="pill grey c1"><i></i>South African sources cited</span><span class="pill grey c2"><i></i>Our own images, no stock</span></div>
+  <div class="browser"><div class="chromebar"><i></i><i></i><i></i><div class="url">sortmycover.co.za/learn/life-cover-and-a-home-loan/</div></div>
+    <div class="view"><img id="page" src="assets/site/learn-life-cover-and-a-home-loan-desktop-full.png" alt=""></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const page = $('#page');
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.g', t, .7, { y: 30, scale: .96, stagger: .2, dur: .7 });
+    rv('.browser', t, 1.4, { x: 40, y: 0, dur: .9 });
+    const H = page.naturalHeight * (810 / page.naturalWidth), maxY = Math.min(H - 616, 3400);
+    page.style.transform = `translateY(${(-maxY * E.inOut(clamp((t - 2.6) / (SCENE.clip - 4)))).toFixed(1)}px)`;
+    rv('.chips .pill', t, SCENE.clip * .55, { y: 12, stagger: .5, dur: .5 });
+  };
+</script></body></html>

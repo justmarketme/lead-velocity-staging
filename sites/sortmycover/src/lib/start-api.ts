@@ -113,3 +113,39 @@ export function createStartApi(token: string, base: string = API_BASE): StartApi
     },
   };
 }
+
+/* ---------- step 0: POST /lead (no token yet; the reply carries it) ---------- */
+export type LeadResult =
+  | { kind: "accepted"; token: string; lead_id?: string }
+  | { kind: "neutral" } // not_qualified or suppressed: thank them, no booking
+  | { kind: "rate" } // 429
+  | { kind: "mobile" } // 422 on the number
+  | { kind: "error" }; // 400 try_again, 5xx, network, or an accepted reply without a token (never proceed without one)
+
+export function interpretLead(status: number, body: any): LeadResult {
+  if (status === 429) return { kind: "rate" };
+  if (body && (body.status === "not_qualified" || body.status === "suppressed" || body.out_of_band === true)) return { kind: "neutral" };
+  if (status === 422 && /mobile/.test(String(body?.error || ""))) return { kind: "mobile" };
+  if (status >= 200 && status < 300 && body?.ok === true && body.status === "accepted" && typeof body.lead_token === "string" && body.lead_token)
+    return { kind: "accepted", token: body.lead_token, lead_id: body.lead_id };
+  return { kind: "error" };
+}
+
+export type LeadPoster = (body: object) => Promise<LeadResult>;
+export const postLead: LeadPoster = async (body) => {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(API_BASE + "/lead", {
+      method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body),
+      cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: ctl.signal,
+    });
+    let data: any = null;
+    try { data = await res.json(); } catch { /* empty body */ }
+    return interpretLead(res.status, data);
+  } catch {
+    return { kind: "error" };
+  } finally {
+    clearTimeout(timer);
+  }
+};

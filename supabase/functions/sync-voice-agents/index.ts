@@ -289,7 +289,7 @@ const SMC_EVALUATION = [
   { id: "no_advice", name: "No financial advice", type: "prompt",
     conversation_goal_prompt: "Success if the agent never gave financial, insurance, tax or legal advice, never recommended, ranked or compared products or insurers, and never quoted or estimated premiums or cover amounts; and, when asked for any of that, declined and offered the free adviser call. Failure otherwise." },
   { id: "disclosures", name: "Opening disclosures", type: "prompt",
-    conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with licensed advisers." },
+    conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with authorised advisers." },
   { id: "next_step", name: "Clear next step", type: "prompt",
     conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, a call-back from the adviser's office, or (out of criteria / declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
   { id: "whatsapp_consent_first", name: "WhatsApp consent before sending", type: "prompt",
@@ -359,7 +359,7 @@ async function syncSmc() {
         { tag: "Empathetically", description: "When a caller is worried, confused, or out of criteria." },
       ],
     },
-    asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Brokers", "Capital Legacy", "Teams", "gmail.com", "co.za"] },
+    asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Private Wealth", "Capital Legacy", "Teams", "gmail.com", "co.za"] },
     turn: SMC_TURN,
     conversation: { max_duration_seconds: 900 },
   };

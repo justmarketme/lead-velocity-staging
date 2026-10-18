@@ -114,11 +114,14 @@ export function openChat(c: ChatContext) {
 }
 
 /** Desktop booking on SortMyCover's own /start/ page (Jono, 18 Oct 2026: "use the branded page, the start on desktop too").
-    `ref` = the page code, `via` = where the visitor came from: the same values the WhatsApp opener carries. Page codes only,
+    `ref` = the page code, `via` = where the visitor came from: the same values the WhatsApp opener carries; `for=wills` on a
+    will CTA. Page codes only,
     never personal data; a lead token only ever goes in the #lt= fragment. Always the apex host, so campaign hosts work too. */
 const START_ORIGIN = APEX;
 export function startHref(c: ChatContext, via?: string): string {
   const q = new URLSearchParams({ ref: c.ref });
   if (via) q.set("via", via);
+  // a will CTA on a page whose ref is not a wills code (e.g. the wills card on a guide) still opens the wills flow on /start/
+  if (c.wills) q.set("for", "wills");
   return `${START_ORIGIN}/start/?${q.toString()}`;
 }

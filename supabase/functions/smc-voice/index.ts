@@ -27,7 +27,7 @@ import {
 
 const BASE = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice";
 const SMC_BRAND_ID = "6e532b05-984f-4906-90a0-a5257cde328c";
-const SMC_BROKER_ID = "306062a1-c271-4ae1-8b1e-bb9aed10a5f6"; // Mark Weston, Oracle Brokers
+const SMC_BROKER_ID = "306062a1-c271-4ae1-8b1e-bb9aed10a5f6"; // Mark Weston, Oracle Private Wealth
 const SMC_NUMBER = "+27600156480";
 const N8N = "https://n8n.sortmycover.co.za/webhook";
 const QUALIFY_BUDGET_SID = "HX5a0030506140a58a86e8611f15a5af64"; // smc_qualify_budget (approved UTILITY)

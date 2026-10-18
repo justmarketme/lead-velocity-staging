@@ -1,0 +1,659 @@
+{
+  "generated": "2026-10-18",
+  "root": "C:\\tmp\\lv-w07-fix\\deliverables\\explainer-film\\scenes\\assets",
+  "total_bytes_ads_and_content": 31262291,
+  "reels": [
+    {
+      "angle": "new-bond",
+      "file": "ads/reel-new-bond.mp4",
+      "poster": "ads/reel-new-bond.jpg",
+      "audio_copy": "ads/reel-new-bond-vo.m4a",
+      "duration_s": 23.45,
+      "video_track_duration_s": 23.37,
+      "size_bytes": 5050455,
+      "format": "1080x1920 H.264 high, 30 fps, no audio, faststart",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\reel\\sortmycover-new-bond-reel-9x16.mp4",
+      "source_commit": "f2693a0 (EMMA repo, 17 Oct 2026 21:16)",
+      "hook_text": "Bond approved. One more question.",
+      "shows": "Black South African family in a newly moved-into home: a man frowning over bond papers at a kitchen table, the couple at a laptop, the dad carrying his laughing daughter on his shoulders, the wife booking on her phone on the couch, then the couple on a video call with an adviser; charcoal end card.",
+      "shots": [
+        {
+          "n": 1,
+          "start_s": 0.0,
+          "end_s": 3.3,
+          "caption": "Bond approved. One more question.",
+          "vo": "Bond approved. One more question."
+        },
+        {
+          "n": 2,
+          "start_s": 3.3,
+          "end_s": 8.3,
+          "caption": "A new home. A growing family. Bigger commitments.",
+          "vo": "A new home. A growing family. Bigger commitments."
+        },
+        {
+          "n": 3,
+          "start_s": 8.3,
+          "end_s": 13.1,
+          "caption": "The bond runs for years. What protects it if an income stops?",
+          "vo": "The bond runs for years. What protects it if an income stops?"
+        },
+        {
+          "n": 4,
+          "start_s": 13.1,
+          "end_s": 15.73,
+          "caption": "SortMyCover books a 30-minute call.",
+          "vo": "SortMyCover books a thirty-minute call..."
+        },
+        {
+          "n": 5,
+          "start_s": 15.73,
+          "end_s": 20.4,
+          "caption": "With an authorised adviser, by video, WhatsApp or phone.",
+          "vo": "with an authorised adviser. By video, WhatsApp or phone."
+        },
+        {
+          "n": "end_card",
+          "start_s": 20.4,
+          "end_s": 23.45,
+          "caption": "Has the cover kept up with the bond? Book a 30-minute call on WhatsApp.",
+          "trust": [
+            "A time that suits",
+            "An authorised adviser",
+            "Name and FSP number upfront"
+          ],
+          "button": "Send us a WhatsApp",
+          "legal": "sortmycover.co.za · SortMyCover is not a financial services provider. It arranges introductions; advice is given by an authorised adviser, who shares their name, practice and FSP number.",
+          "vo": "Book a thirty-minute call on WhatsApp."
+        }
+      ],
+      "primary_text": "Bond approved. One more question: what protects the bond if an income stops? Credit life and life cover do different jobs.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/life-cover-and-a-home-loan/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "headline": null,
+      "cta": "Book a 30-minute call with an authorised adviser on WhatsApp.",
+      "on_creative_cta": "Send us a WhatsApp",
+      "landing_page": "https://new-bond.sortmycover.co.za/",
+      "read_more": "https://sortmycover.co.za/learn/life-cover-and-a-home-loan/"
+    },
+    {
+      "angle": "salary-stops",
+      "file": "ads/reel-salary-stops.mp4",
+      "poster": "ads/reel-salary-stops.jpg",
+      "audio_copy": "ads/reel-salary-stops-vo.m4a",
+      "duration_s": 21.36,
+      "video_track_duration_s": 21.27,
+      "size_bytes": 5173997,
+      "format": "1080x1920 H.264 high, 30 fps, no audio, faststart",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\salary-stops-reel\\sortmycover-salary-stops-reel-9x16.mp4",
+      "source_commit": "f2693a0 (EMMA repo, 17 Oct 2026 21:16)",
+      "hook_text": "The salary pays for the bond, the school fees, the holidays.",
+      "shows": "A working mother in a navy blazer: coffee in her kitchen beside a packed lunch box, kissing her school-uniformed son goodbye, working at an office laptop, on the couch with her son using her phone, then on a laptop video call with an adviser at night; charcoal end card.",
+      "shots": [
+        {
+          "n": 1,
+          "start_s": 0.0,
+          "end_s": 4.0,
+          "caption": "The salary pays for the bond, the school fees, the holidays.",
+          "vo": "The salary pays for the bond, the school fees, the holidays."
+        },
+        {
+          "n": 2,
+          "start_s": 4.0,
+          "end_s": 7.67,
+          "caption": "Some people insure the car before the salary.",
+          "vo": "Some people insure the car... before the salary behind all of it."
+        },
+        {
+          "n": 3,
+          "start_s": 7.67,
+          "end_s": 10.67,
+          "caption": "What protects the household if an income stops?",
+          "vo": "What protects the household if an income stops?"
+        },
+        {
+          "n": 4,
+          "start_s": 10.67,
+          "end_s": 13.3,
+          "caption": "SortMyCover books a 30-minute call.",
+          "vo": "SortMyCover books a thirty-minute call..."
+        },
+        {
+          "n": 5,
+          "start_s": 13.3,
+          "end_s": 18.3,
+          "caption": "Life, disability and income cover, with an authorised adviser.",
+          "vo": "with an authorised adviser. Life, disability and income cover, in one conversation."
+        },
+        {
+          "n": "end_card",
+          "start_s": 18.3,
+          "end_s": 21.36,
+          "caption": "The salary keeps the household moving. What protects it? Book a 30-minute call on WhatsApp.",
+          "trust": [
+            "A time that suits",
+            "An authorised adviser",
+            "Name and FSP number upfront"
+          ],
+          "button": "Send us a WhatsApp",
+          "legal": "sortmycover.co.za · SortMyCover is not a financial services provider. It arranges introductions; advice is given by an authorised adviser, who shares their name, practice and FSP number.",
+          "vo": "Book a thirty-minute call on WhatsApp."
+        }
+      ],
+      "primary_text": "Some people insure the car before the salary. Life, disability and income cover each pay out in a different way.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/income-protection-vs-disability-cover/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "headline": null,
+      "cta": "Book a 30-minute call with an authorised adviser on WhatsApp.",
+      "on_creative_cta": "Send us a WhatsApp",
+      "landing_page": "https://salary-stops.sortmycover.co.za/",
+      "read_more": "https://sortmycover.co.za/learn/income-protection-vs-disability-cover/"
+    },
+    {
+      "angle": "owners-directors",
+      "file": "ads/reel-owners-directors.mp4",
+      "poster": "ads/reel-owners-directors.jpg",
+      "audio_copy": "ads/reel-owners-directors-vo.m4a",
+      "duration_s": 18.98,
+      "video_track_duration_s": 18.87,
+      "size_bytes": 5620094,
+      "format": "1080x1920 H.264 high, 30 fps, no audio, faststart",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\owners-directors-reel\\sortmycover-owners-directors-reel-9x16.mp4",
+      "source_commit": "f2693a0 (EMMA repo, 17 Oct 2026 21:16)",
+      "hook_text": "The business pays everyone else.",
+      "shows": "A grey-haired owner of a woodworking/joinery workshop: rolling up the roller door, checking a tablet with an employee on the shop floor, at the kitchen table with wife and daughter over a laptop and paperwork, booking on his phone in his bakkie, then on a laptop video call with an adviser; charcoal end card.",
+      "shots": [
+        {
+          "n": 1,
+          "start_s": 0.0,
+          "end_s": 2.63,
+          "caption": "The business pays everyone else.",
+          "vo": "The business pays everyone else."
+        },
+        {
+          "n": 2,
+          "start_s": 2.63,
+          "end_s": 5.9,
+          "caption": "When it depends on one person, so does the household.",
+          "vo": "When it depends on one person... so does the household."
+        },
+        {
+          "n": 3,
+          "start_s": 5.9,
+          "end_s": 9.13,
+          "caption": "No employer. No group cover.",
+          "vo": "No employer. No group cover."
+        },
+        {
+          "n": 4,
+          "start_s": 9.13,
+          "end_s": 11.77,
+          "caption": "SortMyCover books a 30-minute call.",
+          "vo": "SortMyCover books a thirty-minute call..."
+        },
+        {
+          "n": 5,
+          "start_s": 11.77,
+          "end_s": 15.9,
+          "caption": "With an authorised adviser, about cover for owners and directors.",
+          "vo": "with an authorised adviser, about cover for owners and directors."
+        },
+        {
+          "n": "end_card",
+          "start_s": 15.9,
+          "end_s": 18.98,
+          "caption": "When the business depends on one person, so does the household. Book a 30-minute call on WhatsApp.",
+          "trust": [
+            "A time that suits",
+            "An authorised adviser",
+            "Name and FSP number upfront"
+          ],
+          "button": "Send us a WhatsApp",
+          "legal": "sortmycover.co.za · SortMyCover is not a financial services provider. It arranges introductions; advice is given by an authorised adviser, who shares their name, practice and FSP number.",
+          "vo": "Book a thirty-minute call on WhatsApp."
+        }
+      ],
+      "primary_text": "When the business depends on one person: no employer, no group cover. An authorised adviser can explain the options.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/cover-for-business-owners-and-directors/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "headline": null,
+      "cta": "Book a 30-minute call with an authorised adviser on WhatsApp.",
+      "on_creative_cta": "Send us a WhatsApp",
+      "landing_page": "https://owners-directors.sortmycover.co.za/",
+      "read_more": "https://sortmycover.co.za/learn/cover-for-business-owners-and-directors/"
+    },
+    {
+      "angle": "adviser-conversation",
+      "file": "ads/reel-adviser-conversation.mp4",
+      "poster": "ads/reel-adviser-conversation.jpg",
+      "audio_copy": "ads/reel-adviser-conversation-vo.m4a",
+      "duration_s": 19.57,
+      "video_track_duration_s": 19.43,
+      "size_bytes": 5220102,
+      "format": "1080x1920 H.264 high, 30 fps, no audio, faststart",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\adviser-conversation-reel\\sortmycover-adviser-conversation-reel-9x16.mp4",
+      "source_commit": "f2693a0 (EMMA repo, 17 Oct 2026 21:16)",
+      "hook_text": "Everyone has an opinion about cover.",
+      "shows": "An Indian South African man in a cream jersey at home in the evening: smiling at his phone at a kitchen counter, booking on the couch, on a phone call taking notes, on a laptop video call with an adviser, then dinner on the patio with his wife and son under string lights; charcoal end card.",
+      "shots": [
+        {
+          "n": 1,
+          "start_s": 0.0,
+          "end_s": 2.63,
+          "caption": "Everyone has an opinion about cover.",
+          "vo": "Everyone has an opinion about cover."
+        },
+        {
+          "n": 2,
+          "start_s": 2.63,
+          "end_s": 5.27,
+          "caption": "SortMyCover books a 30-minute call.",
+          "vo": "SortMyCover books a thirty-minute call..."
+        },
+        {
+          "n": 3,
+          "start_s": 5.27,
+          "end_s": 10.0,
+          "caption": "With an authorised adviser, by phone, WhatsApp or video.",
+          "vo": "with an authorised adviser. By phone, WhatsApp or video."
+        },
+        {
+          "n": 4,
+          "start_s": 10.0,
+          "end_s": 13.73,
+          "caption": "Name, practice and FSP number before the call starts.",
+          "vo": "They share their name, practice and FSP number first."
+        },
+        {
+          "n": 5,
+          "start_s": 13.73,
+          "end_s": 16.47,
+          "caption": "Some questions are easier asked out loud.",
+          "vo": "Some questions are easier asked out loud."
+        },
+        {
+          "n": "end_card",
+          "start_s": 16.47,
+          "end_s": 19.57,
+          "caption": "Some questions are easier asked out loud. Book a 30-minute call on WhatsApp.",
+          "trust": [
+            "A time that suits",
+            "An authorised adviser",
+            "Name and FSP number upfront"
+          ],
+          "button": "Send us a WhatsApp",
+          "legal": "sortmycover.co.za · SortMyCover is not a financial services provider. It arranges introductions; advice is given by an authorised adviser, who shares their name, practice and FSP number.",
+          "vo": "Book a thirty-minute call on WhatsApp."
+        }
+      ],
+      "primary_text": "Some questions are easier asked out loud. Ask an authorised adviser how cover works and how they are paid.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/questions-to-ask-a-financial-adviser/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "headline": null,
+      "cta": "Book a 30-minute call with an authorised adviser on WhatsApp.",
+      "on_creative_cta": "Send us a WhatsApp",
+      "landing_page": "https://adviser-conversation.sortmycover.co.za/",
+      "read_more": "https://sortmycover.co.za/learn/questions-to-ask-a-financial-adviser/"
+    }
+  ],
+  "feed": [
+    {
+      "angle": "new-bond",
+      "file": "ads/feed-new-bond.jpg",
+      "size": "1080x1350 JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\heroes\\sortmycover-new-bond-feed-4x5.png",
+      "source_commit": "f2693a0",
+      "headline_on_creative": "Bond approved. One more question.",
+      "sub_on_creative": "The bond runs for years. What protects it if an income stops? A 30-minute call with an authorised adviser, by video, WhatsApp or phone.",
+      "button_on_creative": "Book a 30-minute call",
+      "legal_on_creative": "sortmycover.co.za · Not a financial services provider; advice is given by an authorised adviser.",
+      "photo_source": "new-bond-people/cast/s1-man-paperwork.png",
+      "primary_text": "Bond approved. One more question: what protects the bond if an income stops? Credit life and life cover do different jobs.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/life-cover-and-a-home-loan/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "used_in_meta": "Yes per HANDOVER-2026-10-17-EVENING.md: '4:5 cuts for feeds' in the 4 WhatsApp ads"
+    },
+    {
+      "angle": "salary-stops",
+      "file": "ads/feed-salary-stops.jpg",
+      "size": "1080x1350 JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\heroes\\sortmycover-salary-stops-feed-4x5.png",
+      "source_commit": "f2693a0",
+      "headline_on_creative": "Some people insure the car before the salary.",
+      "sub_on_creative": "Life, disability and income cover: one 30-minute conversation with an authorised adviser about the salary behind all of them.",
+      "button_on_creative": "Book a 30-minute call",
+      "legal_on_creative": "sortmycover.co.za · Not a financial services provider; advice is given by an authorised adviser.",
+      "photo_source": "heroes/salary-stops.png",
+      "primary_text": "Some people insure the car before the salary. Life, disability and income cover each pay out in a different way.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/income-protection-vs-disability-cover/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "used_in_meta": "Yes per HANDOVER-2026-10-17-EVENING.md: '4:5 cuts for feeds' in the 4 WhatsApp ads"
+    },
+    {
+      "angle": "owners-directors",
+      "file": "ads/feed-owners-directors.jpg",
+      "size": "1080x1350 JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\heroes\\sortmycover-owners-directors-feed-4x5.png",
+      "source_commit": "f2693a0",
+      "headline_on_creative": "When the business depends on one person.",
+      "sub_on_creative": "No employer, no group cover. A 30-minute call with an authorised adviser about cover for owners and directors.",
+      "button_on_creative": "Book a 30-minute call",
+      "legal_on_creative": "sortmycover.co.za · Not a financial services provider; advice is given by an authorised adviser.",
+      "photo_source": "heroes/owners-directors.png",
+      "primary_text": "When the business depends on one person: no employer, no group cover. An authorised adviser can explain the options.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/cover-for-business-owners-and-directors/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "used_in_meta": "Yes per HANDOVER-2026-10-17-EVENING.md: '4:5 cuts for feeds' in the 4 WhatsApp ads"
+    },
+    {
+      "angle": "adviser-conversation",
+      "file": "ads/feed-adviser-conversation.jpg",
+      "size": "1080x1350 JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\heroes\\sortmycover-adviser-conversation-feed-4x5.png",
+      "source_commit": "f2693a0",
+      "headline_on_creative": "Some questions are easier asked out loud.",
+      "sub_on_creative": "Thirty minutes with an authorised adviser, by video, WhatsApp or phone, at a time that suits.",
+      "button_on_creative": "Book a 30-minute call",
+      "legal_on_creative": "sortmycover.co.za · Not a financial services provider; advice is given by an authorised adviser.",
+      "photo_source": "heroes/adviser-conversation.png",
+      "primary_text": "Some questions are easier asked out loud. Ask an authorised adviser how cover works and how they are paid.\n\nBook a 30-minute call with an authorised adviser on WhatsApp.\n\nRead more: https://sortmycover.co.za/learn/questions-to-ask-a-financial-adviser/\n\nSortMyCover is not an FSP; it arranges introductions to an authorised adviser.",
+      "used_in_meta": "Yes per HANDOVER-2026-10-17-EVENING.md: '4:5 cuts for feeds' in the 4 WhatsApp ads"
+    }
+  ],
+  "mark": [
+    {
+      "angle": "new-bond",
+      "variant": "with-image",
+      "file": "ads/mark-new-bond-with-image.jpg",
+      "file_9x16": "ads/mark-new-bond-with-image-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-new-bond-with-image-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-new-bond-with-image-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "Bond approved. One more item for the list.",
+      "sub_on_creative": "A bond runs for years. A 30-minute call with Mark, an authorised adviser, at a time that suits the household.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "new-bond",
+      "variant": "type-only",
+      "file": "ads/mark-new-bond-type-only.jpg",
+      "file_9x16": "ads/mark-new-bond-type-only-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-new-bond-type-only-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-new-bond-type-only-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "Bond approved. One more item for the list.",
+      "sub_on_creative": "A bond runs for years. A 30-minute call with Mark, an authorised adviser, at a time that suits the household.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "salary-stops",
+      "variant": "with-image",
+      "file": "ads/mark-salary-stops-with-image.jpg",
+      "file_9x16": "ads/mark-salary-stops-with-image-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-salary-stops-with-image-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-salary-stops-with-image-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "Some people insure the car before the salary.",
+      "sub_on_creative": "Life, disability and income cover: a 30-minute call with Mark, an authorised adviser, about the salary behind all of them.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "salary-stops",
+      "variant": "type-only",
+      "file": "ads/mark-salary-stops-type-only.jpg",
+      "file_9x16": "ads/mark-salary-stops-type-only-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-salary-stops-type-only-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-salary-stops-type-only-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "Some people insure the car before the salary.",
+      "sub_on_creative": "Life, disability and income cover: a 30-minute call with Mark, an authorised adviser, about the salary behind all of them.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "owners-directors",
+      "variant": "with-image",
+      "file": "ads/mark-owners-directors-with-image.jpg",
+      "file_9x16": "ads/mark-owners-directors-with-image-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-owners-directors-with-image-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-owners-directors-with-image-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "When the business depends on one person.",
+      "sub_on_creative": "No employer, no group cover. A 30-minute call with Mark, an authorised adviser, about cover for owners and directors.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "owners-directors",
+      "variant": "type-only",
+      "file": "ads/mark-owners-directors-type-only.jpg",
+      "file_9x16": "ads/mark-owners-directors-type-only-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-owners-directors-type-only-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-owners-directors-type-only-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "When the business depends on one person.",
+      "sub_on_creative": "No employer, no group cover. A 30-minute call with Mark, an authorised adviser, about cover for owners and directors.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "adviser-conversation",
+      "variant": "with-image",
+      "file": "ads/mark-adviser-conversation-with-image.jpg",
+      "file_9x16": "ads/mark-adviser-conversation-with-image-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-adviser-conversation-with-image-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-adviser-conversation-with-image-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "Some questions are easier asked out loud.",
+      "sub_on_creative": "Thirty minutes with Mark, an authorised adviser, by video, WhatsApp or phone, at a time that suits.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    },
+    {
+      "angle": "adviser-conversation",
+      "variant": "type-only",
+      "file": "ads/mark-adviser-conversation-type-only.jpg",
+      "file_9x16": "ads/mark-adviser-conversation-type-only-9x16.jpg",
+      "size": "1080x1350 (and 1080x1920) JPG q88",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-adviser-conversation-type-only-4x5.png",
+      "source_path_9x16": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\mark-corner\\out\\smc-adviser-conversation-type-only-9x16.png",
+      "source_state": "uncommitted working-tree render of 17 Oct 10:48 with Mark's real photo (committed versions in 5704736 carry the grey placeholder)",
+      "headline_on_creative": "Some questions are easier asked out loud.",
+      "sub_on_creative": "Thirty minutes with Mark, an authorised adviser, by video, WhatsApp or phone, at a time that suits.",
+      "corner_card": "Hi, I'm Mark. Book a call. | Mark Weston, Oracle Brokers · FSP 28418",
+      "button_on_creative": "Book a call with Mark",
+      "used_in_meta": "Not in the live ad set per the 17 Oct evening handover (live ads use the clean reels + 4:5 feed cuts); Mark's approval is the stated gate"
+    }
+  ],
+  "content": [
+    {
+      "file": "content/carousel-new-bond-1.jpg",
+      "what": "New-bond carousel card 1/6: \"Bond approved. One more question.\" (1080x1350; status in Meta not recorded)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\carousel\\card-1.png"
+    },
+    {
+      "file": "content/carousel-new-bond-2.jpg",
+      "what": "New-bond carousel card 2/6: \"A new home. A growing family. Bigger commitments.\" (1080x1350; status in Meta not recorded)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\carousel\\card-2.png"
+    },
+    {
+      "file": "content/carousel-new-bond-3.jpg",
+      "what": "New-bond carousel card 3/6: \"A bond runs for years.\" / \"What protects it if an income stops? That is a conversation for an authorised adviser.\" (1080x1350; status in Meta not recorded)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\carousel\\card-3.png"
+    },
+    {
+      "file": "content/carousel-new-bond-4.jpg",
+      "what": "New-bond carousel card 4/6: \"SortMyCover books a 30-minute call.\" / \"A few questions, then a time that suits, on WhatsApp.\" (1080x1350; status in Meta not recorded)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\carousel\\card-4.png"
+    },
+    {
+      "file": "content/carousel-new-bond-5.jpg",
+      "what": "New-bond carousel card 5/6: \"An authorised adviser takes the call.\" / \"By video, WhatsApp or phone. Name, practice and FSP number first.\" (1080x1350; status in Meta not recorded)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\carousel\\card-5.png"
+    },
+    {
+      "file": "content/carousel-new-bond-6.jpg",
+      "what": "New-bond carousel end card 6/6: \"Has the cover kept up with the bond?\" + trust list + 'Book a 30-minute call' button (1080x1350; status in Meta not recorded)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\ads\\cycle1\\new-bond-people\\carousel\\card-6.png"
+    },
+    {
+      "file": "content/learn-life-cover-and-a-home-loan.jpg",
+      "what": "Learn-article hero (Higgsfield, 1264x848) for /learn/life-cover-and-a-home-loan/; site alt text: \"A couple reading home loan papers at a dining table\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\learn-home-loan.webp"
+    },
+    {
+      "file": "content/learn-income-protection-vs-disability-cover.jpg",
+      "what": "Learn-article hero (Higgsfield, 1264x848) for /learn/income-protection-vs-disability-cover/; site alt text: \"A worker getting ready before an early shift\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\learn-income.webp"
+    },
+    {
+      "file": "content/learn-cover-for-business-owners-and-directors.jpg",
+      "what": "Learn-article hero (Higgsfield, 1264x848) for /learn/cover-for-business-owners-and-directors/; site alt text: \"A business owner at work in her nursery\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\learn-owners.webp"
+    },
+    {
+      "file": "content/learn-questions-to-ask-a-financial-adviser.jpg",
+      "what": "Learn-article hero (Higgsfield, 1264x848) for /learn/questions-to-ask-a-financial-adviser/; site alt text: \"A couple on a video call with notes beside them\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\learn-adviser.webp"
+    },
+    {
+      "file": "content/landing-new-bond.jpg",
+      "what": "Campaign landing hero (1440x966) for new-bond.sortmycover.co.za campaign page; site alt text: \"A couple carrying a box into a new house\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\c-new-bond.webp"
+    },
+    {
+      "file": "content/landing-salary-stops.jpg",
+      "what": "Campaign landing hero (1440x966) for salary-stops.sortmycover.co.za campaign page; site alt text: \"A commuter on the way to work\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\c-salary-stops.webp"
+    },
+    {
+      "file": "content/landing-owners-directors.jpg",
+      "what": "Campaign landing hero (1440x966) for owners-directors.sortmycover.co.za campaign page; site alt text: \"A business owner in her shop\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\c-owners.webp"
+    },
+    {
+      "file": "content/landing-adviser-conversation.jpg",
+      "what": "Campaign landing hero (1440x966) for adviser-conversation.sortmycover.co.za campaign page; site alt text: \"A person on a phone call at home\"",
+      "source_path": "C:\\Users\\Jono\\lv-site\\sites\\sortmycover\\public\\img\\c-adviser.webp"
+    },
+    {
+      "file": "content/logo-wordmark-charcoal.svg",
+      "what": "SortMyCover wordmark, charcoal (#1F2933) with amber tick in the O; brand v1.0.0",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\logo.svg"
+    },
+    {
+      "file": "content/logo-wordmark-offwhite.svg",
+      "what": "SortMyCover wordmark, off-white (#FBF8F2) for dark grounds; the one used on every ad",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\creative\\logo-light.svg"
+    },
+    {
+      "file": "content/logo-wordmark-charcoal-1440.png",
+      "what": "Wordmark charcoal PNG 1440x210 (transparent)",
+      "source_path": "C:\\Users\\Jono\\lv-site\\brand\\exports\\logo\\wordmark-charcoal@3x.png"
+    },
+    {
+      "file": "content/logo-wordmark-offwhite-1440.png",
+      "what": "Wordmark off-white PNG 1440x210 (transparent)",
+      "source_path": "C:\\Users\\Jono\\lv-site\\brand\\exports\\logo\\wordmark-offwhite@3x.png"
+    },
+    {
+      "file": "content/logo-tick-mark.svg",
+      "what": "Tick mark alone (amber circle, amber-ink tick)",
+      "source_path": "C:\\Users\\Jono\\lv-site\\brand\\logo\\tick-mark.svg"
+    },
+    {
+      "file": "content/logo-tick-mark-384.png",
+      "what": "Tick mark PNG 384x384",
+      "source_path": "C:\\Users\\Jono\\lv-site\\brand\\exports\\logo\\tick-mark@3x.png"
+    },
+    {
+      "file": "content/logo-stacked-offwhite.svg",
+      "what": "Stacked wordmark Sort / My / Cover, off-white",
+      "source_path": "C:\\Users\\Jono\\lv-site\\brand\\logo\\stacked-offwhite.svg"
+    },
+    {
+      "file": "content/whatsapp-profile-640.png",
+      "what": "WhatsApp Business profile photo (tick mark on charcoal, 640x640). Byte-identical to the live https://n8n.sortmycover.co.za/media/whatsapp/logo-640.png (Content-Length 14347 checked by HEAD, 18 Oct)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\logo-640.png"
+    },
+    {
+      "file": "content/wa-header-welcome.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Welcome', \"Sort your cover.\" / \"30 minutes. A real adviser.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-welcome.png"
+    },
+    {
+      "file": "content/wa-header-intent.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Step 1', \"What brings you here?\" / \"Pick one, and Lindi takes it from there.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-intent.png"
+    },
+    {
+      "file": "content/wa-header-adviser.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Your adviser', \"Meet your adviser.\" / \"Authorised, named, with an FSP number.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-adviser.png"
+    },
+    {
+      "file": "content/wa-header-booked.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Booked', \"You’re booked.\" / \"A 30-minute call at a time you picked.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-booked.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-booked.png"
+    },
+    {
+      "file": "content/wa-header-expect.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Before your call', \"What to expect.\" / \"About 30 minutes. Any next step is yours.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-expect.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-expect.png"
+    },
+    {
+      "file": "content/wa-header-invite.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Almost done', \"Check your inbox.\" / \"Accept the invite and you’re all set.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-invite.png"
+    },
+    {
+      "file": "content/wa-header-reminder.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Reminder', \"Your call is coming up.\" / \"Tap below if anything has changed.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-reminder.png"
+    },
+    {
+      "file": "content/wa-header-video.jpg",
+      "what": "Amber WhatsApp message/template header 1200x628, label 'Say hello', \"A quick hello from your adviser.\" / \"About 25 seconds, before your call.\"; served live at https://n8n.sortmycover.co.za/media/whatsapp/headers/header-video.png (HEAD 200, size matches)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\headers\\header-video.png"
+    },
+    {
+      "file": "content/wa-card-01-how-it-works.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: How it works (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\01-how-it-works.png"
+    },
+    {
+      "file": "content/wa-card-02-life-cover-home-loan.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: Life cover and a home loan (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\02-life-cover-home-loan.png"
+    },
+    {
+      "file": "content/wa-card-03-income-vs-disability.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: Income protection vs disability cover (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\03-income-vs-disability.png"
+    },
+    {
+      "file": "content/wa-card-04-owners-directors.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: Owners and directors (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\04-owners-directors.png"
+    },
+    {
+      "file": "content/wa-card-05-questions-to-ask.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: Questions to ask an adviser (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\05-questions-to-ask.png"
+    },
+    {
+      "file": "content/wa-card-06-wills.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: Wills (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\06-wills.png"
+    },
+    {
+      "file": "content/wa-card-07-who-pays-whom.jpg",
+      "what": "WhatsApp info/catalogue card 1080x1080: Who pays whom (sent by Lindi as an image message; Commerce catalogue left empty because Meta requires a price)",
+      "source_path": "C:\\Users\\Jono\\Desktop\\EMMA\\checklist\\whatsapp-kit\\profile\\catalogue\\07-who-pays-whom.png"
+    }
+  ],
+  "copy_notes": "All copy is quoted from source files: reel captions/VO from reel-kit/reels.json (VO audio tags like [warm] stripped), feed copy from feed-static.html, Mark copy from mark-corner/ad.html, carousel from new-bond-people/carousel.html, primary texts from checklist/creative/blog/meta-primary-texts.md, WhatsApp header copy from whatsapp-kit/profile/card.html. HEADLINE: meta-primary-texts.md has no Meta headline field and no headline is recorded anywhere in the handovers, so 'headline' is null; use the on-creative headline (feed[].headline_on_creative) if a headline is needed. CTA: the primary texts' CTA line is 'Book a 30-minute call with an authorised adviser on WhatsApp.'; the reel end-card button reads 'Send us a WhatsApp'; the feed statics' button reads 'Book a 30-minute call'; the Meta button label for the click-to-WhatsApp ads is not recorded in the sources. Live chat template on the ads: 'SMC CTWA - Lindi greeting - check my life cover' (HANDOVER-2026-10-17-EVENING.md). 17 Oct rules applied to every final asset: no 'AI-generated' label, no price line ('The call costs you nothing' removed; trust line is now 'Name and FSP number upfront'). NEW-BOND HOOK MISMATCH: reel/feed/primary text say 'Bond approved. One more question.'; the Mark-corner static says 'Bond approved. One more item for the list.' (matches the live landing H1 per meta-primary-texts.md notes). DISCLOSURE: primary texts end 'SortMyCover is not an FSP; it arranges introductions to an authorised adviser.' (the source flags 'arranges' as a possible reviewer concern; alternative wording offered there). READ-MORE URLs (/learn/...) 404 until the redesign zip is uploaded to Hostinger. Reel durations are the source container durations; the silent copies' video track is ~0.1 s shorter (AAC tail). Two silent reels were encoded at CRF 27/28 instead of 26 to stay under 6 MB (new-bond CRF 28, salary-stops CRF 27). Do not caption the people as real customers: all reel/static/learn imagery is generated (Higgsfield / Google Flow)."
+}

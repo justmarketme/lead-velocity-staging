@@ -1,4 +1,4 @@
-# Thandi: conversation state machine (4.6 CTWA steps 1-7, 4.11, 4.12, 4.12a)
+# Lindi: conversation state machine (4.6 CTWA steps 1-7, 4.11, 4.12, 4.12a)
 
 | | |
 |---|---|
@@ -14,7 +14,7 @@
 
 | Entry | Trigger | First state | First message (< 60 s) |
 |---|---|---|---|
-| **Web, booked on page** | W01 → route (1.3) → W05 | `booked_await_commit` | `broker_intro_booked` template (L1). Commitment ask: in the session if the window is open; otherwise the lead's first reply opens it and Thandi's first reply carries `DISCLOSE` + `COMMIT_ASK` (see section 6). |
+| **Web, booked on page** | W01 → route (1.3) → W05 | `booked_await_commit` | `broker_intro_booked` template (L1). Commitment ask: in the session if the window is open; otherwise the lead's first reply opens it and Lindi's first reply carries `DISCLOSE` + `COMMIT_ASK` (see section 6). |
 | **Web, not booked** | W01 → route | `unbooked` | `broker_intro_slots` (or `_v2` with the Flow button when `brands.booking_ui = flow`) (L1) |
 | **Meta instant form** | W02 | as web | as web |
 | **Click-to-WhatsApp** | W03, prefilled "Hi, I'd like to check my life cover" + CTWA referral (ad id stored) | `consent_pending` | `DISCLOSE_PRE_ROUTE` + `ctwa-*-v3` consent (L1, session message; the lead opened a 72-h free entry window) |
@@ -111,7 +111,7 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 
 ## 6. Channel rules that shape the machine (respond.io / Gupshup / Clickatell; Meta Cloud API)
 
-- **24-h customer-service window.** Free-form (L2) and session interactive messages only go out inside a window the lead opened by messaging or tapping. Everything scheduled is a utility template. A template sent by us does not open the window, so on a web lead Thandi cannot send the replay's proactive intro until the lead replies or taps; the first such reply carries `DISCLOSE`.
+- **24-h customer-service window.** Free-form (L2) and session interactive messages only go out inside a window the lead opened by messaging or tapping. Everything scheduled is a utility template. A template sent by us does not open the window, so on a web lead Lindi cannot send the replay's proactive intro until the lead replies or taps; the first such reply carries `DISCLOSE`.
 - **CTWA leads** open a 72-h free entry window, which is why the CTWA stall nudges fit inside 72 h.
 - **Buttons**: reply buttons max 3, list rows max 10, button text max 20 characters (lists 24): the fixed lists in `deferral-lines.md` respect this.
 - **No typing delay is added.** The typing indicator (sent with the read receipt) shows only during real LLM latency.

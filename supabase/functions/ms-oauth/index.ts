@@ -5,6 +5,7 @@
 //   POST  {action:'start'}       broker JWT -> {ok, authorize_url}
 //   GET   /callback?code&state   Microsoft redirect -> token exchange -> Graph /me (mailbox) -> Vault -> 302 to {PORTAL_URL}/broker/calendar
 //   POST  {action:'disconnect'}  broker JWT -> removes the stored token, status needs_reconnect
+//   POST  {action:'refresh', broker_id, refresh_token}  x-api-key (n8n relay token) -> Microsoft token response (W04 access tokens)
 //
 // Secrets (supabase secrets set ...): MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REDIRECT_URI, MS_OAUTH_STATE_SECRET,
 // PORTAL_URL; optional MS_OAUTH_STATE_SECRET_PREVIOUS, N8N_PUBLIC_URL + INTERNAL_HMAC_SECRET (calendar step -> W20).
@@ -12,7 +13,7 @@
 // browser, never put in a table column, and never logged.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { ME_URL, adminConsentUrl, authorizeUrl, chooseMailbox, connectedEvent, mintState, planCallback, publicPlan, tokenForm, tokenUrl, verifyState } from "./lib.mjs";
+import { ME_URL, SCOPES, adminConsentUrl, authorizeUrl, chooseMailbox, connectedEvent, mintState, planCallback, publicPlan, tokenForm, tokenUrl, verifyState } from "./lib.mjs";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -137,15 +138,49 @@ async function callback(url: URL) {
   return out;
 }
 
+/** Internal (n8n W04/W05): refresh a broker's Graph access token here, so the client secret never leaves this function.
+ *  POST {action:'refresh', broker_id, refresh_token}, header x-api-key = the n8n relay token (SHA-256 in public.relay_tokens 'n8n-internal').
+ *  Returns Microsoft's token response as-is (status + body) minus any rotated refresh token, which is stored in the Vault.
+ *  Added 17 Oct 2026: the n8n credential "Microsoft Graph broker-connect client secret (W20)" was invalid. */
+async function sha256Hex(v: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function refresh(req: Request, body: Record<string, unknown>) {
+  const cfg = config();
+  if (!cfg.ready) return json(503, { ok: false, error: "not_configured" });
+  const db = admin();
+  const got = req.headers.get("x-api-key") ?? "";
+  const { data: tok } = await db.from("relay_tokens").select("sha256").eq("name", "n8n-internal").maybeSingle();
+  if (!tok?.sha256 || !got || (await sha256Hex(got)) !== tok.sha256) return json(401, { ok: false, error: "unauthorised" });
+  const brokerId = String(body.broker_id ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(brokerId)) return json(400, { ok: false, error: "broker_id" });
+  // The stored token is read by n8n (W04, role n8n_app) and passed in; this function never reads the Vault back.
+  const rt = typeof body.refresh_token === "string" ? body.refresh_token : "";
+  if (!rt) return json(400, { error: "invalid_grant", error_description: "no stored token was passed (calendar not connected)" });
+  const res = await fetch(tokenUrl(), {
+    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: cfg.clientId, client_secret: cfg.clientSecret, grant_type: "refresh_token", refresh_token: rt, scope: SCOPES.join(" ") }).toString(),
+  });
+  const out = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (res.ok && typeof out.refresh_token === "string" && out.refresh_token) {
+    await db.rpc("smc_vault_store_ms_refresh", { p_broker_id: brokerId, p_refresh_token: out.refresh_token });
+    delete out.refresh_token;
+  }
+  return json(res.status, out);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
     const url = new URL(req.url);
     if (req.method === "GET" && url.pathname.endsWith("/callback")) return await callback(url);
     if (req.method === "POST") {
-      const { action } = await req.json().catch(() => ({ action: "" }));
+      const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+      const action = String(body.action ?? "");
       if (action === "start") return await start(req);
       if (action === "disconnect") return await disconnect(req);
+      if (action === "refresh") return await refresh(req, body);
     }
     return json(404, { ok: false, error: "not_found" });
   } catch (e) {

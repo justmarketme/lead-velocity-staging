@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>04 The four reels</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .row4 { position: absolute; left: 226px; top: 350px; display: flex; gap: 56px; }
+  .ph { position: relative; width: 320px; height: 589px; }
+  .ph .phone { left: 0; top: 0; width: 320px; height: 589px; border-radius: 36px; padding: 10px; }
+  .ph .phone .scr { inset: 10px; border-radius: 26px; background: #000; }
+  .ph .phone .notch { display: none; }
+  .ph .tag { position: absolute; left: 50%; top: -52px; transform: translateX(-50%); white-space: nowrap; }
+  .ph .tag .pill { font-size: 19px; padding: 9px 18px; }
+  .ph .glow { position: absolute; inset: -12px; border-radius: 46px; border: 4px solid var(--y); opacity: 0; }
+  .rules { position: absolute; right: 120px; top: 168px; display: flex; gap: 12px; }
+  .end { position: absolute; left: 50%; top: 980px; transform: translateX(-50%); opacity: 0; }
+</style></head>
+<body data-scene="s04"><div class="stage">
+  <div class="top"><div class="eyebrow">The ads</div><h1 class="h">Four reels, <em>four moments</em></h1></div>
+  <div class="rules"><span class="pill green r1"><i></i>No AI labels</span><span class="pill green r2"><i></i>No price claims</span></div>
+  <div class="row4">
+    <div class="ph p1"><div class="glow"></div><div class="tag"><span class="pill ink">A new bond</span></div><div class="phone"><div class="scr"><video muted playsinline preload="auto" src="assets/ads/sm/reel-new-bond.mp4"></video></div><div class="notch"></div></div></div>
+    <div class="ph p2"><div class="glow"></div><div class="tag"><span class="pill ink">A salary that stops</span></div><div class="phone"><div class="scr"><video muted playsinline preload="auto" src="assets/ads/sm/reel-salary-stops.mp4"></video></div><div class="notch"></div></div></div>
+    <div class="ph p3"><div class="glow"></div><div class="tag"><span class="pill ink">Owners and directors</span></div><div class="phone"><div class="scr"><video muted playsinline preload="auto" src="assets/ads/sm/reel-owners-directors.mp4"></video></div><div class="notch"></div></div></div>
+    <div class="ph p4"><div class="glow"></div><div class="tag"><span class="pill ink">An adviser conversation</span></div><div class="phone"><div class="scr"><video muted playsinline preload="auto" src="assets/ads/sm/reel-adviser-conversation.mp4"></video></div><div class="notch"></div></div></div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const phs = $$('.ph'), vids = $$('video');
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    const T = [cue('bond'), cue('salary'), cue('owners'), cue('conversation')];
+    phs.forEach((p, i) => {
+      rv(p, t, .5 + i * .15, { y: 60, dur: 1 });
+      // each reel plays from when its phone lands; highlighted while it is named
+      vid(vids[i], t, .5 + i * .15);
+      const on = P(t, T[i] - .2, .35) * (1 - P(t, (T[i + 1] || cue('labels')) - .1, .35));
+      p.querySelector('.glow').style.opacity = on.toFixed(3);
+      p.querySelector('.tag').style.transform = `translateX(-50%) scale(${(1 + .08 * on).toFixed(3)})`;
+    });
+    rv('.rules .pill', t, cue('labels') - .3, { y: 12, stagger: .5, dur: .5 });
+  };
+</script></body></html>

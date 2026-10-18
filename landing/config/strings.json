@@ -24,7 +24,7 @@
   "done_not_h": "Thanks, {name}. Check your WhatsApp.",
   "done_not_p": "We’ve sent your adviser’s details and a few times to pick from.",
   "done_verify_h": "Nearly done, {name}. Check your email.",
-  "done_verify_p": "We’re holding this time for you. Tap the link we’ve emailed to {email} (or reply on WhatsApp with the code) to confirm it.",
+  "done_verify_p": "We’re holding this time for you. Tap the link we’ve emailed to {email} to confirm it.",
   "sum_confirm_by": "Confirm by:",
   "err_held_awaiting_email": "You already have a time held. Please confirm your email first (check your inbox), then you can change it on WhatsApp.",
   "done_held_p": "We’re checking which authorised adviser can help with your answers. We’ll come back to you on WhatsApp, either way.",

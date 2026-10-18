@@ -17,10 +17,10 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 
 | # | Name | Priority | Category | Header | Variables (meaning) | Buttons | Sent by |
 |---|---|---|---|---|---|---|---|
-| 1 | `broker_intro_booked` | **CORE** | UTILITY | IMAGE (broker intro card, 4.10) | 1 first_name · 2 practice_name · 3 fsp_number · 4 adviser_name · 5 method · 6 date · 7 time | No buttons (intro only; booking controls are in later messages) | W06 (first touch, page-booked), W05 |
+| 1 | `broker_intro_booked` | **CORE** | UTILITY | IMAGE (broker intro card, 4.10) | 1 first_name · 2 practice_name · 3 fsp_number · 4 adviser_name · 5 method · 6 date · 7 time | URL Add to calendar (1 = booking ref) · QR Reschedule · QR Cancel | W06 (first touch, page-booked), W05 |
 | 2 | `broker_intro_slots` | **CORE** | UTILITY | IMAGE (intro card) | 1 first_name · 2 practice_name · 3 fsp_number · 4 adviser_name · 5–7 slot labels ("Tue 7 Oct, 10:00") | QR Time 1 · Time 2 · Time 3 · Other times | W06 (not booked), W03 |
 | 3 | `booking_confirmed` | **CORE** | UTILITY | TEXT | 1 first_name · 2 adviser_name · 3 date · 4 time · 5 method, with the join link for an online call ("Microsoft Teams (join link: https://sortmycover.co.za/j/{booking})", `w05 confirmDetail`, 2026-10-11) | URL Add to calendar · QR Confirm · Reschedule · Cancel | W05 (booked in WhatsApp), W10 |
-| 4 | `reminder_24h` | **CORE** | UTILITY | TEXT | 1 first_name · 2 method · 3 adviser_name · 4 date/time · 5 whitelisted broad-topic reminder (neutral fallback) | QR Confirm · Reschedule | W09 |
+| 4 | `reminder_24h` | **CORE** | UTILITY | TEXT | 1 first_name · 2 method · 3 adviser_name · 4 time | QR Confirm · Reschedule | W09 |
 | 5 | `reminder_2h` | **CORE** | UTILITY | none | 1 first_name · 2 adviser_name · 3 time · 4 method detail (join link or "Mark will call you on …") | QR Reschedule | W09 |
 | 6 | `missed_you` | **CORE** | UTILITY | none | 1 first_name · 2 adviser_name · 3–5 slot labels | QR Time 1 · Time 2 · Time 3 · Other times | W13 |
 | 7 | `reminder_10m` | 2 | UTILITY | none | 1 first_name · 2 adviser_name · 3 join link or "calling you from {number}" | — | W09 |
@@ -80,6 +80,7 @@ Each `*.json` file is the exact body for `POST /{WABA_ID}/message_templates`: `n
 | 48 | `lead_low_budget_closed` | with tier C | UTILITY | none | 1 first name | — | W01 low-budget sweep: a held tier-C lead nobody took within 7 days is closed politely (`unbooked_closed`, `routing_reason = low_budget_no_taker`); never in quiet hours; once per lead |
 | 49 | `booking_held_verify_email` | with the verify gate (2026-10-11) | UTILITY | none | 1 first name · 2 date · 3 time · 4 adviser first name · 5 deadline ("Wed 14 Oct at 09:10") | — | W05 when a lead whose email is not verified books: the slot is HELD (`pending_verification`), nothing reaches the broker yet; confirm by the emailed link or the 6-digit code (W07 `email_code`) |
 | 50 | `booking_hold_released` | with the verify gate | UTILITY | none | 1 first name · 2 date · 3 time | QR See open times (payload `see_open_times` -> W04 list) | W05 5-min sweep: the email was not verified by `verify_by` (min(+24 h, start - 2 h)); the hold is released; once per booking |
+| 51 | `booking_confirm_chat` | with the Cal.com desktop booking (2026-10-17) | UTILITY | none | 1 first name · 2 adviser first name · 3 when ("Tue 21 Oct at 10:00") | QR Yes, let's chat (payload `booking_chat_yes:<appointment id>` -> W07 `cal_chat`) | W37 after a Cal.com BOOKING_CREATED with the WhatsApp consent ticked: brings the person into the chat with Lindi (confirm number, email by link, second-pass questions); once per booking |
 
 **Category:** every template is submitted as UTILITY. Meta makes the final category decision. Following 0.3 #1, we accept it and log it (the cost difference is small). See SUMMARY `needs_human` about the conflicting 4.6 sentence ("rewrite rather than accept"). The templates most likely to be re-categorised as marketing are `unbooked_nudge_*`. Each one ties itself to "your enquiry", has no offer and no urgency, and the 72-h one closes the thread.
 

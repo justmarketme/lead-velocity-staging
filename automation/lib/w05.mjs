@@ -231,7 +231,8 @@ export function parseSub(j = {}, env = {}, nowMs = Date.now()) {
     if (!j.recipient && !j.booking_id) return rej('recipient or booking_id missing');
     return { op: 'invite_bounced', recipient: j.recipient ? String(j.recipient).trim().toLowerCase() : null, booking_id: j.booking_id || null, lead_id: j.lead_id || null };
   }
-  if (j.source === 'W07' && j.msg) {
+  // A W07 hand-off carries route 'W05' + the inbound msg (W07 never sets source; same as w04.fromW07, 17 Oct 2026).
+  if ((j.source === 'W07' || j.route === 'W05') && j.msg) {
     const msg = j.msg;
     const leadId = j.lead?.id || null;
     if (!leadId) return rej('lead missing');
@@ -657,7 +658,7 @@ export function leadUpdate(ctx, p) {
 /**
  * The HELD slot (verify gate, 2026-10-11): what follows the insert of a pending_verification row instead of finish().
  * No Outlook event, no Teams link, no invite, no broker notice, no W06 / W09 / CAPI: the broker learns nothing yet.
- * The lead gets ONE WhatsApp (booking_held_verify_email: the time is held, confirm the email by the link or the code,
+ * The lead gets ONE WhatsApp (booking_held_verify_email: the time is held, confirm the email by the link (link only since 18 Oct 2026),
  * deadline) and the verification email (smc-email-verify issue). Without any email (chat tap) -> ask for it (W28 ask_email).
  */
 export function holdPending(ctx, p, row) {
@@ -687,7 +688,7 @@ export function holdPending(ctx, p, row) {
 /** The lead already has a held slot and picks again: one reminder to confirm the email first (session text: they just wrote). */
 export function heldReminderMessage(lead, held) {
   const start = held.appointment_date ?? held.start;
-  const body = `You already have ${dateLabel(start)} at ${timeLabel(start)} held for you. Please confirm your email first: tap the link we emailed you, or reply here with the 6-digit code.`;
+  const body = `You already have ${dateLabel(start)} at ${timeLabel(start)} held for you. Please confirm your email first: tap the link we emailed you.`;
   return { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(lead.phone || '').replace(/^\+/, ''), type: 'text', text: { body } };
 }
 
@@ -735,6 +736,85 @@ export function inviteMail(ctx, p, booking, ev = {}) {
     },
     saveToSentItems: true,
   };
+}
+
+// ---------------------------------------------------------------- SortMyCover client email (Jono, 17 Oct 2026)
+// A SortMyCover lead (brands.code 'SMC', read by the W05 loads as lead.brand_code) gets its booking email FROM SortMyCover:
+// Supabase edge function smc-client-email -> Resend, "SortMyCover <hello@sortmycover.co.za>", Reply-To hello@ (copy and
+// layout in supabase/functions/smc-client-email/render.ts). It replaces the howzit@ Graph sendMail for these leads; any
+// other brand keeps inviteMail() unchanged. Sent for every booked SMC call with a usable email (the verify gate means a
+// booked lead's email is verified), not only when Outlook did not invite: calendar_invite 'adviser' when Exchange sends
+// the meeting request from the broker's own calendar (invitedByOutlook; the email asks the client to accept it), else
+// 'attached' (the function attaches the .ics with the booking's UID, as /c/{booking_id} serves it).
+export const SMC_BRAND_CODE = 'SMC';
+export const isSmcLead = (lead) => String((lead && lead.brand_code) || '').trim().toUpperCase() === SMC_BRAND_CODE;
+
+/** A plain-text email ({ to, subject, body }) as the smc-email-send body (SortMyCover sender, Reply-To hello@), plus its idempotency key. */
+export function smcRelayEmail(email, key, kind = 'broker_new_booking') {
+  if (!email || !email.to) return null;
+  return { body: { from: 'SortMyCover <hello@sortmycover.co.za>', to: [String(email.to)], reply_to: 'hello@sortmycover.co.za', subject: String(email.subject || '').slice(0, 200), text: String(email.body || ''), tags: [{ name: 'kind', value: kind }] }, idempotency_key: key || null };
+}
+export const SMC_CLIENT_EMAIL_KINDS = ['booking_confirmed', 'booking_updated', 'booking_cancelled'];
+
+/**
+ * smc-client-email request body for one booking, or null (not an SMC lead, no usable email). p = the booking plan
+ * ({ start, end, method, email }), booking = { id, join_url?, calendar_provider? }, ev = afterEvent() (or {} when no
+ * event was created here). opts.viaOutlook overrides the invite source (update_method: the old method's invite counts too);
+ * opts.now stamps the idempotency key of an update so a later change of the same booking is a new email.
+ */
+export function smcClientEmail(ctx, p, booking = {}, ev = {}, kind = 'booking_confirmed', opts = {}) {
+  const lead = leadView(ctx.lead);
+  if (!isSmcLead(lead) || !SMC_CLIENT_EMAIL_KINDS.includes(kind) || !booking.id) return null;
+  const to = p.email || (lead.email_verified === true && lead.email && lead.email_status !== 'bounced' ? lead.email : null);
+  if (!to) return null;
+  const b = brokerConfig(ctx.broker);
+  const join = INVITE_METHODS.has(p.method) && kind !== 'booking_cancelled' ? (ev.join_url || booking.join_url || null) : null;
+  const viaOutlook = opts.viaOutlook !== undefined ? !!opts.viaOutlook : invitedByOutlook(ctx, p, booking, ev);
+  const stamp = kind === 'booking_confirmed' ? '' : `:${Math.floor(Number(opts.now || 0) / 60000)}`;
+  return {
+    kind, to: String(to).trim(), lead_first_name: firstName(lead.first_name),
+    slot_start: iso(ms(p.start)), slot_end: iso(ms(p.end)), method: p.method,
+    adviser_name: clean(b.adviser_name || b.contact_person, ''), practice_name: clean(b.practice_name || b.firm_name, ''), fsp_number: clean(b.fsp_number, ''),
+    ...(join ? { join_url: join } : {}),
+    booking_id: String(booking.id), calendar_invite: viaOutlook ? 'adviser' : 'attached',
+    idempotency_key: `w05:client_email:${kind}:${booking.id}${kind === 'booking_updated' ? ':' + p.method : ''}${stamp}`,
+  };
+}
+
+/**
+ * W10 update_method: which client email goes out after the PATCH. SMC lead -> { mail: null, smc_email } (booking_updated;
+ * the invite is the adviser's when the new OR the old method put the client on his Outlook event); otherwise the howzit@
+ * inviteMail exactly as before -> { mail, smc_email: null }.
+ */
+export function methodChangeEmails({ lead, broker, booking }, plan, nowMs = 0) {
+  const ctx = { lead, broker };
+  if (!isSmcLead(lead)) {
+    const invite = inviteMail(ctx, plan, booking, {});
+    return { mail: invite ? { message: invite.message, saveToSentItems: true } : null, smc_email: null };
+  }
+  const l = leadView(lead);
+  const to = plan.email || (l.email_verified === true && l.email && l.email_status !== 'bounced' ? l.email : null);
+  const viaOutlook = invitedByOutlook(ctx, plan, booking, {}) || (!!to && invitedByOutlook(ctx, { ...plan, method: booking && booking.method, email: to }, booking, {}));
+  return { mail: null, smc_email: smcClientEmail(ctx, plan, booking, {}, 'booking_updated', { viaOutlook, now: nowMs }) };
+}
+
+/**
+ * After the smc-client-email HTTP call (fullResponse, neverError; onError continueRegularOutput): null when it was sent
+ * (2xx with a Resend id) or dry-run, else a W22 own-shape alert. res = the node's json; sent = the request item.
+ */
+export function clientEmailResult(res = {}, sent = {}) {
+  const r = res || {};
+  if (r.dry_run === true) return null;
+  const status = Number(r.statusCode || 0);
+  const body = r.body && typeof r.body === 'object' ? r.body : {};
+  if (status >= 200 && status < 300 && body.id) return null;
+  const e = sent.smc_email || {};
+  const reason = r.error ? `error: ${String((r.error && r.error.message) || r.error).slice(0, 120)}` : `HTTP ${status || '?'}${body.error ? ` ${body.error}` : ''}${body.status ? ` (Resend ${body.status})` : ''}${Array.isArray(body.fields) ? ` fields ${body.fields.join(',')}` : ''}`;
+  return { signal_key: 'client_email_failed', scope: `booking:${e.booking_id || 'unknown'}`, severity: 'amber',
+    what: `SortMyCover ${e.kind || 'booking'} email to the client not sent for booking ${e.booking_id || '?'} (${reason})`,
+    impact: 'The booking stands and WhatsApp still works, but the client did not get the SortMyCover email',
+    first_action: 'Check the smc-client-email function logs, RESEND_API_KEY and the sortmycover.co.za domain in Resend; then resend by hand',
+    source: 'W05', lead_id: sent.lead_id || null };
 }
 
 /** broker_new_booking (utility template, 7 vars + URL button) + email; first name only, never an email address. */
@@ -792,23 +872,33 @@ export function methodNotOfferedMessage(lead, b, method, slotStart) {
 
 /**
  * Everything that follows a stored booking, as one plan the workflow fans out (and the test applies to its state).
- * ev = afterEvent() result. Returns { response (http), lead_update, appointment_update, invite, broker, w06, w09, w07,
- * capi, lead_wa, ask_email, alert }.
+ * ev = afterEvent() result. Returns { response (http), lead_update, appointment_update, invite (howzit@, non-SMC brands),
+ * client_email (smc-client-email body, SMC leads), broker, w06, w09, w07, capi, lead_wa, ask_email, alert }.
  */
 export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const lead = leadView(ctx.lead);
   const joinUrl = INVITE_METHODS.has(p.method) ? (ev.join_url || null) : null; // I-54j: call methods never store a join link
   const bk = { ...booking, join_url: joinUrl, ics_url: icsUrl(booking.id, opts.site, opts.ics_secret) };
-  const invite = inviteMail(ctx, p, bk, ev);
+  // SortMyCover leads: the client email comes from SortMyCover (smc-client-email, Resend), never from howzit@.
+  const smc = isSmcLead(ctx.lead);
+  const invite = smc ? null : inviteMail(ctx, p, bk, ev);
+  const clientEmail = smc ? smcClientEmail(ctx, p, bk, ev, 'booking_confirmed') : null;
   const outlookInvite = invitedByOutlook(ctx, p, bk, ev); // Exchange sent the meeting request from the broker's mailbox
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;
+  // 17 Oct 2026: for SortMyCover bookings the adviser's email notice also goes out from SortMyCover through Resend
+  // (smc-email-send), not howzit@ Graph: the howzit@ credential failing stopped the whole fan-out (no W06/W09 for the client).
+  const broker = brokerNotice(ctx, p);
+  const brokerRelay = smc && broker.email ? smcRelayEmail(broker.email, `w05:broker:${booking.id}`) : null;
+  if (smc) broker.email = null;
   return {
     response: { status: 201, body: publicBody(bk) },
-    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite || outlookInvite ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
+    appointment_update: { graph_event_id: ev.ok ? ev.graph_event_id : null, ical_uid: ev.ok ? ev.ical_uid : null, join_url: joinUrl, ics_url: bk.ics_url, invite_email_status: INVITE_METHODS.has(p.method) ? (invite || outlookInvite || clientEmail ? 'sent' : null) : 'not_needed', schedule_event_id: capi ? capi.event_id : null },
     lead_update: leadUpdate(ctx, p),
     invite,
-    broker: brokerNotice(ctx, p),
+    client_email: clientEmail,
+    broker,
+    broker_relay: brokerRelay,
     // W06 owns the first lead-facing confirmation (I-45f): W05 calls W06 op 'booking' for every first booking (page
     // inside the 45-s hold, page after it, chat, Flow); W06 sends broker_intro_booked if this booking wins its
     // first-touch claim, else booking_confirmed (lib/w06.mjs lateBookingConfirmed). A rebooking gets it from here.

@@ -17,8 +17,17 @@ const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
 const MS_SECRET = { httpCustomAuth: { id: '', name: 'Microsoft Graph broker-connect client secret (W20)' } };
-const HOWZIT_MAIL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)' } };
-const HOWZIT_CAL = { microsoftOutlookOAuth2Api: { id: '', name: 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)' } };
+const HOWZIT_MAIL = { oAuth2Api: { id: '', name: 'MS Graph app-only - howzit@ Mail.Send' } };
+// 17 Oct 2026: the delegated howzit@ credentials do not exist on the VPS n8n, and a missing credential stops the whole
+// workflow before its first node. Both howzit@ roles use the app-only Graph credential that W22/W36 already run on
+// (Mail.Send works app-only; the shared-calendar fallback needs Calendars.ReadWrite application permission to be granted).
+const HOWZIT_CAL = { oAuth2Api: { id: '', name: 'MS Graph app-only - howzit@ Mail.Send' } };
+// 17 Oct 2026: SortMyCover leads get their booking email from SortMyCover through the smc-client-email edge function
+// (Resend, hello@sortmycover.co.za), called with the n8n relay token like ms-oauth; lib/egress-gate.cjs counts it as an
+// email sender, so gateSenders() puts it behind DRY_RUN_SENDS ("Live send? (...)" + "Dry-run stub (...)").
+const SMC_MAIL = 'Email client from SortMyCover (smc-client-email)';
+const SMC_MAIL_GATE = `Live send? (${SMC_MAIL})`;
+const SMC_RELAY = 'Email adviser from SortMyCover (smc-email-send)';
 const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: false, saveDataSuccessExecution: 'none', errorWorkflow: 'smc-w22' };
 const PRE = (lib) => `const L = require('lv-automation').${lib.replace(/\.mjs$/, '')};\n`;
 const HOL = `const HOL = new Set(require('lv-automation').holidays.holidays.map((h) => h.date));\n`;
@@ -34,7 +43,7 @@ const sub = (name, target, wait = false) => node(name, 'executeWorkflow', 1.1, {
 const ifTrue = (name, expr) => node(name, 'if', 2, { conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ id: 'c1', leftValue: `={{ String(${expr}) }}`, rightValue: 'true', operator: { type: 'string', operation: 'equals' } }] }, options: {} });
 const sw = (name, expr, keys) => node(name, 'switch', 3, { rules: { values: keys.map((k) => ({ conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ leftValue: expr, rightValue: k, operator: { type: 'string', operation: 'equals' } }] }, renameOutput: true, outputKey: k })) }, options: { fallbackOutput: 'none' } });
 const respond = (name) => node(name, 'respondToWebhook', 1.1, { respondWith: 'json', responseBody: '={{ JSON.stringify($json.body) }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store' }] } } });
-const http = (name, method, urlExpr, opts = {}) => node(name, 'httpRequest', 4.2, { method, url: urlExpr, ...opts.params, options: { timeout: opts.timeout || 8000, response: { response: { fullResponse: true, neverError: true } } } }, { ...(opts.cred ? { credentials: opts.cred } : {}), retryOnFail: true, maxTries: 2, waitBetweenTries: 2000 });
+const http = (name, method, urlExpr, opts = {}) => node(name, 'httpRequest', 4.2, { method, url: urlExpr, ...opts.params, options: { timeout: opts.timeout || 8000, response: { response: { fullResponse: true, neverError: true } } } }, { ...(opts.cred ? { credentials: opts.cred } : {}), retryOnFail: true, maxTries: 2, waitBetweenTries: 2000, ...(opts.extra || {}) });
 const link = (c, from, to, out = 0) => { c[from] ??= { main: [] }; while (c[from].main.length <= out) c[from].main.push([]); c[from].main[out].push({ node: to, type: 'main', index: 0 }); };
 const chain = (c, ...names) => { for (let i = 0; i + 1 < names.length; i++) link(c, names[i], names[i + 1]); };
 const wf = (id, name, notes, nodes, connections, tags) => ({ id, name, nodes, connections, active: false, settings: SETTINGS, pinData: {}, tags: tags.map((t) => ({ name: t })), meta: { notes } });
@@ -74,9 +83,15 @@ SELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS b
   n.push(node('Called by W05/W06/W07/W10/W28', 'executeWorkflowTrigger', 1.1, { inputSource: 'passthrough' }));
   n.push(code('Normalise sub-call (w04.subcallInput)', 'w04.mjs', `return $input.all().map((it) => ({ json: { lane: 'sub', req: L.subcallInput(it.json || {}), raw_delegate: (it.json && it.json.delegate) || null } }));`));
   n.push(sw('Sub op?', "={{ ['list','is_free','graph_token'].includes($json.req.op) ? 'work' : $json.req.op }}", ['work', 'send_list', 'reject']));
-  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)
-VALUES (NULLIF($1, '')::uuid, 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now())
-RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown'] }}"));
+  // brand_id is required by the n8n_app RLS policy on lead_activities (17 Oct: every rejection log failed without it).
+  // Taken from the lead, else the broker; with neither the log is skipped rather than the whole run failing.
+  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)
+SELECT l.id, COALESCE(l.brand_id, b.brand_id), COALESCE(l.broker_id, b.id), 'W04', 'system', 'subcall_rejected', jsonb_build_object('reason', $2::text), now()
+  FROM (SELECT 1) one
+  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid
+  LEFT JOIN public.brokers b ON b.id = NULLIF($3, '')::uuid
+ WHERE COALESCE(l.brand_id, b.brand_id) IS NOT NULL
+RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.broker_id || ''] }}", { onError: 'continueRegularOutput' }));
   n.push(code('Return (rejected)', 'w04.mjs', `return [{ json: { slots: [], fallback: 'whatsapp', free: false, next_slots: [], error: 'subcall_rejected' } }];`));
   n.push(code('W28 send_list input', 'w04.mjs', `return $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json.req.lead_id, reason: it.json.req.reason, delegate: it.json.raw_delegate } }));`));
   n.push(sub('-> W28 send_list (10-slot list)', 'W28 Booking Flow endpoint'));
@@ -89,7 +104,10 @@ RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown'] }}
   n.push(ifTrue('Cached?', '$json.cached === true'));
   n.push(pg('Vault: Microsoft refresh token', `-- Returns the refresh token only while brokers.calendar_status = 'ok' (migration 13). Never logged: this workflow does not save successful executions.
 SELECT public.smc_vault_ms_refresh($1::uuid) AS rt;`, '={{ [$json.plan && $json.broker ? $json.broker.id : null] }}'));
-  n.push(http('Microsoft token refresh', 'POST', "={{ $('Plan (w04.planRequest)').first().json.tk.url }}", { cred: MS_SECRET, timeout: 10000, params: { authentication: 'genericCredentialType', genericAuthType: 'httpCustomAuth', sendBody: true, contentType: 'form-urlencoded', bodyParameters: { parameters: [{ name: 'client_id', value: '={{ $env.MS_GRAPH_CLIENT_ID }}' }, { name: 'grant_type', value: 'refresh_token' }, { name: 'refresh_token', value: '={{ $json.rt || "" }}' }, { name: 'scope', value: GRAPH_SCOPE }] } } }));
+  // 17 Oct 2026: the refresh runs inside the ms-oauth edge function (it holds MS_CLIENT_SECRET and the Vault); the n8n
+  // credential "Microsoft Graph broker-connect client secret (W20)" is no longer needed. n8n still reads the Vault token (smc_vault_ms_refresh,
+  // role n8n_app) and passes it; the function never reads a token back. Same response shape as Microsoft's.
+  n.push(http('Microsoft token refresh', 'POST', "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/ms-oauth' }}", { timeout: 15000, params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'x-api-key', value: '={{ $env.LINDI_RELAY_TOKEN }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify({ action: 'refresh', broker_id: $('Plan (w04.planRequest)').first().json.broker.id, refresh_token: $json.rt || '' }) }}" } }));
   n.push(code('Token plan (w04.planToken)', 'w04.mjs', `const x = $('Plan (w04.planRequest)').first().json;\nconst tok = L.planToken($input.first().json, x.now);\nreturn [{ json: { ...x, tok } }];`));
   n.push(ifTrue('Token ok?', '$json.tok.ok === true'));
   n.push(pg('calendar.refresh_failed (+ status)', `WITH s AS (SELECT CASE WHEN $3 <> '' THEN public.smc_set_calendar_status($1::uuid, $3, jsonb_build_object('reason', $2::text)) END AS st)
@@ -137,7 +155,8 @@ function buildW05() {
 WITH ld AS (
   SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,
          l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,
-         l.conv_state, l.opted_out_at, l.is_synthetic, l.email_verified
+         l.conv_state, l.opted_out_at, l.is_synthetic, l.email_verified,
+         (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code
     FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL
 ), bk AS (
   SELECT ${BROKER_COLS} FROM public.brokers b WHERE b.brand_id IS NOT NULL AND b.id = (SELECT ld.broker_id FROM ld)
@@ -149,7 +168,7 @@ SELECT (SELECT to_jsonb(ld) FROM ld) AS lead, (SELECT to_jsonb(bk) FROM bk) AS b
        (SELECT to_jsonb(v) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by FROM public.appointments a
                                   WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()
                                   ORDER BY a.appointment_date LIMIT 1) v) AS live;`;
-  n.push(node('Sticky: read me', 'stickyNote', 1, { width: 760, height: 380, content: 'W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. Then: broker_new_booking + email, W06 booking event (first confirmation is W06\'s), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d). VERIFY GATE (2026-10-11): a lead whose email is not verified gets a HELD slot (status pending_verification, verify_by = min(+24 h, start - 2 h)): no Outlook event, no Teams link, no broker notice, no W06/W09/CAPI; booking_held_verify_email + smc-email-verify issue. smc-email-verify calls op finalize after the link / code: the held row becomes booked and the normal fan-out runs. Every 5 min: held slots past verify_by are released + booking_hold_released nudge.' }));
+  n.push(node('Sticky: read me', 'stickyNote', 1, { width: 760, height: 380, content: 'W05 Book (DRAFT pending GATE-TEST-W05; automation-engineer). POST /book (X-Lead-Token or broker JWT, CONTRACTS.md; I-45h page calls also pass the bot guard: per-IP + per-lead counters, Turnstile action=book, FAILS CLOSED 503 when siteverify is down (NH-32); broker-JWT and sub-calls skip it; env TURNSTILE_SECRET_KEY, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, PUBLIC_ALLOWED_ORIGINS, TEST_HOOKS_*) and sub-calls: book (W07 slot taps + Flow nfm_reply, W10, W28), update_method (W10), invite_bounced (W17 NDR). Logic automation/lib/w05.mjs (tests automation/tests/W05.test.mjs). Zero double-bookings: W04 is_free (fresh getSchedule + our appointments + buffer) -> INSERT with the overlap+buffer re-check in the same statement, ON CONFLICT DO NOTHING (gist exclusion + unique indexes), re-select = replay or taken (next 3). Outlook event via Graph (Teams: isOnlineMeeting, teamsForBusiness; ASSUMPTION shapes) in the broker calendar (W04 graph_token) or the howzit@ shared calendar (0.3 #4). Email only for Teams/Zoom/Meet (0.1); invite from howzit@ with .ics. SortMyCover leads (brands.code SMC, 17 Oct 2026): no howzit@ email; every booked call with a usable email gets the SortMyCover email (smc-client-email edge function -> Resend, hello@sortmycover.co.za; x-api-key = LINDI_RELAY_TOKEN; failures -> W22 client_email_failed). Then: broker_new_booking + email, W06 booking event (first confirmation is W06\'s), W09 schedule/rebuild, W07 contact confirm (call methods), CAPI Send Schedule (no email). Lead sends touch last_contact_at (I-38d). VERIFY GATE (2026-10-11): a lead whose email is not verified gets a HELD slot (status pending_verification, verify_by = min(+24 h, start - 2 h)): no Outlook event, no Teams link, no broker notice, no W06/W09/CAPI; booking_held_verify_email + smc-email-verify issue. smc-email-verify calls op finalize after the link / code: the held row becomes booked and the normal fan-out runs. Every 5 min: held slots past verify_by are released + booking_hold_released nudge.' }));
   n.push(node('POST /book', 'webhook', 2, { httpMethod: 'POST', path: 'book', responseMode: 'responseNode', options: {} }, { webhookId: 'w05-book-post' }));
   n.push(code('Parse + verify caller (w05.parseHttp)', 'w05.mjs', `const j = $input.first().json;\nconst h = j.headers || {};\nconst p = L.parseHttp(h, j.body || {}, $env, Date.now());\nreturn [{ json: { lane: 'http', ...p, hdr: { 'x-test-token': h['x-test-token'] || '', 'x-test-now': h['x-test-now'] || '' } } }];`));
   n.push(ifTrue('Caller ok?', '$json.ok === true'));
@@ -177,8 +196,14 @@ SELECT (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' A
                                  ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,
        (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;`, "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"));
   n.push(code('Finalize request (w05.finalizeRequest)', 'w05.mjs', `const x = $input.first().json;\nconst req = L.finalizeRequest(x.hold, x.lead, Date.now());\nreturn req ? [{ json: { lane: 'sub', ok: true, req, hdr: {} } }] : [];`));
-  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, workflow, actor_type, activity_type, payload, occurred_at)
-VALUES (NULLIF($1, '')::uuid, 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()) RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected'] }}"));
+  // brand_id required by the n8n_app RLS policy (see W04); skipped, not fatal, when no brand can be found.
+  n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)
+SELECT l.id, COALESCE(l.brand_id, b.brand_id), COALESCE(l.broker_id, b.id), 'W05', 'system', $3, jsonb_build_object('reason', $2::text), now()
+  FROM (SELECT 1) one
+  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid
+  LEFT JOIN public.brokers b ON b.id = NULLIF($4, '')::uuid
+ WHERE COALESCE(l.brand_id, b.brand_id) IS NOT NULL
+RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $json.req.security ? 'flow_security_event' : 'subcall_rejected', $json.req.broker_id || ''] }}", { onError: 'continueRegularOutput' }));
   n.push(code('W10 pick payload', 'w05.mjs', `return $input.all().map((it) => ({ json: it.json.req ? (it.json.req.w10 || it.json.w10) : it.json.w10 }));`));
   n.push(sub('-> W10 reschedule pick', 'W10 Reschedule / cancel'));
   n.push(pg('Load lead, broker, replay, live booking', LOAD, "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"));
@@ -244,7 +269,7 @@ RETURNING id;`, "={{ [($('Decide (w05.decide + MX)').first().json.dec.plan || {}
   // fail-closed error item (no Graph call, booking kept, W22 alert shared_calendar_id_missing), never calendars//events.
   n.push(code('Event body (shared)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: L.sharedEventItem(d.ctx, d.dec.plan, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID }, { portalUrl: $env.PORTAL_URL }) }];`));
   n.push(ifTrue('Shared calendar id?', '!$json.error && !!$json.url'));
-  n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
+  n.push(http('Graph create event (howzit@ shared calendar, ASSUMPTION)', 'POST', '={{ $json.url }}', { cred: HOWZIT_CAL, params: { authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($json.event) }}" } }));
   n.push(code('After event (w05.finish)', 'w05.mjs', `const d = $('Decide (w05.decide + MX)').first().json;\nconst row = $('Insert appointment (re-check overlap + buffer, idempotent)').first().json;\nconst ev = L.afterEvent($input.first().json);\nconst f = L.finish(d.ctx, d.dec.plan, row, ev, { site: $env.SITE_URL, ics_secret: $env.LEAD_TOKEN_SECRET });\nreturn [{ json: { ...d, booking: row, ev, f, lane: d.lane, status: f.response.status, body: f.response.body } }];`));
   n.push(pg('Save event ids + lead (stage, broker, invite email)', `WITH a AS (
   UPDATE public.appointments
@@ -270,16 +295,16 @@ ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d =
   n.push(code('Answer', 'w05.mjs', `const j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : $('Hold plan (w05.holdPending)').isExecuted ? $('Hold plan (w05.holdPending)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];`));
   n.push(ifTrue('HTTP lane?', "$json.lane === 'http'"));
   n.push(respond('Respond (book JSON)'));
-  n.push(code('Fan out effects', 'w05.mjs', `const j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker && f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.broker && f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));`));
-  n.push(sw('Effect?', '={{ $json.kind }}', ['wa', 'mail', 'w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']));
+  n.push(code('Fan out effects', 'w05.mjs', `const j = $input.first().json;\nconst out = [];\nif (j.wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: j.wa });\nconst f = j.f; if (!f) return out.map((x) => ({ json: x }));\nif (f.invite) out.push({ kind: 'mail', mail: { message: f.invite.message, saveToSentItems: true } });\nif (f.broker && f.broker.email) out.push({ kind: 'mail', mail: { message: { subject: f.broker.email.subject, body: { contentType: 'Text', content: f.broker.email.body }, toRecipients: [{ emailAddress: { address: f.broker.email.to } }] }, saveToSentItems: true } });\nif (f.client_email) out.push({ kind: 'smc_email', lead_id: j.lead_id, smc_email: f.client_email });\nif (f.broker_relay) out.push({ kind: 'smc_relay', lead_id: j.lead_id, relay: f.broker_relay });\nif (f.broker && f.broker.wa) out.push({ kind: 'wa', to: 'broker', lead_id: j.lead_id, wa: f.broker.wa });\nif (f.lead_wa) out.push({ kind: 'wa', to: 'lead', lead_id: j.lead_id, wa: f.lead_wa });\nfor (const k of ['w06', 'w09', 'w07', 'capi', 'ask_email', 'alert']) if (f[k]) out.push({ kind: k, ...f[k] });\nreturn out.map((x) => ({ json: x }));`));
+  n.push(sw('Effect?', '={{ $json.kind }}', ['wa', 'mail', 'w06', 'w09', 'w07', 'capi', 'ask_email', 'alert', 'smc_email', 'smc_relay']));
   n.push(ifTrue('Live send?', "!!$json.wa && $env.DRY_RUN_SENDS !== 'true'"));
   n.push(http('Send WhatsApp', 'POST', '=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages', { params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.wa) }}' } }));
   n.push(pg('Touch leads.last_contact_at (lead sends)', `-- I-38d: every lead-facing send Meta accepted (wamid) updates last_contact_at; broker sends never.
 UPDATE public.leads SET last_contact_at = now() WHERE id = $1::uuid AND $2 = 'lead' AND $3 <> '' RETURNING id;`, "={{ [$('Live send?').item.json.lead_id, $('Live send?').item.json.to, (($json.body || {}).messages || [{}])[0].id || ''] }}"));
-  n.push(http('Email from howzit@ (Graph sendMail)', 'POST', '=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail', { cred: HOWZIT_MAIL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.mail) }}' } }));
+  n.push(http('Email from howzit@ (Graph sendMail)', 'POST', '=https://graph.microsoft.com/v1.0/users/{{ encodeURIComponent($env.HOWZIT_MAILBOX) }}/sendMail', { cred: HOWZIT_MAIL, extra: { onError: 'continueRegularOutput' }, params: { authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.mail) }}' } }));
   n.push(sub('-> W06 First touch (booking event)', 'W06 First touch'));
   n.push(sub('-> W09 Reminder sequence (schedule / rebuild)', 'W09 Reminder sequence'));
-  n.push(sub('-> W07 post-booking contact confirm', 'W07 Conversation agent (Thandi)'));
+  n.push(sub('-> W07 post-booking contact confirm', 'W07 Conversation agent (Lindi)'));
   n.push(sub('-> CAPI Send (Schedule, no email)', 'CAPI Send'));
   n.push(sub('-> W28 ask_email', 'W28 Booking Flow endpoint'));
   n.push(sub('-> W22 Alerts', 'W22 Alerts'));
@@ -302,15 +327,18 @@ SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a
   n.push(node('Respond (.ics)', 'respondToWebhook', 1.1, { respondWith: 'text', responseBody: '={{ $json.body }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Content-Type', value: '={{ $json.headers["Content-Type"] }}' }, { name: 'Cache-Control', value: 'no-store' }, { name: 'Content-Disposition', value: '={{ $json.headers["Content-Disposition"] || "inline" }}' }] } } }));
   // update_method (W10)
   n.push(pg('Load booking for method change', `SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,
-       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,
+       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.email_verified, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id,
+                                        (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code
+                                   FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,
        (SELECT to_jsonb(r) FROM (SELECT ${BROKER_COLS} FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;`, '={{ [$json.req.booking_id] }}'));
-  n.push(code('Plan method change (w05.planUpdateMethod)', 'w05.mjs', `const x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst invite = p.action === 'patch' ? L.inviteMail({ lead: x.lead, broker: x.broker }, p.plan, x.booking, {}) : null;\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: invite ? { message: invite.message, saveToSentItems: true } : null, kind: p.action } }];`));
+  // SMC lead -> smc_email (booking_updated, SortMyCover via smc-client-email); any other brand -> the howzit@ invite as before.
+  n.push(code('Plan method change (w05.planUpdateMethod)', 'w05.mjs', `const x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];`));
   n.push(sw('Method plan?', '={{ $json.action }}', ['patch', 'ask_email', 'reject']));
   // I-54h (F15): PATCH the calendar the event was created in (appointments.calendar_provider): shared_lv -> howzit@ shared
   // calendar with the howzit@ Calendars credential; otherwise the broker's own calendar with the W04 graph_token.
   n.push(code('Method calendar target (w05.graphEventTarget)', 'w05.mjs', `const x = $('Plan method change (w05.planUpdateMethod)').first().json;\nconst t = L.graphEventTarget(x.booking, x.broker, { HOWZIT_MAILBOX: $env.HOWZIT_MAILBOX, SMC_SHARED_CALENDAR_ID: $env.SMC_SHARED_CALENDAR_ID });\nreturn [{ json: { target: t, route: t.error || t.route === 'none' ? 'skip' : t.route, broker_id: x.booking.broker_id } }];`));
   n.push(sw('Method event calendar?', '={{ $json.route }}', ['shared', 'broker', 'skip']));
-  n.push(http('Graph PATCH event (method, howzit@ shared calendar)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { cred: HOWZIT_CAL, params: { authentication: 'predefinedCredentialType', nodeCredentialType: 'microsoftOutlookOAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));
+  n.push(http('Graph PATCH event (method, howzit@ shared calendar)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { cred: HOWZIT_CAL, params: { authentication: 'genericCredentialType', genericAuthType: 'oAuth2Api', sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));
   n.push(code('graph_token input (method)', 'w05.mjs', `return [{ json: { op: 'graph_token', broker_id: $json.broker_id } }];`));
   n.push(sub('W04 graph_token (method, waits)', 'W04 Slots API', true));
   n.push(http('Graph PATCH event (method, ASSUMPTION)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));
@@ -352,6 +380,15 @@ SELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phon
  WHERE l.opted_out_at IS NULL;`));
   n.push(code('Rebook nudge (w05.holdReleased)', 'w05.mjs', `return $input.all().filter((i) => i.json && i.json.id && i.json.phone).map((i) => ({ json: L.holdReleased(i.json) }));`));
   n.push(node('-> WhatsApp Send (booking_hold_released)', 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-whatsapp-send', cachedResultName: 'WhatsApp Send' }, options: { waitForSubWorkflow: false } }));
+  // ---------- SortMyCover client email (17 Oct 2026): booking_confirmed from the fan-out (Effect? smc_email), booking_updated
+  // from update_method. The relay token comes from $env in the node and never sits in an item; the function answers
+  // { id } (Resend) or an error without personal data. Failures (non-2xx, timeout) continue to one W22 alert.
+  n.push(http(SMC_MAIL, 'POST', "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/smc-client-email' }}", { timeout: 15000, extra: { onError: 'continueRegularOutput' }, params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'x-api-key', value: '={{ $env.LINDI_RELAY_TOKEN }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.smc_email) }}' } }));
+  // 17 Oct 2026: the adviser's booking notice for SortMyCover bookings, through smc-email-send (Resend, SortMyCover sender).
+  // Never stops the fan-out (onError continue): a failed email must not cost the client their confirmation or reminders.
+  n.push(http(SMC_RELAY, 'POST', "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/smc-email-send' }}", { timeout: 15000, extra: { onError: 'continueRegularOutput' }, params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $env.LINDI_RELAY_TOKEN }}' }, { name: 'Idempotency-Key', value: "={{ $json.relay.idempotency_key || '' }}" }] }, sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.relay.body) }}' } }));
+  n.push(code('Client email result (w05.clientEmailResult)', 'w05.mjs', `// Sent (2xx + Resend id) or dry-run -> nothing; anything else -> one W22 alert per failed email (the booking stands).\nconst out = [];\n$input.all().forEach((it, i) => {\n  let sent = it.json && it.json.smc_email ? it.json : null;\n  if (!sent) { try { sent = ($('${SMC_MAIL_GATE}').itemMatching(i) || {}).json || {}; } catch (e) { sent = {}; } }\n  const alert = L.clientEmailResult(it.json, sent);\n  if (alert) out.push({ json: alert });\n});\nreturn out;`));
+  n.push(code('Method client email (SortMyCover)', 'w05.mjs', `const p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.smc_email ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: p.smc_email } }] : [];`));
   // ---------- connections
   chain(c, 'Every 5 min: release unverified holds', 'Release held slots past verify_by (+ timeline)', 'Rebook nudge (w05.holdReleased)', '-> WhatsApp Send (booking_hold_released)');
   chain(c, 'POST /book', 'Parse + verify caller (w05.parseHttp)', 'Caller ok?');
@@ -383,7 +420,8 @@ SELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phon
   chain(c, 'Save event ids + lead (stage, broker, invite email)', 'Email verification item (invite email stored)', '-> Email verify (smc-email-verify issue)');
   link(c, 'HTTP lane?', 'Respond (book JSON)', 0); link(c, 'HTTP lane?', 'Fan out effects', 1);
   chain(c, 'Respond (book JSON)', 'Fan out effects', 'Effect?');
-  ['Live send?', 'Email from howzit@ (Graph sendMail)', '-> W06 First touch (booking event)', '-> W09 Reminder sequence (schedule / rebuild)', '-> W07 post-booking contact confirm', '-> CAPI Send (Schedule, no email)', '-> W28 ask_email', '-> W22 Alerts'].forEach((t, i) => link(c, 'Effect?', t, i));
+  ['Live send?', 'Email from howzit@ (Graph sendMail)', '-> W06 First touch (booking event)', '-> W09 Reminder sequence (schedule / rebuild)', '-> W07 post-booking contact confirm', '-> CAPI Send (Schedule, no email)', '-> W28 ask_email', '-> W22 Alerts', SMC_MAIL, SMC_RELAY].forEach((t, i) => link(c, 'Effect?', t, i));
+  chain(c, SMC_MAIL, 'Client email result (w05.clientEmailResult)', '-> W22 Alerts');
   link(c, 'Live send?', 'Send WhatsApp', 0); chain(c, 'Send WhatsApp', 'Touch leads.last_contact_at (lead sends)');
   chain(c, 'Load booking for method change', 'Plan method change (w05.planUpdateMethod)', 'Method plan?');
   link(c, 'Method plan?', 'Method calendar target (w05.graphEventTarget)', 0); link(c, 'Method plan?', 'ask_email input (method)', 1); link(c, 'Method plan?', 'Log subcall_rejected', 2);
@@ -391,6 +429,7 @@ SELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phon
   link(c, 'Method event calendar?', 'Graph PATCH event (method, howzit@ shared calendar)', 0); link(c, 'Method event calendar?', 'graph_token input (method)', 1); link(c, 'Method event calendar?', 'Save method', 2);
   chain(c, 'Graph PATCH event (method, howzit@ shared calendar)', 'Save method');
   chain(c, 'graph_token input (method)', 'W04 graph_token (method, waits)', 'Graph PATCH event (method, ASSUMPTION)', 'Save method', 'Method invite?', 'Email from howzit@ (Graph sendMail)');
+  chain(c, 'Save method', 'Method client email (SortMyCover)', SMC_MAIL);
   chain(c, 'ask_email input (method)', '-> W28 ask_email');
   chain(c, 'GET /c/:booking_id (.ics)', 'Verify .ics caller (w05.parseIcsRequest)', '.ics caller ok?');
   link(c, '.ics caller ok?', 'Load booking for .ics (id only, no lead PII)', 0); link(c, '.ics caller ok?', '.ics not found (404)', 1);

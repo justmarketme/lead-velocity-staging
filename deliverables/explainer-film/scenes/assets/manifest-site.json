@@ -1,0 +1,345 @@
+{
+  "source": {
+    "build": "smc-dist-redesign-2026-10-17.zip (C:/Users/Jono/lv-site, branch redesign/motion-diverse-2026-10-16, built at commit e011c2c, 17 Oct 2026 17:47; includes the four /learn/ guides from 53bd1d5)",
+    "captured": "2026-10-18, served locally at http://127.0.0.1:8737 from an unzipped copy; Chrome (puppeteer 24.38.0, headless). Every non-local request was blocked; none were attempted, so no Meta Pixel, beacon or n8n traffic left the machine. Not deployed anywhere.",
+    "page_url_note": "page_url is the production path the page will have on sortmycover.co.za once uploaded. The live site does not show this design yet.",
+    "method": "Each page was scrolled slowly to the bottom and back so lazy images and reveal animations ran, then held for 1.5 s before capture. Desktop 1440x900 at deviceScaleFactor 1.5 (2160x1350 px viewport shots). Mobile 390x844 at deviceScaleFactor 2 with an iPhone Safari user agent (780x1688 px viewport shots). Full-page PNGs over 4 MB were converted to JPG quality 85.",
+    "total_size_mb": 24.9
+  },
+  "notes": {
+    "brand_colours": {
+      "amber_accent": "#F5A623 (--sm-amber: logo check, primary buttons, highlight bar under the serif italic phrases, step numbers)",
+      "amber_dark": "#B86E0A (--sm-amber-dark)",
+      "text_on_amber": "#2A1B02 (--sm-accent-text)",
+      "charcoal": "#1F2933 (--sm-charcoal: header, dark sections, body text, theme-color)",
+      "charcoal_2": "#2B3845",
+      "dark_bg": "#15181C",
+      "dark_card": "#1C2027",
+      "muted_text": "#5C6672",
+      "border_rule": "#E4E5E7",
+      "surface_raised": "#F4F5F6",
+      "base_background": "#FFFFFF (white base; the hero adds a very faint warm gradient top right)",
+      "whatsapp_green": "#25D366 (floating 'Chat on WhatsApp' pill only, not a brand colour)",
+      "error": "#A32D2D",
+      "css_note": "The stylesheet still carries older cream values (#FBF8F2, #F1ECE2, #DCD6CB) that are overridden by the white and grey values above."
+    },
+    "fonts": {
+      "headlines": "DM Sans 800, tight leading (1.05), letter-spacing -0.015em",
+      "body": "DM Sans 500",
+      "accent": "Instrument Serif Italic 400 for the second half of headlines, often on an amber highlight bar (e.g. 'One call about cover.', 'when you are.', 'what the paperwork says')",
+      "eyebrows": "DM Sans, uppercase, wide letter-spacing, with a short amber dash in front",
+      "hosting": "All three fonts are self-hosted woff2 files under /fonts/"
+    },
+    "booking_cta": {
+      "summary": "Every booking button in this build goes through WhatsApp, on desktop and on mobile. The Cal.com calendar option is in the code but switched off because calcom_link is empty in this build.",
+      "how_it_works_in_markup": "Each 'Chat on WhatsApp' / 'Chat about cover' / 'Chat about a will' button is an <a class='btn-wa'> whose href is https://wa.me/27600156480?text=<prefilled message>. A click does not follow the link. It opens an in-page panel titled 'Continue on WhatsApp' with two checkboxes. The first is required: 'I agree that SortMyCover may message me on WhatsApp about my call and share my details with one authorised adviser. I am 18 or older.' The second is optional: 'Optional: let SortMyCover measure its Facebook and Instagram ads with my details in coded form.' The 'Open WhatsApp' button stays disabled until the first box is ticked, and 'Tick the first box to continue.' appears if someone tries before ticking. It then opens wa.me in a new tab. Under the button: 'Lindi, our AI assistant, replies. Ask for a person any time, or reply STOP to stop.'",
+      "prefilled_text_pattern": "Hi Lindi, I'd like to chat about {topic}. I agree that SortMyCover may message me on WhatsApp about this and share my details with an authorised adviser. Ref {ref}[ via {source}]",
+      "prefilled_text_example_hero": "Hi Lindi, I'd like to chat about cover for my family. I agree that SortMyCover may message me on WhatsApp about this and share my details with an authorised adviser. Ref w-home",
+      "topics_seen": ["cover for my family", "cover and my new bond", "a will"],
+      "source_tag": "{source} comes from utm_source (instagram becomes ig, facebook becomes fb) or from an fbclid, so the WhatsApp opener carries the ad source.",
+      "desktop": "The header has full navigation plus an amber 'Chat on WhatsApp' pill. A green floating 'Chat on WhatsApp' pill sits bottom right. The consent panel opens as a card above the floating pill. There is no Cal.com 'Pick a time' button: it is desk-only and turned off in this build.",
+      "mobile": "The header shows the logo, an amber 'WhatsApp' pill and 'Menu'. The floating button is a round green icon with no label. The consent panel opens as a centred card over the page, with no dimmed backdrop. The flow is the same as on desktop.",
+      "number": "+27 60 015 6480 (wa.me/27600156480). The site's office line is +27 10 976 5618."
+    },
+    "information_officer": "The home page footer does not show the Information Officer registration number. It appears on /about/ (in about-desktop-hero.jpg: 'The Information Officer is Kgomotso Pule. Registered with the Information Regulator, registration number 2026-069309 (15 October 2026).'), on /privacy/ (privacy-desktop-information-officer.jpg) and on /terms/ and /paia/ (not captured).",
+    "learn_articles_from_53bd1d5": [
+      "/learn/life-cover-and-a-home-loan/",
+      "/learn/income-protection-vs-disability-cover/",
+      "/learn/cover-for-business-owners-and-directors/",
+      "/learn/questions-to-ask-a-financial-adviser/"
+    ]
+  },
+  "files": [
+    {
+      "file": "site/home-desktop-full.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x13664 px), converted from PNG",
+      "what_it_shows": "The whole home page, top to bottom: hero, life-moments tabs, dark how-it-works, two ways to start, cover and wills guides, trust blocks, FAQ, final CTA and footer.",
+      "key_copy": "New bond. New baby. New job. One call about cover. / A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with Capital Legacy."
+    },
+    {
+      "file": "site/home-desktop-01-hero.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Hero: headline with serif-italic highlight, WhatsApp CTA, photo collage of SA families with a 'Call booked' chip, and the top of the four-fact strip.",
+      "key_copy": "A CONVERSATION, NOT A QUOTE. / New bond. New baby. New job. One call about cover. / A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with Capital Legacy. / [Chat on WhatsApp] [See how it works ↓] / On WhatsApp, Lindi asks what you need and a few short questions, then shows you your adviser and times to pick. The call costs you nothing. / Chip: Call booked · Thu · 18:30 · 30 minutes / Strip: WHO An authorised adviser · HOW LONG About 30 minutes · EFFORT A few messages · COST Nothing to pay"
+    },
+    {
+      "file": "site/home-desktop-02-life-moments.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "The life-moments tab switcher with 'New bond' selected: couple with house keys and a WhatsApp CTA.",
+      "key_copy": "THE QUESTIONS BEHIND THE CALL / Life changes. The questions change too. / Tabs: New bond · New baby · The salary · Own a business · A will / Bond approved. One more item for the list. / What keeps the bond paid if an income stops is a common question to take to an authorised adviser. / Life cover, in plain words → · Income protection → · [Chat on WhatsApp]"
+    },
+    {
+      "file": "site/home-desktop-03-how-it-works.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Dark how-it-works section, step 01 active. The sticky phone mock-up shows Lindi's opening question with four option buttons.",
+      "key_copy": "A SIMPLE PATH / From a few questions to a real conversation. / 01 Say hi to Lindi on WhatsApp: Tap Chat on WhatsApp and send the message. Lindi asks what the call is about and a few short questions. / Phone: Lindi · SortMyCover — Hi, I'm Lindi. What would you like help with? [Life cover] [Disability or income] [Review my cover] [A will]"
+    },
+    {
+      "file": "site/home-desktop-03a-how-it-works-step-2.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "How it works, step 02 active. The phone shows the adviser intro message and three time slots, with Thu 18:30 selected.",
+      "key_copy": "02 The adviser’s details on WhatsApp: Name, practice and FSP number, to check on the FSCA register, with times to choose from. / Phone: Hi Lerato. Your adviser is [name], [practice], FSP [number]. Check them on the FSCA register any time. — Which time suits? [Tue 12:30] [Thu 18:30] [Sat 09:00]"
+    },
+    {
+      "file": "site/home-desktop-03b-how-it-works-step-3.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "How it works, step 03 active. The phone shows the 'Call booked' confirmation screen.",
+      "key_copy": "03 A time that suits: Pick a slot from the message. Move or cancel it the same way, at no cost. / Phone: Call booked — Thursday · 18:30 · 30 minutes — Move or cancel from the WhatsApp message. / Illustration. Names and times are examples."
+    },
+    {
+      "file": "site/home-desktop-03c-how-it-works-step-4.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "How it works, step 04 active. The phone shows the adviser call screen with a 30:00 timer, and the summary paragraph sits below.",
+      "key_copy": "04 A 30-minute conversation: By video, WhatsApp or phone. The adviser explains how they are paid. Nothing is decided on the call. / Phone: Adviser call — Video, WhatsApp or phone — 30:00 — The adviser explains how they are paid. The decision comes afterwards. / Before the call, a cover adviser sends their name, practice and FSP number, and on the call they explain how they are paid. A will call works the same way with a Capital Legacy consultant. Read the full walk-through."
+    },
+    {
+      "file": "site/home-desktop-04-two-ways-to-start.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Two service cards with photos: cover adviser call and will drafting with Capital Legacy. The grey description text on these cards is barely visible (see problems).",
+      "key_copy": "CHOOSE A CONVERSATION / Two ways to start. / COVER ADVISER CALL — Talk to a cover adviser — With an adviser from an FSCA-authorised financial services provider. You get their name, practice and FSP number before you speak. (Life cover · Disability cover · Severe illness cover · Income protection) / WILL AND ESTATE CALL — Get your will drafted — With a consultant from Capital Legacy Solutions (Pty) Ltd, an authorised financial services provider (FSP 43826). (Who inherits, and who is executor · A guardian and a trust for children · Where the signed will is kept · What estate administration involves)"
+    },
+    {
+      "file": "site/home-desktop-05-what-smc-is-how-we-make-money.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Trust block: what SortMyCover is and is not, how it makes money, who you speak to, and the 'Read first' guide links (wills guide cards visible at the top).",
+      "key_copy": "What SortMyCover is, and is not — Is: an introduction and booking service run by Lead Velocity (Pty) Ltd. It costs you nothing. Advisers pay it a fee that does not depend on what you buy. Is not: an insurer, a financial services provider, an adviser, a will drafter or a comparison site. We do not quote, rank or recommend. / How we make money — Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything. SortMyCover takes no commission and no share of any premium. If you later choose a product, your adviser tells you how they are paid. / Who you speak to — For cover, one adviser from a financial services provider authorised by the FSCA. You can check them on the register before you speak."
+    },
+    {
+      "file": "site/home-desktop-06-whatsapp-cta.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Final dark CTA card with two WhatsApp buttons (cover / will), the end of the FAQ above it and the top of the footer.",
+      "key_copy": "Ready when you are. / About 30 minutes, at a time you pick. On WhatsApp, Lindi asks what you need and a few short questions, then shows you your adviser and times to pick. The call costs you nothing. / [Chat on WhatsApp] [Chat about a will]"
+    },
+    {
+      "file": "site/home-desktop-07-footer.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Footer: legal entity, registration number, address and the no-advice disclosure, with link columns Calls / Understand / Learn / Trust / Legal. There is no Information Officer number here.",
+      "key_copy": "Lead Velocity (Pty) Ltd trading as SortMyCover · Registration number 2025/637858/07 · 210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria 0184 · +27 10 976 5618 · hello@sortmycover.co.za / SortMyCover is not a financial services provider and gives no financial advice. / Advisers pay SortMyCover a fee for the service. The fee does not depend on whether you buy anything."
+    },
+    {
+      "file": "site/home-desktop-08-whatsapp-consent-sheet.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Hero with the 'Continue on WhatsApp' consent panel open after the hero CTA was clicked (no box ticked, so 'Open WhatsApp' is still disabled).",
+      "key_copy": "Continue on WhatsApp / [ ] I agree that SortMyCover may message me on WhatsApp about my call and share my details with one authorised adviser. I am 18 or older. Full wording / [ ] Optional: let SortMyCover measure its Facebook and Instagram ads with my details in coded form. Full wording / [Open WhatsApp] / Lindi, our AI assistant, replies. Ask for a person any time, or reply STOP to stop."
+    },
+    {
+      "file": "site/home-mobile-full.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "mobile full page, 390 wide @2x (780x30662 px), converted from PNG",
+      "what_it_shows": "The whole home page on a phone, in single-column layout.",
+      "key_copy": "New bond. New baby. New job. One call about cover."
+    },
+    {
+      "file": "site/home-mobile-01-hero.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile hero: compact header (WhatsApp pill + Menu), headline, full-width WhatsApp CTA, the start of the photo collage and the round green floating WhatsApp button.",
+      "key_copy": "A CONVERSATION, NOT A QUOTE. / New bond. New baby. New job. One call about cover. / A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with Capital Legacy. / [Chat on WhatsApp] / See how it works ↓"
+    },
+    {
+      "file": "site/home-mobile-02-how-it-works.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile how-it-works, step 01 with its inline phone mock-up. The header and greeting text inside the phone are washed out (see problems).",
+      "key_copy": "A SIMPLE PATH / From a few questions to a real conversation. / 01 Say hi to Lindi on WhatsApp / Tap Chat on WhatsApp and send the message. Lindi asks what the call is about and a few short questions."
+    },
+    {
+      "file": "site/home-mobile-02b-how-it-works-mid.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile how-it-works, middle: the step 02 phone with time slots and step 03 'A time that suits', with the 'Call booked' phone starting below.",
+      "key_copy": "03 A time that suits / Pick a slot from the message. Move or cancel it the same way, at no cost. / Phone slots: Tue 12:30 · Thu 18:30 · Sat 09:00"
+    },
+    {
+      "file": "site/home-mobile-02c-how-it-works-end.jpg",
+      "page_url": "https://sortmycover.co.za/#h-how",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile how-it-works, end: step 04 with the 'Adviser call 30:00' phone and the summary paragraph.",
+      "key_copy": "04 A 30-minute conversation / By video, WhatsApp or phone. The adviser explains how they are paid. Nothing is decided on the call. / Adviser call — 30:00"
+    },
+    {
+      "file": "site/home-mobile-03-whatsapp-cta.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile final CTA card with stacked WhatsApp buttons for cover and for a will.",
+      "key_copy": "Ready when you are. / About 30 minutes, at a time you pick. On WhatsApp, Lindi asks what you need and a few short questions, then shows you your adviser and times to pick. The call costs you nothing. / [Chat on WhatsApp] [Chat about a will]"
+    },
+    {
+      "file": "site/home-mobile-04-whatsapp-consent-sheet.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "How booking starts on mobile: tapping the hero 'Chat on WhatsApp' opens the consent panel over the hero before WhatsApp opens.",
+      "key_copy": "Continue on WhatsApp / I agree that SortMyCover may message me on WhatsApp about my call and share my details with one authorised adviser. I am 18 or older. / Optional: let SortMyCover measure its Facebook and Instagram ads with my details in coded form. / [Open WhatsApp] / Lindi, our AI assistant, replies. Ask for a person any time, or reply STOP to stop."
+    },
+    {
+      "file": "site/home-mobile-05-footer.jpg",
+      "page_url": "https://sortmycover.co.za/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Bottom of the mobile footer: Learn, Trust and Legal link lists.",
+      "key_copy": "LEARN: Life cover and a home loan · Income protection vs disability cover · Cover for business owners · Questions to ask an adviser · Life events / TRUST: About · Contact · Complaints · Editorial policy · Accessibility / LEGAL: Privacy · Terms · PAIA manual · Opt out of ad measurement"
+    },
+    {
+      "file": "site/book-desktop.jpg",
+      "page_url": "https://sortmycover.co.za/book/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Booking page: WhatsApp-only booking with two CTAs and the four-step 'What happens on WhatsApp' list. No Cal.com calendar appears.",
+      "key_copy": "Book your call on WhatsApp / Lindi, SortMyCover's booking assistant, books a 30-minute call with an authorised adviser about cover, or with a Capital Legacy consultant about your will. The call costs you nothing. / [Chat about cover] [Chat about a will] / What happens on WhatsApp: 1. Lindi says hello and asks what you need help with. Tap an option. 2. She asks a few short questions, such as your age band. 3. She introduces your adviser, with their name, firm and FSP number, and offers times. Pick one. 4. She confirms your email for the calendar invite, then reminds you before the call."
+    },
+    {
+      "file": "site/book-mobile.jpg",
+      "page_url": "https://sortmycover.co.za/book/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Booking page on mobile: stacked 'Chat about cover' / 'Chat about a will' buttons, then the start of the steps list.",
+      "key_copy": "Book your call on WhatsApp / [Chat about cover] [Chat about a will] / What happens on WhatsApp"
+    },
+    {
+      "file": "site/learn-life-cover-and-a-home-loan-desktop-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/life-cover-and-a-home-loan/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Article hero: breadcrumb, headline with serif-italic highlight, editorial byline and photo of a couple reading bond paperwork at a table.",
+      "key_copy": "SORTMYCOVER › LEARN › LIFE EVENTS / Life cover and a home loan: what the paperwork says / By SortMyCover editorial team. Last reviewed 17 October 2026. Fact-checked by SortMyCover editorial team on 17 October 2026."
+    },
+    {
+      "file": "site/learn-life-cover-and-a-home-loan-desktop-full.png",
+      "page_url": "https://sortmycover.co.za/learn/life-cover-and-a-home-loan/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x12119 px)",
+      "what_it_shows": "The whole article: short-answer box, sections, adviser questions, sources, related guides, booking CTA card and footer.",
+      "key_copy": "Short answer: A lender may require credit life insurance on a home loan, capped at what is still owed. The National Credit Act lets a borrower decline the lender's policy and use one of their own. A ceded policy pays the bank first. Life cover is a separate contract that pays the people named on it. This is information, not advice. / CTA: Book a 30-minute call with an authorised adviser"
+    },
+    {
+      "file": "site/learn-life-cover-and-a-home-loan-mobile-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/life-cover-and-a-home-loan/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile article hero with photo and the start of the short-answer box.",
+      "key_copy": "Life cover and a home loan: what the paperwork says / SHORT ANSWER: A lender may require credit life insurance on a home loan, capped at what is still owed."
+    },
+    {
+      "file": "site/learn-income-protection-vs-disability-cover-desktop-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/income-protection-vs-disability-cover/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Article hero: breadcrumb (Myths and definitions), headline and a photo of a man packing lunch in a kitchen.",
+      "key_copy": "SORTMYCOVER › LEARN › MYTHS AND DEFINITIONS / Income protection vs disability cover: what each one pays / By SortMyCover editorial team. Last reviewed 17 October 2026."
+    },
+    {
+      "file": "site/learn-income-protection-vs-disability-cover-desktop-full.png",
+      "page_url": "https://sortmycover.co.za/learn/income-protection-vs-disability-cover/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x12416 px)",
+      "what_it_shows": "The whole article, including the 'At a glance' comparison, sources and the booking CTA card.",
+      "key_copy": "Short answer: Life cover pays when the insured person dies. Lump-sum disability cover pays once, usually only when a disability is permanent. Income protection pays a monthly amount based on earnings after a waiting period, and stops on recovery, death or the end of the benefit term. Each policy's definition of disability decides whether a claim pays. This is information, not advice."
+    },
+    {
+      "file": "site/learn-income-protection-vs-disability-cover-mobile-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/income-protection-vs-disability-cover/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile article hero with photo and the start of the short answer.",
+      "key_copy": "Income protection vs disability cover: what each one pays / SHORT ANSWER: Life cover pays when the insured person dies."
+    },
+    {
+      "file": "site/learn-cover-for-business-owners-and-directors-desktop-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/cover-for-business-owners-and-directors/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Article hero: breadcrumb (Life events), headline and a photo of a nursery owner with a clipboard in a greenhouse.",
+      "key_copy": "SORTMYCOVER › LEARN › LIFE EVENTS / Cover for business owners and directors: what changes without an employer / By SortMyCover editorial team. Last reviewed 17 October 2026."
+    },
+    {
+      "file": "site/learn-cover-for-business-owners-and-directors-desktop-full.png",
+      "page_url": "https://sortmycover.co.za/learn/cover-for-business-owners-and-directors/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x12320 px)",
+      "what_it_shows": "The whole article, including group scheme vs owner sections, UIF, sources and the booking CTA card.",
+      "key_copy": "Short answer: Employees often have life and disability cover through an employer's group scheme. That cover belongs to the scheme and usually ends with the job, though some schemes offer a conversion option. An owner, director or self-employed person is in no scheme unless one is set up, so personal policies are usually the route. This is information, not advice."
+    },
+    {
+      "file": "site/learn-cover-for-business-owners-and-directors-mobile-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/cover-for-business-owners-and-directors/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile article hero with the greenhouse photo and the start of the short answer.",
+      "key_copy": "Cover for business owners and directors: what changes without an employer / SHORT ANSWER: Employees often have life and disability cover through an employer's group scheme."
+    },
+    {
+      "file": "site/learn-questions-to-ask-a-financial-adviser-desktop-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/questions-to-ask-a-financial-adviser/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Article hero: breadcrumb (The call and trust), headline and a photo of a couple on a laptop call at home.",
+      "key_copy": "SORTMYCOVER › LEARN › THE CALL AND TRUST / Questions to ask an authorised financial adviser, and what they must tell you / By SortMyCover editorial team. Last reviewed 17 October 2026."
+    },
+    {
+      "file": "site/learn-questions-to-ask-a-financial-adviser-desktop-full.png",
+      "page_url": "https://sortmycover.co.za/learn/questions-to-ask-a-financial-adviser/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x11909 px)",
+      "what_it_shows": "The whole article: look the adviser up, what they must tell you, record of advice, first-call questions, sources and the booking CTA card.",
+      "key_copy": "Short answer: Under the FAIS General Code of Conduct an authorised adviser must give a client the firm's details, its authorisation, how conflicts are handled and, where advice leads to a product, a written record of advice. Anyone can look an adviser up on the FSCA register, and can ask how the adviser is paid. This is information, not advice."
+    },
+    {
+      "file": "site/learn-questions-to-ask-a-financial-adviser-mobile-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/questions-to-ask-a-financial-adviser/",
+      "viewport": "mobile 390x844 @2x, iPhone UA",
+      "what_it_shows": "Mobile article hero with photo and the start of the short answer.",
+      "key_copy": "Questions to ask an authorised financial adviser, and what they must tell you / SHORT ANSWER: Under the FAIS General Code of Conduct an authorised adviser must give a client the firm's details..."
+    },
+    {
+      "file": "site/learn-index-desktop-hero.jpg",
+      "page_url": "https://sortmycover.co.za/learn/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "The Learn hub: headline and topic cards (Life events, Reading your cover, The call and trust, Myths and definitions).",
+      "key_copy": "Learn in plain words / Short guides in plain words, with sources and dates. They are information, not advice."
+    },
+    {
+      "file": "site/learn-index-desktop-full.png",
+      "page_url": "https://sortmycover.co.za/learn/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x3789 px)",
+      "what_it_shows": "The whole Learn hub, including all topic cards, the 'Talk to an adviser' block and the footer.",
+      "key_copy": "Learn in plain words"
+    },
+    {
+      "file": "site/about-desktop-hero.jpg",
+      "page_url": "https://sortmycover.co.za/about/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "About page: legal entity details and the Information Officer registration, then what SortMyCover does and does not do.",
+      "key_copy": "About SortMyCover / Who is legally responsible, what we do and what we do not do. / Lead Velocity (Pty) Ltd trading as SortMyCover. Registration number 2025/637858/07. / The Information Officer is Kgomotso Pule. Registered with the Information Regulator, registration number 2026-069309 (15 October 2026)."
+    },
+    {
+      "file": "site/about-desktop-full.png",
+      "page_url": "https://sortmycover.co.za/about/",
+      "viewport": "desktop full page, 1440 wide @1.5x (2160x3920 px)",
+      "what_it_shows": "The whole About page: Who we are, What we do, What we do not do, How we make money, How we write, plus the CTA and footer.",
+      "key_copy": "About SortMyCover / SortMyCover is not a financial services provider and gives no financial advice."
+    },
+    {
+      "file": "site/privacy-desktop-top.jpg",
+      "page_url": "https://sortmycover.co.za/privacy/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Top of the privacy notice: version line, POPIA statement and 'Who is responsible'.",
+      "key_copy": "Privacy notice / Last updated: 17 October 2026 · Version PN-v1.4-web / This notice tells you how we use your details. It follows the Protection of Personal Information Act (POPIA). / Who is responsible"
+    },
+    {
+      "file": "site/privacy-desktop-information-officer.jpg",
+      "page_url": "https://sortmycover.co.za/privacy/",
+      "viewport": "desktop 1440x900 @1.5x",
+      "what_it_shows": "Privacy notice: the call recording paragraph naming the Information Officer and registration number, then 'Your rights'.",
+      "key_copy": "To get a copy of a recording, or to ask us to delete it, contact our Information Officer, Kgomotso Pule (Information Regulator registration number 2026-069309), at hello@sortmycover.co.za. / Your rights"
+    }
+  ],
+  "problems_seen": [
+    "Home 'Two ways to start' cards: the .svc-who description ('With an adviser from an FSCA-authorised financial services provider…' and the Capital Legacy line) is styled color #D3D7DC on a white card, so it is almost invisible on desktop and mobile.",
+    "Mobile how-it-works: in the inline phone mock-ups, the chat header and Lindi's bubbles ('Lindi · SortMyCover', 'Hi, I'm Lindi…', 'Hi Lerato. Your adviser is…', 'Which time suits?') render light grey (#CFD4D9) on light bubbles and look washed out. The desktop sticky phone is fine.",
+    "Desktop header CTA renders as 'Chat on    WhatsApp' with a wide gap: the label breaks into two pieces. Other buttons are fine.",
+    "Desktop footer: '+27 10 976 5618 ·' leaves a dangling separator because the email wraps onto the next line.",
+    "The floating WhatsApp button covers some content: the 'Illustration. Names and times are examples.' caption on desktop, and on mobile the right edge of the 'Short answer' boxes and the last footer links.",
+    "The mobile consent panel has no dimmed backdrop, so hero text peeks out around it. The close button's ring sits tight on the panel edge.",
+    "Not a fault: the four life-moment photos (baby, income, business, will) only load when their tab is selected (lazy, hidden tabs). The files exist.",
+    "Not a fault: there is no Cal.com option anywhere because calcom_link is empty in this build.",
+    "Clean otherwise: no 404s, no console or page errors, and no horizontal overflow on any captured page at 1440 or 390."
+  ]
+}

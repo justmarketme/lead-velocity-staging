@@ -1,0 +1,115 @@
+@font-face { font-family: "DM Sans"; font-weight: 500; src: url(assets/fonts/dm-sans-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "DM Sans"; font-weight: 600 900; src: url(assets/fonts/dm-sans-latin-800-normal.woff2) format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; src: url(assets/fonts/instrument-serif-latin-400-italic.woff2) format("woff2"); }
+/* SortMyCover explainer film: shared stage styles (1920x1080). SortMyCover look: white base, charcoal tints,
+   the logo yellow as the only accent (no cream, brown or grain). */
+:root {
+  --ink: #1f2933; --char: #2b3845; --slate: #3d4752; --muted: #5c6672; --faint: #98a0a9;
+  --line: #e4e5e7; --soft: #f4f5f6; --paper: #ffffff; --white: #fff;
+  --y: #f5a623; --y-2: #b86e0a; --y-soft: #fdebc8; --y-wash: #fef7ea; --y-text: #2a1b02;
+  --green: #1a9e5c; --green-wash: #eaf8f0; --red: #d64545; --red-wash: #fdeeee;
+  --wa: #25d366; --wa-dark: #075e54; --wa-bg: #efeae2; --wa-out: #d9fdd3;
+  --shadow: 0 1px 2px rgba(0,0,0,.05), 0 18px 40px -18px rgba(0,0,0,.20);
+  --shadow-lg: 0 2px 4px rgba(0,0,0,.05), 0 34px 70px -26px rgba(0,0,0,.32);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+body { font-family: "DM Sans", "Segoe UI", Arial, sans-serif; color: var(--slate); -webkit-font-smoothing: antialiased; }
+.stage { position: absolute; inset: 0; overflow: hidden; background: var(--paper); }
+.bg { position: absolute; inset: 0; pointer-events: none; }
+.bg i { position: absolute; border-radius: 50%; }
+.bg .b1 { width: 1100px; height: 1100px; left: -420px; top: -560px; background: radial-gradient(circle, rgba(245,166,35,.16), rgba(245,166,35,0) 62%); }
+.bg .b2 { width: 1300px; height: 1300px; right: -520px; bottom: -680px; background: radial-gradient(circle, rgba(31,41,51,.07), rgba(31,41,51,0) 62%); }
+.bg .grid { position: absolute; inset: 0; opacity: .5;
+  background-image: radial-gradient(rgba(0,0,0,.07) 1.2px, transparent 1.4px); background-size: 32px 32px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 42%, #000 0%, transparent 72%); }
+
+/* header */
+.hd { position: absolute; left: 120px; right: 120px; top: 38px; height: 76px; display: flex; align-items: center; justify-content: space-between; z-index: 40; }
+.hd .brand { display: flex; align-items: center; gap: 18px; }
+.hd .brand img { height: 54px; width: auto; }
+.hd .brand .t1 { text-transform: uppercase; letter-spacing: .16em; font-size: 14px; font-weight: 700; color: var(--faint); }
+.hd .brand .t2 { font-size: 21px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.hd .prog { display: flex; align-items: center; gap: 16px; }
+.hd .prog .num { font-size: 17px; font-weight: 700; color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+.hd .prog .num b { color: var(--ink); }
+.hd .segs { display: flex; gap: 5px; }
+.hd .segs span { width: 26px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; position: relative; }
+.hd .segs span i { position: absolute; inset: 0; background: var(--ink); transform-origin: left; transform: scaleX(0); }
+
+/* typography */
+.eyebrow { display: inline-flex; align-items: center; gap: 12px; text-transform: uppercase; letter-spacing: .18em; font-size: 17px; font-weight: 800; color: var(--ink); }
+.eyebrow::before { content: ""; width: 14px; height: 14px; border-radius: 4px; background: var(--y); }
+h1.h { font-size: 60px; line-height: 1.06; color: var(--ink); font-weight: 800; letter-spacing: -.025em; }
+h1.h em { font-family: "Instrument Serif", Georgia, serif; font-style: italic; font-weight: 400; letter-spacing: -.005em; background: linear-gradient(transparent 60%, var(--y) 60%, var(--y) 94%, transparent 94%); padding: 0 6px; }
+.lbl { text-transform: uppercase; letter-spacing: .14em; font-size: 14px; font-weight: 800; color: var(--faint); }
+.card { background: var(--white); border: 1.5px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); }
+.top { position: absolute; left: 120px; top: 150px; z-index: 5; }
+.top h1 { margin-top: 14px; }
+.mono { font-family: Consolas, "Cascadia Mono", monospace; }
+
+/* subtitles */
+.subs { position: absolute; left: 0; right: 0; bottom: 40px; display: flex; justify-content: center; pointer-events: none; z-index: 60; opacity: 0; }
+.subs span { display: inline-block; max-width: 1640px; padding: 12px 28px 14px; border-radius: 14px;
+  background: rgba(31,41,51,.92); color: #fff; font-size: 33px; line-height: 1.3; font-weight: 600; letter-spacing: .005em;
+  box-shadow: 0 12px 30px -14px rgba(0,0,0,.5); white-space: nowrap; }
+
+/* chips, ticks, pills */
+.tick { width: 44px; height: 44px; border-radius: 50%; border: 2.5px solid var(--line); display: grid; place-items: center; flex: none; background: #fff; }
+.tick svg { width: 22px; height: 22px; stroke: #fff; fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.tick.on { background: var(--green); border-color: var(--green); }
+.tick.open { border-color: var(--y-2); border-style: dashed; background: var(--y-wash); }
+.pill { display: inline-flex; align-items: center; gap: 10px; padding: 8px 18px; border-radius: 999px; font-size: 18px; font-weight: 700; white-space: nowrap; }
+.pill i { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+.pill.green { background: var(--green-wash); color: var(--green); }
+.pill.y { background: var(--y-soft); color: var(--y-text); }
+.pill.ink { background: var(--ink); color: #fff; }
+.pill.grey { background: var(--soft); color: var(--slate); }
+.pill.red { background: var(--red-wash); color: var(--red); }
+.ic { width: 60px; height: 60px; border-radius: 18px; background: var(--ink); display: grid; place-items: center; flex: none; }
+.ic svg { width: 30px; height: 30px; stroke: var(--y); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.who { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 999px; font-size: 16px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; flex: none; }
+.who.jono { background: var(--y-soft); color: var(--y-text); border: 1.5px solid #f7c873; }
+.who.claude { background: var(--soft); color: var(--ink); border: 1.5px solid var(--line); }
+.who.mark { background: #eef4ff; color: #2851a3; border: 1.5px solid #cddcfb; }
+
+/* phone (iPhone-ish frame, 9:19.5) */
+.phone { position: absolute; width: 400px; height: 820px; border-radius: 60px; background: #111; padding: 13px; box-shadow: var(--shadow-lg); }
+.phone .scr { position: absolute; inset: 13px; border-radius: 48px; background: #fff; overflow: hidden; }
+.phone .notch { position: absolute; left: 50%; top: 11px; width: 116px; height: 32px; margin-left: -58px; border-radius: 20px; background: #111; z-index: 9; }
+.phone .sb { position: relative; z-index: 8; height: 50px; display: flex; justify-content: space-between; align-items: center; padding: 6px 30px 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.phone video, .phone .full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* WhatsApp chat skin */
+.wa-head { position: relative; z-index: 7; display: flex; align-items: center; gap: 10px; padding: 8px 14px 10px; background: var(--wa-dark); color: #fff; margin-top: -50px; padding-top: 58px; }
+.wa-head .av { width: 38px; height: 38px; border-radius: 50%; background: #fff; display: grid; place-items: center; overflow: hidden; flex: none; }
+.wa-head .av img { width: 100%; height: 100%; object-fit: cover; }
+.wa-head b { font-size: 16px; display: block; }
+.wa-head span { font-size: 12px; opacity: .8; }
+.wa-body { position: absolute; left: 0; right: 0; top: 106px; bottom: 58px; background: var(--wa-bg); padding: 10px 10px 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; }
+.wa-body .stack { display: flex; flex-direction: column; gap: 6px; }
+.bub { max-width: 86%; padding: 7px 10px 6px; border-radius: 10px; font-size: 14.5px; line-height: 1.35; color: #111; box-shadow: 0 1px .5px rgba(0,0,0,.13); white-space: pre-line; }
+.bub.in { align-self: flex-start; background: #fff; border-top-left-radius: 2px; }
+.bub.out { align-self: flex-end; background: var(--wa-out); border-top-right-radius: 2px; }
+.bub .tm { display: block; text-align: right; font-size: 10.5px; color: #667781; margin-top: 2px; }
+.bub .btns { margin: 6px -10px -6px; border-top: 1px solid #e9edef; }
+.bub .btns div { text-align: center; color: #00a5f4; font-size: 14px; font-weight: 600; padding: 7px 0; border-bottom: 1px solid #e9edef; }
+.bub .btns div:last-child { border-bottom: 0; }
+.bub .hdr { margin: -7px -10px 6px; height: 120px; border-radius: 10px 10px 0 0; background: var(--y) center/cover no-repeat; }
+.wa-in { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; background: #f0f2f5; display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.wa-in .box { flex: 1; height: 40px; border-radius: 20px; background: #fff; font-size: 14px; color: #111; padding: 0 14px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; }
+.wa-in .send { width: 40px; height: 40px; border-radius: 50%; background: #00a884; flex: none; }
+.tap { position: absolute; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(22,22,22,.18); border: 3px solid rgba(22,22,22,.55); z-index: 20; opacity: 0; pointer-events: none; }
+
+/* chat.js additions: typing dots, list sheet, shade */
+.bub.typing { padding: 10px 14px; }
+.bub.typing .dots { display: inline-flex; gap: 4px; }
+.bub.typing .dots i { width: 7px; height: 7px; border-radius: 50%; background: #8696a0; display: block; }
+.bub .ticks { font-weight: 400; letter-spacing: -3px; margin-left: 2px; }
+.shade { position: absolute; inset: 0; background: #000; opacity: 0; z-index: 14; pointer-events: none; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 15; background: #fff; border-radius: 20px 20px 0 0; padding: 10px 0 18px; box-shadow: 0 -10px 30px rgba(0,0,0,.18); opacity: 0; }
+.sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: #d1d7db; margin: 0 auto 10px; }
+.sheet .st { font-size: 16px; font-weight: 700; color: #111; text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e9edef; }
+.sheet .rows div { display: flex; align-items: center; justify-content: space-between; padding: 13px 22px; font-size: 15px; color: #111; border-bottom: 1px solid #f0f2f5; }
+.sheet .rows div i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #8696a0; }
+.sheet .rows div.on i { border: 6px solid #00a884; }

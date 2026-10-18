@@ -3,7 +3,7 @@
     "key": "booking_held_verify_email",
     "source": "automation/templates/booking_held_verify_email.json",
     "approval": {
-      "name": "smc_booking_held_verify_email_v2",
+      "name": "smc_booking_held_verify_email",
       "category": "UTILITY"
     },
     "var_plan": [
@@ -31,7 +31,7 @@
     "core": false
   },
   "content": {
-    "friendly_name": "smc_booking_held_verify_email_v2",
+    "friendly_name": "smc_booking_held_verify_email",
     "language": "en",
     "variables": {
       "1": "Lerato",

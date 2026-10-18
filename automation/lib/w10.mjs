@@ -15,6 +15,7 @@
 //  - Booking UI: brands.booking_ui = 'flow' -> reschedule Flow (reschedule-flow.json, current booking pre-filled);
 //    otherwise the 10-slot list in-window, or the reschedule_offer template (3 slots) outside the 24-h window.
 import { LINES, fill } from '../../conversation/lines.mjs';
+import { isSmcLead, smcClientEmail, smcRelayEmail } from './w05.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 const ACTIVE = new Set(['booked', 'confirmed']);
@@ -45,18 +46,24 @@ export function offerMessage({ booking, lead, broker, brand = {}, slots = [], no
   const window = Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H;
   const first = (lead.first_name || '').trim() || 'there';
   const adviser = String(broker.contact_person || '').split(' ')[0];
-  if (!slots.length) return { kind: 'no_slots', escalate: 'no_slots', text: null };
+  // 17 Oct 2026: a lead's cancel is confirmed in words, with or without times to offer. CANCEL_DONE was never sent, so the
+  // client heard nothing after "Yes, cancel" and W07's never-silent fallback ("something went wrong") answered instead.
+  const cancelled = reason === 'cancel' || reason === 'rebook_after_cancel'; // W10 passes its op ('cancel', classifyOp)
+  // After a cancel the old booking is gone: a pick is a NEW booking (plain slot_ -> W07 routes it to W05). A ":resched:"
+  // pick would reach W10's move of a cancelled booking, which rejects it.
+  const pickId = (s) => (cancelled ? `slot_${s.start}` : `slot_${s.start}:resched:${booking.id}`);
+  if (!slots.length) return cancelled && window ? { kind: 'text_session', body: leadBody('cancel_done', { delegate, lead, booking, broker }) } : { kind: 'no_slots', escalate: 'no_slots', text: null };
   if (brand.booking_ui === 'flow') {
     const prefill = { booking_id: booking.id, current_date: slotLabel(booking.appointment_date).split(',')[0], current_time: slotLabel(booking.appointment_date).split(', ')[1], method: booking.method };
-    return window ? { kind: 'flow_session', flow: 'reschedule', flow_id_ref: 'brands.booking_flow_id', prefill, body: leadBody('reschedule', { delegate, lead, booking, broker }) }
+    return window ? { kind: 'flow_session', flow: 'reschedule', flow_id_ref: 'brands.booking_flow_id', prefill, body: leadBody(cancelled ? 'cancel_done_times' : 'reschedule', { delegate, lead, booking, broker }) }
       : { kind: 'template', template: 'reschedule_offer_v2', vars: [first, adviser, prefill.current_date, prefill.current_time], prefill };
   }
   if (window) {
-    const rows = slots.slice(0, 10).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
-    return { kind: 'list_session', rows, body: leadBody(reason === 'broker_rescheduled' ? 'slots' : 'reschedule', { delegate, lead, booking, broker }) };
+    const rows = slots.slice(0, 10).map((s) => ({ id: pickId(s), title: slotLabel(s.start).slice(0, 24) }));
+    return { kind: 'list_session', rows, body: leadBody(cancelled ? 'cancel_done_times' : reason === 'broker_rescheduled' ? 'slots' : 'reschedule', { delegate, lead, booking, broker }) };
   }
   const three = pick3(slots);
-  return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map((s) => `slot_${s.start}:resched:${booking.id}`).concat([`other_times:${booking.id}`]) };
+  return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map(pickId).concat([`other_times:${booking.id}`]) };
 }
 
 /**
@@ -283,9 +290,44 @@ export function leadBody(kind, { delegate = null, lead = {}, booking = {}, broke
     reschedule: [L.RESCHED_INTRO, booking.method ? L.SAME_METHOD : null], // reschedule memory (4.11): the stored method is kept unless they say otherwise
     slots: [L.SLOTS_INTRO],
     cancel_confirm: [L.CANCEL_CONFIRM_Q],
+    cancel_done: [L.CANCEL_DONE],
+    cancel_done_times: [L.CANCEL_DONE_TIMES],
     change_method: [L.METHOD_CHANGED]
   }[kind] || [];
   return lines.filter(Boolean).map((l) => fill(l, vars)).join(' ').slice(0, WA_BODY_MAX);
+}
+
+/**
+ * SortMyCover emails on a W10 cancel / move (17 Oct 2026). W10's adviser email went through a howzit@ node whose bearer
+ * ($json.howzit_token) was never set, so no adviser ever got one; the client got no email about the change at all.
+ * SMC brand -> the adviser notice through smc-email-send and the client email through smc-client-email
+ * (booking_cancelled carries the cancelling .ics, booking_updated the moved one). Other brands -> null (howzit@ path).
+ */
+export const isSmcBrand = (brand) => isSmcLead({ brand_code: brand && brand.code });
+
+/** item = the W10 broker-notice item ({ brand, bk_id, email_kind, email: { to, subject, body } }) -> smc-email-send request or null. */
+export function smcBrokerRelay(item = {}, nowMs = 0) {
+  if (!isSmcBrand(item.brand) || !item.email || !item.email.to) return null;
+  return smcRelayEmail(item.email, `w10:broker:${item.bk_id}:${item.email_kind || 'changed'}:${Math.floor(Number(nowMs) / 60000)}`, 'broker_booking_changed');
+}
+
+/** j = the W10 context (bk, ld, br, brand); kind booking_cancelled | booking_updated; slot = the new { start, end } of a move. */
+export function smcClientChangeEmail(j = {}, kind = 'booking_cancelled', nowMs = 0, slot = null) {
+  const lead = { ...(j.ld || {}), brand_code: j.brand && j.brand.code };
+  if (!isSmcLead(lead) || !j.bk) return null;
+  const email = lead.email_verified === true && lead.email && lead.email_status !== 'bounced' ? lead.email : null;
+  const plan = { start: slot ? slot.start : j.bk.appointment_date, end: slot ? slot.end : j.bk.ends_at, method: j.bk.method, email };
+  return smcClientEmail({ lead, broker: j.br || {} }, plan, { id: j.bk.id, calendar_provider: j.bk.calendar_provider }, {}, kind, { now: nowMs });
+}
+
+/**
+ * The cancel confirmation when no rebooking is offered (already offered once, or the lead said "no call"): the lead's own
+ * "Yes, cancel" always gets an answer. Null when opted out (W15 sends the one STOP confirmation) or outside the 24-h window.
+ */
+export function cancelDoneWa({ booking = {}, lead = {}, broker = {}, now_ms, last_inbound_ms, delegate = null } = {}) {
+  if (lead.opted_out_at || !lead.phone) return null;
+  if (!(Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H)) return null;
+  return { messaging_product: 'whatsapp', to: lead.phone, type: 'text', text: { body: leadBody('cancel_done', { delegate, lead, booking, broker }) } };
 }
 
 /** The cancel-confirm interactive (typed "cancel" asks first). */
@@ -307,6 +349,21 @@ export function methodMessage(d, booking, lead, broker, delegate = null, method 
   const body = [...(delegate?.lead_lines || []), own].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
   const buttons = (broker.methods_supported || []).filter((m) => m !== booking.method).slice(0, 2).map((m) => [`change_method:${m}:${booking.id}`, methodWord(m, lang).slice(0, 20)]);
   return { type: 'buttons', body, buttons: [[`keep_it:${booking.id}`, (lang === 'af' ? 'Ja, dieselfde' : 'Yes, same')], ...buttons] };
+}
+
+/**
+ * slotTakenWa({ phone, offer, booking, lead, broker, delegate }) -> the WhatsApp payload for a 'slot_taken' move.
+ * With offer slots: the open-times list (as before). Without any (17 Oct, x14: W04's re-check was rejected, so the lead
+ * got silence): SLOT_TAKEN_TAP with one "See open times" button (payload see_open_times -> W07 -> W04 list).
+ */
+export function slotTakenWa({ phone, offer = [], booking = {}, lead = {}, broker = {}, delegate = null } = {}) {
+  const rows = (offer || []).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
+  if (rows.length) {
+    return { messaging_product: 'whatsapp', to: phone, type: 'interactive', interactive: { type: 'list', body: { text: leadBody('slots', { lead, booking, broker }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } };
+  }
+  const lang = langOf(delegate, lead); const L = LINES[lang];
+  const body = fill(L.SLOT_TAKEN_TAP, { adviser_first: String(broker.contact_person || '').split(' ')[0] || (lang === 'af' ? 'jou adviseur' : 'your adviser') });
+  return toWa(phone, { type: 'buttons', body, buttons: [['see_open_times', L.SEE_TIMES_BTN]] });
 }
 
 /** WhatsApp interactive/text payload from a {type, body, buttons} message. */

@@ -6,12 +6,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BANNED } from "../src/build/wording";
 import { AdviserIntro } from "../src/pages/Start";
-import { createMockApi } from "../src/lib/start-mock";
+import { createMockApi, mockPostLead } from "../src/lib/start-mock";
+import consentJson from "../config/consent.json";
 import {
-  INTRO_DISCLOSURE, adviserDisclosure, afterAnswers, answersPayload, availableMethods, defaultMethod, formatDay, formatTime, formatWhen, groupSlots, initials, limitGroups, methodLabel,
+  INTRO_DISCLOSURE, START_ADVISER, adviserDisclosure, afterAnswers, answersPayload, firstScreen, leadAttribution, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, availableMethods, defaultMethod, formatDay, formatTime, formatWhen, groupSlots, initials, limitGroups, methodLabel,
   nextStep, prevStep, readTokenFromHash, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink, type AdviserInfo, type Answers, type StepId,
 } from "../src/lib/start";
-import { interpretAnswers, interpretBook } from "../src/lib/start-api";
+import { interpretAnswers, interpretBook, interpretLead, postLead } from "../src/lib/start-api";
 
 describe("token from the fragment", () => {
   it("reads lt from the hash only", () => {
@@ -33,7 +34,7 @@ describe("step machine", () => {
   const walk = (a: Answers, from: StepId = "intent") => {
     const path: string[] = [from];
     let s: StepId = from;
-    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit") return path; s = n; }
+    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit") return path; s = n === "lead" ? "intent" : n; } // "lead": POST /lead returns the token, then step 1
   };
   it("a will and something else go straight back to the chat", () => {
     expect(walk({ intent: "will" })).toEqual(["intent", "chat"]);
@@ -216,7 +217,7 @@ describe("adviser disclosure before routing (two-phase POST /start/answers)", ()
     const a: Answers = { intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250" };
     const seen: string[] = [];
     let s: StepId = "intent";
-    for (;;) { const n = nextStep(s, a); if (n === "submit" || n === "chat") break; seen.push(n); s = n; }
+    for (;;) { const n = nextStep(s, a); if (n === "submit" || n === "chat" || n === "lead") break; seen.push(n); s = n; }
     expect(seen).not.toContain("time");
     const p1 = afterAnswers({ next: "adviser", adviser: mark }, null);
     expect(p1.k).toBe("adviser");
@@ -272,5 +273,97 @@ describe("/start/ copy passes the site wording rules (automated assistant, autho
       [/\bfree\b|costs? (you )?nothing|no cost|at no charge|pays? nothing/i, "price wording"], [/Lead Velocity/, "Lead Velocity"],
     ];
     for (const c of copy) for (const [re, label] of [...BANNED, ...EXTRA]) expect(c, `${label}: ${c}`).not.toMatch(re);
+  });
+});
+
+describe("step 0 (no token: desktop visits from a site CTA)", () => {
+  it("starts at step 0 without a token; with one it loads", () => {
+    expect(firstScreen(null)).toBe("details");
+    expect(firstScreen("")).toBe("details");
+    expect(firstScreen("tok")).toBe("load");
+    expect(firstScreen(null, "?ref=w-book&via=google")).toBe("details");
+    expect(firstScreen(null, "?ref=a02")).toBe("details");
+    expect(firstScreen(null, "?ref=w-learn-bond")).toBe("details");
+    // wills go to the WhatsApp handoff: by ?for=wills, or by the page code startHref sends (it carries only ref and via)
+    for (const s of ["?for=wills", "?ref=w-wills", "?ref=w-home-wills", "?ref=w-book-will&via=fb", "?ref=b02"]) expect(firstScreen(null, s), s).toBe("wills");
+    expect(firstScreen("tok", "?ref=w-wills")).toBe("load");
+  });
+  it("normalises South African mobiles to +27 and rejects the rest", () => {
+    expect(toE164("082 123 4567")).toBe("+27821234567");
+    expect(toE164("0821234567")).toBe("+27821234567");
+    expect(toE164("+27 82 123 4567")).toBe("+27821234567");
+    expect(toE164("27821234567")).toBe("+27821234567");
+    expect(toE164("0027 82 123 4567")).toBe("+27821234567");
+    expect(toE164("060 015 6480")).toBe("+27600156480");
+    expect(toE164("071-234-5678")).toBe("+27712345678");
+    for (const bad of ["", "012 345 6789", "082 123 456", "082 123 45678", "+44 7700 900123", "82 123 4567", "08x 123 4567", "1+27821234567"]) expect(toE164(bad), bad).toBeNull();
+    expect(prettyMobile("+27821234567")).toBe("+27 82 123 4567");
+  });
+  it("renders the named consent exactly, with Oracle Private Wealth and FSP 28418", () => {
+    const c = namedConsent(consentJson);
+    expect(c.text).toBe("I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about my call, and may share my details with Oracle Private Wealth (FSP 28418), an adviser from an FSCA-authorised financial services provider, who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP.");
+    expect(c.version).toBe(consentJson.named.version);
+    expect(c.mode).toBe("named");
+    expect(c.text).not.toMatch(/Oracle Brokers|\{|\}/);
+    expect(START_ADVISER).toEqual({ name: "Mark Weston", practice: "Oracle Private Wealth", fsp: "28418" });
+    expect(startIntroLine()).toBe("You'll book a 30-minute call with Mark Weston, Oracle Private Wealth, an authorised financial services provider (FSP 28418).");
+  });
+  it("step order with step 0: details, then POST /lead, then the six steps; the pill counts 1 of 7", () => {
+    const path: string[] = ["details"];
+    let s: StepId = "details";
+    const a: Answers = { intent: "life", has_cover: "no" };
+    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit") break; s = n === "lead" ? "intent" : n; }
+    expect(path).toEqual(["details", "lead", "age", "cover", "budget", "want", "submit"]);
+    expect(path.indexOf("lead")).toBeLessThan(path.indexOf("submit")); // no answers POST before the token from /lead exists
+    expect(prevStep("details", {})).toBeNull();
+    expect(prevStep("intent", {})).toBeNull();
+    expect(progress("details", true)).toEqual({ n: 1, total: 7 });
+    expect(progress("intent", true)).toEqual({ n: 2, total: 7 });
+    expect(progress("adviser", true)).toEqual({ n: 6, total: 7 });
+    expect(progress("email", true)).toEqual({ n: 7, total: 7 });
+    expect(progress("intent", false)).toEqual({ n: 1, total: 6 });
+    expect(progress("email", false)).toEqual({ n: 6, total: 6 });
+  });
+  it("builds the /lead body in the old quiz shape with the named consent, ref and via", () => {
+    const b = leadBody({ first_name: " Naledi ", mobile: "+27821234567", ads: null, honeypot: "", origin: "https://sortmycover.co.za", search: "?ref=c03&via=home-hero&utm_campaign=x", started_at: "2026-10-18T10:00:00.000Z", request_id: "req-12345678", user_agent: "UA", now: 1_790_000_000_000 }, consentJson);
+    expect(b).toMatchObject({
+      first_name: "Naledi", mobile: "+27821234567", consent: true, consent_text: namedConsent(consentJson).text, consent_version: "CONSENT-NAMED-v5web", consent_mode: "named",
+      consent_ads: false, consent_ads_text: consentJson.ads.text, consent_ads_version: consentJson.ads.version,
+      page_url: "https://sortmycover.co.za/start/", started_at: "2026-10-18T10:00:00.000Z", request_id: "req-12345678", company_website: "", honeypot: "", start_page: true,
+    });
+    expect(b.context).toMatchObject({ ref: "c03", utm: { ref: "c03", utm_source: "home-hero", utm_campaign: "x" }, page_url: "https://sortmycover.co.za/start/" });
+    expect(leadBody({ first_name: "A", mobile: "+27821234567", ads: "give", honeypot: "", origin: "o", search: "", started_at: "", request_id: "r", user_agent: "", now: 0 }, consentJson).consent_ads).toBe(true);
+    expect(leadAttribution("?via=x&utm_source=y").utm.utm_source).toBe("y");
+  });
+  it("maps /lead replies, and never proceeds without a lead_token", () => {
+    expect(interpretLead(200, { ok: true, status: "accepted", lead_id: "l1", lead_token: "t1" })).toEqual({ kind: "accepted", token: "t1", lead_id: "l1" });
+    expect(interpretLead(200, { ok: true, status: "accepted", lead_id: "l1" })).toEqual({ kind: "error" });
+    expect(interpretLead(200, { ok: true, status: "accepted", lead_token: "" })).toEqual({ kind: "error" });
+    expect(interpretLead(200, { ok: true, status: "not_qualified" })).toEqual({ kind: "neutral" });
+    expect(interpretLead(200, { ok: true, status: "suppressed" })).toEqual({ kind: "neutral" });
+    expect(interpretLead(429, {})).toEqual({ kind: "rate" });
+    expect(interpretLead(400, { error: "try_again" })).toEqual({ kind: "error" });
+    expect(interpretLead(422, { error: "mobile_invalid" })).toEqual({ kind: "mobile" });
+    expect(interpretLead(0, null)).toEqual({ kind: "error" });
+  });
+  it("POST /lead goes to /lead only, with no lead token header", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init: RequestInit) => { calls.push({ url, init }); return new Response(JSON.stringify({ ok: true, status: "accepted", lead_id: "l", lead_token: "tok" }), { status: 200 }); }) as typeof fetch;
+    try {
+      expect(await postLead({ first_name: "A" })).toEqual({ kind: "accepted", token: "tok", lead_id: "l" });
+    } finally { globalThis.fetch = orig; }
+    expect(calls.length).toBe(1);
+    expect(calls[0].url).toMatch(/\/webhook\/smc\/lead$/);
+    expect(JSON.stringify(calls[0].init.headers)).not.toMatch(/X-Lead-Token/i);
+  });
+  it("the dev mock /lead returns the demo token", async () => {
+    expect(await mockPostLead({ first_name: "Naledi" })).toEqual({ kind: "accepted", token: "demo", lead_id: "demo-lead" });
+  });
+  it("step 0 copy (consent, intro, ads text) passes the wording rules", () => {
+    for (const c of [namedConsent(consentJson).text, startIntroLine(), consentJson.ads.text, consentJson.ads.label, consentJson.ads.decline]) {
+      for (const [re, label] of BANNED) expect(c, `${label}: ${c}`).not.toMatch(re);
+      expect(c).not.toMatch(/\bAI\b|licensed|costs? (you )?nothing|\bfree\b/i);
+    }
   });
 });

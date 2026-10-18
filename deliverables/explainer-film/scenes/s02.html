@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>02 The big picture</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .node { position: absolute; display: flex; align-items: center; gap: 16px; padding: 20px 24px; background: #fff; border: 2px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); width: 330px; }
+  .node .ic { width: 58px; height: 58px; }
+  .node b { display: block; font-size: 25px; color: var(--ink); line-height: 1.15; }
+  .node span { display: block; font-size: 16.5px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+  .hub { position: absolute; left: 800px; top: 470px; width: 380px; height: 220px; border-radius: 30px; background: var(--ink); color: #fff; display: flex; flex-direction: column; justify-content: center; padding: 0 36px; box-shadow: var(--shadow-lg); }
+  .hub .lbl { color: var(--y); }
+  .hub b { font-size: 38px; line-height: 1.1; margin-top: 8px; }
+  .hub span { font-size: 18px; opacity: .75; margin-top: 8px; }
+  .hub .badge { position: absolute; right: 22px; top: -18px; background: var(--y); color: var(--ink); font-weight: 800; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; padding: 8px 14px; border-radius: 999px; }
+  svg.lines { position: absolute; inset: 0; width: 1920px; height: 1080px; pointer-events: none; }
+  svg.lines path { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+  svg.lines path.y { stroke: var(--y-2); stroke-width: 4; }
+  .dot { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--y); box-shadow: 0 0 0 5px rgba(255,199,44,.25); opacity: 0; }
+  .nosync { position: absolute; left: 790px; top: 724px; width: 400px; text-align: center; }
+</style></head>
+<body data-scene="s02"><div class="stage">
+  <div class="top"><div class="eyebrow">The big picture</div><h1 class="h">One hub. <em>Everything</em> lands there.</h1></div>
+  <svg class="lines" viewBox="0 0 1920 1080">
+    <path class="l1 y" pathLength="1" d="M400 580 L 440 580"/>
+    <path class="l2 y" pathLength="1" d="M770 580 L 800 580"/>
+    <path class="l3" pathLength="1" d="M990 470 L 990 354"/>
+    <path class="l4" pathLength="1" d="M1180 540 C 1300 530, 1330 335, 1450 331"/>
+    <path class="l5" pathLength="1" d="M1180 580 C 1300 580, 1330 571, 1450 571"/>
+    <path class="l6" pathLength="1" d="M1180 620 C 1300 630, 1330 811, 1450 811"/>
+  </svg>
+  <div class="node n1" style="left:100px;top:529px;width:300px"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M10 9l5 3-5 3z"/></svg></div><div><b>Meta ads</b><span>Facebook + Instagram, click to WhatsApp</span></div></div>
+  <div class="node n2" style="left:440px;top:529px;width:330px"><div class="ic" style="background:var(--wa-dark)"><svg viewBox="0 0 24 24" style="stroke:#fff"><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-4A8 8 0 1 1 20 12z"/></svg></div><div><b>Lindi on WhatsApp</b><span>060 015 6480</span></div></div>
+  <div class="hub"><div class="badge">The one hub</div><div class="lbl">Lead Velocity</div><b>CRM</b><span>Every lead, message and booking</span></div>
+  <div class="node n3" style="left:825px;top:250px;width:330px"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.3 11l7.4-3.8M8.3 13l7.4 3.8"/></svg></div><div><b>n8n automations</b><span>on our own server</span></div></div>
+  <div class="node n4" style="left:1450px;top:280px"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div><div><b>Mark's Outlook</b><span>Booked calls appear by themselves</span></div></div>
+  <div class="node n5" style="left:1450px;top:520px"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div><div><b>Emails</b><span>from hello@sortmycover.co.za</span></div></div>
+  <div class="node n6" style="left:1450px;top:760px"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg></div><div><b>Reminders</b><span>on WhatsApp, before every call</span></div></div>
+  <div class="nosync"><span class="pill y"><i></i>No second system to keep in sync</span></div>
+  <div class="dot d1"></div><div class="dot d2"></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const draw = (sel, t, t0, d = .7) => $(sel).style.strokeDashoffset = (1 - P(t, t0, d, E.inOut)).toFixed(4);
+  // a dot travelling along a path while it is "live"
+  const ride = (dot, sel, t, t0, d) => { const p = $(sel), L = p.getTotalLength(), k = clamp((t - t0) / d); const pt = p.getPointAtLength(L * E.inOut(k));
+    const el = $(dot); el.style.left = pt.x + 'px'; el.style.top = pt.y + 'px'; el.style.opacity = (k > 0 && k < 1) ? 1 : 0; };
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.n1', t, cue('Meta') - .3, { x: -30, y: 0, dur: .7 });
+    draw('.l1', t, cue('straight') - .2);
+    rv('.n2', t, cue('WhatsApp') - .2, { y: 20, dur: .7 });
+    draw('.l2', t, cue('lead', 1) - .5, .4);
+    rv('.hub', t, cue('lead', 1) - .2, { scale: .9, y: 0, ease: E.back, dur: .8 });
+    rv('.hub .badge', t, cue('hub') - .2, { y: 10, scale: .8, ease: E.back, dur: .6 });
+    ride('.d1', '.l2', t, cue('lead', 1) - .5, .9);
+    rv('.n3', t, cue('n8n') - .3, { y: -20, dur: .7 });
+    draw('.l3', t, cue('n8n'));
+    rv('.n4', t, cue('Outlook') - .3, { x: 30, y: 0, dur: .7 }); draw('.l4', t, cue('Outlook') - .4);
+    rv('.n5', t, cue('emails') - .3, { x: 30, y: 0, dur: .7 }); draw('.l5', t, cue('emails') - .4);
+    rv('.n6', t, cue('reminders') - .3, { x: 30, y: 0, dur: .7 }); draw('.l6', t, cue('reminders') - .4);
+    ride('.d2', '.l5', t, cue('emails') - .4, 1.1);
+    rv('.nosync', t, cue('second') - .3, { y: 14, dur: .6 });
+  };
+</script></body></html>

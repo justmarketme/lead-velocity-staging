@@ -6,19 +6,18 @@
     {
       "type": "HEADER",
       "format": "TEXT",
-      "text": "Your upcoming call"
+      "text": "See you tomorrow"
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, looking forward to your {{2}} call with *{{3}}* on *{{4}}*. {{5}} Tap Confirm to let us know you can make it, or Reschedule if needed. Reply STOP to opt out.",
+      "text": "Hi {{1}}, a quick reminder: your {{2}} call with *{{3}}* is tomorrow at *{{4}}*. Most people find 30 minutes is all it takes. Tap Confirm to let us know you can make it. Reply STOP to opt out.",
       "example": {
         "body_text": [
           [
             "Lerato",
             "Microsoft Teams",
             "Mark Smith",
-            "Tue 7 Oct at 10:00",
-            "You mentioned life cover. You can also ask about disability, severe-illness or income-protection cover if relevant."
+            "10:00"
           ]
         ]
       }

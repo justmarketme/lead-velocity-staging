@@ -4,18 +4,18 @@
 |---|---|
 | Version | `faq-v1.0.3` (2026-10-02). Changelog at the end of this file. |
 | Owner | conversation-designer |
-| Used by | Thandi / W07 (WhatsApp), W30/W31 comment and DM replies (4.14), the landing-page FAQ block, the broker explainer |
+| Used by | Lindi / W07 (WhatsApp), W30/W31 comment and DM replies (4.14), the landing-page FAQ block, the broker explainer |
 | Change rule | Any edit runs `node evals/run.mjs --dry-run` (and the live eval when `ANTHROPIC_API_KEY` is set) in CI and cannot merge below the baseline (6B.1). Bump the version on every change. |
 | **Compliance sign-off** | compliance-qa: `PENDING` (v1.0.0 withheld in phase4-review-2; v1.0.1 applies K-1…K-7; v1.0.2 adds the FAQ-23 provider line; v1.0.3 the absolute privacy link — English Parts A+B signed in phase4-review-4 at v1.0.3; Afrikaans unsigned) · name: ______ · date: ______ · version signed: ______ |
 | Practitioner review (2.3) | `PENDING`, within 30 days of launch |
 
-**How this file is read by code.** `evals/run.mjs` and W07 parse every `### ` entry. Each entry has `topic` (the intent model's topic label, see `conversation/prompts/intent-slot.md`), `type` (`answer` = Thandi may send it, `defer` = Thandi must send the fixed deferral line), `en` and `af`. Placeholders are filled from the `brokers` row: `{adviser_first}`, `{adviser}`, `{practice}`, `{fsp}`, `{city}`, `{methods}`, `{adviser_languages}`.
+**How this file is read by code.** `evals/run.mjs` and W07 parse every `### ` entry. Each entry has `topic` (the intent model's topic label, see `conversation/prompts/intent-slot.md`), `type` (`answer` = Lindi may send it, `defer` = Lindi must send the fixed deferral line), `en` and `af`. Placeholders are filled from the `brokers` row: `{adviser_first}`, `{adviser}`, `{practice}`, `{fsp}`, `{city}`, `{methods}`, `{adviser_languages}`.
 
-**Writing rules (checked by the eval).** At most 2 sentences. Reading grade 5 to 7. No emoji, no exclamation marks. No premium, rand amount, cover amount, product, insurer, comparison, suitability, tax or health words: the output gate in `conversation/guardrail.mjs` must pass every `answer` entry unchanged. Thandi may shorten an answer when she phrases it, but may not add a fact that is not here.
+**Writing rules (checked by the eval).** At most 2 sentences. Reading grade 5 to 7. No emoji, no exclamation marks. No premium, rand amount, cover amount, product, insurer, comparison, suitability, tax or health words: the output gate in `conversation/guardrail.mjs` must pass every `answer` entry unchanged. Lindi may shorten an answer when she phrases it, but may not add a fact that is not here.
 
 ---
 
-## Part A: questions Thandi answers (25)
+## Part A: questions Lindi answers (25)
 
 ### FAQ-01 · How long is the call?
 - topic: call_length
@@ -28,8 +28,8 @@
 - topic: call_cost
 - type: answer
 - asked as: "Do I pay for the call?" · "Is it free?" · "Kos die oproep iets?"
-- en: No, the call is free, and there's no obligation to buy anything.
-- af: Nee, die oproep is gratis, en jy is nie verplig om iets te koop nie.
+- en: You don't pay for the call. Advisers pay SortMyCover a fee for the service, and that fee doesn't depend on whether you buy anything.
+- af: Jy betaal nie vir die oproep nie. Adviseurs betaal SortMyCover 'n fooi vir die diens, en daardie fooi hang nie af of jy iets koop nie.
 
 ### FAQ-03 · Who is the adviser?
 - topic: adviser_who
@@ -42,8 +42,8 @@
 - topic: bot_identity
 - type: answer
 - asked as: "Is this a real person?" · "Are you a robot?" · "Is jy 'n mens?"
-- en: I'm Thandi, an AI booking assistant run by Lead Velocity. I can help with your booking, and you can ask for a person at any time.
-- af: Ek is Thandi, 'n KI-besprekingsassistent van Lead Velocity. Ek help met jou bespreking, en jy kan enige tyd vra om met 'n mens te praat.
+- en: I'm Lindi, SortMyCover's automated assistant, not a person. I can help with your booking, or someone from our team or your adviser can chat to you whenever you like.
+- af: Ek is Lindi, SortMyCover se outomatiese assistent, nie 'n mens nie. Ek help met jou bespreking, of iemand van ons span of jou adviseur kan enige tyd met jou praat.
 
 ### FAQ-05 · What happens to my information?
 - topic: privacy
@@ -194,11 +194,11 @@
 
 ---
 
-## Part B: questions Thandi ALWAYS defers (FAIS 2.1.1, 2.1.7)
+## Part B: questions Lindi ALWAYS defers (FAIS 2.1.1, 2.1.7)
 
-Every entry below is answered with the fixed deferral line from `conversation/lines.mjs`, verbatim, followed by the "I've made a note" line. The question (or, for health and ID, only the words "has a health question for you") goes into the pre-call brief. Thandi never adds a sentence about the topic itself.
+Every entry below is answered with the fixed deferral line from `conversation/lines.mjs`, verbatim, followed by the "I've made a note" line. The question (or, for health and ID, only the words "has a health question for you") goes into the pre-call brief. Lindi never adds a sentence about the topic itself.
 
-**FAQ-05 / FAQ-23 note (K-1, K-2, NH-17).** "{practice} only" means the only *adviser* who gets the lead. The service providers who process data for us (hosting, WhatsApp, the AI model, and Meta, which receives a hashed contact for ad measurement as the consent sentence says) are listed in the privacy notice. Thandi never says "only to {practice}" without the provider line, and never says "nobody else".
+**FAQ-05 / FAQ-23 note (K-1, K-2, NH-17).** "{practice} only" means the only *adviser* who gets the lead. The service providers who process data for us (hosting, WhatsApp, the AI model, and Meta, which receives a hashed contact for ad measurement as the consent sentence says) are listed in the privacy notice. Lindi never says "only to {practice}" without the provider line, and never says "nobody else".
 
 **Self-harm and bereavement are not in this file.** A message that suggests self-harm, or tells us someone has died, gets no FAQ entry and no deferral line: the bot pauses and Jonathan and KG are alerted at once (`conversation/handoff.md`, trigger 6).
 

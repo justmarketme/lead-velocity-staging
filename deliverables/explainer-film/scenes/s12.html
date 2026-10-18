@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>12 Mark's side</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .wk { position: absolute; left: 120px; top: 300px; width: 820px; height: 640px; overflow: hidden; padding: 0; }
+  .wk .bar { background: #0f6cbd; color: #fff; padding: 12px 18px; font-weight: 700; font-size: 17px; display: flex; justify-content: space-between; }
+  .wk .grid { position: relative; display: grid; grid-template-columns: 64px repeat(5, 1fr); }
+  .wk .dh { font-size: 14px; font-weight: 800; color: var(--muted); text-align: center; padding: 10px 0; border-bottom: 1.5px solid var(--line); }
+  .wk .hr { font-size: 13px; color: var(--faint); font-weight: 700; height: 62px; padding: 4px 8px 0 0; text-align: right; border-top: 1px solid var(--soft); }
+  .wk .cell { height: 62px; border-top: 1px solid var(--soft); border-left: 1px solid var(--soft); }
+  .ev { position: absolute; border-left: 5px solid var(--y); background: var(--y-wash); border-radius: 6px; padding: 6px 8px; font-size: 13px; font-weight: 800; color: var(--ink); box-shadow: var(--shadow); }
+  .ev span { display: block; font-weight: 600; color: var(--muted); font-size: 12px; }
+  .det { position: absolute; left: 520px; top: 470px; width: 400px; padding: 18px 20px; }
+  .det b.t { display: block; font-size: 19px; color: var(--ink); margin-bottom: 8px; }
+  .det .ln { font-size: 16px; color: var(--slate); padding: 5px 0; border-top: 1px solid var(--soft); display: flex; gap: 10px; }
+  .det .ln i { font-style: normal; width: 110px; color: var(--faint); font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
+  .browser { position: absolute; left: 990px; top: 300px; width: 810px; height: 379px; border-radius: 18px; overflow: hidden; background: #0b0d12; border: 1.5px solid var(--line); box-shadow: var(--shadow-lg); }
+  .browser .chromebar { height: 44px; background: var(--soft); border-bottom: 1.5px solid var(--line); display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+  .browser .chromebar i { width: 12px; height: 12px; border-radius: 50%; background: #d7dade; }
+  .browser .chromebar .url { margin-left: 14px; flex: 1; height: 28px; border-radius: 8px; background: #fff; border: 1px solid var(--line); font-size: 14px; color: var(--slate); display: flex; align-items: center; padding: 0 12px; font-weight: 600; }
+  .browser .view { position: absolute; left: 0; right: 0; top: 44px; bottom: 0; overflow: hidden; }
+  .browser .view img { position: absolute; left: 0; top: 0; width: 100%; }
+  .browser .view img.b { opacity: 0; }
+  .ads { position: absolute; left: 990px; top: 708px; display: flex; gap: 14px; }
+  .ads .m { position: relative; width: 192px; }
+  .ads img { width: 100%; display: block; border-radius: 12px; box-shadow: var(--shadow); }
+  .ads .st { position: absolute; left: 0; right: 0; bottom: 8px; display: flex; justify-content: center; }
+  .ads .st span { font-size: 12px; font-weight: 800; background: rgba(255,255,255,.95); color: var(--y-text); padding: 4px 9px; border-radius: 999px; }
+  .ask { position: absolute; left: 990px; top: 962px; opacity: 0; display: none; }
+  .note { position: absolute; left: 990px; top: 250px; display: flex; gap: 10px; }
+</style></head>
+<body data-scene="s12"><div class="stage">
+  <div class="top"><div class="eyebrow">The adviser's side</div><h1 class="h">What <em>Mark</em> sees</h1></div>
+  <div class="card wk"><div class="bar"><span>Outlook · Mark Weston</span><span>19–23 Oct</span></div>
+    <div class="grid" id="grid"></div></div>
+  <div class="card det"><b class="t">SortMyCover call – Thabo – Phone</b>
+    <div class="ln"><i>Call</i>Thabo on 082 ··· ····</div>
+    <div class="ln"><i>Age band</i>35–44</div>
+    <div class="ln"><i>Budget</i>R750–R1,250 a month</div>
+    <div class="ln"><i>Method</i>Phone · Tue 20 Oct, 10:00</div>
+    <div class="ln"><i>Consent</i>ctwa-named-v3 · from the ad</div>
+  </div>
+  <div class="note"><span class="pill grey n1"><i></i>Verified badge · intro approved</span><span class="pill y n2"><i></i>8 ads waiting for him</span></div>
+  <div class="browser"><div class="chromebar"><i></i><i></i><i></i><div class="url">leadvelocity.co.za/broker</div></div>
+    <div class="view"><img class="a" src="assets/content/portal-dashboard.jpg" alt=""><img class="b" src="assets/content/portal-ads.jpg" alt=""></div></div>
+  <div class="ads"><div class="m"><img src="assets/ads/mark-new-bond-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div><div class="m"><img src="assets/ads/mark-salary-stops-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div><div class="m"><img src="assets/ads/mark-owners-directors-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div><div class="m"><img src="assets/ads/mark-adviser-conversation-with-image.jpg" alt=""><div class="st"><span>Awaiting approval</span></div></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  // build the week grid: 5 days, 09:00-17:00
+  const g = $('#grid'); const days = ['Mon 19', 'Tue 20', 'Wed 21', 'Thu 22', 'Fri 23'];
+  g.insertAdjacentHTML('beforeend', '<div class="dh"></div>' + days.map(d => `<div class="dh">${d}</div>`).join(''));
+  for (let h = 9; h <= 16; h++) g.insertAdjacentHTML('beforeend', `<div class="hr">${String(h).padStart(2, '0')}:00</div>` + days.map(() => '<div class="cell"></div>').join(''));
+  // the booked call: Tue 10:00-10:30 (col 2), plus two existing meetings of his own (grey)
+  const colW = (820 - 64) / 5, top0 = 44 + 41;
+  const ev = (col, hour, mins, html, cls = '') => { const d = document.createElement('div'); d.className = 'ev ' + cls; d.innerHTML = html;
+    d.style.left = (64 + colW * col + 4) + 'px'; d.style.width = (colW - 8) + 'px'; d.style.top = (top0 + (hour - 9) * 62 + 2) + 'px'; d.style.height = (mins / 60 * 62 - 4) + 'px'; $('.wk').appendChild(d); return d; };
+  const own1 = ev(0, 13, 60, 'Client review<span>own meeting</span>', 'own'), own2 = ev(3, 9, 90, 'Office<span>own meeting</span>', 'own');
+  [own1, own2].forEach(e => { e.style.borderLeftColor = '#c9cdd2'; e.style.background = '#f4f5f6'; });
+  const booked = ev(1, 10, 45, 'SortMyCover call – Thabo<span>Phone · 10:00</span>');
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.wk', t, cue('Outlook') - .5, { y: 30, dur: .8 });
+    const b = P(t, cue('Outlook') + .6, .6, E.back); booked.style.opacity = b; booked.style.transform = `scale(${lerp(.85, 1, b).toFixed(3)})`;
+    rv('.det', t, cue('first') - .3, { x: 20, y: 0, dur: .6 });
+    const lns = $$('.det .ln'), at = [cue('number'), cue('age'), cue('budget'), cue('method'), cue('method') + .8];
+    lns.forEach((l, i) => rv(l, t, at[i] - .2, { x: 10, y: 0, dur: .4 }));
+    rv('.browser', t, cue('portal') - .5, { x: 40, y: 0, dur: .8 });
+    rv('.n1', t, cue('verified') - .2, { y: 10, dur: .5 });
+    rv('.n2', t, cue('eight') - .2, { y: 10, dur: .5 });
+    rv('.ads .m', t, cue('eight') - .1, { y: 24, scale: .94, stagger: .12, dur: .6 });
+    $('.browser img.b').style.opacity = P(t, cue('eight') - .4, .6).toFixed(3);
+  };
+</script></body></html>

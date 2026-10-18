@@ -1,0 +1,15 @@
+*.mp4
+*.m4a
+build/node_modules/
+build/clips/
+build/stills/
+build/audio/
+build/render.log
+build/probe*.mjs
+# binary assets are regenerated (README: Assets)
+scenes/assets/ads/
+scenes/assets/site/
+scenes/assets/img/
+scenes/assets/content/*.jpg
+scenes/assets/content/*.png
+scenes/assets/fonts/

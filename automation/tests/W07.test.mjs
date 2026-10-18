@@ -167,7 +167,7 @@ test('injection / off-topic stay in lane; first free-text reply carries DISCLOSE
   assert.ok(t.plan.prefix.includes(LINES.en.STAY_IN_LANE));
   assert.equal(t.plan.prefix[0], LINES.en.DISCLOSE);
   const txt = W.gateAndAssemble(t.plan).text;
-  assert.ok(txt.startsWith('Hi Lerato, I\'m Thandi'));
+  assert.ok(txt.startsWith('Hi Lerato, I\'m Lindi'));
 });
 
 test('operational intents are delegated, never answered by the LLM: book, reschedule, cancel, change method, close unbooked', () => {
@@ -525,7 +525,8 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   const keys = route.parameters.rules.values.map((v) => v.outputKey);
   const main = WF.connections.Route.main;
   assert.equal(main.length, keys.length + 1, 'one connection list per rule + fallback');
-  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node)]));
+  // 2026-10-17: the never-silent guard runs BESIDE the hand-offs (own test below); it rewires nothing, so it is left out here
+  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node).filter((n) => !n.startsWith('Never silent: '))]));
   const { W28, ...expected } = before;
   assert.deepEqual(W28, ['-> W28']);
   // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
@@ -608,7 +609,7 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
   assert.equal(W.routeInbound(msg('STOP'), { lead }).route, 'W15');
   const ok = W.emailReplyPlan(lead, 'My email is Lerato.M@gmail.com.');
   assert.deepEqual([ok.action, ok.email, ok.changed, ok.issue], ['save', 'lerato.m@gmail.com', true, { op: 'issue', lead_id: lead.id }]);
-  assert.match(ok.reply, /emailed a link and a 6-digit code to lerato\.m@gmail\.com/);
+  assert.equal(ok.reply, "Thank you. We've emailed a confirmation link to lerato.m@gmail.com. Please tap it to confirm your email."); // link only (18 Oct 2026)
   const typo = W.emailReplyPlan(lead, 'lerato@gmial.com');
   assert.deepEqual([typo.action, typo.reason, typo.suggestion], ['reply', 'typo', 'lerato@gmail.com']);
   assert.equal(W.emailReplyPlan(lead, 'x@mailinator.com').action, 'reply', 'disposable refused');
@@ -628,4 +629,250 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
   assert.equal(plan.json.action, 'save'); assert.equal(plan.json.to, '+27600000301');
   const sub = await runCode(WF, 'SUB input (email reply)', { json: plan.json });
   assert.equal(sub.json.kind, 'prebuilt'); assert.equal(sub.json.wa.to, '27600000301'); assert.equal(sub.json.correlation, 'w07:reply:SMemail1');
+});
+
+test('never silent: fallback text per route and language, one prebuilt recorded send keyed to the inbound', () => {
+  assert.equal(W.neverSilentText('W04', { first_name: 'Jono' }), "Thanks for your message, Jono! I'm Lindi from SortMyCover. I couldn't pull up the adviser's open times just now, so a person from our team will message you here shortly.");
+  assert.match(W.neverSilentText('W03', {}), /^Thanks for your message! .*Something went wrong on my side just now/);
+  assert.match(W.neverSilentText('W04_list', { lang: 'af' }), /^Dankie vir jou boodskap!.*oop tye/);
+  const s = W.neverSilentSend({ route: 'W04', msg: { from: '+27725548057', wamid: 'SMx', profile_name: 'Jono' }, lead: { id: 'lead_1', first_name: 'TestyC', language: 'en' } });
+  assert.equal(s.kind, 'prebuilt');
+  assert.equal(s.record, true, 'lands in communications, so a second guard sees it');
+  assert.equal(s.to, '+27725548057');
+  assert.equal(s.wa.type, 'text');
+  assert.match(s.wa.text.body, /, TestyC!/);
+  assert.equal(s.correlation, 'W07:never_silent:SMx');
+  assert.equal(s.lead_id, 'lead_1');
+  assert.match(W.neverSilentSend({ route: 'W03', msg: { from: '+27600000001', wamid: 'SMy', profile_name: 'Thabo' } }).wa.text.body, /, Thabo!/, 'unknown number: WhatsApp profile name');
+});
+
+test('never silent: W07.json guard runs beside every hand-off that carries the reply and fails safe', () => {
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  const WAIT = 'Never silent: wait 25 s';
+  const outs = (sw) => { const s = nd(sw); return s.parameters.rules.values.map((r, i) => [r.outputKey, (WF.connections[sw].main[i] || []).map((x) => x.node)]); };
+  const guarded = (sw) => outs(sw).filter(([, t]) => t.includes(WAIT)).map(([k]) => k).sort();
+  assert.deepEqual(guarded('Route'), ['W03', 'W04_list', 'W05', 'W10']);
+  assert.deepEqual(guarded('Delegate to'), ['W03', 'W04', 'W10']);
+  for (const [k, t] of outs('Route')) if (t.includes(WAIT)) assert.ok(t.length === 2, `${k}: the hand-off still runs`);
+  assert.equal(nd(WAIT).parameters.amount, W.NEVER_SILENT_WAIT_S);
+  assert.equal(nd(WAIT).parameters.unit, 'seconds');
+  const q = nd('Never silent: anything sent since the inbound?').parameters.query;
+  for (const k of ["direction = 'outbound'", 'smc_hash_contact($1)', 'opted_out_at IS NOT NULL', "'w07:silent:' || $4", 'ON CONFLICT (source, external_id) DO NOTHING']) assert.ok(q.includes(k), k);
+  assert.deepEqual(WF.connections['Never silent: nothing went out?'].main[0].map((x) => x.node).sort(), ['Never silent: escalation', 'Never silent: fallback (lib w07.neverSilentSend)']);
+  assert.equal(WF.connections['Never silent: nothing went out?'].main[1], undefined, 'something went out: nothing more');
+  assert.equal(nd('Never silent: send fallback').parameters.workflowId.value, 'smc-whatsapp-send');
+  assert.match(nd('Never silent: escalation').parameters.query, /'needs_human', 'urgent'/);
+  for (const n of ['Never silent: anything sent since the inbound?', 'Never silent: send fallback', 'Never silent: escalation']) assert.equal(nd(n).onError, 'continueRegularOutput', n);
+});
+
+test('Cal.com booking_confirm_chat tap: routes to the contact step, which asks to confirm the WhatsApp number', () => {
+  const ld = mkLead(L01, { first_name: 'Lerato', conv_state: { state: 'booked', via: 'calcom' } });
+  assert.equal(W.routeInbound({ from: ld.phone, text: "Yes, let's chat", payload: 'booking_chat_yes:appt-1' }, { lead: ld, broker_numbers: new Set() }).route, 'W07_contact');
+  const s = W.contactStep(ld, { payload: 'booking_chat_yes:appt-1' });
+  assert.equal(s.conv_state.contact_step, 'call_number');
+  assert.equal(s.conv_state.via, 'calcom');
+  assert.equal(s.reply.type, 'buttons');
+  assert.match(s.reply.body, /^Thanks, Lerato! I'm Lindi from SortMyCover\. A few quick things before your call: is this WhatsApp number the best one to reach you on\?$/);
+  assert.deepEqual(s.reply.buttons.map(([id]) => id), ['call_number_yes', 'call_number_other']);
+  assert.equal(W.contactStep({ ...ld, conv_state: s.conv_state }, { payload: 'call_number_yes' }).conv_state.contact_step, 'alt', 'then the existing sequence');
+});
+
+// ---------------------------------------------------------------- Lindi's turn: one call, her own words (17 Oct 2026)
+const FAQ_MAP = W.parseFaqMd(readFileSync(new URL('../../knowledge/faq.md', import.meta.url), 'utf8'));
+const lt = (text, opts = {}) => {
+  const r = turn(text, opts);
+  return { ...r, apply: (reply, extra = {}) => W.applyModelReply(r.plan, reply, { question: text, disclosed: opts.disclosed ?? true, lead_used_emoji: false, topics: (opts.nlu || {}).topics || [], ...extra }) };
+};
+const assemble = (plan) => W.gateAndAssemble(plan, { fallback: '' }).text;
+
+test('Lindi turn: parseTurn reads the labels and the reply from one answer; bad output falls back safely', () => {
+  const t = W.parseTurn('```json\n{"intent":"question","topics":["call_length"],"slots":{},"confidence":0.9,"reply":"It\'s 30 minutes, nothing to prepare."}\n```');
+  assert.equal(t.nlu.intent, 'question'); assert.deepEqual(t.nlu.topics, ['call_length']); assert.equal(t.nlu.valid, true);
+  assert.equal(t.reply, "It's 30 minutes, nothing to prepare.");
+  assert.equal(W.parseTurn('Sure! {"intent":"book","reply":"Let me find you a time."} hope that helps').reply, 'Let me find you a time.');
+  const bad = W.parseTurn('not json at all');
+  assert.equal(bad.nlu.valid, false); assert.equal(bad.nlu.intent, 'other'); assert.equal(bad.reply, '');
+  assert.equal(W.parseTurn('{"intent":"other"}').reply, '', 'labels without a reply still parse');
+});
+
+test('Lindi turn: the request carries state, booking, filled FAQ answers, the recent chat (redacted) and the message', () => {
+  const j = { lead: { ...mkLead(L01), first_name: 'Lerato', conv_state: { state: 'unbooked', disclosed: false } }, booking: null,
+    broker: { contact_person: 'Mark Weston', firm_name: 'Oracle Private Wealth' }, adviser_first: 'Mark', pre: { lead_used_emoji: false }, text_llm: 'how long is the call?' };
+  const turns = [{ direction: 'inbound', content: 'hi, my ID is 8001015009087' }, { direction: 'outbound', content: 'Hi Lerato, I\'m Lindi from SortMyCover.' },
+    { direction: 'outbound', content: '[text]' }, { direction: 'inbound', content: 'how long is the call?' }];
+  const r = W.turnRequest({ j, turns, faq: FAQ_MAP, system: 'SYS', now_ms: ms('2026-10-17T15:00:00+02:00') });
+  const u = r.request.messages[0].content;
+  assert.equal(r.state, 'unbooked');
+  assert.equal(r.request.system, 'SYS');
+  for (const k of ['STATE: unbooked', 'DISCLOSED: false', 'ADVISER: Mark', 'BOOKING: none', 'FIRST_NAME: Lerato', 'MESSAGE: """how long is the call?"""']) assert.ok(u.includes(k), k);
+  assert.match(u, /NEXT: if they want to book.*list of open times/);
+  assert.match(u, /FAQ-01: /);
+  assert.match(u, /Mark/, 'adviser placeholders filled');
+  assert.equal(/\{(adviser|practice|fsp|city)\}/.test(u), false, 'no raw placeholders reach the model');
+  assert.match(u, /RECENT TURNS \(oldest first\):\nthem: hi, my ID is \[ID number removed\]\nlindi: Hi Lerato, I'm Lindi from SortMyCover\.\nMESSAGE/, 'redacted, [text] skipped, current message not repeated');
+  assert.ok(W.turnRequest({ j, turns: [], faq: {}, system: '' }).request.messages[0].content.includes('RECENT TURNS (oldest first):\n(none)'));
+});
+
+test('Lindi turn: a service question is answered in her words (one message, no second call)', () => {
+  const t = lt('how long is the call?', { nlu: { intent: 'question', topics: ['call_length'] } });
+  assert.deepEqual(t.plan.reply_actions, ['answer:FAQ-01']);
+  const r = t.apply("It's a 30-minute chat with Mark, and there's nothing you need to prepare.");
+  assert.deepEqual(r, { used: true, reason: null });
+  assert.equal(t.plan.reply_actions.length, 0);
+  assert.equal(t.plan.send, true);
+  assert.equal(assemble(t.plan), "It's a 30-minute chat with Mark, and there's nothing you need to prepare.");
+});
+
+test('Lindi turn: a booking request puts her sentence on the W04 time list instead of SLOTS_INTRO', () => {
+  const t = lt('can I book a call', { state: 'unbooked', nlu: { intent: 'book' } });
+  const d = t.plan.delegate.find((x) => x.to === 'W04');
+  assert.ok(d, 'W04 delegate');
+  assert.equal(t.apply("Lovely, let's get that sorted. Here are Mark's next open times.").used, true);
+  assert.equal(d.body, "Lovely, let's get that sorted. Here are Mark's next open times.");
+  assert.equal(d.body.includes(L('SLOTS_INTRO')), false);
+  assert.equal(t.plan.send, false, 'still one message: W04/W28 send it');
+});
+
+test('Lindi turn: a price question gets her warm deferral, never a number; a reply with a price is dropped for the fixed lines', () => {
+  const ok = lt('how much would cover cost me?', { nlu: { intent: 'question', topics: ['premium'] } });
+  assert.ok(ok.plan.suffix.includes(LINES.en.DEFER));
+  assert.equal(ok.apply("That's exactly what Mark will go through with you on the call, and I've made a note so he comes prepared.").used, true);
+  assert.equal(ok.plan.suffix.includes(LINES.en.DEFER), false);
+  const bad = lt('how much would cover cost me?', { nlu: { intent: 'question', topics: ['premium'] } });
+  const r = bad.apply('Most people pay about R500 a month, but Mark will confirm.');
+  assert.equal(r.used, false); assert.match(r.reason, /^outputGate:/);
+  assert.ok(bad.plan.suffix.includes(LINES.en.DEFER), 'fixed deferral kept');
+  assert.equal(bad.plan.no_second_call, true);
+});
+
+test('Lindi turn: STOP, a person, consent and qualifying turns keep their fixed lines', () => {
+  assert.equal(lt('STOP').apply('Sure, no more messages.').reason, 'fixed_turn');
+  assert.equal(lt('I want to speak to a real person', { nlu: { intent: 'person' } }).apply('Of course!').reason, 'fixed_turn');
+  assert.equal(lt('yes go ahead', { state: 'consent_pending', nlu: { intent: 'consent', consent_answer: 'yes' } }).apply('Great!').reason, 'fixed_turn');
+  assert.equal(lt('I am 40', { state: 'q_age', nlu: { intent: 'other', slots: { age_band: '35-44' } } }).apply('Thanks!').reason, 'fixed_turn');
+});
+
+test('Lindi turn: "Yes" no longer gets silence; first contact still introduces Lindi; safety lines stay', () => {
+  const yes = lt('Yes', { nlu: { intent: 'other', topics: [] } });
+  assert.equal(yes.plan.send, false, 'before: nothing was sent');
+  assert.equal(yes.apply('Great, what email address should I send the invite to?').used, true);
+  assert.equal(yes.plan.send, true);
+  const first = lt('hi, can I book a call?', { state: 'unbooked', disclosed: false, nlu: { intent: 'book', topics: ['greeting'] } });
+  first.apply('Hi! Happy to help you set up your call.', { disclosed: false });
+  const firstD = first.plan.delegate.find((x) => x.to === 'W04');
+  assert.ok(firstD.body.startsWith(L('DISCLOSE')), 'no "Lindi" in her reply -> the fixed intro is kept');
+  const named = lt('hi, can I book a call?', { state: 'unbooked', disclosed: false, nlu: { intent: 'book', topics: ['greeting'] } });
+  named.apply("Hi, I'm Lindi from SortMyCover, here to set up your call with Mark.", { disclosed: false });
+  assert.equal(named.plan.delegate.find((x) => x.to === 'W04').body.includes(L('DISCLOSE')), false);
+  assert.equal(named.plan.discloses, true);
+  const id = lt('my id is 8001015009087, how long is the call?', { nlu: { intent: 'question', topics: ['call_length', 'id_number'] } });
+  assert.equal(id.apply("It's 30 minutes with Mark.").used, true);
+  assert.ok(assemble(id.plan).endsWith(LINES.en.ID_WARNING), 'ID warning kept');
+});
+
+test('Lindi turn: "Lead Velocity" only when they ask who runs SortMyCover; a dropped reply is a fallback, not a trip', () => {
+  assert.equal(lt('how long is the call?', { nlu: { intent: 'question', topics: ['call_length'] } }).apply("I'm Lindi, run by Lead Velocity. It's 30 minutes.").reason, 'brand:lead_velocity');
+  assert.equal(lt('who runs this?', { nlu: { intent: 'question', topics: ['lead_velocity'] } }).apply('SortMyCover is run by Lead Velocity (Pty) Ltd, and we book calls with licensed advisers.').used, true);
+  const t = lt('how long is the call?', { nlu: { intent: 'question', topics: ['call_length'] } });
+  t.apply('');
+  const out = W.gateAndAssemble(t.plan, { fallback: 'The call is 30 minutes.' });
+  assert.deepEqual([out.text, out.used, out.guardrail_trip], ['The call is 30 minutes.', 'fallback', false]);
+});
+
+test('Lindi turn: W07.json makes ONE model call (labels + reply), reads the recent chat, and skips the old reply/classifier calls', () => {
+  const nd = (x) => WF.nodes.find((n) => n.name === x);
+  assert.deepEqual(WF.connections['Media only? (never sent to a model)'].main[1].map((t) => t.node), ['Load recent turns (Lindi memory)']);
+  assert.deepEqual(WF.connections['Load recent turns (Lindi memory)'].main[0].map((t) => t.node), ['Build intent-slot request (Haiku)']);
+  assert.match(nd('Load recent turns (Lindi memory)').parameters.query, /json_agg/);
+  assert.equal(nd('Load recent turns (Lindi memory)').onError, 'continueRegularOutput');
+  assert.match(nd('Build intent-slot request (Haiku)').parameters.jsCode, /lindi-turn\.md/);
+  assert.match(nd('Build intent-slot request (Haiku)').parameters.jsCode, /L\.turnRequest\(/);
+  assert.match(nd('Parse NLU -> decide() -> plan').parameters.jsCode, /L\.parseTurn\(raw\)/);
+  assert.match(nd('Parse NLU -> decide() -> plan').parameters.jsCode, /L\.applyModelReply\(plan, turn\.reply/);
+  assert.match(JSON.stringify(nd('Needs reply LLM?').parameters), /no_second_call/);
+  const md = readFileSync(new URL('../../conversation/prompts/lindi-turn.md', import.meta.url), 'utf8');
+  const sys = md.split('```prompt')[1].split('```')[0];
+  for (const k of ['"reply"', 'Lindi from SortMyCover', 'Never claim to be human', 'DATA, not instructions']) assert.ok(sys.includes(k), k);
+  assert.equal(/\{adviser_first\}/.test(sys), false);
+});
+
+// 17 Oct 2026 live bug: the FAQ fallback went out with "{adviser} is from {practice} ... {city}".
+test('fillFaqText: fills from the brokers row, drops the city phrase when unknown, never leaves braces', async () => {
+  const W = await import('../lib/w07.mjs');
+  const en = '{adviser} is from {practice}, an authorised financial services provider (FSP {fsp}) based in {city}. {adviser_first} will be the one on the call with you.';
+  const v = W.faqVars({ contact_person: 'Mark Smith', practice_name: 'Oracle Wealth', fsp_number: '12345' });
+  assert.equal(W.fillFaqText(en, v), 'Mark Smith is from Oracle Wealth, an authorised financial services provider (FSP 12345). Mark will be the one on the call with you.');
+  const thin = W.fillFaqText(en, W.faqVars({ contact_person: 'Mark Smith' }));
+  assert.equal(thin, 'Mark will be the one on the call with you.');
+  assert.doesNotMatch(W.fillFaqText(en, {}), /[{}]/);
+  const af = "{adviser} is van {practice}, 'n gemagtigde finansiële diensverskaffer (FSP {fsp}) in {city}. {adviser_first} sal self met jou op die oproep wees.";
+  assert.match(W.fillFaqText(af, v), /^Mark Smith is van Oracle Wealth, 'n gemagtigde finansiële diensverskaffer \(FSP 12345\)\. Mark sal/);
+});
+test('replyFallback answer:FAQ uses the broker on ctx and never returns placeholders', async () => {
+  const W = await import('../lib/w07.mjs');
+  const faq = { 'FAQ-99': { type: 'answer', en: '{adviser} is from {practice} (FSP {fsp}) based in {city}. Ask {adviser_first} anything.' } };
+  assert.equal(W.replyFallback('answer:FAQ-99', { lang: 'en', faq, broker: { contact_person: 'Jono Jettoo', firm_name: 'SortMyCover test practice', fsp_number: 'TEST 0000' } }),
+    'Jono Jettoo is from SortMyCover test practice (FSP TEST 0000). Ask Jono anything.');
+  assert.doesNotMatch(W.replyFallback('answer:FAQ-99', { lang: 'en', faq }), /[{}]/);
+});
+test('W07 carries fsp_number + practice_name into j.broker and the fallback (patch-w07-faq-fill)', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const code = (name) => { const n = wf.nodes.find((x) => x.name === name); return n.parameters.jsCode || n.parameters.query; };
+  assert.match(code('Load context (lead, broker, live booking, window)'), /b\.fsp_number, b\.practice_name/);
+  assert.match(code('Route (deterministic) + prefilter'), /fsp_number: c\.fsp_number/);
+  assert.match(code('Assemble (verdict + toneCheck + fallbacks)'), /broker: j\.broker/);
+  assert.match(code('Parse NLU -> decide() -> plan'), /broker: j\.broker/);
+});
+
+// 17 Oct 2026 live: conv_state still 'booking' while the call was booked -> "Please cancel my call" closed the lead.
+test('decide: a live booking wins over a stale pre-booking state (cancel -> cancel_confirm, never close_unbooked)', () => {
+  const nlu = { intent: 'cancel', topics: ['cancel_move'], slots: {} };
+  for (const st of ['booking', 'unbooked', 'closed_unbooked']) {
+    const d = decide(st, nlu, {}, { booking: { id: 'bk1', status: 'booked', appointment_date: '2026-10-22T07:00:00Z' } });
+    assert.ok(d.actions.includes('cancel_confirm'), `${st}: ${JSON.stringify(d)}`);
+    assert.ok(!d.actions.includes('close_unbooked'));
+  }
+  // no live booking: unchanged behaviour
+  assert.ok(decide('booking', nlu, {}, {}).actions.includes('close_unbooked'));
+  assert.ok(decide('booking', nlu, {}, { booking: { id: 'bk2', status: 'cancelled' } }).actions.includes('close_unbooked'));
+});
+
+test('applyModelReply: a cancel_confirm turn keeps the approved question (the model may not say it is cancelled)', () => {
+  const plan = { actions: ['cancel_confirm'], delegate: [{ to: 'W10', action: 'cancel_confirm', lead_lines: [], body: 'Do you want me to cancel your call on 22 October at 09:00?' }], prefix: [], suffix: [], reply_actions: [], send: false, lang: 'en', vars: {} };
+  const r = W.applyModelReply(plan, "Done, I've cancelled your call with Jono on Thursday.", { question: 'Please cancel my call' });
+  assert.equal(r.used, false);
+  assert.equal(r.reason, 'fixed_turn');
+  assert.equal(plan.delegate[0].body, 'Do you want me to cancel your call on 22 October at 09:00?');
+});
+
+test('a cancel turn never adds FAQ-06 ("Tap Reschedule or Cancel") next to the Yes, cancel / Keep it buttons', () => {
+  const ld = mkLead(L01);
+  const msg = { text: 'Please cancel my call on Thursday', wamid: 'wamid.X', from: ld.phone };
+  const p = W.preStep(msg, ld, BROKER_ROW);
+  const n = { intent: 'cancel', topics: ['cancel_move'], slots: {}, confidence: 0.9 };
+  const d = decide('booked', n, p.pre, { booking, unanswered: 0 });
+  const plan = W.planActions(d, { lead: ld, booking, pre: p.pre, nlu: n, now_ms: NOON, lang: 'en', state: 'booked', wamid: 'wamid.X', disclosed: true, adviser_first: p.adviser_first, unanswered: 0, text_store: p.text_store, faq: FAQ_MAP });
+  const dl = plan.delegate.find((x) => x.to === 'W10');
+  assert.equal(dl.action, 'cancel_confirm');
+  assert.doesNotMatch(dl.body, /Tap Reschedule or Cancel/);
+  assert.match(dl.body, /^Do you want me to cancel your call on /);
+});
+
+test('typing dots: Twilio channel in capitals, shown on arrival before anything else, never blocking the reply', () => {
+  const nd = (x) => WF.nodes.find((n) => n.name === x);
+  for (const name of ['Typing indicator (Lindi, Twilio)', 'Typing indicator on arrival (Lindi, Twilio)']) {
+    const n = nd(name);
+    assert.equal(n.parameters.url, 'https://messaging.twilio.com/v3/Indicators/Typing.json', name);
+    assert.match(n.parameters.jsonBody, /channel: 'WHATSAPP'/, `${name}: lowercase 'whatsapp' gets a 400 (tested live 18 Oct)`);
+    assert.equal(n.onError, 'continueRegularOutput', name);
+  }
+  const outs = WF.connections['Route (deterministic) + prefilter'].main[0].map((t) => t.node);
+  assert.ok(outs.includes('Show typing dots now? (Twilio)'));
+  assert.ok(outs.includes('Known lead or broker? (store)'), 'the normal flow still runs');
+  // n8n executionOrder v1 runs parallel branches top to bottom: the dots branch must sit above the main flow
+  assert.ok(nd('Show typing dots now? (Twilio)').position[1] < nd('Known lead or broker? (store)').position[1]);
+  assert.equal(WF.settings.executionOrder, 'v1');
+  assert.deepEqual(WF.connections['Typing indicator on arrival (Lindi, Twilio)'], undefined, 'a dead end: nothing waits on it');
+  const gate = JSON.stringify(nd('Show typing dots now? (Twilio)').parameters);
+  for (const k of ["WHATSAPP_PROVIDER === 'twilio'", "'W15'", "'paused'", "origin === 'w03'"]) assert.ok(gate.includes(k), k);
 });

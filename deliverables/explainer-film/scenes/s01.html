@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>01 SortMyCover, end to end</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .logo { position: absolute; left: 160px; top: 170px; height: 92px; }
+  .title { position: absolute; left: 160px; top: 300px; }
+  .title h1 { font-size: 112px; line-height: 1; letter-spacing: -.035em; color: var(--ink); font-weight: 800; }
+  .title h1 em { font-style: italic; font-family: "Instrument Serif", Georgia, serif; font-weight: 400; background: linear-gradient(transparent 58%, var(--y) 58%, var(--y) 94%, transparent 94%); padding: 0 6px; }
+  .title p { margin-top: 26px; font-size: 30px; color: var(--muted); font-weight: 600; }
+  .flow { position: absolute; left: 160px; top: 640px; display: flex; align-items: center; gap: 0; }
+  .flow .chip { padding: 18px 22px; gap: 14px; } .flow .chip .ic { width: 48px; height: 48px; border-radius: 14px; } .flow .chip b { font-size: 25px; } .flow .chip span { font-size: 16px; }
+  .chip { display: flex; align-items: center; gap: 18px; padding: 22px 30px; background: #fff; border: 2px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); }
+  .chip .ic { width: 56px; height: 56px; border-radius: 16px; }
+  .chip b { font-size: 30px; color: var(--ink); display: block; }
+  .chip span { font-size: 18px; color: var(--muted); font-weight: 600; }
+  .arrow { width: 44px; height: 4px; background: var(--ink); border-radius: 2px; margin: 0 16px 0 10px; transform-origin: left; position: relative; }
+  .arrow::after { content: ""; position: absolute; right: -2px; top: -7px; border: 9px solid transparent; border-left: 12px solid var(--ink); border-right: 0; }
+  .stats { position: absolute; left: 160px; top: 830px; display: flex; gap: 14px; }
+  .hero { position: absolute; right: 110px; top: 150px; width: 520px; height: 780px; border-radius: 34px; overflow: hidden; box-shadow: var(--shadow-lg); }
+  .hero img { width: 100%; height: 100%; object-fit: cover; object-position: 62% 30%; }
+  .hero .tag { position: absolute; left: 28px; bottom: 28px; display: flex; align-items: center; gap: 14px; background: #fff; padding: 16px 22px; border-radius: 18px; box-shadow: var(--shadow-lg); }
+  .hero .tag i { width: 14px; height: 14px; border-radius: 50%; background: var(--green); }
+  .hero .tag b { font-size: 22px; color: var(--ink); display: block; }
+  .hero .tag span { font-size: 16px; color: var(--muted); }
+</style></head>
+<body data-scene="s01" data-header="0"><div class="stage">
+  <img class="logo" src="assets/content/logo-wordmark-charcoal-1440.png" alt="">
+  <div class="title"><h1>SortMyCover,<br><em>end to end.</em></h1><p>What we've built, and how it all works · 18 October 2026</p></div>
+  <div class="flow">
+    <div class="chip c1"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M10 9l5 3-5 3z"/></svg></div><div><b>An ad</b><span>Facebook + Instagram</span></div></div>
+    <div class="arrow a1"></div>
+    <div class="chip c2"><div class="ic"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-4A8 8 0 1 1 20 12z"/></svg></div><div><b>A chat with Lindi</b><span>on WhatsApp</span></div></div>
+    <div class="arrow a2"></div>
+    <div class="chip c3"><div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M9 15l2 2 4-4"/></svg></div><div><b>A booked call</b><span>30 min, authorised adviser</span></div></div>
+  </div>
+  <div class="stats"><span class="pill ink s1"><i style="background:var(--y)"></i>4 ads ready</span><span class="pill green s2"><i></i>15 workflows live</span><span class="pill grey s3"><i></i>Built and tested</span></div>
+  <div class="hero"><img src="assets/img/hero-kitchen.webp" alt=""><div class="tag"><i></i><div><b>Call booked</b><span>30 minutes · with an authorised adviser</span></div></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  window.update = t => {
+    rv('.logo', t, .2, { y: 16, dur: .8 });
+    rv('.title h1', t, .35, { y: 40, blur: 8, dur: 1.1 });
+    rv('.title p', t, cue('eighteenth') - .3, { y: 16 });
+    rv('.hero', t, .5, { y: 0, x: 60, scale: .97, dur: 1.4 });
+    $('.hero img').style.transform = `scale(${(1.08 - .08 * P(t, .5, 9, E.lin)).toFixed(4)})`;
+    rv('.hero .tag', t, cue('book') + .3, { y: 20, scale: .9, ease: E.back, dur: .7 });
+    rv('.c1', t, cue('ad') - .2, { x: -20, y: 0, dur: .6 });
+    $('.a1').style.transform = `scaleX(${P(t, cue('ad') + .3, .5).toFixed(3)})`;
+    rv('.c2', t, cue('WhatsApp') - .1, { x: -20, y: 0, dur: .6 });
+    $('.a2').style.transform = `scaleX(${P(t, cue('WhatsApp') + .5, .5).toFixed(3)})`;
+    rv('.c3', t, cue('book') - .1, { x: -20, y: 0, dur: .6 });
+    rv('.stats .pill', t, cue('built') - .2, { y: 14, stagger: .18, dur: .6 });
+  };
+</script></body></html>

@@ -4,15 +4,16 @@
 // build-sub-workflows.mjs) does the SQL, the Resend call and the WhatsApp reply. Code node form:
 //   const L = require('lv-automation').subEmailVerify;
 //
-// One email, two ways to confirm (capture-v2 COPY.verify_body): a one-tap link https://sortmycover.co.za/v/<token>
-// (served by the same sub-workflow's GET webhook v/:token) and a 6-digit code the lead types on WhatsApp (W07 routes
-// it here: route 'email_code'). Sent from hello@sortmycover.co.za through Resend (RESEND_API_KEY, the CRM's existing
-// key). Only sha256(lead_id|code) is stored; the code exists in the email and nowhere else.
+// One email, one way to confirm (capture-v2 COPY.verify_body): a one-tap link (served by the same sub-workflow's GET
+// webhook v/:token). 18 Oct 2026 (Jono): link only. The 6-digit code is no longer in the email or any message and W07 no
+// longer routes typed numbers here; op 'code' / codePlan stay for old emails but nothing offers a code. Sent from
+// hello@sortmycover.co.za through Resend (directly, or through the smc-email-send relay when n8n has no Resend key).
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const C = require('../ctwa/capture-v2.js');
 
 export const RESEND_URL = 'https://api.resend.com/emails';
+export const SMC_EMAIL_RELAY_URL = 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-email-send';
 export const DEFAULT_FROM = 'SortMyCover <hello@sortmycover.co.za>';
 export const RESEND_GAP_MS = 10 * 60 * 1000; // one email per 10 minutes per lead (a repeat issue inside it is a no-op)
 const first = (s) => String(s || '').trim().split(/\s+/)[0] || '';
@@ -47,7 +48,10 @@ export function issuePlan(lead, env = {}, now = Date.now()) {
   const last = lead.email_verify_sent_at ? Date.parse(lead.email_verify_sent_at) : NaN;
   if (Number.isFinite(last) && now - last < RESEND_GAP_MS) return { action: 'skip', reason: 'recently_sent' };
   if (!env.EMAIL_VERIFY_SECRET || String(env.EMAIL_VERIFY_SECRET).length < 32) return { action: 'skip', reason: 'secret_missing' };
-  if (!env.RESEND_API_KEY) return { action: 'skip', reason: 'resend_key_missing' };
+  // 17 Oct 2026: without a Resend key on the n8n server the email goes through the smc-email-send function (the key is a
+  // Supabase secret there), authorised by the n8n relay token.
+  const relay = !env.RESEND_API_KEY && env.LINDI_RELAY_TOKEN;
+  if (!env.RESEND_API_KEY && !relay) return { action: 'skip', reason: 'resend_key_missing' };
   const iss = C.issueEmailVerification(lead, { secret: env.EMAIL_VERIFY_SECRET, now, baseUrl: env.VERIFY_BASE_URL || 'https://sortmycover.co.za', adviser: first(lead.adviser_name) || 'your adviser' });
   if (!iss) return { action: 'skip', reason: 'no_email' };
   const m = iss.mail.message;
@@ -56,7 +60,7 @@ export function issuePlan(lead, env = {}, now = Date.now()) {
   return {
     action: 'send',
     set: iss.set,
-    resend: { url: RESEND_URL, headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': `ev:${lead.id}:${iss.set.email_verify_sent_at}` }, body },
+    resend: { url: relay ? env.SMC_EMAIL_RELAY_URL || SMC_EMAIL_RELAY_URL : RESEND_URL, headers: { Authorization: `Bearer ${relay ? env.LINDI_RELAY_TOKEN : env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': `ev:${lead.id}:${iss.set.email_verify_sent_at}` }, body },
     activity: { activity_type: 'email_verify_sent', payload: { via: 'resend', expires_at: iss.set.email_verify_expires_at } },
   };
 }

@@ -241,7 +241,7 @@ export function normaliseTwilioInbound(p = {}, nowMs = Date.now()) {
   }
   const nMedia = Number(p.NumMedia || 0);
   const msg = { wamid: sid, from: '+' + digits(p.From), at_ms: nowMs, type: 'text', text: '', payload: null, list_id: null, media: null, media_id: null,
-    referral: null, phone_number_id: digits(p.To) || null };
+    referral: null, phone_number_id: digits(p.To) || null, profile_name: p.ProfileName || null };
   const flow = flowResponseOf(p);
   if (flow) { msg.type = 'interactive'; msg.payload = 'flow_complete'; msg.flow_response = flow; }
   else if (p.ListId) { msg.type = 'interactive'; msg.list_id = p.ListId; msg.text = p.ListTitle || p.Body || ''; }

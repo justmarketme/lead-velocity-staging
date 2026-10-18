@@ -23,7 +23,6 @@ export const SECRETS = [
   ['Twilio API key', 'TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET', [
     ['httpBasicAuth', 'Twilio (SMC voice)'], ['httpBasicAuth', 'Twilio API key (Basic)']]],
   ['Microsoft Entra app (howzit@ and broker connect)', 'MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET', [
-    ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)'],
     ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)'],
     ['microsoftOutlookOAuth2Api', 'Microsoft Graph (howzit@)'], ['oAuth2Api', 'Microsoft Graph (howzit mailbox, app-only)'],
     ['oAuth2Api', 'MS Graph app-only - howzit@ Mail.Send'], ['httpCustomAuth', 'Microsoft Graph broker-connect client secret (W20)']]],
@@ -37,7 +36,6 @@ export const SECRETS = [
   ['NCC registry key', '- (GATE-NCC)', [['httpHeaderAuth', 'NCC registry API']]],
   ['Hostinger SFTP login', '- (password manager)', [['sftp', 'Hostinger SFTP (static sites)']]],
   ['Console to n8n shared secret', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'Console -> n8n shared secret']]],
-  ['W22 uptime monitor token', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'W22 uptime monitor header token']]],
   ['W34 DSR webhook token', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'W34 DSR webhook token']]],
   ['n8n webhook secret (SMC)', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'n8n webhook secret (SMC)']]],
 ];

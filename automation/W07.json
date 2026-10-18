@@ -1,6 +1,6 @@
 {
   "id": "smc-w07",
-  "name": "W07 Conversation agent (Thandi)",
+  "name": "W07 Conversation agent (Lindi)",
   "nodes": [
     {
       "id": "n01",
@@ -269,7 +269,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT p.phone AS from_phone,\n       l.id, l.first_name, l.last_name, l.phone, l.line_type, l.brand_id, l.broker_id, l.stage, l.conv_state,\n       l.opted_out_at, l.language, l.origin, l.first_message_at, l.verified_at,\n       l.age_band, l.budget_band, l.method_pref, l.email, l.email_verified, l.call_number, l.best_time,\n       (l.email_verify_code_hash IS NOT NULL AND l.email_verified IS NOT TRUE AND l.email_verify_expires_at > now()) AS email_verify_pending,\n       b.contact_person, b.firm_name, b.whatsapp_number,\n       a.id AS booking_id, a.appointment_date, a.ends_at, a.method, a.status AS booking_status, a.graph_event_id, a.reschedule_count,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT bb.id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_id,\n       (SELECT bb.brand_id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_brand_id,\n       (SELECT bb.status FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_status,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(p.phone)) AS suppressed\n  FROM (SELECT $1::text AS phone) p\n  LEFT JOIN public.leads l ON l.phone = p.phone AND l.brand_id IS NOT NULL AND l.duplicate_of IS NULL\n  LEFT JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT x.id, x.appointment_date, x.ends_at, x.method, x.status, x.graph_event_id, x.reschedule_count\n                       FROM public.appointments x\n                      WHERE x.client_id = l.id AND x.brand_id IS NOT NULL AND x.status IN ('pending_verification','booked','confirmed')\n                      ORDER BY x.appointment_date LIMIT 1) a ON true\n ORDER BY l.created_at DESC NULLS LAST\n LIMIT 1;",
+        "query": "SELECT p.phone AS from_phone,\n       l.id, l.first_name, l.last_name, l.phone, l.line_type, l.brand_id, l.broker_id, l.stage, l.conv_state,\n       l.opted_out_at, l.language, l.origin, l.first_message_at, l.verified_at,\n       l.age_band, l.budget_band, l.method_pref, l.email, l.email_verified, l.call_number, l.best_time,\n       (l.email_verify_code_hash IS NOT NULL AND l.email_verified IS NOT TRUE AND l.email_verify_expires_at > now()) AS email_verify_pending,\n       b.contact_person, b.firm_name, b.fsp_number, b.practice_name, b.whatsapp_number,\n       a.id AS booking_id, a.appointment_date, a.ends_at, a.method, a.status AS booking_status, a.graph_event_id, a.reschedule_count,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT bb.id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_id,\n       (SELECT bb.brand_id FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_brand_id,\n       (SELECT bb.status FROM public.brokers bb WHERE bb.whatsapp_number = p.phone AND bb.brand_id IS NOT NULL LIMIT 1) AS from_broker_status,\n       EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(p.phone)) AS suppressed\n  FROM (SELECT $1::text AS phone) p\n  LEFT JOIN public.leads l ON l.phone = p.phone AND l.brand_id IS NOT NULL AND l.duplicate_of IS NULL\n  LEFT JOIN public.brokers b ON b.id = l.broker_id\n  LEFT JOIN LATERAL (SELECT x.id, x.appointment_date, x.ends_at, x.method, x.status, x.graph_event_id, x.reschedule_count\n                       FROM public.appointments x\n                      WHERE x.client_id = l.id AND x.brand_id IS NOT NULL AND x.status IN ('pending_verification','booked','confirmed')\n                      ORDER BY x.appointment_date LIMIT 1) a ON true\n ORDER BY l.created_at DESC NULLS LAST\n LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [ ($json.msg && $json.msg.origin === 'w03') ? $json.msg.from : $('Verify signature + normalise').item.json.msg.from ] }}"
         }
@@ -296,7 +296,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, email_verified: c.email_verified === true || c.email_verified === 't', call_number: c.call_number, best_time: c.best_time, email_verify_pending: c.email_verify_pending === true || c.email_verify_pending === 't' } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: r.route === 'email_code' ? '[email verification code]' : r.route === 'email_reply' ? '[email address]' : pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
+        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, email_verified: c.email_verified === true || c.email_verified === 't', call_number: c.call_number, best_time: c.best_time, email_verify_pending: c.email_verify_pending === true || c.email_verify_pending === 't' } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name, fsp_number: c.fsp_number || null, practice_name: c.practice_name || null }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: r.route === 'email_code' ? '[email verification code]' : r.route === 'email_reply' ? '[email address]' : pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
       }
     },
     {
@@ -342,7 +342,7 @@
         "operation": "executeQuery",
         "query": "WITH ins AS (\n  INSERT INTO public.communications (brand_id, channel, direction, sender_type, sender_id, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, redacted, metadata)\n  VALUES ($1::uuid, 'whatsapp', 'inbound', $2, NULL, 'system', $3, $4, 'received', $5, $6::uuid, $7::uuid, $8, 'W07', $9::boolean, $10::jsonb)\n  ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING\n  RETURNING id)\nUPDATE public.leads\n   SET verified_at = COALESCE(verified_at, CASE WHEN first_message_at IS NOT NULL AND now() <= first_message_at + interval '72 hours' THEN now() END),\n       stage = CASE WHEN verified_at IS NULL AND stage IN ('new','disclosed') AND first_message_at IS NOT NULL AND now() <= first_message_at + interval '72 hours' THEN 'verified' ELSE stage END,\n       last_contact_at = now()\n WHERE id = $6::uuid AND EXISTS (SELECT 1 FROM ins)\nRETURNING id, verified_at;",
         "options": {
-          "queryReplacement": "={{ [$json.brand_id, $json.from_broker_id ? 'broker' : 'client', $env.PHONE_NUMBER_ID, $json.text_store, $json.msg.wamid, $json.lead ? $json.lead.id : null, $json.from_broker_id || ($json.lead ? $json.lead.broker_id : null), $json.from_broker_id ? 'broker' : 'lead', $json.text_store !== ($json.msg.text || ''), JSON.stringify({ type: $json.msg.type, payload: $json.msg.payload, list_id: $json.msg.list_id, media: $json.msg.media, route: $json.route })] }}"
+          "queryReplacement": "={{ [$json.brand_id, $json.from_broker_id ? 'broker' : 'client', ($env.PHONE_NUMBER_ID || $env.TWILIO_WHATSAPP_FROM), $json.text_store, $json.msg.wamid, $json.lead ? $json.lead.id : null, $json.from_broker_id || ($json.lead ? $json.lead.broker_id : null), $json.from_broker_id ? 'broker' : 'lead', $json.text_store !== ($json.msg.text || ''), JSON.stringify({ type: $json.msg.type, payload: $json.msg.payload, list_id: $json.msg.list_id, media: $json.msg.media, route: $json.route })] }}"
         }
       },
       "credentials": {
@@ -1222,7 +1222,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/intent-slot.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\nconst state = (j.lead && j.lead.conv_state && j.lead.conv_state.state) || (j.booking ? 'booked' : 'unbooked');\nconst known = j.lead ? ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => j.lead[k] != null) : [];\nconst user = L.intentUserTurn({ state, booking: j.booking ? { day: '', date: j.booking.appointment_date, time: '', method: j.booking.method } : null, now_ms: Date.now(), known, text_llm: j.text_llm });\nreturn { json: { ...j, state, t0: Date.now(), intent_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 400, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "// Lindi turn (17 Oct 2026): ONE call returns the labels AND the reply (conversation/prompts/lindi-turn.md).\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/lindi-turn.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $('Media only? (never sent to a model)').item.json;\nconst turns = $json && Array.isArray($json.turns) ? $json.turns : [];\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst t = L.turnRequest({ j, turns, faq, system, now_ms: Date.now(), model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001' });\nreturn { json: { ...j, state: t.state, t0: Date.now(), intent_body: t.request, turn_prompt: L.TURN_PROMPT } };"
       }
     },
     {
@@ -1242,7 +1242,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -1258,7 +1258,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.intent_body) }}",
         "options": {
-          "timeout": 8000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -1282,7 +1282,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst nlu = L.parseNlu(raw);\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, unanswered: cs.unanswered || 0, text_store: j.text_store });\nreturn { json: { ...j, nlu, decision, plan, latency_ms: Date.now() - j.t0 } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst turn = L.parseTurn(raw); // { nlu, reply }: one call (lindi-turn.md)\nconst nlu = turn.nlu;\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0 });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, broker: j.broker || null, unanswered: cs.unanswered || 0, text_store: j.text_store });\n// deterministic gates; STOP / distress / a person / consent / qualifying stay fixed; never a second model call\nconst model_reply = L.applyModelReply(plan, turn.reply, { question: (j.msg && j.msg.text) || '', disclosed: !!cs.disclosed, lead_used_emoji: !!(j.pre && j.pre.lead_used_emoji), topics: nlu.topics });\nreturn { json: { ...j, nlu, decision, plan, model_reply, latency_ms: Date.now() - j.t0 } };"
       }
     },
     {
@@ -1393,8 +1393,8 @@
         1000
       ],
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const j = $('Carry plan').item.json;\nconst e = j.plan.escalation;\nconst who = j.lead ? (j.lead.first_name || '') + ' ' + String(j.lead.last_name || '').slice(0, 1) : 'unknown';\nconst to = e.notify.map((n) => n === 'KG' ? $env.OPS_WHATSAPP_KG : $env.OPS_WHATSAPP_JONATHAN).filter(Boolean);\nconst base = ($env.CONSOLE_URL || '');\nreturn to.map((t) => ({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: 'Chat handoff (' + e.note.replace('esc_kind=', '') + '): ' + who.trim() }, { type: 'text', text: 'now' }, { type: 'text', text: e.severity === 'red' ? 'Red: reply personally, nothing automated was sent' : 'Lead is waiting for a person' }, { type: 'text', text: 'Open the conversation in the console' }] }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: (e.deep_link || '').replace(/^\\//, '') }] }] } } } }));"
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One ops alert per recipient (Jonathan / KG). Runs once for all items: a for-each Code node may not return an array\n// (n8n: \"A 'json' property isn't an object\"), which crashed every handoff on 17 Oct. No recipients configured -> no alert.\nconst plans = $('Carry plan').all();\nconst out = [];\n$input.all().forEach((_, i) => {\n  const j = (plans[i] || plans[0]).json;\n  const e = j.plan.escalation;\n  const who = j.lead ? (j.lead.first_name || '') + ' ' + String(j.lead.last_name || '').slice(0, 1) : 'unknown';\n  const to = e.notify.map((n) => n === 'KG' ? $env.OPS_WHATSAPP_KG : $env.OPS_WHATSAPP_JONATHAN).filter(Boolean);\n  for (const t of to) out.push({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: 'Chat handoff (' + e.note.replace('esc_kind=', '') + '): ' + who.trim() }, { type: 'text', text: 'now' }, { type: 'text', text: e.severity === 'red' ? 'Red: reply personally, nothing automated was sent' : 'Lead is waiting for a person' }, { type: 'text', text: 'Open the conversation in the console' }] }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: (e.deep_link || '').replace(/^\\//, '') }] }] } } }, pairedItem: { item: i } });\n});\nreturn out;"
       }
     },
     {
@@ -1708,7 +1708,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ String($json.plan.send && $json.plan.reply_actions.length > 0) }}",
+              "leftValue": "={{ String($json.plan.send && $json.plan.reply_actions.length > 0 && !$json.plan.no_second_call) }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -1750,7 +1750,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -1766,7 +1766,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.reply_body) }}",
         "options": {
-          "timeout": 8000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -1810,7 +1810,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -1826,7 +1826,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.classifier_body) }}",
         "options": {
-          "timeout": 5000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -1850,7 +1850,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; if (j.pre_verdict) verdict = j.pre_verdict;\n  else {\n    const pv = $('Parse verdict + re-check needed? (I-39h)').item.json; // first (Haiku) verdict\n    verdict = pv.first_verdict;\n    if (pv.needs_recheck) { // I-39h: Sonnet re-check ran on this item; $json is its response (neverError: no text = block)\n      verdict = L.resolveRecheck(pv.first_verdict, ($json.content && $json.content[0] && $json.content[0].text) || '');\n    }\n  } }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; if (j.pre_verdict) verdict = j.pre_verdict;\n  else {\n    const pv = $('Parse verdict + re-check needed? (I-39h)').item.json; // first (Haiku) verdict\n    verdict = pv.first_verdict;\n    if (pv.needs_recheck) { // I-39h: Sonnet re-check ran on this item; $json is its response (neverError: no text = block)\n      verdict = L.resolveRecheck(pv.first_verdict, ($json.content && $json.content[0] && $json.content[0].text) || '');\n    }\n  } }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, broker: j.broker || null, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
       }
     },
     {
@@ -2258,9 +2258,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- I-48b: one inbound message -> at most one lead-facing reply. Claim key w07:reply:{wamid} in the same idempotency\n-- table as the wamid claim (webhook_events); W03 takes the same key. Already claimed -> 0 rows -> this branch ends (no send,\n-- no outbound row). Turns with no inbound wamid (W05 post-booking contact start) get a one-off key.\nWITH c AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  VALUES ('whatsapp', 'w07:reply:' || coalesce(nullif($1, ''), 'none:' || gen_random_uuid()::text), nullif($2, '')::uuid, true)\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT c.id AS reply_claim_id, $3::jsonb AS wa FROM c;",
+        "query": "-- I-48b: one inbound message -> at most one lead-facing reply. Claim key w07:reply:{wamid} in the same idempotency\n-- table as the wamid claim (webhook_events); W03 takes the same key. Already claimed -> 0 rows -> this branch ends (no send,\n-- no outbound row). Turns with no inbound wamid (W05 post-booking contact start) get a one-off key.\nWITH c AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  VALUES ('whatsapp', 'w07:reply:' || coalesce(nullif($1, ''), 'none:' || gen_random_uuid()::text), nullif($2, '')::uuid, true)\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT c.id AS reply_claim_id, $3::jsonb AS wa, nullif($1, '') AS inbound_wamid, $4::bigint AS inbound_at_ms FROM c;",
         "options": {
-          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', JSON.stringify($json.wa || {}) ] }}"
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.wamid) || '', $json.brand_id || '', JSON.stringify($json.wa || {}), String(($json.msg && $json.msg.at_ms) || Date.now()) ] }}"
         }
       },
       "credentials": {
@@ -2424,7 +2424,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -2440,7 +2440,7 @@
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
         "options": {
-          "timeout": 8000,
+          "timeout": 12000,
           "response": {
             "response": {
               "neverError": true
@@ -2720,6 +2720,312 @@
           "waitForSubWorkflow": false
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "t1",
+              "leftValue": "={{ $env.WHATSAPP_PROVIDER === 'twilio' && /^(SM|MM)/.test(String($json.inbound_wamid || '')) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "name": "Twilio inbound? (typing)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -560,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://messaging.twilio.com/v3/Indicators/Typing.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + (($env.TWILIO_API_KEY_SID ? $env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET : $env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN)).base64Encode() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'WHATSAPP', messageId: $json.inbound_wamid }) }}",
+        "options": {
+          "timeout": 4000
+        }
+      },
+      "name": "Typing indicator (Lindi, Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -340,
+        1520
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Jono 17 Oct: show the WhatsApp typing dots before Lindi's free-text reply (Twilio Public Beta; also marks the inbound message read). Only for Twilio SM/MM inbound SIDs; failures never block the reply."
+    },
+    {
+      "parameters": {
+        "amount": "={{ (() => { const w = $('Twilio inbound? (typing)').item.json.wa || {}; const t = (w.text && w.text.body) || w.body || ''; const want = Math.min(7, 1.2 + String(t).length * 0.035); const spent = (Date.now() - Number($('Twilio inbound? (typing)').item.json.inbound_at_ms || Date.now())) / 1000; return Math.max(0.8, Math.round((want - spent) * 10) / 10); })() }}"
+      },
+      "name": "Human typing pause",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -120,
+        1520
+      ],
+      "webhookId": "lindi-typing-pause-w07",
+      "notes": "Reply lands after a human-length pause (1.2 s + 35 ms/char, max 7 s) counted from when the message arrived. Jono 17 Oct overrides persona-v1 'no fake typing delays'."
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Restore the claimed item (wa) after the typing indicator / pause replaced $json.\nreturn { json: $('Twilio inbound? (typing)').item.json };"
+      },
+      "name": "Carry reply after pause",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -10,
+        1640
+      ]
+    },
+    {
+      "id": "lt-turns",
+      "name": "Load recent turns (Lindi memory)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Lindi turn (17 Oct 2026): the recent chat so the reply picks up where it left off. Inbound text is the stored (redacted) copy; lib/w07.mjs turnLines() redacts again for the model.",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The last turns of this WhatsApp chat (7 days), oldest first, as ONE row. Outbound rows logged as '[text]' or\n-- 'template:...' carry no words and are skipped by turnLines().\nSELECT coalesce(json_agg(json_build_object('direction', t.direction, 'content', t.content) ORDER BY t.created_at), '[]'::json) AS turns\n  FROM (SELECT direction, left(coalesce(content, ''), 300) AS content, created_at\n          FROM public.communications\n         WHERE channel = 'whatsapp' AND created_at > now() - interval '7 days'\n           AND ((nullif($1, '') IS NOT NULL AND lead_id = nullif($1, '')::uuid) OR recipient_contact = $2)\n         ORDER BY created_at DESC\n         LIMIT 12) t;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || \"\", ($json.msg && $json.msg.from) || \"\" ] }}"
+        }
+      }
+    },
+    {
+      "id": "ty-gate",
+      "name": "Show typing dots now? (Twilio)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.WHATSAPP_PROVIDER === 'twilio' && /^(SM|MM)[0-9a-f]{32}$/.test(($json.msg && $json.msg.wamid) || '') && !['W15', 'ignore_opted_out', 'paused', 'ignore_loop'].includes($json.route) && !($json.msg && $json.msg.origin === 'w03')) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ty-early",
+      "name": "Typing indicator on arrival (Lindi, Twilio)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "Typing dots the moment a message arrives (Twilio Public Beta; also marks the message read). They stay up until the reply is delivered or 25 s.",
+      "parameters": {
+        "method": "POST",
+        "url": "https://messaging.twilio.com/v3/Indicators/Typing.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + (($env.TWILIO_API_KEY_SID ? $env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET : $env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN)).base64Encode() }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: 'WHATSAPP', messageId: $json.msg.wamid }) }}",
+        "options": {
+          "timeout": 4000
+        }
+      }
+    },
+    {
+      "id": "ns-wait",
+      "name": "Never silent: wait 25 s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2600,
+        2200
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 45,
+        "unit": "seconds"
+      },
+      "notes": "WHATSAPP-OPENERS.md rule 4 (17 Oct 2026): runs in parallel with every hand-off to W03/W04/W05/W10, which send the reply themselves. lib/w07.mjs NEVER_SILENT_WAIT_S."
+    },
+    {
+      "id": "ns-check",
+      "name": "Never silent: anything sent since the inbound?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2820,
+        2200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ ($json.msg && $json.msg.from) || '', ($json.lead && $json.lead.id) || '', String(($json.msg && $json.msg.at_ms) || Date.now()), ($json.msg && $json.msg.wamid) || '', $json.brand_id || '' ] }}"
+        },
+        "query": "-- Never silent: any outbound WhatsApp to this number (or lead) since the inbound? If none and the number is not opted out,\n-- claim the one fallback for this inbound (w07:silent:{wamid}), so a W03 -> W07 hand-back cannot send a second one.\nWITH s AS (\n  SELECT EXISTS (SELECT 1 FROM public.communications c\n                  WHERE c.direction = 'outbound' AND c.channel = 'whatsapp'\n                    AND c.created_at >= to_timestamp($3::bigint / 1000.0) - interval '5 seconds'\n                    AND (c.recipient_contact = $1 OR (nullif($2, '') IS NOT NULL AND c.lead_id = nullif($2, '')::uuid))) AS sent,\n         EXISTS (SELECT 1 FROM public.suppression x\n                  WHERE x.mobile_hash = public.smc_hash_contact($1) AND x.source <> 'no_consent_ctwa') AS suppressed,\n         EXISTS (SELECT 1 FROM public.leads l WHERE l.phone = $1 AND l.opted_out_at IS NOT NULL) AS opted_out),\nc AS (\n  INSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\n  SELECT 'whatsapp', 'w07:silent:' || $4, nullif($5, '')::uuid, true\n    FROM s WHERE NOT s.sent AND NOT s.suppressed AND NOT s.opted_out AND $4 <> '' AND $1 <> ''\n  ON CONFLICT (source, external_id) DO NOTHING\n  RETURNING id)\nSELECT s.sent, s.suppressed, s.opted_out, (SELECT id FROM c) AS claim_id FROM s;"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ns-if",
+      "name": "Never silent: nothing went out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        2200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.claim_id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ns-build",
+      "name": "Never silent: fallback (lib w07.neverSilentSend)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        2100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('Never silent: wait 25 s').item.json;\nreturn { json: L.neverSilentSend(j) };"
+      }
+    },
+    {
+      "id": "ns-send",
+      "name": "Never silent: send fallback",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        3480,
+        2100
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ns-esc",
+      "name": "Never silent: escalation",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3260,
+        2300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ (() => { const j = $('Never silent: wait 25 s').item.json; return [ j.brand_id || '', (j.msg && j.msg.wamid) || '', (j.lead && j.lead.id) || '', 'never_silent: hand-off to ' + (j.route || '?') + ' produced no reply in 25 s; a fallback was sent, a person must follow up' ]; })() }}"
+        },
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nVALUES (nullif($1, '')::uuid, 'needs_human', 'urgent', 'communications', nullif($2, ''), nullif($3, '')::uuid, now(), $4)\nRETURNING id;"
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -2813,6 +3119,11 @@
             "node": "Broker breach report? (shared W34 detector, G10)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Show typing dots now? (Twilio)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2871,11 +3182,21 @@
             "node": "-> W03",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "-> W05",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -2890,6 +3211,11 @@
         [
           {
             "node": "-> W10",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -2918,6 +3244,11 @@
         [
           {
             "node": "-> W04_list",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -3096,7 +3427,7 @@
         ],
         [
           {
-            "node": "Build intent-slot request (Haiku)",
+            "node": "Load recent turns (Lindi memory)",
             "type": "main",
             "index": 0
           }
@@ -3264,6 +3595,11 @@
             "node": "-> W03",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -3271,11 +3607,21 @@
             "node": "-> W04_list",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
+            "type": "main",
+            "index": 0
           }
         ],
         [
           {
             "node": "-> W10",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }
@@ -3412,7 +3758,7 @@
       "main": [
         [
           {
-            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "node": "Twilio inbound? (typing)",
             "type": "main",
             "index": 0
           }
@@ -3740,6 +4086,129 @@
         [
           {
             "node": "WhatsApp reply (email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio inbound? (typing)": {
+      "main": [
+        [
+          {
+            "node": "Typing indicator (Lindi, Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Carry reply after pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Typing indicator (Lindi, Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Human typing pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human typing pause": {
+      "main": [
+        [
+          {
+            "node": "Carry reply after pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carry reply after pause": {
+      "main": [
+        [
+          {
+            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load recent turns (Lindi memory)": {
+      "main": [
+        [
+          {
+            "node": "Build intent-slot request (Haiku)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Show typing dots now? (Twilio)": {
+      "main": [
+        [
+          {
+            "node": "Typing indicator on arrival (Lindi, Twilio)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Never silent: wait 25 s": {
+      "main": [
+        [
+          {
+            "node": "Never silent: anything sent since the inbound?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: anything sent since the inbound?": {
+      "main": [
+        [
+          {
+            "node": "Never silent: nothing went out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: nothing went out?": {
+      "main": [
+        [
+          {
+            "node": "Never silent: fallback (lib w07.neverSilentSend)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Never silent: escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: fallback (lib w07.neverSilentSend)": {
+      "main": [
+        [
+          {
+            "node": "Never silent: send fallback",
             "type": "main",
             "index": 0
           }

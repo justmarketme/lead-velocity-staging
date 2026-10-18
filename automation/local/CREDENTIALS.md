@@ -33,17 +33,15 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W02 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W03 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W04 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W04 | Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` |
 | W05 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W05 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
-| W05 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
+| W05 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
 | W06 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W06 | Twilio API key (Basic) | `httpBasicAuth` |
 | W07 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W08 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W09 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W10 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W10 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
+| W10 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
 | W11 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W12 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W13 | LV Supabase - n8n_app (least privilege) | `postgres` |
@@ -51,8 +49,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W14 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
 | W14 | WhatsApp Cloud API (SortMyCover) | `httpHeaderAuth` |
 | W15 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W15 | Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` |
-| W15 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` |
+| W15 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
 | W15 | Twilio API key (Basic) | `httpBasicAuth` |
 | W16 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W16 | Paystack secret key (Authorization: Bearer) | `httpHeaderAuth` |
@@ -68,11 +65,6 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W20 | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` |
 | W20 | Supabase service role (n8n, W20) | `httpHeaderAuth` |
 | W21 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W22 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W22 | Meta system user token (Bearer) | `httpHeaderAuth` |
-| W22 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
-| W22 | Twilio API key (Basic) | `httpBasicAuth` |
-| W22 | W22 uptime monitor header token | `httpHeaderAuth` |
 | W23 | Anthropic API key (x-api-key) | `httpHeaderAuth` |
 | W23 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W23 | MinIO intro media | `s3` |
@@ -108,9 +100,11 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W34 | W34 DSR webhook token | `httpHeaderAuth` |
 | W35 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W36 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` |
+| W37 | LV Supabase - n8n_app (least privilege) | `postgres` |
+| W38 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`, so W22 `token_expiring` covers its rotation. 30 credentials across 43 workflow files.
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`. 28 credentials across 45 workflow files.
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
@@ -119,15 +113,14 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 | Header `x-api-key` | `ANTHROPIC_API_KEY` (C1) |
 | Console -> n8n shared secret | `httpHeaderAuth` | W25 | Webhook header auth on `POST /billing/pricing/publish` | No `.env` name. Same value configured in the console's server-side caller |
 | Hostinger SFTP (static sites) | `sftp` | W25 | Host, port, user, password or key | Hostinger hPanel SFTP account for the static sites (password manager). No `.env` name |
-| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
-| MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W22, W36 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
+| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35, W37, W38 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
+| MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W05, W10, W15, W36 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Meta Page Token | `httpHeaderAuth` | W30, W31 | `Authorization: Bearer …` | `PAGE_ACCESS_TOKEN` |
-| Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20, W22 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
-| Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite) | `microsoftOutlookOAuth2Api` | W05, W10, W15 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ in the n8n UI (C2) |
-| Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W05, W14, W15, W17, W19, W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |
+| Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
+| Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W14, W17, W19, W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |
 | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` | W20 | OAuth2 client credentials | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` | W32 | Microsoft Outlook OAuth2 | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
-| Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token, W04 | Custom auth JSON adding `client_id` + `client_secret` to the token request body | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (broker refresh tokens stay in the Vault and never go in a credential) |
+| Microsoft Graph broker-connect client secret (W20) | `httpCustomAuth` | SUB-w20-ms-token | Custom auth JSON adding `client_id` + `client_secret` to the token request body | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (broker refresh tokens stay in the Vault and never go in a credential) |
 | MinIO intro media | `s3` | W23 | S3 endpoint, access key, secret | Supabase Storage S3 endpoint, bucket `broker-media`: `SUPABASE_S3_ENDPOINT`, `SUPABASE_S3_REGION`, `SUPABASE_S3_ACCESS_KEY`, `SUPABASE_S3_SECRET_KEY` (C4, awaiting key pair) |
 | NCC registry API | `httpHeaderAuth` | W24 | Header per the registry (placeholder) | Unknown until GATE-NCC. W24 runs in csv mode until then (`NCC_REGISTRY_MODE=csv`). Create a placeholder credential so W24 activates |
 | Paystack secret key (Authorization: Bearer) | `httpHeaderAuth` | W16, W19, W25 | `Authorization: Bearer …` | `PAYSTACK_SECRET_KEY` (test key until KYC, 0.3 #5) |
@@ -136,8 +129,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | Supabase service role (n8n, W20) | `httpHeaderAuth` | W20 | `Authorization: Bearer …` (+ `apikey`) | `SUPABASE_SERVICE_ROLE_KEY` (**C3**) |
 | Transcription API (bearer) | `httpHeaderAuth` | W23 | `Authorization: Bearer …` | `TRANSCRIBE_API_KEY` (endpoint `TRANSCRIBE_URL`: external OpenAI-compatible `/v1/audio/transcriptions`, empty = W23 media path off; no container, C4) |
 | Twilio (SMC voice) | `httpBasicAuth` | W32 | Basic: API key SID / secret | `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` (duplicate of the next, C1) |
-| Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15, W22 | Basic: API key SID / secret | `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` |
-| W22 uptime monitor header token | `httpHeaderAuth` | W22 | Webhook header auth `X-LV-Monitor` on `POST /w22/uptime` | No `.env` name. Same value set in the uptime monitor (vps/UPTIME.md) |
+| Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15 | Basic: API key SID / secret | `TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET` |
 | W34 DSR webhook token | `httpHeaderAuth` | W34 | Webhook header auth on `POST /w34/dsr` and `/w34/dsr-action` | No `.env` name. Held by the console's server-side caller |
 | WhatsApp Cloud API (SortMyCover) | `httpHeaderAuth` | W14 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1; same name as the next row with another type) |
 | WhatsApp Cloud API (system user) | `httpHeaderAuth` | SUB-whatsapp-send | `Authorization: Bearer …` (WHATSAPP_PROVIDER=meta only; under twilio SUB-whatsapp-send builds Basic auth from `TWILIO_API_KEY_SID`/`_SECRET` in a Code node, no credential) | `META_SYSTEM_USER_TOKEN` (C1) |

@@ -41,7 +41,7 @@ export const slotLabel = (t) => `${dateLabel(t)}, ${timeLabel(t)}`;
 // The approved BODY text of the three submitted templates (automation/templates/*.json). W06.test.mjs checks these
 // are byte-identical to the template files, so a template edit without a code edit fails the test.
 export const TEMPLATE_BODY = {
-  broker_intro_booked: 'Hi {{1}}, meet *{{4}}* from *{{2}} (FSP {{3}})*, an authorised financial services provider. Here is his intro card ahead of your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
+  broker_intro_booked: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
   broker_intro_slots: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below.\n1. {{5}}\n2. {{6}}\n3. {{7}}\nOur WhatsApp assistant uses AI. Reply STOP to opt out.',
   broker_intro_slots_v2: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
 };
@@ -78,12 +78,19 @@ export function blockReason(l) {
  * lead creation for page / lead-ad leads). ctx = { booking?: {created_at}, skipAt? }
  */
 export function firstTouchTrigger(l, ctx = {}) {
-  const clock = msOf(l.routed_at);
+  // 18 Oct 2026: a lead given a broker by hand has no routed_at (NaN crashed isoSast, W06 "Invalid time value"), and a
+  // non-page lead whose first touch was never sent got the routed slots card after booking. The booking is then the clock
+  // and the card is broker_intro_booked.
+  const routed = msOf(l.routed_at);
+  const booked = ctx.booking ? msOf(ctx.booking.created_at) : NaN;
+  const clock = Number.isFinite(routed) ? routed : Number.isFinite(booked) ? booked : Date.now();
   let reason; let trigger;
   if (l.origin === 'page') {
-    const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', msOf(ctx.booking.created_at)] : null]
+    const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', booked] : null]
       .filter(Boolean).sort((x, y) => x[1] - y[1]);
     [reason, trigger] = cands[0];
+  } else if (ctx.booking && Number.isFinite(booked)) {
+    [reason, trigger] = ['booking', booked];
   } else {
     [reason, trigger] = ['routed', clock];
   }
@@ -120,7 +127,7 @@ export function planFirstTouch(l, b, ctx = {}) {
     return {
       template: 'broker_intro_booked', ...base,
       variables: [...common, METHOD_LABEL[ctx.booking.method] || ctx.booking.method, dateLabel(st), timeLabel(st)].map(cleanVar),
-      buttons: [],
+      buttons: [{ type: 'url', param: ctx.booking.id }, { type: 'quick_reply', payload: `reschedule:${ctx.booking.id}` }, { type: 'quick_reply', payload: `cancel:${ctx.booking.id}` }],
     };
   }
   if ((ctx.bookingUi ?? 'list') === 'flow') {

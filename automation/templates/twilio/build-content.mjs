@@ -39,11 +39,15 @@ export const FLOW_TEMPLATES = [
   'lead_low_budget_held', 'lead_low_budget_closed',
   // verify gate (2026-10-11): the slot is held until the email is verified; released + rebook nudge otherwise
   'booking_held_verify_email', 'booking_hold_released',
+  // Cal.com desktop booking (2026-10-17): brings the booker into the chat with Lindi (quick reply booking_chat_yes:<id>)
+  'booking_confirm_chat',
   // the Flow launches (after the Flows are published in Meta)
   'broker_intro_slots_v2', 'reschedule_offer_v2',
   // broker side of the flow
   'broker_new_booking', 'broker_booking_changed', 'broker_outcome_check', 'broker_disposition', 'broker_quality', 'broker_lead_offer',
   'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief',
+  // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
+  'ops_alert',
 ];
 export const CORE = FLOW_TEMPLATES.slice(0, 7);
 // Session Flow launches (inside the 24-h window, W10 flow_session): body {{1}}, flow_token {{2}}.

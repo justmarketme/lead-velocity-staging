@@ -55,7 +55,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number, a.booked_at, a.verify_by,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number, a.booked_at, a.verify_by,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.email_verified, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.fsp_number, b.practice_name, b.firm_name, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id, br.code AS brand_code,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, $json.lead_id] }}"
         }
@@ -82,7 +82,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count, booked_at: r.booked_at, verify_by: r.verify_by }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
+        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count, booked_at: r.booked_at, verify_by: r.verify_by }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, email_verified: r.email_verified === true, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, fsp_number: r.fsp_number || null, practice_name: r.practice_name || null, firm_name: r.firm_name || null, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id, code: r.brand_code || null }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
       }
     },
     {
@@ -314,7 +314,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op, delegate: j.delegate || null }); // I-39a: delegate.body is the one message body\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: o.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\nconst o = L.offerMessage({ booking: j.bk, lead: j.ld, broker: j.br, brand: j.brand, slots: $json.slots || [], now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, reason: j.op, delegate: j.delegate || null }); // I-39a: delegate.body is the one message body\nlet wa = null;\nif (o.kind === 'list_session') wa = { type: 'interactive', interactive: { type: 'list', body: { text: o.body }, action: { button: 'See times', sections: [{ title: 'Open times', rows: o.rows }] } } };\nelse if (o.kind === 'flow_session') wa = { type: 'interactive', interactive: { type: 'flow', body: { text: o.body }, action: { name: 'flow', parameters: { flow_message_version: '3', flow_id: j.brand.booking_flow_id || $env.RESCHEDULE_FLOW_ID, flow_cta: 'Pick a new time', flow_action: 'data_exchange', flow_token: 'resched:' + j.bk.id } } } };\nelse if (o.kind === 'template') { const comps = [{ type: 'body', parameters: o.vars.map((t) => ({ type: 'text', text: String(t) })) }]; (o.buttons || []).forEach((p, i) => comps.push({ type: 'button', sub_type: 'quick_reply', index: String(i), parameters: [{ type: 'payload', payload: p }] })); if (o.template === 'reschedule_offer_v2') comps.push({ type: 'button', sub_type: 'flow', index: '0', parameters: [{ type: 'action', action: { flow_token: 'resched:' + j.bk.id } }] }); wa = { type: 'template', template: { name: o.template, language: { code: 'en' }, components: comps } }; }\nelse if (o.kind === 'text_session') wa = { type: 'text', text: { body: o.body } };\nreturn { json: { ...j, offer: o, wa: wa ? { messaging_product: 'whatsapp', to: j.ld.phone, ...wa } : null, text: o.body || o.template || o.kind } };"
       }
     },
     {
@@ -742,7 +742,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', brand: j.brand, bk_id: j.bk.id, email_kind: 'moved', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
       }
     },
     {
@@ -756,7 +756,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst slots = (j.d.offer && j.d.offer.length) ? j.d.offer : [];\nconst rows = slots.map((s) => ({ id: 'slot_' + s.start + ':resched:' + j.bk.id, title: L.slotLabel(s.start).slice(0, 24) }));\nreturn { json: { to: 'lead', wa: rows.length ? { messaging_product: 'whatsapp', to: j.ld.phone, type: 'interactive', interactive: { type: 'list', body: { text: L.leadBody('slots', { lead: j.ld, booking: j.bk, broker: j.br }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } } : null } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\n// x14 (17 Oct): with no offer slots this used to return wa:null (silence); slotTakenWa now sends a 'See open times' button.\nreturn { json: { to: 'lead', wa: L.slotTakenWa({ phone: j.ld.phone, offer: (j.d && j.d.offer) || [], booking: j.bk, lead: j.ld, broker: j.br, delegate: j.delegate || null }) } };"
       }
     },
     {
@@ -948,7 +948,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn { json: { ...j, op: 'rebook_after_cancel', to: 'broker', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, 'Cancelled', j.bk.appointment_date) : null), email: { to: j.br.email, subject: 'SortMyCover booking cancelled', body: notice } } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn { json: { ...j, op: 'rebook_after_cancel', to: 'broker', bk_id: j.bk.id, email_kind: 'cancelled', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, 'Cancelled', j.bk.appointment_date) : null), email: { to: j.br.email, subject: 'SortMyCover booking cancelled', body: notice } } };"
       }
     },
     {
@@ -1293,10 +1293,6 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Authorization",
-              "value": "=Bearer {{ $json.howzit_token }}"
-            },
-            {
               "name": "Content-Type",
               "value": "application/json"
             }
@@ -1312,11 +1308,20 @@
               "neverError": true
             }
           }
-        }
+        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api"
       },
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "",
+          "name": "MS Graph app-only - howzit@ Mail.Send"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "n44",
@@ -1702,8 +1707,7 @@
       "parameters": {
         "method": "PATCH",
         "url": "={{ $('Graph target (move)').item.json.gt.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1723,12 +1727,13 @@
               "neverError": true
             }
           }
-        }
+        },
+        "genericAuthType": "oAuth2Api"
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
@@ -1844,8 +1849,7 @@
       "parameters": {
         "method": "DELETE",
         "url": "={{ $('Graph target (cancel)').item.json.gt.url }}",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "authentication": "genericCredentialType",
         "options": {
           "timeout": 10000,
           "response": {
@@ -1853,12 +1857,13 @@
               "neverError": true
             }
           }
-        }
+        },
+        "genericAuthType": "oAuth2Api"
       },
       "credentials": {
-        "microsoftOutlookOAuth2Api": {
+        "oAuth2Api": {
           "id": "",
-          "name": "Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)"
+          "name": "MS Graph app-only - howzit@ Mail.Send"
         }
       },
       "retryOnFail": true,
@@ -1916,6 +1921,254 @@
         "mode": "runOnceForAllItems",
         "jsCode": "// ONE line to the lead; the broker never heard of a held slot, so he gets nothing. Not moved (taken in the last second) -> nothing here\n// (the next held-slot pick goes through the same re-check).\nconst L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').first().json;\nconst moved = $input.all().some((i) => i.json && i.json.lead_id);\nif (!moved) return [];\nconst by = L.slotLabel(j.d.update.verify_by);\nreturn [{ json: { to: 'lead', wa: { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. We are now holding ' + L.slotLabel(j.new_start) + ' for you. Please confirm your email (the link or the 6-digit code we sent) by ' + by + ', or we will release the time.' } } } }];"
       }
+    },
+    {
+      "id": "p10-w04-list",
+      "name": "W04 request (list, exclude this booking)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W04 reads { op: list | is_free | graph_token, broker_id, ... } (lib/w04.subcallInput). W10 used to pass its own item\n// (op rebook_after_cancel / reschedule / cancel), which W04 rejected (17 Oct 2026).\nconst j = $('Merge context').item.json;\nreturn { json: { op: 'list', broker_id: j.br.id, lead_id: j.ld.id, exclude_booking_id: j.bk.id } };"
+      }
+    },
+    {
+      "id": "p10-w04-free",
+      "name": "W04 request (is_free, move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W04 reads { op: list | is_free | graph_token, broker_id, ... } (lib/w04.subcallInput). W10 used to pass its own item\n// (op rebook_after_cancel / reschedule / cancel), which W04 rejected (17 Oct 2026).\nconst j = $('Merge context').item.json;\nconst end = new Date(Date.parse(j.pick.start) + j.br.slot_minutes * 60000).toISOString();\nreturn { json: { op: 'is_free', broker_id: j.br.id, lead_id: j.ld.id, exclude_booking_id: j.bk.id, start: j.pick.start, end } };"
+      }
+    },
+    {
+      "id": "p10-w04-token-move",
+      "name": "W04 request (graph_token, move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W04 reads { op: list | is_free | graph_token, broker_id, ... } (lib/w04.subcallInput). W10 used to pass its own item\n// (op rebook_after_cancel / reschedule / cancel), which W04 rejected (17 Oct 2026).\nreturn { json: { op: 'graph_token', broker_id: $('Merge context').item.json.br.id } };"
+      }
+    },
+    {
+      "id": "p10-w04-token-cancel",
+      "name": "W04 request (graph_token, cancel)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        760
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W04 reads { op: list | is_free | graph_token, broker_id, ... } (lib/w04.subcallInput). W10 used to pass its own item\n// (op rebook_after_cancel / reschedule / cancel), which W04 rejected (17 Oct 2026).\nreturn { json: { op: 'graph_token', broker_id: $('Decide cancel (w10.applyCancel)').item.json.br.id } };"
+      }
+    },
+    {
+      "id": "p10-adviser-route",
+      "name": "Adviser email route (w10.smcBrokerRelay)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// SortMyCover brand -> smc-email-send request (Resend, SortMyCover sender); other brands -> relay null -> howzit@.\nconst L = require('lv-automation').w10;\nreturn { json: { ...$json, relay: L.smcBrokerRelay($json, Date.now()) } };"
+      }
+    },
+    {
+      "id": "p10-adviser-smc",
+      "name": "SortMyCover adviser email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        840
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.relay) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "p10-adviser-relay",
+      "name": "Email adviser from SortMyCover (smc-email-send)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        840
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/smc-email-send' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.LINDI_RELAY_TOKEN }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.relay.idempotency_key || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.relay.body) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "p10-client-cancel",
+      "name": "SMC client email (cancelled)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        920
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nreturn { json: { smc_email: L.smcClientChangeEmail(j, 'booking_cancelled', Date.now()) } };"
+      }
+    },
+    {
+      "id": "p10-client-move",
+      "name": "SMC client email (moved)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One email per move (this node gets the lead and the broker item); an after-meeting rebooking is a W05 booking with its own email.\nconst L = require('lv-automation').w10;\nconst d = $('Decide move (w10.applyReschedule)').first().json;\nif (!d.d || d.d.action !== 'move') return [];\nreturn [{ json: { smc_email: L.smcClientChangeEmail(d, 'booking_updated', Date.now(), { start: d.new_start, end: d.new_end }) } }];"
+      }
+    },
+    {
+      "id": "p10-client-live",
+      "name": "SortMyCover client email + live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        920
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.smc_email && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "p10-client-send",
+      "name": "Email client from SortMyCover (smc-client-email)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        920
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/smc-client-email' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.smc_email) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "p10-cancel-done",
+      "name": "Cancel confirmation (no rebook offer)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The lead's own \"Yes, cancel\" always gets an answer; before 17 Oct 2026 a second cancel got silence (W07's fallback answered).\nconst L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nreturn { json: { ...j, to: 'lead', wa: L.cancelDoneWa({ booking: j.bk, lead: j.ld, broker: j.br, now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, delegate: j.delegate || null }) } };"
+      }
     }
   ],
   "connections": {
@@ -1967,7 +2220,7 @@
       "main": [
         [
           {
-            "node": "W04 slots (exclude this booking)",
+            "node": "W04 request (list, exclude this booking)",
             "type": "main",
             "index": 0
           }
@@ -2060,7 +2313,7 @@
       "main": [
         [
           {
-            "node": "W04 Outlook getSchedule re-check",
+            "node": "W04 request (is_free, move)",
             "type": "main",
             "index": 0
           }
@@ -2207,6 +2460,11 @@
             "node": "Email to broker?",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "SMC client email (moved)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2338,6 +2596,11 @@
             "node": "Offer rebooking once?",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "SMC client email (cancelled)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -2346,7 +2609,14 @@
       "main": [
         [
           {
-            "node": "W04 slots (exclude this booking)",
+            "node": "W04 request (list, exclude this booking)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel confirmation (no rebook offer)",
             "type": "main",
             "index": 0
           }
@@ -2431,7 +2701,7 @@
       "main": [
         [
           {
-            "node": "W04 slots (exclude this booking)",
+            "node": "W04 request (list, exclude this booking)",
             "type": "main",
             "index": 0
           }
@@ -2442,7 +2712,7 @@
       "main": [
         [
           {
-            "node": "Email broker from howzit@ (Graph sendMail)",
+            "node": "Adviser email route (w10.smcBrokerRelay)",
             "type": "main",
             "index": 0
           }
@@ -2594,7 +2864,7 @@
         ],
         [
           {
-            "node": "Graph token for broker",
+            "node": "W04 request (graph_token, move)",
             "type": "main",
             "index": 0
           }
@@ -2641,7 +2911,7 @@
         ],
         [
           {
-            "node": "Graph token for broker (cancel)",
+            "node": "W04 request (graph_token, cancel)",
             "type": "main",
             "index": 0
           }
@@ -2689,6 +2959,123 @@
       ]
     },
     "Held move reply (lead only)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 request (list, exclude this booking)": {
+      "main": [
+        [
+          {
+            "node": "W04 slots (exclude this booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 request (is_free, move)": {
+      "main": [
+        [
+          {
+            "node": "W04 Outlook getSchedule re-check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 request (graph_token, move)": {
+      "main": [
+        [
+          {
+            "node": "Graph token for broker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W04 request (graph_token, cancel)": {
+      "main": [
+        [
+          {
+            "node": "Graph token for broker (cancel)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adviser email route (w10.smcBrokerRelay)": {
+      "main": [
+        [
+          {
+            "node": "SortMyCover adviser email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SortMyCover adviser email?": {
+      "main": [
+        [
+          {
+            "node": "Email adviser from SortMyCover (smc-email-send)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email broker from howzit@ (Graph sendMail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMC client email (cancelled)": {
+      "main": [
+        [
+          {
+            "node": "SortMyCover client email + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SMC client email (moved)": {
+      "main": [
+        [
+          {
+            "node": "SortMyCover client email + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SortMyCover client email + live?": {
+      "main": [
+        [
+          {
+            "node": "Email client from SortMyCover (smc-client-email)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel confirmation (no rebook offer)": {
       "main": [
         [
           {

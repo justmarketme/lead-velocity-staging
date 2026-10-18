@@ -1,6 +1,6 @@
 /* DEV ONLY: in-memory fake of the /start/ API, used when `npm run dev` opens /start/#lt=demo. Start.tsx imports this behind
    `import.meta.env.DEV`, so the production build drops it (tests/start.test.ts checks dist has no trace of it). */
-import type { StartApi } from "./start-api";
+import type { LeadPoster, StartApi } from "./start-api";
 import type { Answers, Slot } from "./start";
 
 const wait = (ms = 350) => new Promise((r) => setTimeout(r, ms));
@@ -27,6 +27,13 @@ function sampleSlots(now = new Date()): Slot[] {
 }
 
 const ADVISER = { id: "mock-broker", first_name: "Mark", name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" };
+
+/** DEV: POST /lead for /start/?ref=demo (no token yet). A first name of "Blocked" exercises the neutral screen. */
+export const mockPostLead: LeadPoster = async (body: any) => {
+  await wait(500);
+  if (/^blocked$/i.test(body.first_name || "")) return { kind: "neutral" };
+  return { kind: "accepted", token: "demo", lead_id: "demo-lead" };
+};
 
 export function createMockApi(): StartApi {
   let answers: Answers = {};
