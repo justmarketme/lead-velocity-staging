@@ -82,6 +82,7 @@ u AS (
   UPDATE public.leads l
      SET age_band               = coalesce($2::jsonb->>'age_band', l.age_band),
          budget_band            = coalesce($2::jsonb->>'budget_band', l.budget_band),
+         work_cover             = coalesce(($2::jsonb->>'work_cover')::boolean, l.work_cover),
          product_interest       = coalesce($2::jsonb->>'product_interest', l.product_interest),
          reasons                = CASE WHEN jsonb_typeof($2::jsonb->'reasons') = 'array' THEN ARRAY(SELECT jsonb_array_elements_text($2::jsonb->'reasons')) ELSE l.reasons END,
          qualified_at           = coalesce(($2::jsonb->>'qualified_at')::timestamptz, l.qualified_at),

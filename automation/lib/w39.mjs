@@ -25,7 +25,7 @@
 //   Always: the answers are kept in conv_state.start (no intent / has-cover column), help_with in conv_state (W01 vocabulary),
 //   W03's pending stall is cancelled, one lead_activities row per call (w39:answers:<lead>:<request_id>[:confirm]).
 import { resolveCaller as w04Caller, brokerConfig, iso, ms } from './w04.mjs';
-import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H, routingFor, tierOf, OUT_OF_BAND_AGE_BOOKS, OOB_AGE_RULE } from './w01.mjs';
+import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H, routingFor, tierOf, OUT_OF_BAND_AGE_BOOKS, OOB_AGE_RULE, hasCoverCode, workCoverOf, HAS_COVER_CODES } from './w01.mjs';
 
 export const WORKFLOW = 'W39';
 /**
@@ -38,7 +38,8 @@ export { OUT_OF_BAND_AGE_BOOKS };
 
 export const INTENTS = ['life', 'income', 'illness', 'review', 'will', 'other'];
 export const AGE_BANDS = ['lt35', '35_44', '45_50', '51plus'];
-export const HAS_COVER = ['yes', 'no', 'unsure'];
+/** The cover answer the page sends (four options, 18 Oct 2026) + the legacy ones; stored via w01.hasCoverCode (yes, not_sure -> unsure). */
+export const HAS_COVER = ['yes_work', 'yes_own', 'no', 'unsure', 'yes', 'not_sure'];
 export const BUDGET_BANDS = ['lt750', '750_1250', '1250_1499', '1500_plus']; // all in leads_smc_checks
 export const WANTS = ['family', 'bond', 'income', 'illness', 'unsure'];
 /** page intent -> lib/w01.mjs HELP_WITH (the quiz v2 vocabulary kept in conv_state.help_with); 'other' has none. */
@@ -96,6 +97,7 @@ export function parseAnswers(body = {}) {
   if (ROUTE_INTENTS.has(a.intent) && (!a.age_band || !a.budget_band)) return err(400, 'invalid', 'bands_required');
   const c = b.confirm_adviser;
   if (c !== undefined && c !== null && c !== '' && (typeof c !== 'string' || !BROKER_ID.test(c))) return err(400, 'invalid', 'confirm_adviser');
+  if (a.has_cover) a.has_cover = hasCoverCode(a.has_cover); // one stored vocabulary (legacy not_sure -> unsure)
   const answers = Object.fromEntries(Object.entries(a).filter(([, v]) => v !== undefined));
   return { ok: true, answers, request_id: b.request_id, confirm_adviser: typeof c === 'string' && c ? c : null };
 }
@@ -107,7 +109,7 @@ export function startView({ lead = {}, broker = null, booking = null } = {}) {
   const answers = {};
   if (INTENTS.includes(st.intent)) answers.intent = st.intent;
   if (AGE_BANDS.includes(lead.age_band)) answers.age_band = lead.age_band;
-  if (HAS_COVER.includes(st.has_cover)) answers.has_cover = st.has_cover;
+  if (HAS_COVER_CODES.includes(st.has_cover)) answers.has_cover = st.has_cover; // as stored
   if (BUDGET_BANDS.includes(lead.budget_band)) answers.budget_band = lead.budget_band;
   if (WANTS.includes(st.want)) answers.want = st.want;
   const b = lead.broker_id && broker ? broker : null;
@@ -143,6 +145,7 @@ export function decideAnswers({ lead, answers, request_id, confirm_adviser = nul
   const set = { conv_state: { start, ...(help ? { help_with: help } : {}) } };
   if (a.age_band) set.age_band = a.age_band;
   if (a.budget_band) set.budget_band = a.budget_band;
+  if (a.has_cover && workCoverOf(a.has_cover) !== null) set.work_cover = workCoverOf(a.has_cover); // the pre-call brief's "cover through work"
   if (REASONS_OF[a.intent]) set.reasons = REASONS_OF[a.intent];
   // A web lead (/start/ page, W01 origin 'page') has never messaged us: no 24-h WhatsApp session, so no session text is ever
   // planned for it. Its will / other answer goes to a person (escalation) instead; templates (W01 held notice, W06 intro

@@ -166,9 +166,14 @@
         },
         "options": [
           {
-            "key": "yes",
-            "value": "Yes",
-            "chars": 3
+            "key": "yes_work",
+            "value": "Yes, through work",
+            "chars": 17
+          },
+          {
+            "key": "yes_own",
+            "value": "Yes, my own",
+            "chars": 11
           },
           {
             "key": "no",
@@ -181,7 +186,7 @@
             "chars": 8
           }
         ],
-        "note": "Yes / no only: never ask for the insurer, a policy number or amounts (Meta: insurance information needs prior permission). If Meta review rejects the form on this question, delete it and republish; W01 tolerates it missing."
+        "note": "Four options (Jono, 18 Oct 2026): \"Yes, through work\" tells Mark the cover is group cover that ends with the job (leads.work_cover true); \"Yes, my own\" -> work_cover false. Never ask for the insurer, a policy number or amounts (Meta: insurance information needs prior permission). Legacy answers stay readable: 'Yes' (three-option form) -> yes (type unknown), not_sure -> unsure. If Meta review rejects the form on this question, delete it and republish; W01 tolerates it missing."
       },
       {
         "n": 4,
@@ -325,7 +330,8 @@
         "51plus": "Over 50"
       },
       "has_cover": {
-        "yes": "Yes",
+        "yes_work": "Yes, through work",
+        "yes_own": "Yes, my own",
         "no": "No",
         "unsure": "Not sure"
       }

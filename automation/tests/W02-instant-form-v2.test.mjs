@@ -45,7 +45,7 @@ test('spec v2: exact strings, question order and keys, no banned words in anythi
   const [qi, qa, qc] = SPEC.questions_section.questions;
   assert.deepEqual(qi.options.map((o) => [o.key, o.value]), [['life', 'Life cover'], ['disability', 'Disability cover'], ['income', 'Income protection'], ['illness', 'Severe illness cover'], ['review', 'Not sure yet']]);
   assert.deepEqual(qa.options.map((o) => [o.key, o.value]), [['lt35', 'Under 35'], ['35_44', '35 to 44'], ['45_50', '45 to 50'], ['51plus', 'Over 50']]);
-  assert.deepEqual(qc.options.map((o) => [o.key, o.value]), [['yes', 'Yes'], ['no', 'No'], ['unsure', 'Not sure']]);
+  assert.deepEqual(qc.options.map((o) => [o.key, o.value]), [['yes_work', 'Yes, through work'], ['yes_own', 'Yes, my own'], ['no', 'No'], ['unsure', 'Not sure']]);
   assert.equal(qc.label.text, 'Do you have any life, disability or income cover now?');
   assert.equal(SPEC.questions_section.questions[4].label.text, 'WhatsApp number');
   // the option labels are W01's own vocabulary (a hand-built form is matched on them)
@@ -255,4 +255,41 @@ test('W02 webhook -> Graph lead -> ingest item -> W01 core: same answers, consen
   // without a consent tick the W02 backstop routes it out (anonymous counter only)
   const no = await w02({ ...lead('keys_in_band'), custom_disclaimer_responses: [{ checkbox_key: 'consent', is_checked: '' }] });
   assert.deepEqual([no.out.action, no.out.reasons], ['routed_out', ['no_consent']]);
+});
+
+// ------------------------------------------------------------------------------------------- the cover answer, every path
+test('cover answer (4 options, 18 Oct 2026): /start/ (W39), the Instant Form (W01 Graph lead + W02 ingest item) store the same code and work_cover; legacy values still read', () => {
+  // [what the person picked as each path sends it, stored code, leads.work_cover]
+  const CASES = [
+    [{ start: 'yes_work', form: 'Yes, through work' }, 'yes_work', true],
+    [{ start: 'yes_own', form: 'Yes, my own' }, 'yes_own', false],
+    [{ start: 'no', form: 'No' }, 'no', false],
+    [{ start: 'unsure', form: 'Not sure' }, 'unsure', null],
+    [{ start: 'yes', form: 'Yes' }, 'yes', null], // legacy three-option "Yes": type unknown
+    [{ start: 'not_sure', form: 'not_sure' }, 'unsure', null], // legacy key
+  ];
+  const LEAD = { id: LEAD_ID, brand_id: 'b-smc', broker_id: null, origin: 'ctwa', first_name: 'Thandi', phone: '+27600000201', opted_out_at: null, erased: false, stage: 'verified', conv_state: {} };
+  for (const [sent, code, work] of CASES) {
+    // /start/: POST /start/answers -> conv_state.start.has_cover + leads.work_cover (the W39 Save statement writes it)
+    const p = W39.parseAnswers({ intent: 'life', age_band: '35_44', budget_band: '1500_plus', has_cover: sent.start, request_id: 'req-cover-0001' });
+    assert.equal(p.ok, true, sent.start);
+    const plan = W39.decideAnswers({ lead: LEAD, answers: p.answers, request_id: p.request_id, now: NOW });
+    assert.equal(plan.set.conv_state.start.has_cover, code, `/start/ ${sent.start}`);
+    assert.equal(plan.set.work_cover ?? null, work, `/start/ work_cover ${sent.start}`);
+    assert.equal(W39.startView({ lead: { ...LEAD, conv_state: { start: { has_cover: code } } } }).body.answers.has_cover, code, 'GET /start returns it as stored');
+    // the Instant Form, Graph lead (W01 normaliseLeadAd -> decide -> conv_state.start) and the W02 ingest item (answers map)
+    const g = W01.normaliseLeadAd({ ...lead('keys_in_band'), field_data: [{ name: 'smc_has_cover', values: [sent.form] }, { name: 'phone_number', values: ['+27600000201'] }] });
+    const w = W01.normaliseLeadAd({ lead: { mobile_raw: '+27600000201', first_name: 'Thandi', answers: { smc_has_cover: sent.form }, consent: { given: true, text_version: 'CONSENT-NAMED-v5web' } } });
+    for (const [s, path] of [[g, 'graph'], [w, 'w02']]) {
+      assert.equal(s.lead_ad.has_cover, code, `${path} ${sent.form}`);
+      assert.equal(s.quiz.work_cover, work, `${path} work_cover ${sent.form}`);
+    }
+    const d = decideOf(g);
+    assert.equal(d.row.conv_state.start.has_cover, code, 'stored on the lead row');
+    assert.equal(d.row.work_cover, work, 'leads.work_cover -> the pre-call brief');
+  }
+  assert.equal(W39.parseAnswers({ intent: 'life', age_band: '35_44', budget_band: '1500_plus', has_cover: 'maybe', request_id: 'req-cover-0001' }).status, 400);
+  // chat: Lindi asks no cover question (W03 / W07 / conversation/*), so there is no third path to map
+  const W39WF = JSON.parse(readFileSync(new URL('../W39.json', import.meta.url), 'utf8'));
+  assert.match(W39WF.nodes.find((n) => n.name === 'Save answers + timeline + cancel stall (one statement)').parameters.query, /work_cover\s+= coalesce\(\(\$2::jsonb->>'work_cover'\)::boolean, l\.work_cover\)/);
 });

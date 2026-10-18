@@ -141,7 +141,22 @@ export const LEAD_AD_INTENT = Object.freeze({
   review: { label: 'Not sure yet', intent: 'review', help_with: 'review' },
 });
 export const LEAD_AD_AGE = Object.freeze({ lt35: 'Under 35', '35_44': '35 to 44', '45_50': '45 to 50', '51plus': 'Over 50' });
-export const LEAD_AD_HAS_COVER = Object.freeze({ yes: 'Yes', no: 'No', unsure: 'Not sure' });
+// The cover question, four options (Jono, 18 Oct 2026), the same on the Instant Form, /start/ and wherever else it is asked:
+// "Yes, through work" tells Mark the cover is group cover that ends with the job. Legacy answers stay readable: 'yes' (the
+// three-option form) is stored as 'yes' (type unknown), 'not_sure' is 'unsure'.
+export const LEAD_AD_HAS_COVER = Object.freeze({ yes_work: 'Yes, through work', yes_own: 'Yes, my own', no: 'No', unsure: 'Not sure' });
+export const HAS_COVER_CODES = Object.freeze(['yes_work', 'yes_own', 'no', 'unsure', 'yes']); // 'yes' = legacy, type unknown
+const HAS_COVER_ALIAS = { not_sure: 'unsure', yes: 'yes' };
+/** Any cover answer (code or legacy) -> the stored code, or null. One mapping for every path (W01 lead ad, W39 /start/). */
+export const hasCoverCode = (v) => {
+  const k = String(v == null ? '' : v).trim().toLowerCase();
+  return LEAD_AD_HAS_COVER[k] ? k : HAS_COVER_ALIAS[k] || null;
+};
+/**
+ * leads.work_cover (what the adviser's pre-call brief shows, W11 "has cover through work"): yes_work -> true; yes_own / no ->
+ * false; unsure and the legacy 'yes' (type unknown) -> null (left as it is).
+ */
+export const workCoverOf = (code) => (code === 'yes_work' ? true : code === 'yes_own' || code === 'no' ? false : null);
 /** The required consent checkbox (custom_disclaimer_responses[].checkbox_key) and the optional ad-measurement one. */
 export const LEAD_AD_CONSENT_KEYS = new Set(['consent', 'smc_consent']);
 export const LEAD_AD_ADS_KEYS = new Set(['consent_ads', 'smc_consent_ads']);
@@ -156,6 +171,7 @@ const optionIndex = (codes, labelOf) => {
 const INTENT_IDX = optionIndex(LEAD_AD_INTENT, (v) => v.label);
 const AGE_IDX = optionIndex(LEAD_AD_AGE, (v) => v);
 const COVER_IDX = optionIndex(LEAD_AD_HAS_COVER, (v) => v);
+COVER_IDX.set('yes', 'yes'); COVER_IDX.set('not_sure', 'unsure'); // legacy three-option answers (label "Yes" / key not_sure)
 for (const k of ['35_44', '45_50']) AGE_IDX.set(k.replace('_', '-'), k); // older form labels "35-44" / "45-50"
 AGE_IDX.set('51_or_older', '51plus'); AGE_IDX.set('51+', '51plus');
 
@@ -324,7 +340,7 @@ export function normaliseLeadAd(p = {}, opts = {}) {
     return {
       channel: 'lead_ad', brand_id: p.brand_id ?? 'smc', is_synthetic: p.is_synthetic === true, submitted_at: p.created_time,
       first_name: cleanName(f.first_name ?? String(f.full_name || '').split(' ')[0]), mobile_raw: f.phone_number ?? null, language: f.language ?? null,
-      quiz: { age_band: AGE_TO_DB[a.age_band ?? f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: null },
+      quiz: { age_band: AGE_TO_DB[a.age_band ?? f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: workCoverOf(a.has_cover) },
       preferred_method: methodOf(f.preferred_method), email: f.email ?? null,
       // the v2 form's answers (no column for intent / has_cover: decide() keeps them in conv_state.start, as W39 does)
       help_with: a.help_with ?? null, product_interest: 'life_cover', lead_ad: leadAdBlock(a, p.form_id),
@@ -346,7 +362,7 @@ export function normaliseLeadAd(p = {}, opts = {}) {
   return {
     channel: 'lead_ad', brand_id: l.brand_id ?? null, is_synthetic: l.is_synthetic === true, submitted_at: l.consent?.captured_at ?? null,
     first_name: cleanName(l.first_name ?? String(l.full_name || '').split(' ')[0]), mobile_raw: l.mobile_raw ?? null, language: l.language ?? null,
-    quiz: { age_band: AGE_TO_DB[a.age_band ?? l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: null },
+    quiz: { age_band: AGE_TO_DB[a.age_band ?? l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: workCoverOf(a.has_cover) },
     preferred_method: methodOf(l.preferred_method), email: l.email ?? null,
     help_with: a.help_with ?? null, product_interest: 'life_cover', lead_ad: leadAdBlock(a, l.form_id),
     consent: { checked: l.consent?.given === true && (!cdr || cdr.consented) && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads,
