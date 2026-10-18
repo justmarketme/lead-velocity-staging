@@ -6,9 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { RATE_LIMITED_MESSAGE, RESET_SENT_MESSAGE, cooldownRemaining, isPlausibleEmail, normalizeEmail, requestPasswordReset } from "@/lib/passwordReset";
 import logo from "@/assets/lead-velocity-logo.webp";
-
-const RESET_REDIRECT = "https://leadvelocity.co.za/reset-password";
 
 /**
  * Email in → Supabase recovery email out → /reset-password. The response is the same whether or not
@@ -19,25 +18,28 @@ const BrokerForgotPassword = () => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState("");
     const [done, setDone] = useState(false);
+    const [notice, setNotice] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const address = email.trim().toLowerCase();
-        if (!address) return;
+        setNotice(null);
+        if (!isPlausibleEmail(email)) { setNotice("Please enter a valid email address."); return; }
         setLoading(true);
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(address, { redirectTo: RESET_REDIRECT });
-            if (error) console.warn("resetPasswordForEmail:", error.message);
-
+            const outcome = await requestPasswordReset(supabase, email, window.location.origin);
+            if (outcome === "rate_limited") {
+                const wait = cooldownRemaining(email);
+                setNotice(wait > 0 ? `A link was just sent. You can ask for another in ${wait}s.` : RATE_LIMITED_MESSAGE);
+                return;
+            }
             // Audit trail for admins. RLS lets anon INSERT but not SELECT, so no `.select()` here.
-            // (The old Discord alert called `trigger-discord-alert`, which isn't deployed, so it's dropped.)
-            const { error: logError } = await supabase.from("broker_reset_requests").insert({ email: address });
-            if (logError) console.warn("broker_reset_requests:", logError.message);
-        } catch (err) {
-            console.warn("forgot-password:", err);
+            const { error: logError } = await supabase.from("broker_reset_requests").insert({ email: normalizeEmail(email) });
+            if (logError) console.warn("broker_reset_requests:", logError.code ?? "error");
+            setDone(true);
+        } catch {
+            setDone(true);
         } finally {
             setLoading(false);
-            setDone(true);
         }
     };
 
@@ -61,7 +63,7 @@ const BrokerForgotPassword = () => {
                     </CardTitle>
                     <CardDescription className="text-slate-400 leading-relaxed">
                         {done
-                            ? "If an account exists for that email, we've emailed a link to create a new password."
+                            ? RESET_SENT_MESSAGE
                             : "Enter the email you sign in with and we'll email you a link to create a new password."}
                     </CardDescription>
                 </CardHeader>
@@ -90,6 +92,7 @@ const BrokerForgotPassword = () => {
                                     className="bg-background/50 border-border/50 focus:border-primary/50 h-10 rounded-md"
                                 />
                             </div>
+                            {notice && <p role="alert" className="text-sm text-rose-400">{notice}</p>}
                             <Button type="submit" size="lg" className="w-full bg-primary hover:bg-primary/80 text-white transition-all duration-300 hover:scale-105 active:scale-95 px-6 py-6 text-base rounded-xl shadow-lg shadow-primary/20" disabled={loading}>
                                 {loading ? "Sending..." : "Email me a link"}
                             </Button>
