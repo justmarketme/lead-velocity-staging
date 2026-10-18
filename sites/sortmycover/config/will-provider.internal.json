@@ -1,0 +1,15 @@
+{
+  "_comment": "INTERNAL ONLY (Jono, 18 Oct 2026). The will provider's identity, for WhatsApp, n8n contracts and the retired watcher. No browser code imports this file, so the provider is never shipped to or shown on the public site; Lindi names it on WhatsApp.",
+  "name": "Capital Legacy",
+  "legal_name": "Capital Legacy Solutions (Pty) Ltd",
+  "status": "an authorised financial services provider",
+  "fsp_number": "43826",
+  "fsp_evidence": "fsca-capital-legacy-fsp",
+  "url": "https://www.capitallegacy.co.za/",
+  "evidence": [
+    "cl-provider-identity",
+    "cl-no-charge-will",
+    "cl-consultant-meetings",
+    "cl-lpp"
+  ]
+}

@@ -106,7 +106,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     beacon(c.ref, "wa", undefined, beaconOff);
   };
 
-  const who = c.wills ? provider.name : "one authorised adviser";
+  const who = c.wills ? "a will consultant" : "one authorised adviser";
   return (
     <div className="chat" data-chat data-rest={atTop && !used ? "" : undefined}>
       {/* phones: dims the page behind the panel; a tap on it closes the panel like the close button (hidden on wider screens) */}

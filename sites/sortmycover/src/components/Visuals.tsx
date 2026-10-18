@@ -5,7 +5,7 @@ import { company, provider } from "@/lib/site";
 
 /** An example WhatsApp chat with Lindi, laid out like a phone. Used on /book/. */
 export function WaPreview({ wills = false }: { wills?: boolean }) {
-  const who = wills ? `${provider.name} consultant` : "adviser";
+  const who = wills ? "will consultant" : "adviser";
   return (
     <figure className="viz viz-phone" data-viz="phone">
       <div className="wa-phone" aria-label="Example WhatsApp chat with Lindi">
@@ -130,4 +130,85 @@ export function CompanyCard() {
       </div>
     </figure>
   );
+}
+
+/* ---- topic diagrams for guides that have no photo (Jono, 18 Oct 2026: every post has its own image; the ad stills are all used,
+   so these five wills guides get a code-drawn diagram of their own story instead). Same motion as CheckSteps (pageMotion). ---- */
+type Step = { t: string; b: string };
+function StepFlow({ steps, caption, label }: { steps: Step[]; caption: string; label: string }) {
+  return (
+    <figure className={`viz viz-check viz-flow viz-n${steps.length}`} data-viz="flow" aria-label={label}>
+      <div className="ck-track" aria-hidden="true"><span className="ck-line" /></div>
+      <ol>
+        {steps.map((s, i) => (
+          <li key={s.t} className="viz-card ck-step">
+            <span className="ck-n" aria-hidden="true">{i + 1}</span>
+            <strong>{s.t}</strong>
+            <span>{s.b}</span>
+          </li>
+        ))}
+      </ol>
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+function Fork() {
+  return (
+    <figure className="viz viz-split" data-viz="fork" aria-label="Which letters the Master issues">
+      <div className="viz-card">
+        <span className="viz-kicker">Estate of R250 000 or less</span>
+        <ul>
+          <li>Letters of authority</li>
+          <li>A Master's representative winds it up</li>
+          <li>Usually no full account, unless there are minor heirs</li>
+        </ul>
+      </div>
+      <div className="viz-join" aria-hidden="true"><span className="viz-join-line" /><span className="viz-token" /></div>
+      <div className="viz-card viz-card-dark">
+        <span className="viz-kicker">Estate of more than R250 000</span>
+        <ul>
+          <li>Letters of executorship</li>
+          <li>An executor winds it up</li>
+          <li>Liquidation and distribution account within six months</li>
+        </ul>
+      </div>
+      <figcaption>Source: the Master of the High Court. Information, not advice.</figcaption>
+    </figure>
+  );
+}
+const DIAGRAMS: Record<string, () => JSX.Element> = {
+  "intestate-succession": () => <StepFlow label="The order of heirs without a will" caption="The order of heirs under the Intestate Succession Act, as the Master describes it." steps={[
+    { t: "Spouse and children", b: "The spouse receives a child's share or R250 000, whichever is more" },
+    { t: "Parents", b: "If there is no spouse or child" },
+    { t: "Brothers and sisters", b: "If there are no parents" },
+    { t: "Other relatives", b: "Nearest blood relatives first" },
+    { t: "The state", b: "Only if there are no relatives at all" },
+  ]} />,
+  "reporting-a-deceased-estate": () => <StepFlow label="Reporting a deceased estate, step by step" caption="The Master's timeline for reporting and winding up an estate." steps={[
+    { t: "A death", b: "The family or the holder of the will acts" },
+    { t: "Within 14 days", b: "Report the estate to the Master" },
+    { t: "Letters issued", b: "To the executor, or a Master's representative" },
+    { t: "Within six months", b: "The liquidation and distribution account" },
+    { t: "Then", b: "The heirs are paid" },
+  ]} />,
+  "what-makes-a-will-valid": () => <StepFlow label="What makes a will valid" caption="The formalities in the Wills Act, with the Master's guidance on age." steps={[
+    { t: "16 or older", b: "And mentally capable of making a will" },
+    { t: "Signed at the end", b: "Each page but the last is signed too" },
+    { t: "Two witnesses", b: "Aged 14 or older, signing together" },
+    { t: "No benefit to witnesses", b: "So heirs are not used as witnesses" },
+  ]} />,
+  "small-estates-letters-of-authority": Fork,
+  "guardians-fund": () => <StepFlow label="How the Guardian's Fund works" caption="How the Master's Guardian's Fund holds a child's inheritance." steps={[
+    { t: "A minor inherits", b: "The will makes no other arrangement" },
+    { t: "Guardian's Fund", b: "Interest is compounded monthly" },
+    { t: "Maintenance", b: "School fees and more, on application" },
+    { t: "Claim at 18", b: "Or at an age the will sets" },
+    { t: "30 years", b: "Unclaimed money is forfeited" },
+  ]} />,
+};
+export const DIAGRAM_SLUGS = Object.keys(DIAGRAMS);
+/** The guide's own diagram, used as its header where it has no photo. */
+export function ArticleDiagram({ slug }: { slug: string }) {
+  const D = DIAGRAMS[slug];
+  return D ? <D /> : null;
 }

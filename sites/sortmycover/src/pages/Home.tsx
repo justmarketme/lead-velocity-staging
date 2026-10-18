@@ -59,7 +59,7 @@ export default function Home() {
     <div className="smc-home" ref={root}>
       <Seo
         title="Cover adviser calls and wills | SortMyCover"
-        description={`Book a 30-minute call with an adviser from an FSCA-authorised provider about life, disability, severe illness or income cover, or with ${provider.name} about your will.`}
+        description={`Book a 30-minute call with an adviser from an FSCA-authorised provider about life, disability, severe illness or income cover, or with a will consultant about your will.`}
         canonical={APEX + "/"}
         jsonld={[organization(), website()]}
       />
@@ -68,7 +68,7 @@ export default function Home() {
           <div className="hx-hero-copy">
             <p className="eyebrow mb-3">A conversation, not a quote.</p>
             <h1 className="hx-h1">New bond. New baby. New job. <em>One call about cover.</em></h1>
-            <p className="hx-intro">A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a will, with {provider.name}.</p>
+            <p className="hx-intro">A 30-minute call with an authorised adviser about life cover, disability, severe illness or income protection. Or a call with a will consultant about your will.</p>
             <div className="hx-actions">
               <WhatsAppCta ctx={contextFor("/")} className="btn btn-lg" />
               <CalendarCta ctx={contextFor("/")} className="btn btn-lg btn-secondary">Pick a time</CalendarCta>
@@ -94,7 +94,7 @@ export default function Home() {
           <p className="eyebrow">A simple path</p>
           <h2 id="h-how" className="hx-h2" data-split><Split text="From a few questions" em="to a real conversation." /></h2>
           <JourneyScroll steps={JOURNEY} />
-          <p className="hx-dark-fine" data-disclosure>Before the call, a cover adviser sends their name, practice and FSP number, and on the call they explain how they are paid. A will call works the same way with a {provider.name} consultant. <Link to="/how-it-works/" className="underline">Read the full walk-through</Link>.</p>
+          <p className="hx-dark-fine" data-disclosure>Before the call, a cover adviser sends their name, practice and FSP number, and on the call they explain how they are paid. A will call works the same way with a will consultant. <Link to="/how-it-works/" className="underline">Read the full walk-through</Link>.</p>
         </div>
       </section>
 
@@ -118,7 +118,7 @@ export default function Home() {
               <img className="svc-photo" src={SCENES.svcWills.src} alt={SCENES.svcWills.alt} loading="lazy" width={SCENES.svcWills.w} height={SCENES.svcWills.h} />
               <p className="svc-kicker">Will and estate call</p>
               <h2 id="h-svc-wills">Get your will drafted</h2>
-              <p className="svc-who" data-disclosure data-provider>With a consultant from {provider.legal_name}, {provider.status} (FSP {provider.fsp_number}). {PROVIDER_ROLE_LINE}</p>
+              <p className="svc-who" data-disclosure data-provider>With a will consultant. Lindi sends their name and firm, with its FSP number, on WhatsApp before the call. {PROVIDER_ROLE_LINE}</p>
               <ul className="svc-list">
                 <li><Link to={articlePath("what-a-will-does")}>Who inherits, and who is executor</Link></li>
                 <li><Link to={articlePath("guardians-and-childrens-trusts")}>A guardian and a trust for children</Link></li>
@@ -126,7 +126,7 @@ export default function Home() {
                 <li><Link to={articlePath("estate-administration")}>What estate administration involves</Link></li>
               </ul>
               <p className="mt-auto pt-2"><WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn w-full sm:w-auto">Chat about a will</WhatsAppCta></p>
-              <p className="svc-fine" data-disclosure>{COST_LINE} {PROVIDER_COST_LINE}</p>
+              <p className="svc-fine" data-disclosure>{COST_LINE}</p>
             </article>
           </div>
           <p className="mt-6 text-[15px] text-muted-foreground max-w-[70ch]" data-disclosure>SortMyCover is run by Lead Velocity (Pty) Ltd, registration {company.registration}. Not a financial services provider. We give no advice. <a className="underline" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
@@ -163,10 +163,10 @@ export default function Home() {
               <Link className="home-text-link" to="/wills/">Explore wills and estate →</Link>
             </div>
           </div>
-          <p className="mb-5 max-w-prose text-[15px] text-muted-foreground" data-disclosure>Every fact in these guides is a statement {provider.name} publishes, with the source and date on each page. {PROVIDER_ROLE_LINE}</p>
+          <p className="mb-5 max-w-prose text-[15px] text-muted-foreground" data-disclosure>Every guide lists its sources, mostly South African law and government pages, with the date each was checked (<Link className="underline" to="/learn/sources/">our sources</Link>). {PROVIDER_ROLE_LINE}</p>
           <Reveal className="home-guide-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {wills.map((m) => (
-              <Link key={m.slug} to={articlePath(m.slug)} className="card-link card-thumb" data-reveal>{ARTICLE_SCENES[m.slug] && <img src={ARTICLE_SCENES[m.slug].src} alt="" width={ARTICLE_SCENES[m.slug].w} height={ARTICLE_SCENES[m.slug].h} loading="lazy" />}<b>{m.title}</b><span>{m.description}</span></Link>
+              <Link key={m.slug} to={articlePath(m.slug)} className="card-link card-thumb" data-reveal>{ARTICLE_SCENES[m.slug] ? <img src={ARTICLE_SCENES[m.slug].src} alt="" width={ARTICLE_SCENES[m.slug].w} height={ARTICLE_SCENES[m.slug].h} loading="lazy" /> : <span className="card-tile" aria-hidden="true"><i /><i /><i /></span>}<b>{m.title}</b><span>{m.description}</span></Link>
             ))}
           </Reveal>
         </div>
@@ -194,7 +194,7 @@ export default function Home() {
         <div>
           <h2 id="h-adv" className="text-[26px] mb-3">Who you speak to</h2>
           <p>For cover, one adviser from a financial services provider authorised by the FSCA. You can check them on the register before you speak. <Link className="underline" to="/advisers/">More about advisers</Link>.</p>
-          <p>For a will, a consultant from {provider.legal_name}. <Link className="underline" to={articlePath("the-will-appointment")}>What happens at the will appointment</Link>.</p>
+          <p>For a will, a will consultant, named on WhatsApp before the call. <Link className="underline" to={articlePath("the-will-appointment")}>What happens at the will appointment</Link>.</p>
         </div>
         <div>
           <h2 className="text-[26px] mb-3">Read first</h2>

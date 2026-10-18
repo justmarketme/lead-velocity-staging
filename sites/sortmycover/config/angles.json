@@ -90,17 +90,17 @@
     "theme": "B",
     "rank": 7,
     "host": true,
-    "ad_hook": "A will can name a guardian for minor children. A {provider} consultant can talk you through it.",
+    "ad_hook": "A will can name a guardian for minor children. A will consultant can talk you through it.",
     "h1": "Who looks after\n*the children?*",
-    "sub": "A will can name a guardian for minor children. Book a call with a {provider} consultant about your will. The call costs you nothing.",
-    "note": "{provider} says a will can also set up a trust that holds a child's inheritance until an age the will sets.",
+    "sub": "A will can name a guardian for minor children. Book a call with a will consultant about your will. The call costs you nothing.",
+    "note": "Under the Children's Act, a sole guardian's appointment of a guardian for a child must be made in a will.",
     "title": "Who looks after the children? | SortMyCover",
-    "description": "A will can name a guardian for minor children. Book a call with a {provider} consultant about your will. The call costs you nothing.",
+    "description": "A will can name a guardian for minor children. Book a call with a will consultant about your will. The call costs you nothing.",
     "sources": [
-      "cl-will-names-guardian",
-      "cl-testamentary-trust"
+      "gov-childrens-act-s27",
+      "master-guardians-fund"
     ],
-    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
+    "status": "LIVE-READY (18 Oct 2026): wills and estate facts rest on government and statutory sources (config/evidence.json master-*, gov-*, act-*); the will provider is named only on WhatsApp."
   },
   {
     "slug": "will-myth",
@@ -108,23 +108,15 @@
     "theme": "B",
     "rank": 8,
     "host": true,
-    "ad_hook": "A bank account or a phone contract is part of an estate too. A will says who gets what.",
+    "ad_hook": "Without a valid will, the law decides who inherits. A will says who gets what.",
     "h1": "A will is not\n*only for the wealthy.*",
-    "sub": "{provider} says a will matters however little or much you own. Book a call with a {provider} consultant. The call costs you nothing.",
-    "proof": {
-      "text": "{provider} Estate Readiness Index 2026, a survey of 1,000 South Africans aged 25 to 75 who had lost a loved one in the previous five years: 41% said that person had a valid will. General information, not advice.",
-      "source": "{provider}",
-      "month": "2026-08",
-      "url": "https://capitallegacy.co.za/estate-readiness-index",
-      "evidence": "cl-eri-2026"
-    },
+    "sub": "Without a valid will, the Intestate Succession Act decides who inherits. Book a call with a will consultant. The call costs you nothing.",
     "title": "A will is not only for the wealthy. | SortMyCover",
-    "description": "A will matters however little or much you own. Book a call with a {provider} consultant about your will. The call costs you nothing.",
+    "description": "Without a valid will, the law decides who inherits. Book a call with a will consultant about your will. The call costs you nothing.",
     "sources": [
-      "cl-will-any-estate",
-      "cl-eri-2026"
+      "master-intestate"
     ],
-    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
+    "status": "LIVE-READY (18 Oct 2026): wills and estate facts rest on government and statutory sources (config/evidence.json master-*, gov-*, act-*); the will provider is named only on WhatsApp."
   },
   {
     "slug": "will-and-cover",
@@ -134,14 +126,14 @@
     "host": true,
     "ad_hook": "A will says who inherits. It does not pay the estate's costs, debts and taxes.",
     "h1": "A will says who inherits.\n*It does not pay the costs.*",
-    "sub": "Estate costs and debts are paid before heirs inherit. Book a call with a {provider} consultant. The call costs you nothing.",
-    "note": "{provider} says a will gives instructions but no cash, and describes life cover as one way to give an estate cash when it is needed.",
+    "sub": "Estate costs and debts are paid before heirs inherit. Book a call with a will consultant. The call costs you nothing.",
+    "note": "A will gives instructions but no cash. The executor pays the estate's debts and costs before heirs inherit.",
     "title": "A will, an estate and its costs | SortMyCover",
-    "description": "A will gives instructions, not cash. Book a call with a {provider} consultant about a will and estate costs. The call costs you nothing.",
+    "description": "A will gives instructions, not cash. Book a call with a will consultant about a will and estate costs. The call costs you nothing.",
     "sources": [
-      "cl-will-no-cash"
+      "master-faq"
     ],
-    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
+    "status": "LIVE-READY (18 Oct 2026): wills and estate facts rest on government and statutory sources (config/evidence.json master-*, gov-*, act-*); the will provider is named only on WhatsApp."
   },
   {
     "slug": "where-is-the-will",
@@ -151,13 +143,14 @@
     "host": true,
     "ad_hook": "A signed will helps only if it can be found when it is needed.",
     "h1": "Having a will is one step.\n*Who knows where it is?*",
-    "sub": "{provider} stores wills it drafts in a fire- and water-resistant vault. Book a call with a {provider} consultant. The call costs you nothing.",
-    "note": "{provider} says it collects the signed will by courier and gives you a copy for your records.",
+    "sub": "A copy of a will is not valid; the original counts. Book a call with a will consultant. The call costs you nothing.",
+    "note": "When someone dies, whoever holds the original will must report the death to the Master.",
     "title": "Who knows where the will is? | SortMyCover",
-    "description": "{provider} stores wills it drafts in a vault and gives you a copy. Book a call with a {provider} consultant. The call costs you nothing.",
+    "description": "A copy of a will is not valid; the signed original counts. Book a call with a will consultant. The call costs you nothing.",
     "sources": [
-      "cl-safe-custody"
+      "master-wills",
+      "master-deceased-estates"
     ],
-    "status": "LIVE-READY (11 Oct 2026): Jonathan decided the wills and estate offer is based on {provider}; every fact follows {provider}'s published pages (evidence ids in sources, re-run scripts/check-capital-legacy.mjs after a change). Replaces the attorney hold (Q-W1 to Q-W4)."
+    "status": "LIVE-READY (18 Oct 2026): wills and estate facts rest on government and statutory sources (config/evidence.json master-*, gov-*, act-*); the will provider is named only on WhatsApp."
   }
 ]

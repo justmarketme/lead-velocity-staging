@@ -9,6 +9,7 @@ import { PROVIDER_ROLE_LINE, PROVIDER_SERVICE_LINE } from "@/lib/site";
 import type { Article } from "@/content/types";
 import { ArticleList } from "./Learn";
 import { ARTICLE_SCENES } from "@/content/imagery";
+import { ArticleDiagram } from "@/components/Visuals";
 
 const fmtDate = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const fmtMonth = (ym: string) => new Date(ym + "-01T00:00:00Z").toLocaleDateString("en-ZA", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -44,7 +45,7 @@ export default function ArticlePage({ article }: { article: Article }) {
   return (
     <>
       <PageFrame title={pageTitle(meta.titleTag ?? meta.title)} description={meta.description} path={path} ogType="article" crumbs={crumbs} jsonld={[articleLd(meta, path, scene?.src)]} ctaKind={wills ? "wills" : ownSection ? "cover" : "adviser"} ctaHeading={meta.cta} h1={meta.title} meta={head}>
-        {scene && <figure className="hub-photo article-photo"><img src={scene.src} alt={scene.alt} width={scene.w} height={scene.h} loading="eager" fetchPriority="high" /></figure>}
+        {scene ? <figure className="hub-photo article-photo"><img src={scene.src} alt={scene.alt} width={scene.w} height={scene.h} loading="eager" fetchPriority="high" /></figure> : <ArticleDiagram slug={meta.slug} />}
         <div className="answer-block" data-answer><span className="ab-bar" aria-hidden="true" /><span className="label">Short answer</span><p>{meta.answer}</p></div>
         <SectionNav items={sections} />
         {body.map((b, i) => {

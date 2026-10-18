@@ -1,5 +1,6 @@
 /* Tests on the finished pre-rendered output in dist/ (run `npm run build` first; `npm run verify` does both).
    These prove the SEO / AI-search checklist in docs/SEO-AND-AI-SEARCH-CHECKLIST.md. */
+import WP from "../config/will-provider.internal.json";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -18,8 +19,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (67 files) with real content", () => {
-    expect(pages.length).toBe(67); // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
+  it("renders every route (73 files) with real content", () => {
+    expect(pages.length).toBe(73); // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -83,7 +84,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
   });
   it("every article: answer block 40-60 words with the scope sentence, dateModified equals the visible last-reviewed date", () => {
     const arts = pages.filter((p) => /^(learn|wills|cover)\//.test(p.rel) && /data-answer/.test(p.html));
-    expect(arts.length).toBe(25);
+    expect(arts.length).toBe(30);
     for (const p of arts) {
       const ans = /<div class="answer-block" data-answer[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/.exec(p.html)![1].replace(/<[^>]+>/g, "");
       const n = ans.split(/\s+/).filter(Boolean).length;
@@ -121,17 +122,19 @@ describe.skipIf(!have)("pre-rendered output", () => {
       expect(p.html, p.rel).toMatch(/href="[^"]*\/privacy\/#opt-out"[^>]*>Opt out of ad measurement/);
     }
   });
-  it("wills and estate pages name the will provider (config/site.json) in a disclosure, make no fee statement, and theme A pages do not mention it", () => {
-    const wp = site.will_provider;
+  it("wills and estate landing pages carry the generic will disclosure and never name the will provider (Jono, 18 Oct 2026), make no fee statement, and theme A pages do not mention it", () => {
+    const wp = WP;
     for (const a of ANGLES) {
       const land = visible(pages.find((p) => p.rel === `_c/${a.slug}/index.html`)!.html);
       const thanks = visible(pages.find((p) => p.rel === `_c/${a.slug}/thanks/index.html`)!.html);
       if (a.theme === "B") {
-        expect(land, a.slug).toContain(`provided by ${wp.legal_name}, ${wp.status}`);
-        expect(land, a.slug).toContain(`${wp.name} consultant`);
+        expect(land, a.slug).toMatch(/on WhatsApp before the call/);
+        expect(land, a.slug).toContain("will consultant");
+        expect(land, a.slug).not.toContain(wp.name);
         expect(land, a.slug).toMatch(/SortMyCover does not draft wills and gives no advice/);
         expect(land, a.slug).not.toMatch(/Advisers pay SortMyCover|commission/);
-        expect(thanks, a.slug).toContain(`${wp.name} consultant`);
+        expect(thanks, a.slug).toContain("will consultant");
+        expect(thanks, a.slug).not.toContain(wp.name);
         expect(thanks, a.slug).not.toMatch(/FSP number/);
       } else {
         expect(land, a.slug).not.toContain(wp.name);
@@ -200,7 +203,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const book = pages.find((p) => p.rel === "book/index.html")!.html;
     expect(visible(book)).toContain("Book your call on WhatsApp");
     expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Ref%20w-book"/);
-    expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Capital%20Legacy[^"]*Ref%20w-book-will"/);
+    expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*a%20will%20consultant[^"]*Ref%20w-book-will"/);
     expect(pages.some((p) => p.rel === "book/thanks/index.html")).toBe(false);
   });
   it("privacy and terms are signed off (17 Oct 2026): no DRAFT mark, indexable; the PAIA placeholder stays DRAFT and noindex", () => {
@@ -224,6 +227,12 @@ describe.skipIf(!have)("pre-rendered output", () => {
       for (const [, id] of nav[0].matchAll(/href="#([^"]+)"/g)) expect(p.html, `${p.rel} #${id}`).toContain(`id="${id}"`);
     }
     expect(n).toBeGreaterThan(20);
+  });
+  it("no public page names or links the will provider (Jono, 18 Oct 2026: named only on WhatsApp)", () => {
+    for (const p of pages) expect(p.html, p.rel).not.toMatch(/capital\s*legacy|capitallegacy|FSP 43826/i);
+    // nor any shipped script or file: the provider's identity is internal (config/will-provider.internal.json)
+    const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+    for (const f of walk(dist).filter((x) => /\.(js|json|txt|xml|webmanifest|css)$/.test(x))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(/capital\s*legacy|capitallegacy|43826/i);
   });
   it("each code-drawn visual ships pre-rendered on its page, with its words in the HTML (readable with no JavaScript)", () => {
     const want: Record<string, [string, string]> = {

@@ -18,21 +18,21 @@ export default function Wills() {
   return (
     <PageFrame
       title="Wills and estate planning | SortMyCover"
-      description={`Book a call with a ${provider.name} consultant to get your will drafted, and read plain guides to wills, guardians, estate costs and estate administration.`}
+      description={`Book a call with a will consultant to get your will drafted, and read plain guides to wills, guardians, estate costs and estate administration.`}
       path="/wills/"
       h1="Wills and estate planning"
       accent="estate planning"
-      lede={`Get your will drafted by ${provider.name}, and read plain-words guides to what a will does and what happens to an estate.`}
+      lede={`Get your will drafted with a will consultant, and read plain-words guides to what a will does and what happens to an estate.`}
       crumbs={[{ name: "SortMyCover", path: "/" }, { name: hub.title, path: "/wills/" }]}
       ctaKind="wills"
     >
       <figure className="hub-photo"><img src={SCENES.hubWills.src} alt={SCENES.hubWills.alt} width={SCENES.hubWills.w} height={SCENES.hubWills.h} loading="eager" /></figure>
       <p className="text-[15px] text-muted-foreground" data-disclosure data-provider>
-        {PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE} <a href={site.fsca_register_url} rel="noopener noreferrer">Look the firm up on the FSCA register</a>.
+        {PROVIDER_SERVICE_LINE} {PROVIDER_ROLE_LINE} <a href={site.fsca_register_url} rel="noopener noreferrer">You can look the firm up on the FSCA register</a>.
       </p>
       <p className="mt-5 cta-row"><WhatsAppCta ctx={contextFor("/wills/")} /><CalendarCta ctx={contextFor("/wills/")} /></p>
-      <p className="text-[15px] text-[#56606a]">{WA_EXPECT}</p>
-      <p className="text-[15px]" data-disclosure>{COST_LINE} {PROVIDER_COST_LINE}</p>
+      <p className="text-[15px] text-[#56606a]">{WA_EXPECT.replace("your adviser", "your will consultant")}</p>
+      <p className="text-[15px]" data-disclosure>{COST_LINE}</p>
 
       <h2>Guides</h2>
       <ArticleList items={articlesForHub(WILLS_HUB)} />

@@ -83,8 +83,8 @@ export function Cta({ heading, kind = "adviser" }: { heading?: string; kind?: Ct
   if (kind === "wills") {
     return (
       <aside className="cta-quiet" aria-label="Book a will call">
-        <h2>{heading ?? "Talk to a " + provider.name + " consultant"}</h2>
-        <p data-disclosure>Lindi books a call about your will on WhatsApp, at a time that suits. {COST_LINE} {PROVIDER_COST_LINE}</p>
+        <h2>{heading ?? "Talk to a will consultant"}</h2>
+        <p data-disclosure>Lindi books a call about your will on WhatsApp, at a time that suits. {COST_LINE}</p>
         <div className="cta-actions">
           <WhatsAppCta ctx={{ ...ctx, wills: true }} />
           <CalendarCta ctx={{ ...ctx, wills: true }} className="btn btn-ghost">Pick a time</CalendarCta>

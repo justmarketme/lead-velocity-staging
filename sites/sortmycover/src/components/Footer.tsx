@@ -57,7 +57,7 @@ export function Footer() {
         <nav aria-labelledby="f-trust"><h2 id="f-trust">Trust</h2>
           <ul>
             <li><Link to="/about/">About</Link></li><li><Link to="/contact/">Contact</Link></li>
-            <li><Link to="/complaints/">Complaints</Link></li><li><Link to="/editorial-policy/">Editorial policy</Link></li><li><Link to="/accessibility/">Accessibility</Link></li>
+            <li><Link to="/complaints/">Complaints</Link></li><li><Link to="/editorial-policy/">Editorial policy</Link></li><li><Link to="/learn/sources/">Our sources</Link></li><li><Link to="/accessibility/">Accessibility</Link></li>
           </ul>
         </nav>
         <nav aria-labelledby="f-legal"><h2 id="f-legal">Legal</h2>

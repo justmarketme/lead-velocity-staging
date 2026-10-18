@@ -87,11 +87,11 @@ export const body: Block[] = [
   },
   {
     type: "p",
-    text: "The two sets meet in one place: the estate. A business interest can form part of the owner's estate. Capital Legacy, a will and estate provider, says estate costs, debts and taxes are paid before heirs inherit, and that a will gives instructions but no cash. It describes life cover as one way to give an estate cash. [What a will does](/wills/what-a-will-does/) explains the will itself.",
+    text: "The two sets meet in one place: the estate. A business interest can form part of the owner's estate. An estate's costs, debts and taxes are paid before the heirs inherit, and a will gives instructions but no cash. Life cover is one way an estate can have cash when it is needed. [What a will does](/wills/what-a-will-does/) explains the will itself.",
   },
   {
     type: "p",
-    text: "SortMyCover can also book a separate call with a Capital Legacy consultant about a will. Capital Legacy Solutions (Pty) Ltd is an authorised FSP (FSP 43826 on the FSCA register).",
+    text: "SortMyCover can also book a separate call with a will consultant about a will. Lindi names the consultant and their firm on WhatsApp before the call.",
   },
   { type: "h2", text: "Questions an owner can take to an authorised adviser" },
   {

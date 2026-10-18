@@ -53,7 +53,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={wills ? WILLS_STEPS : HOW_STEPS} /></section>
         <section className="wrap-narrow py-6" aria-labelledby="h-cost" data-disclosure>
           <h2 id="h-cost" className="text-[24px] mb-3">Cost, and who we are</h2>
-          <p>{wills ? <>{COST_LINE} {PROVIDER_COST_LINE}</> : <>{COST_LINE} {FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
+          <p>{wills ? <>{COST_LINE}</> : <>{COST_LINE} {FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
         </section>
         <section className="wrap-narrow pb-8" aria-labelledby="h-faq">
           <h2 id="h-faq" className="text-[24px] mb-3">Questions people ask</h2>
@@ -74,7 +74,7 @@ export function CampaignThanks({ angle }: { angle: Angle }) {
       <header className="site-header"><div className="wrap bar"><Wordmark plain /></div></header>
       <main id="main" className="wrap-narrow py-12"><div className="prose-sm">
         <h1>Thanks. Check your WhatsApp.</h1>
-        <p className="lede">{isWills(angle) ? <>The name of your {provider.name} consultant is on its way</> : <>Your adviser’s name, practice and FSP number are on their way</>}{site.whatsapp_number ? <> from <strong>{site.whatsapp_number}</strong></> : <> from the SortMyCover WhatsApp number</>}. Save the number so the message does not get lost.</p>
+        <p className="lede">{isWills(angle) ? <>The name of your will consultant is on its way</> : <>Your adviser’s name, practice and FSP number are on their way</>}{site.whatsapp_number ? <> from <strong>{site.whatsapp_number}</strong></> : <> from the SortMyCover WhatsApp number</>}. Save the number so the message does not get lost.</p>
         <ul><li>You pick a time that suits you, and get reminders before the call.</li><li>The call is about 30 minutes. {COST_LINE} You decide afterwards.</li><li>Reply STOP to any message to stop.</li></ul>
       </div></main>
       <CampaignFooter feeLine={!isWills(angle)} />

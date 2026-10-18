@@ -16,17 +16,17 @@ export const CAMPAIGN_FAQ: FaqItem[] = [
   { id: "committed", q: "Am I committed to anything?", a: "No. You do not have to buy anything, on the call or after it. You can move or cancel the call from the WhatsApp message, at no cost." },
 ];
 
-/* Wills and estate (theme B) pages: the same steps and FAQ, with the will provider named (config/site.json -> will_provider).
+/* Wills and estate (theme B) pages: the same steps and FAQ. The will provider is not named on the site (Jono, 18 Oct 2026); Lindi names it on WhatsApp.
    No fee line here: SortMyCover's fee arrangement for theme B is not settled, so these pages make no statement about it. */
 export const WILLS_STEPS = [
   HOW_STEPS[0],
-  { title: "Pick a time", body: `You get the name of your ${provider.name} consultant on WhatsApp, and choose a time that suits you.` },
-  { title: `Talk to the ${provider.name} consultant`, body: "By video, WhatsApp or phone, about your will. You decide afterwards. " + COST_LINE },
+  { title: "Pick a time", body: "You get the name of your will consultant and their firm on WhatsApp, and choose a time that suits you." },
+  { title: "Talk to the will consultant", body: "By video, WhatsApp or phone, about your will. You decide afterwards. " + COST_LINE },
 ];
 
 export const WILLS_FAQ: FaqItem[] = [
-  { id: "cost", q: "Does the call cost anything?", a: COST_LINE + " " + PROVIDER_COST_LINE },
-  { id: "provider", q: "Who will I speak to?", a: `A consultant from ${provider.legal_name}, ${provider.status}. You can look the firm up on the [FSCA register](${site.fsca_register_url}).` },
+  { id: "cost", q: "Does the call cost anything?", a: COST_LINE },
+  { id: "provider", q: "Who will I speak to?", a: `A will consultant. Lindi sends their name and their firm, with its FSP number, on WhatsApp before the call, so you can look the firm up on the [FSCA register](${site.fsca_register_url}).` },
   { id: "drafts", q: "Does SortMyCover draft the will?", a: PROVIDER_ROLE_LINE + " " + NOT_FSP_LINE },
   CAMPAIGN_FAQ.find((f) => f.id === "info")!,
   CAMPAIGN_FAQ.find((f) => f.id === "committed")!,
@@ -42,7 +42,7 @@ export const HOME_FAQ: FaqItem[] = [
   { id: "buy", q: "Do I have to buy anything?", a: "No. The call costs you nothing, and you decide afterwards." },
   { id: "stop", q: "Can I stop?", a: "Yes. Reply STOP to any WhatsApp, or email hello@sortmycover.co.za with the word STOP. We stop at once and tell the adviser." },
   { id: "complain", q: "Who do I complain to?", a: "Start with hello@sortmycover.co.za. The [complaints page](/complaints/) lists every route in order, including the routes for a complaint about an adviser." },
-  { id: "wills", q: "Who drafts my will?", a: `A consultant from ${provider.legal_name} (FSP ${provider.fsp_number}). ` + PROVIDER_ROLE_LINE + " " + PROVIDER_COST_LINE + " The [wills and estate guides](/wills/) explain what a will does." },
+  { id: "wills", q: "Who drafts my will?", a: "A will consultant you are introduced to on WhatsApp. " + PROVIDER_ROLE_LINE + " The [wills and estate guides](/wills/) explain what a will does." },
 ];
 
 export const SITE_FAQ: FaqItem[] = [

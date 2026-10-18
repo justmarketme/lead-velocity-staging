@@ -16,10 +16,10 @@ export const meta: ArticleMeta = {
   author: { kind: "organization", name: "SortMyCover editorial team" },
   fact_checked_by: "SortMyCover editorial team",
   fact_checked_on: "2026-10-16",
-  evidence: ["sars-estate-duty", "cl-will-no-cash"],
+  evidence: ["sars-estate-duty", "master-faq"],
   sources: sourcesFrom([
     ["sars-estate-duty", "Estate duty rates, the abatement, who pays, and policies paid to a beneficiary"],
-    ["cl-will-no-cash", "Estate costs, debts and taxes are paid before heirs inherit"],
+    ["master-faq", "The executor settles debts and costs through the liquidation and distribution account before heirs inherit"],
   ]),
   related: ["estate-costs-and-a-will", "life-cover"],
 };

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import PageFrame from "@/components/PageFrame";
 import { ARTICLE_SCENES } from "@/content/imagery";
+import { DIAGRAM_SLUGS } from "@/components/Visuals";
 import { Reveal } from "@/components/Interactive";
 import { articlesForHub, articlePath, hubPath, hubs, type Hub } from "@/content";
 
@@ -16,6 +17,7 @@ export function LearnHub() {
           return <Link key={h.slug} to={hubPath(h)} className={sc ? "card-link card-thumb" : "card-link"} data-reveal>{sc && <img src={sc.src} alt="" width={sc.w} height={sc.h} loading="lazy" />}<span className="card-text"><b>{h.title}</b><span>{h.intro}</span></span></Link>;
         })}
         <Link to="/learn/glossary/" className="card-link" data-reveal><b>Glossary</b><span>36 terms, defined objectively.</span></Link>
+        <Link to="/learn/sources/" className="card-link" data-reveal><b>Our sources</b><span>Where the information in these guides comes from.</span></Link>
       </Reveal>
     </PageFrame>
   );
@@ -26,7 +28,7 @@ export function ArticleList({ items }: { items: { slug: string; title: string; d
   return (
     <Reveal className="grid gap-3 mt-4">
       {items.map((a) => (
-        <Link key={a.slug} to={articlePath(a.slug)} className={ARTICLE_SCENES[a.slug] ? "card-link card-thumb" : "card-link"} data-reveal>{ARTICLE_SCENES[a.slug] && <img src={ARTICLE_SCENES[a.slug].src} alt="" width={ARTICLE_SCENES[a.slug].w} height={ARTICLE_SCENES[a.slug].h} loading="lazy" />}<span className="card-text"><b>{a.title}</b><span>{a.description}</span></span></Link>
+        <Link key={a.slug} to={articlePath(a.slug)} className={ARTICLE_SCENES[a.slug] || DIAGRAM_SLUGS.includes(a.slug) ? "card-link card-thumb" : "card-link"} data-reveal>{ARTICLE_SCENES[a.slug] ? <img src={ARTICLE_SCENES[a.slug].src} alt="" width={ARTICLE_SCENES[a.slug].w} height={ARTICLE_SCENES[a.slug].h} loading="lazy" /> : DIAGRAM_SLUGS.includes(a.slug) && <span className="card-tile" aria-hidden="true"><i /><i /><i /></span>}<span className="card-text"><b>{a.title}</b><span>{a.description}</span></span></Link>
       ))}
     </Reveal>
   );

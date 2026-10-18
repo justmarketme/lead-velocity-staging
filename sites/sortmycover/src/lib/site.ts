@@ -23,11 +23,11 @@ export const NO_COMMISSION = "SortMyCover takes no commission and no share of an
 export const FOOTER_LINE: string = cfg.footer_line;
 export const NOT_FSP_LINE = "SortMyCover is not a financial services provider and gives no financial advice.";
 
-/** Wills and estate (theme B) provider: config/site.json -> will_provider is the only place it is named.
-    {provider} = name, {legal_name}, {status} are filled here, so angles.json and the lines below never retype it. */
+/** Wills and estate (theme B): public lines only. Jono, 18 Oct 2026: the will provider is not named on the site; its identity lives in
+    config/will-provider.internal.json, which no browser code imports, and Lindi names it on WhatsApp before the call. */
 export const provider = cfg.will_provider;
-export const fillProvider = (s: string) =>
-  s.replace(/\{provider\}/g, provider.name).replace(/\{legal_name\}/g, provider.legal_name).replace(/\{status\}/g, provider.status).replace(/\{fsp\}/g, provider.fsp_number);
+/** Kept for angle copy: a stray {provider} token renders as the generic label, never a name. */
+export const fillProvider = (s: string) => s.replace(/\{provider\}/g, provider.public_label);
 export const PROVIDER_SERVICE_LINE = fillProvider(provider.service_line);
 export const PROVIDER_COST_LINE = fillProvider(provider.cost_line);
 export const PROVIDER_ROLE_LINE = fillProvider(provider.role_line);

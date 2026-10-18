@@ -1,58 +1,24 @@
 import type { Block } from "../types";
-import { provider } from "@/lib/site";
 
-const P = provider.name;
-
+/* Built on government and statutory sources (Jono, 18 Oct 2026); see docs/WILLS-ESTATE-SOURCES-2026-10-18.md. */
 export const body: Block[] = [
-  {
-    type: "p",
-    text: `A will is a short document with a big job. This page sets out what it can do, what happens without one, and what it cannot do by itself. The facts come from what ${P}, the will provider SortMyCover introduces people to, publishes about wills.`,
-  },
+  { type: "p", text: "A will is a short document with a big job. This page sets out what it can record, what happens without one, and what it cannot do by itself. The facts come from the Master of the High Court and the Acts that govern wills, listed under Sources." },
   { type: "h2", text: "What can a will record?" },
-  {
-    type: "p",
-    text: `${P} describes a will as the document that records a person's last wishes. It can name:`,
-  },
-  {
-    type: "ul",
-    items: [
-      "who inherits what, the heirs;",
-      "the executor, the person or firm who deals with the estate after death;",
-      "a guardian for minor children;",
-      "a testamentary trust, such as a trust for children, and the trustees who run it.",
-    ],
-  },
-  {
-    type: "p",
-    text: "The guardian and the children's trust have their own page: [guardians and children's trusts](/wills/guardians-and-childrens-trusts/).",
-  },
-  { type: "h2", text: "What happens if there is no valid will?" },
-  {
-    type: "p",
-    text: `A person who dies without a valid will dies intestate. ${P} explains that the law of intestate succession then decides who inherits, not the person who died. The law sets the order. It does not know about a promise made to a friend, a wish about a particular item, or a preference about who runs the estate.`,
-  },
-  { type: "h2", text: "Is a will only for people with a lot of assets?" },
-  {
-    type: "p",
-    text: `No. ${P} says a will matters however little or much a person owns. An estate is more than a house or investments. A bank account, a retail account or a phone contract is part of an estate too, and someone has to deal with each of them.`,
-  },
-  { type: "h2", text: "What can a will not do on its own?" },
-  {
-    type: "p",
-    text: `A will gives instructions. It does not give the estate any cash. ${P} points out that estate costs, debts and taxes are paid before the heirs inherit. If the estate has little cash, those costs still have to be met from somewhere.`,
-  },
-  {
-    type: "p",
-    text: `${P} describes life cover as one way to give an estate cash, which it calls liquidity. Whether that suits a particular family is a question for an authorised adviser, not for this page. [Estate costs and a will](/wills/estate-costs-and-a-will/) explains the costs in more detail.`,
-  },
-  { type: "h2", text: "Does a will stay right forever?" },
-  {
-    type: "p",
-    text: `A will reflects one moment. Marriage, divorce, a new child or a new property can change what a person wants it to say. ${P} says it does not charge to update a will it drafted, and that updates can be made as often as they are wanted.`,
-  },
-  { type: "h2", text: "Where does SortMyCover fit in?" },
-  {
-    type: "p",
-    text: `SortMyCover does not draft wills and gives no advice. It books a call with a ${P} consultant, who talks you through the will and drafts it. [What happens at the will appointment](/wills/the-will-appointment/) describes that call, and [where a will is kept](/wills/where-to-keep-a-will/) covers what happens to the signed original.`,
-  },
+  { type: "p", text: "A will is the written record of a person's wishes for after their death. It can name:" },
+  { type: "ul", items: [
+    "**The heirs:** who inherits what.",
+    "**The executor:** the person or firm who winds up the estate. The Master says the executor's fee is 3.5% unless the will sets a different fee.",
+    "**A guardian for minor children.** Under section 27 of the Children's Act, a parent who is the sole guardian can appoint a guardian for a child, and that appointment must be in a will.",
+    "**An age for a child's inheritance.** The Master's Guardian's Fund pays a child at 18, or at another age set in the will.",
+  ] },
+  { type: "h2", text: "Who can make a will?" },
+  { type: "p", text: "The Master says a person of 16 or older who is mentally capable can make a will, and that witnesses must be 14 or older. [What makes a will valid](/wills/what-makes-a-will-valid/) covers signing and witnessing." },
+  { type: "h2", text: "What happens without a valid will?" },
+  { type: "p", text: "A person who dies without a valid will dies intestate. The Intestate Succession Act then decides who inherits, in a set order: a spouse and children first, then parents, then brothers and sisters, then other blood relatives. The law follows family relationships. It does not record personal wishes, such as leaving something to a friend. [Dying without a will: who inherits](/wills/intestate-succession/) works through examples." },
+  { type: "h2", text: "Does a will pay for anything?" },
+  { type: "p", text: "No. A will gives instructions. It does not give the estate any cash. The executor settles the estate's costs and debts first, through the liquidation and distribution account, and the heirs receive what is left. The Master says the executor lodges that account within six months of being appointed. [Estate costs, and why a will does not pay them](/wills/estate-costs-and-a-will/) explains the costs." },
+  { type: "h2", text: "When does a will need updating?" },
+  { type: "p", text: "A will reflects one moment. Marriage, divorce, a new child or a new property can change what a person wants it to say. The Master notes one rule about divorce: if a person dies within three months of a divorce, a gift to the former spouse in the will is treated as revoked." },
+  { type: "h2", text: "Where SortMyCover fits" },
+  { type: "p", text: "SortMyCover does not draft wills and gives no advice. It books a call with a will consultant. Lindi sends the consultant's name and firm on WhatsApp before the call. [What happens at the will appointment](/wills/the-will-appointment/) describes the call." },
 ];

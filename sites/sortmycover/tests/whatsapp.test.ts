@@ -15,7 +15,7 @@ describe("WhatsApp opener", () => {
       const o = opener(c);
       expect(o, c.ref).toMatch(RE);
       for (const [re, label] of BANNED) expect(o, `${c.ref}: ${label}`).not.toMatch(re);
-      expect(RE.exec(o)![2], c.ref).toBe(c.wills ? "Capital Legacy" : "an authorised adviser");
+      expect(RE.exec(o)![2], c.ref).toBe(c.wills ? "a will consultant" : "an authorised adviser");
     }
   });
   it("campaign openers carry the angle's neutral meta code", () => {

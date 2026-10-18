@@ -4,7 +4,7 @@
    The opener is the contract with W07 (Lindi), documented in docs/WHATSAPP-OPENERS.md: it names the topic, carries the consent
    statement in the person's own words (so the WhatsApp chat itself records consent, even without JavaScript) and ends with
    "Ref <code>", the page or ad the chat came from. */
-import { consentCfg, provider, site } from "./site";
+import { consentCfg, site } from "./site";
 
 export const WA_DIGITS: string = String(site.whatsapp_number || "").replace(/\D/g, "");
 export const WA_LABEL = "Chat on WhatsApp";
@@ -68,7 +68,7 @@ export function campaignContext(a: { slug: string; meta_code: string; theme?: st
 /** The prefilled first message. Plain words; the tail is machine-readable for Lindi (docs/WHATSAPP-OPENERS.md):
     "Ref <code>" = the page or landing page, and "via <source>/<campaign>/<content>" = where the visitor came from before that. */
 export function opener(c: ChatContext, via?: string): string {
-  const who = c.wills ? `share my details with ${provider.name}` : "share my details with an authorised adviser";
+  const who = c.wills ? "share my details with a will consultant" : "share my details with an authorised adviser";
   return `Hi Lindi, I'd like to chat about ${c.topic}. I agree that SortMyCover may message me on WhatsApp about this and ${who}. Ref ${c.ref}${via ? " via " + via : ""}`;
 }
 
@@ -101,7 +101,7 @@ export function sourceTag(a: { utm?: Record<string, string>; fbclid?: string; re
 export const WA_STEPS = (wills?: boolean): string[] => [
   "Lindi says hello and asks what you need help with. Tap an option.",
   "She asks a few short questions, such as your age band.",
-  wills ? `She introduces your ${provider.name} consultant and offers times for the call. Pick one.` : "She introduces your adviser, with their name, firm and FSP number, and offers times. Pick one.",
+  wills ? "She introduces your will consultant, with their name and firm, and offers times for the call. Pick one." : "She introduces your adviser, with their name, firm and FSP number, and offers times. Pick one.",
   "She confirms your email for the calendar invite, then reminds you before the call.",
 ];
 /** One-line version for tight spots (hero micro line, CTA card). */

@@ -64,6 +64,7 @@ export const apexRoutes: RouteDef[] = [
   ...hubs.filter((h) => h.n !== 1 && !h.path).map((h) => page(hubPath(h), () => import("./pages/Learn").then((m) => ({ default: () => <m.HubPage hub={h} /> })))),
   articleRoute(HUB1_INTRO),
   page("/learn/glossary/", () => import("./pages/Glossary")),
+  page("/learn/sources/", () => import("./pages/Sources"), { lastmod: "2026-10-18" }),
   ...articleMetas.filter((a) => a.slug !== HUB1_INTRO).map((a) => articleRoute(a.slug)),
   page("/editorial-policy/", () => import("./pages/EditorialPolicy")),
   page("/accessibility/", () => import("./pages/Accessibility")),

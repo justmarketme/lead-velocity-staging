@@ -15,7 +15,7 @@ Jono, 17 Oct 2026: WhatsApp is the only way to book. The site has no booking for
 Hi Lindi, I'd like to chat about <topic>. I agree that SortMyCover may message me on WhatsApp about this and share my details with <who>. Ref <code>[ via <source>[/<campaign>[/<content>]]]
 ```
 
-- `<who>` is `an authorised adviser`, or `Capital Legacy` for wills topics.
+- `<who>` is `an authorised adviser`, or `a will consultant` for wills topics. Jono, 18 Oct 2026: the site no longer names the will provider anywhere public; Lindi names the provider on WhatsApp before any details are shared. Openers sent before 18 Oct may still say `Capital Legacy`; treat both as a will call.
 - The person can edit the text before sending, so parse defensively.
 
 Parse with:
@@ -27,7 +27,7 @@ Parse with:
 | Group | Meaning |
 |---|---|
 | 1 | Topic, plain words. Use it to pre-select the option in the welcome list. |
-| 2 | Who the details go to. `Capital Legacy` means a will call. |
+| 2 | Who the details go to. `a will consultant` (or the older `Capital Legacy`) means a will call. W03 also detects a will call from the topic (`a will`) and the ref (`w-*will*`, `B..` meta codes), so routing does not depend on this text. |
 | 3 | Page code (table below): the site page or landing page the chat started from. |
 | 4 | Optional origin before that page: `<source>/<campaign>/<content>`. `ig` or `fb` for Instagram or Facebook (ads carry `utm_source={{site_source_name}}`), `google` for search, another host for a referring site; absent means a direct visit. Built by `sourceTag()` in `src/lib/whatsapp.ts`. |
 
@@ -64,9 +64,9 @@ utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&u
 |---|---|
 | `w-home` | Home: header, hero, final card, launcher |
 | `w-home-bond`, `w-home-baby`, `w-home-income`, `w-home-business`, `w-home-will` | Home life-moment panels |
-| `w-home-cover`, `w-home-wills` | Home "two calls" cards and the final card (`w-home-wills` names Capital Legacy) |
+| `w-home-cover`, `w-home-wills` | Home "two calls" cards and the final card (`w-home-wills` says a will consultant) |
 | `w-cover` | /cover/ hub and the four cover type pages |
-| `w-wills` | /wills/ hub and every wills guide (opener names Capital Legacy) |
+| `w-wills` | /wills/ hub and every wills guide (opener says a will consultant) |
 | `w-learn` | Other /learn/ pages |
 | `w-learn-bond`, `w-learn-income`, `w-learn-owner`, `w-learn-adviser` | The four guides the cycle-1 ads link to |
 | `w-book`, `w-book-will` | /book/ (the WhatsApp booking page): cover button, will button |

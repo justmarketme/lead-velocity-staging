@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AD_SCENES, ARTICLE_SCENES, CAMPAIGN_SCENES, HERO_MOSAIC, PAGE_SCENES, SCENES } from "../src/content/imagery";
 import { articleMetas } from "../src/content";
+import { DIAGRAM_SLUGS } from "../src/components/Visuals";
 import { ANGLES } from "../src/campaigns";
 
 const pub = path.resolve(__dirname, "../public");
@@ -38,7 +39,8 @@ describe("imagery", () => {
     }
   });
   it("every guide has a photo, and apart from the ad pairs no photo is used for two guides or pages", () => {
-    for (const a of articleMetas) expect(ARTICLE_SCENES[a.slug], a.slug).toBeTruthy();
+    // a photo, or (once the ad stills ran out, 18 Oct 2026) the guide's own code-drawn diagram
+    for (const a of articleMetas) expect(ARTICLE_SCENES[a.slug] || DIAGRAM_SLUGS.includes(a.slug), a.slug).toBeTruthy();
     const adSrcs = new Set(Object.values(AD_SCENES).map((x) => x.scene.src));
     const used = [...Object.values(ARTICLE_SCENES), ...Object.values(PAGE_SCENES)].map((x) => x.src).filter((x) => !adSrcs.has(x));
     expect(new Set(used).size).toBe(used.length);

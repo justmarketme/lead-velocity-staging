@@ -11,8 +11,8 @@ import { WaPreview } from "@/components/Visuals";
 export default function Book() {
   return (
     <>
-      <Seo title="Book a call | SortMyCover" description={`Book a 30-minute call with an authorised adviser about cover, or with a ${provider.name} consultant about your will, on WhatsApp. ${COST_LINE}`} canonical={APEX + "/book/"} />
-      <PageHead h1="Book your call on WhatsApp" accent="on WhatsApp" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Book a call", path: "/book/" }]} lede={<>Lindi, SortMyCover's booking assistant, books a 30-minute call with an authorised adviser about cover, or with a {provider.name} consultant about your will. {COST_LINE}</>} />
+      <Seo title="Book a call | SortMyCover" description={`Book a 30-minute call with an authorised adviser about cover, or with a will consultant about your will, on WhatsApp. ${COST_LINE}`} canonical={APEX + "/book/"} />
+      <PageHead h1="Book your call on WhatsApp" accent="on WhatsApp" crumbs={[{ name: "SortMyCover", path: "/" }, { name: "Book a call", path: "/book/" }]} lede={<>Lindi, SortMyCover's booking assistant, books a 30-minute call with an authorised adviser about cover, or with a will consultant about your will. {COST_LINE}</>} />
       <div className="wrap-narrow page-body"><div className="prose-sm">
         <p className="cta-row">
           <WhatsAppCta ctx={{ ...DEFAULT_CHAT, ref: "w-book" }} className="btn btn-lg">Chat about cover</WhatsAppCta>

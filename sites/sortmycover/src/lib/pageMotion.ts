@@ -141,7 +141,8 @@ function vizMotion(main: HTMLElement): Off {
   // checking an adviser: the progress line follows the scroll, the cards step in, the tick draws itself
   main.querySelectorAll<HTMLElement>(".viz-check").forEach((v) => {
     const line = v.querySelector<HTMLElement>(".ck-line");
-    if (line) offs.push(drawLineOnScroll(v, line, narrow() ? "y" : "x"));
+    const vertical = v.classList.contains("viz-flow") ? !!window.matchMedia && window.matchMedia("(max-width: 899px)").matches : narrow();
+    if (line) offs.push(drawLineOnScroll(v, line, vertical ? "y" : "x"));
     v.querySelectorAll<HTMLElement>(".ck-step").forEach((s, i) => offs.push(settleOnEnter(s, "translateY(30px) scale(0.96)", { amount: 0.3, delay: i * 0.12, stiffness: 240, damping: 22 })));
     const tick = v.querySelector<SVGGeometryElement>(".ck-tick");
     if (tick) offs.push(inView(tick as unknown as Element, () => { const off = drawPath(tick, 0.5, 0.6); offs.push(off); return undefined; }, { amount: 1 }));

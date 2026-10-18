@@ -1,0 +1,189 @@
+[
+  {
+    "id": "cl-provider-identity",
+    "claim": "Capital Legacy Solutions (Pty) Ltd states that it is an authorised financial services provider, and that its Legacy Protection Plan is underwritten by Guardrisk Life Ltd, a licensed life insurer.",
+    "title": "Home page (footer)",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Footer line on every page read, and the footer of the Conflict of Interest Policy PDF. No FSP number is shown on any page read or in that PDF. The number is confirmed on the FSCA register: see fsca-capital-legacy-fsp."
+  },
+  {
+    "id": "fsca-capital-legacy-fsp",
+    "claim": "Capital Legacy Solutions (Pty) Ltd is an authorised financial services provider, FSP number 43826 (FSCA FAIS register, status Authorized, financial year end 31/03).",
+    "title": "FAIS register: search for a financial services provider",
+    "publisher": "Financial Sector Conduct Authority (FSCA)",
+    "url": "https://www2.fsca.co.za/Fais/Search_FSP.htm",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "FSP register name search 'Capital Legacy' on 11 Oct 2026 returned one FSP: 43826 CAPITAL LEGACY SOLUTIONS (PTY) LTD, Authorized. Use as '{legal_name} (FSP 43826)' in the will-provider disclosure and on the Capital Legacy broker row (brokers.fsp_number) that fills the WhatsApp intro card. Re-check on the register if the provider changes."
+  },
+  {
+    "id": "cl-no-charge-will",
+    "claim": "Capital Legacy says it does not charge for drafting, updating, safekeeping or retrieving a will; updates can be made as often as needed at no charge.",
+    "title": "Why us",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/why-us",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Why us ('Affordable' card), Wills page FAQ 'requirements for a will to be valid', Existing clients ('How do I update my will?', courier and vault answers) and FAQ uid how-do-i-update-my-will. Capital Legacy's own pages use the word 'free'; our pages never do (wording rule S13): say 'does not charge'."
+  },
+  {
+    "id": "cl-consultant-meetings",
+    "claim": "A Capital Legacy consultant or Private Estate Specialist finalises the will with the client at an appointment at no cost (in person, by phone or online); an online draft is not a valid will until finalised, signed and witnessed.",
+    "title": "Draft your will",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/wills-draft",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Also /why-us ('We will come to you', office or home) and /media/can-i-draft-my-will-online (in-person, telephonic or online appointment). Capital Legacy does not publish a call length; the 30-minute slot is SortMyCover's booking format."
+  },
+  {
+    "id": "cl-lpp",
+    "claim": "Capital Legacy offers the Legacy Protection Plan, an optional policy linked to the will that covers executor, testamentary trust and conveyancing fees and other estate costs; terms and conditions apply and quotes are subject to medicals.",
+    "title": "Legacy Protection Plan",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/legacy-protection-plan",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Used only for the neutral line that optional cover for estate costs is paid for. Never name the product or quote the home-page example (R208.50 a month for a 37-year-old non-smoker): that would be product promotion and a price (rules S13, S14)."
+  },
+  {
+    "id": "cl-will-names-guardian",
+    "claim": "A will can name guardians for minor children, the executor and any testamentary trust and trustees, and records last wishes.",
+    "title": "Wills",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/wills",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Wills page FAQ 'What is a will?' (also FAQ uid what-is-a-will) and the Estate administration FAQ 'What are the elements of a will?'."
+  },
+  {
+    "id": "cl-testamentary-trust",
+    "claim": "A children's trust is a testamentary trust created in a will that holds a minor child's inheritance until an age the will sets, which need not be 18 or 21.",
+    "title": "Trusts",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/trusts",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Trusts page, 'Children's Trust'."
+  },
+  {
+    "id": "cl-intestate",
+    "claim": "Without a valid will a person dies intestate and the law of intestate succession, not the person, decides who inherits.",
+    "title": "Wills",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/wills",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Wills page, '5 reasons' and the FAQ on the purpose of a will. Do not use fear framing (angles-final section 4)."
+  },
+  {
+    "id": "cl-wills-act",
+    "claim": "Capital Legacy's summary of the Wills Act: the testator is at least 16; the will is signed in ink on every page and at the end; two competent witnesses aged 14 or older, not named in the will and not married to anyone named in it, also sign every page.",
+    "title": "Wills",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/wills",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "AMBIGUOUS at source: the same FAQ says 'The will must be typed', while FAQ uid is-a-handwritten-will-legal-in-south-africa says a handwritten will is legal. Not used in page copy."
+  },
+  {
+    "id": "cl-will-any-estate",
+    "claim": "Capital Legacy says a will is needed however little or much a person owns; a bank account, a retail account or a phone contract is part of an estate.",
+    "title": "FAQs",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/faqs",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "FAQ 'Do I need a will if I have no assets?' (uid do-i-need-a-will-if-i-have-no-assets). It sits on a later page of the paginated FAQ list (page 5 on 11 Oct 2026), so the watcher reads it by uid from Capital Legacy's public content API."
+  },
+  {
+    "id": "cl-will-no-cash",
+    "claim": "A will gives instructions but no cash: estate costs, debts and taxes are paid before heirs inherit, and Capital Legacy describes life cover as one way to give an estate cash (liquidity).",
+    "title": "Why your will means nothing without adequate life cover",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/media/why-your-will-means-nothing-without-adequate-life-cover",
+    "month": "2026-06",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Article dated 15 June 2026, and FAQ 'Why must life cover be part of my estate plan?' (uid why-must-life-cover-be-part-of-my-estate-plan, on FAQ page 1). Page copy says what a will does not do; it never says anyone needs cover (advice)."
+  },
+  {
+    "id": "cl-safe-custody",
+    "claim": "Capital Legacy collects a client's signed will by courier at no charge, keeps it in a fire- and water-resistant vault and gives the client a copy.",
+    "title": "Existing clients",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/existing-clients",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Existing clients ('How do I arrange a courier...') and Why us ('Drafting, signing and safeguarding your will')."
+  },
+  {
+    "id": "cl-eri-2026",
+    "claim": "Capital Legacy Estate Readiness Index 2026: a survey of 1,000 South Africans aged 25 to 75 who had lost a loved one in the previous five years; overall score 50 out of 100; 41% said the person who died had a valid will; 43% drafted their own will after the experience.",
+    "title": "Estate Readiness Index",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/estate-readiness-index",
+    "month": "2026-08",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Launch article /media/south-africa-scores-just-50-out-of-100 dated 24 August 2026 gives the sample (1,000, aged 25 to 75); the 41% and 43% are on the index page. Commissioned by Capital Legacy (an interested party): always name it as Capital Legacy research, with the sample. The full PDF report was not read."
+  },
+  {
+    "id": "cl-estate-admin",
+    "claim": "Capital Legacy administers deceased estates in-house (reporting, Letters of Executorship, L&D account, 21-day inspection, distribution, filing slip) and acts as executor through the Capital Legacy Board of Executors and Trust Company.",
+    "title": "Estate administration",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/estate-administration",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "AMBIGUOUS at source: target to finalise an estate is 'within a year' (several FAQs), 'within nine months' (two FAQs) and 'most estates within 12 months' (15 June 2026 article). Office count is 'five offices' here but '11 offices' on Home and Why us. Not used in page copy."
+  },
+  {
+    "id": "cl-company-stats",
+    "claim": "Capital Legacy publishes: founded 2012; 1.6 million wills drafted; 830+ consultants; 2,000 staff; 350 estate professionals; 20,000+ estates finalised; 2,500+ trusts managed; 11 offices.",
+    "title": "Why us",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/why-us",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "Self-reported marketing figures; Home also says 'over 1 million South Africans' since 2012 next to '1.6M wills drafted'. Not used in page copy (rule S17: no counters)."
+  },
+  {
+    "id": "cl-complaints",
+    "claim": "Capital Legacy complaints route: Capital Legacy first (acknowledged within 1 business day, aim to resolve in 5), then Guardrisk Life for policy matters, the National Financial Ombud Scheme, and the FAIS Ombud for how a policy was sold.",
+    "title": "Complaints procedure",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/complaints-procedure",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "For the SortMyCover complaints page once theme B is live: complaints about the will service go to Capital Legacy's own procedure."
+  },
+  {
+    "id": "cl-group-entities",
+    "claim": "The Capital Legacy group named in its privacy notice and terms: Capital Legacy Solutions (Pty) Ltd, Capital Legacy Fiduciary Services (Pty) Ltd, Capital Legacy Board of Executors and Trust Company (Pty) Ltd and Quill Consulting; the privacy notice also lists Sanlam Trust (Pty) Ltd; head office 57 Sloane Street, Bryanston.",
+    "title": "Privacy notice",
+    "publisher": "Capital Legacy",
+    "url": "https://capitallegacy.co.za/privacy/privacy-notice",
+    "month": "2026-10",
+    "checked": "2026-10-11",
+    "status": "verified",
+    "note": "The privacy notice lists Sanlam Trust as a joint party; the terms do not. Relevant to POPIA wording when leads are shared with Capital Legacy."
+  }
+]
