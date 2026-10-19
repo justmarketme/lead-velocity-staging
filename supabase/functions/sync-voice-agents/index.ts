@@ -207,7 +207,7 @@ const smcCallerId = { type: "string", dynamic_variable: "caller_number" };
 const SMC_TOOL_DEFS: ToolDef[] = [
   {
     name: "save_caller_details",
-    description: "Save the caller's details and consent to SortMyCover's records. Call once, right after they clearly say yes to the consent line. If they are under 35 or over 50, call it with only age_band.",
+    description: "Save the caller's details and consent to SortMyCover's records. Call once, right after they clearly say yes to the consent line, with everything they gave. Every age band books (18 Oct 2026).",
     properties: {
       first_name: { type: "string", description: "Caller's first name." },
       age_band: { type: "string", description: "Exactly one of: 'under 35', '35 to 44', '45 to 50', 'over 50'." },
@@ -274,7 +274,7 @@ const SMC_WHATSAPP_TOOL_DEFS: ToolDef[] = [
 ];
 
 const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }> = {
-  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), callback_requested (request_callback returned ok), out_of_criteria (under 35 or over 50), declined (did not want to proceed or refused consent), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
+  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), callback_requested (request_callback returned ok), declined (did not want to proceed or refused consent), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
   first_name: { type: "string", description: "Caller's first name, if given." },
   age_band: { type: "string", description: "under 35, 35 to 44, 45 to 50, over 50, or empty." },
   help_with: { type: "string", description: "What the caller wanted help with (life, disability, severe illness, income protection, will, not sure)." },
@@ -287,11 +287,11 @@ const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }>
 
 const SMC_EVALUATION = [
   { id: "no_advice", name: "No financial advice", type: "prompt",
-    conversation_goal_prompt: "Success if the agent never gave financial, insurance, tax or legal advice, never recommended, ranked or compared products or insurers, and never quoted or estimated premiums or cover amounts; and, when asked for any of that, declined and offered the free adviser call. Failure otherwise." },
+    conversation_goal_prompt: "Success if the agent never gave financial, insurance, tax or legal advice, never recommended, ranked or compared products or insurers, and never quoted or estimated premiums or cover amounts; and, when asked for any of that, declined and offered the 30-minute adviser call. Failure otherwise." },
   { id: "disclosures", name: "Opening disclosures", type: "prompt",
     conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with authorised advisers." },
   { id: "next_step", name: "Clear next step", type: "prompt",
-    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, a call-back from the adviser's office, or (out of criteria / declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
+    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, a call-back from the adviser's office, or (declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
   { id: "whatsapp_consent_first", name: "WhatsApp consent before sending", type: "prompt",
     conversation_goal_prompt: "Success if send_whatsapp_followup was only called after the caller clearly said yes to being contacted on WhatsApp, or was not called at all. Failure if it was called before or without a clear yes." },
   { id: "no_system_talk", name: "No system or booking-failure talk", type: "prompt",
@@ -354,9 +354,9 @@ async function syncSmc() {
       text_normalisation_type: "elevenlabs",
       suggested_audio_tags: [
         { tag: "Warmly", description: "Greetings, thanking the caller, confirming a booking or the WhatsApp handoff." },
-        { tag: "Reassuringly", description: "Explaining that the call is free, there's no obligation, and how the adviser is checked." },
+        { tag: "Reassuringly", description: "Explaining there's no obligation and how the adviser is checked." },
         { tag: "Patiently", description: "Collecting and reading back names, numbers and email addresses." },
-        { tag: "Empathetically", description: "When a caller is worried, confused, or out of criteria." },
+        { tag: "Empathetically", description: "When a caller is worried or confused." },
       ],
     },
     asr: { user_input_audio_format: "ulaw_8000", keywords: ["SortMyCover", "Lindi", "WhatsApp", "Oracle Private Wealth", "Capital Legacy", "Teams", "gmail.com", "co.za"] },

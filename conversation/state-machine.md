@@ -24,7 +24,7 @@
 | State | What the lead sees | Layer | Leaves on | Next |
 |---|---|---|---|---|
 | `consent_pending` | Disclosure + consent, `Yes, continue` · `No thanks` | L1 (typed text → L2) | Yes / No / STOP | `q_age` / `closed_no_consent` / `opted_out` |
-| `q_age` | "Great. Four quick taps… which age band are you in?" list | L1 | band tapped or typed | `q_budget`, or `closed_oob` if `Under 35` / `51 or over` |
+| `q_age` | "Great. Four quick taps… which age band are you in?" list | L1 | band tapped or typed | `q_budget` (every age band books, 18 Oct 2026) |
 | `q_budget` | "Roughly what could you put towards cover each month?" list | L1 | band | `q_bond`; `Under R750` → `closed_oob`; `Not sure yet` → `q_budget_clarify` |
 | `q_budget_clarify` | "No problem, a rough idea is fine…" | L1 | band | `q_bond`; `Under R750` / `Really not sure` → `closed_oob` |
 | `q_bond` | "Do you have a bond or people who depend on your income?" list (bond and dependants in one tap) | L1 | tapped or typed | `q_method` (`q_dependants` is kept only for rows written before NH-59 and also moves to `q_method`) |
@@ -66,7 +66,7 @@ Priority order, exactly as `decide()` implements it:
 | `consent_pending` | "yes ok" / "ja" | `consent_yes` → Q1 |
 | `consent_pending` | "no" / "nee dankie" | `consent_no` → `CLOSE_NO_CONSENT` |
 | `consent_pending` | a question | `answer:FAQ-xx` (+ `defer`) + `consent_reask` (buttons again) |
-| `q_*` | a typed answer ("I'm 42", "yes we have a bond") | `record_answer` + `next_question` (out of band → `close_oob`) |
+| `q_*` | a typed answer ("I'm 42", "yes we have a bond") | `record_answer` + `next_question` (an age never closes; an out-of-band budget → `close_oob`) |
 | `q_*` | something else | answer/defer + `repeat_question` |
 | `unbooked`, `booking`, `no_show`, `closed_unbooked` | "can we do friday after 2" | `offer_slots` (W04 slots for Friday afternoon, 3 buttons) |
 | same | "book me" / "when can he do" | `send_slots` |

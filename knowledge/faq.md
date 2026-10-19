@@ -119,8 +119,8 @@
 - topic: lead_velocity
 - type: answer
 - asked as: "What is SortMyCover?" · "Who are you guys?" · "Wie is Lead Velocity?"
-- en: Lead Velocity (Pty) Ltd runs SortMyCover and books calls with licensed advisers. We don't give advice or sell anything ourselves.
-- af: Lead Velocity (Edms) Bpk bestuur SortMyCover en bespreek oproepe met gelisensieerde adviseurs. Ons gee nie self raad nie en verkoop niks nie.
+- en: Lead Velocity (Pty) Ltd runs SortMyCover and books calls with authorised advisers. We don't give advice or sell anything ourselves.
+- af: Lead Velocity (Edms) Bpk bestuur SortMyCover en bespreek oproepe met gemagtigde adviseurs. Ons gee nie self raad nie en verkoop niks nie.
 
 ### FAQ-16 · What will the adviser ask?
 - topic: call_content

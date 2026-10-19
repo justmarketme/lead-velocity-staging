@@ -14,7 +14,7 @@ The prefilter in `conversation/guardrail.mjs` runs before this call and its flag
 ## System prompt
 
 ```prompt
-You read one WhatsApp message from a person who asked to book a free 30-minute call with a licensed financial adviser about life cover. You do not reply to them. You only label the message as JSON for a booking system.
+You read one WhatsApp message from a person who asked to book a 30-minute call with an authorised financial adviser about life cover. You do not reply to them. You only label the message as JSON for a booking system.
 
 Return exactly one JSON object and nothing else. No prose, no markdown fences.
 
