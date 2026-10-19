@@ -926,7 +926,7 @@ test('W05 lib: update_method -> SMC booking_updated email (adviser invite when t
   const sh = { ...booking, calendar_provider: 'shared_lv' };
   const pl = W5.planUpdateMethod({ req: { method: 'teams', email: 'client@gmail.com', email_confirmed: true }, booking: sh, lead: lv, broker: own, mx: { has_mx: true } }).plan;
   const inv = W5.inviteMail({ lead: lv, broker: own }, pl, sh, {});
-  assert.deepEqual(W5.methodChangeEmails({ lead: lv, broker: own, booking: sh }, pl, now), { mail: { message: inv.message, saveToSentItems: true }, smc_email: null });
+  assert.deepEqual(W5.methodChangeEmails({ lead: lv, broker: own, booking: sh }, pl, now), { mail: { message: inv.message, saveToSentItems: true }, smc_email: null, guest_drop: false });
 });
 
 test('W05 lib: smc-client-email result -> nothing when sent or dry-run; one amber W22 alert otherwise (the booking stands)', () => {
@@ -1014,4 +1014,134 @@ test('W05 workflow: email nodes never stop the fan-out; the adviser relay is gat
   assert.equal(byName('Email adviser from SortMyCover (smc-email-send)').onError, 'continueRegularOutput');
   assert.ok(byName('Live send? (Email adviser from SortMyCover (smc-email-send))'));
   assert.match(byName('Fan out effects').parameters.jsCode, /kind: 'smc_relay'/);
+});
+
+// ============================================================================================
+// /start/ v4 (Jono, 2026-10-19): no budget question, an optional Teams guest, phone calls without an email
+// ============================================================================================
+const sReq = (k, over = {}) => ({ slot_start: '2026-10-14T10:30:00+02:00', method: 'teams', email: 'sipho@gmail.com', booked_via: 'page', idempotency_key: k, ...over });
+const startLead = (over = {}) => ({ ...ctx5().lead, budget_band: null, origin: 'page', routing_reason: 'single_broker', conv_state: { state: 'unbooked', via: 'start_page' }, ...over });
+
+test('W05 /start/ v4: a start-page lead with no budget band is band-known (held for the email only, booked after the link); a normal page lead is still held for the budget', () => {
+  const now = ms('2026-10-12T11:40:00+02:00');
+  for (const l of [startLead(), startLead({ conv_state: { start: { via: 'start_page' } } }), startLead({ conv_state: '{"via":"start_page"}' }), startLead({ conv_state: {}, routing_reason: 'start_page_pending' })]) assert.equal(W5.bandKnown(l), true, JSON.stringify(l.conv_state));
+  assert.equal(W5.bandKnown({ ...ctx5().lead, budget_band: null, conv_state: { state: 'unbooked' }, routing_reason: 'single_broker' }), false);
+  // before the email link: held for the email
+  const d = W5.decide(ctx5({ lead: startLead(), req: sReq('sp1') }));
+  assert.deepEqual([d.plan.hold, d.plan.hold_for], [true, 'email']);
+  // after the link: not held at all (no 'budget' hold)
+  const v = W5.decide(ctx5({ lead: startLead({ email: 'sipho@gmail.com', email_verified: true }), req: sReq('sp2') }));
+  assert.deepEqual([v.plan.hold, v.plan.hold_for], [false, null]);
+  const hold = { id: 'hsp', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', booked_via: 'page', idempotency_key: 'page:x:sp', verify_by: iso(now + 20 * H) };
+  const fr = W5.finalizeRequest(hold, { id: 'x', email: 'a@gmail.com', email_verified: true, budget_band: null, conv_state: { via: 'start_page' } }, now);
+  assert.equal(fr.finalize_booking_id, 'hsp', 'finalize returns a request without a band');
+  // a normal page lead with no band, verified email: still held for the budget
+  const n = W5.decide(ctx5({ lead: { ...ctx5().lead, budget_band: null, email: 'sipho@gmail.com', email_verified: true }, req: sReq('sp3') }));
+  assert.deepEqual([n.plan.hold, n.plan.hold_for], [true, 'budget']);
+  // both loads feed the columns bandKnown reads
+  assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.conv_state, l\.routing_reason,/);
+  assert.match(WF5.nodes.find((x) => x.name === 'Load held slot + lead (finalize)').parameters.query, /l\.email_verified, l\.budget_band, l\.conv_state, l\.routing_reason FROM public\.leads l/);
+});
+
+test('W05 /start/ v4 guest: Teams only (400 invalid otherwise); checked like the lead email (422 guest_email_<reason>); never the lead; on the plan', () => {
+  const env = { LEAD_TOKEN_SECRET: OFFLINE_SECRET };
+  const t0 = ms('2026-10-12T11:40:00+02:00');
+  const { token } = LT5.mintLeadToken('lead_g', { secret: OFFLINE_SECRET, nowMs: t0 });
+  const p = (body) => W5.parseHttp({ [LT5.HEADER]: token }, { slot_start: '2026-10-14T10:30:00+02:00', email: 'sipho@gmail.com', request_id: 'req-guest-1', ...body }, env, t0);
+  for (const method of ['phone', 'whatsapp_call', 'zoom', 'meet']) {
+    const r = p({ method, guest_email: 'thabo@gmail.com' });
+    assert.deepEqual([r.ok, r.status, r.body], [false, 400, { error: 'invalid', field: 'guest_email' }], method);
+  }
+  assert.equal(p({ method: 'phone', guest_email: '' }).ok, true, 'an empty guest field is no guest');
+  assert.equal(p({ method: 'teams', guest_email: 'Thabo@Gmail.com' }).req.guest_email, 'Thabo@Gmail.com');
+  const lead = startLead({ email: 'sipho@gmail.com', email_verified: true });
+  const dec = (g, over = {}) => W5.decide(ctx5({ lead, req: sReq(`g-${g}`, { guest_email: g, ...over }) }));
+  assert.equal(dec('Thabo@Gmail.com').plan.guest_email, 'thabo@gmail.com', 'accepted, lower-cased');
+  const typo = dec('thabo@gmial.com');
+  assert.deepEqual([typo.status, typo.body.error_code, typo.body.suggestion], [422, 'guest_email_typo', 'thabo@gmail.com']);
+  assert.equal(dec('thabo@gmial.com', { guest_email_confirmed: true }).body.error_code, 'guest_email_no_mx', 'a confirmed typo still needs MX');
+  assert.equal(dec('not-an-email').body.error_code, 'guest_email_syntax');
+  assert.equal(dec('x@mailinator.com').body.error_code, 'guest_email_disposable');
+  assert.equal(dec('SIPHO@gmail.com').body.error_code, 'guest_email_same', 'the request email');
+  assert.equal(W5.decide(ctx5({ lead: { ...lead, email: 'old@gmail.com' }, req: sReq('g-old', { guest_email: 'old@gmail.com' }) })).body.error_code, 'guest_email_same', "the lead's stored email");
+  // the guest needs no verification: a verified lead + guest books straight through
+  assert.equal(dec('thabo@gmail.com').plan.hold, false);
+});
+
+test('W05 /start/ v4 guest: kept through hold -> finalize; Outlook attendee only when the client is; SMC email + adviser notices; stored in lead_activities', () => {
+  const now = ms('2026-10-12T11:40:00+02:00');
+  const hold = { id: 'hg', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams', booked_via: 'page', idempotency_key: 'page:x:g', verify_by: iso(now + 20 * H), guest_email: 'thabo@gmail.com' };
+  const fr = W5.finalizeRequest(hold, { id: 'x', email: 'sipho.test@example.com', email_verified: true, conv_state: { via: 'start_page' } }, now);
+  assert.deepEqual([fr.guest_email, fr.guest_prechecked], ['thabo@gmail.com', true]);
+  const c = ctx5({ broker: ownCal(), lead: smcLead({ conv_state: { via: 'start_page' } }), existing: { id: 'hg', status: 'pending_verification' }, req: fr });
+  const d = W5.decide({ ...c, lane: 'sub' });
+  assert.equal(d.plan.guest_email, 'thabo@gmail.com', 'carried over from the held row');
+  const p = { ...pTeams, guest_email: 'thabo@gmail.com' };
+  const ev = W5.graphEvent(c, p);
+  assert.deepEqual(ev.attendees.map((a) => a.emailAddress.address), ['sipho.test@example.com', 'thabo@gmail.com'], 'client is an attendee -> so is the guest');
+  assert.match(ev.body.content, /Joining: one guest \(thabo@gmail\.com\)/);
+  assert.deepEqual(W5.graphEvent(ctx5({ broker: ownCal({ add_client_as_attendee: false }), lead: smcLead() }), p).attendees, [], 'opt-out: neither');
+  const f = W5.finish(c, p, bkOf('bk-g'), { ok: true, graph_event_id: 'AAMk', join_url: 'https://teams.microsoft.com/l/meetup-join/x' });
+  assert.equal(f.client_email.guest_email, 'thabo@gmail.com');
+  assert.equal(f.client_email.to, 'sipho.test@example.com');
+  assert.match(f.broker_relay.body.text, /Joining: one guest/); assert.doesNotMatch(f.broker_relay.body.text, /thabo/, 'the adviser email never carries an address');
+  assert.doesNotMatch(JSON.stringify(f.broker.wa), /guest|thabo/, 'broker_new_booking template vars unchanged');
+  // storage: one booking_guest row per booking (hold and booked), the loads read it back
+  const q = (nm) => WF5.nodes.find((x) => x.name === nm).parameters.query;
+  for (const nm of ['Save hold: lead email (unverified) + timeline', 'Timeline: booked']) assert.match(q(nm), /'booking_guest', jsonb_build_object\('booking_id', \$\d::text, 'guest_email', \$\d::text\), now\(\), 'w05:guest:' \|\| \$\d/, nm);
+  for (const nm of ['Load held slot + lead (finalize)', 'Load booking for method change']) assert.match(q(nm), /'w05:guest:' \|\| a\.id::text LIMIT 1\) AS guest_email/, nm);
+  assert.match(WF5.nodes.find((x) => x.name === 'Decide (w05.decide + MX)').parameters.jsCode, /L\.emailDomain\(c\.req\.guest_email/);
+});
+
+test('W05 /start/ v4 guest: Teams -> phone sends the guest ONE change email, then drops the guest (attendee list + stored address)', () => {
+  const own = ownCal({ methods_supported: ['teams', 'phone'] });
+  const booking = { id: 'bkg2', status: 'booked', appointment_date: '2026-10-14T10:00:00+02:00', ends_at: '2026-10-14T10:30:00+02:00', calendar_provider: 'outlook', idempotency_key: 'k', booked_via: 'page', method: 'teams', guest_email: 'thabo@gmail.com' };
+  const lead = smcLead();
+  const r = W5.planUpdateMethod({ req: { method: 'phone' }, booking, lead, broker: own });
+  assert.deepEqual(r.graph_patch.attendees.map((a) => a.emailAddress.address), ['sipho.test@example.com'], 'the guest leaves the Outlook event (Exchange cancels it for them)');
+  assert.equal(r.plan.guest_email, null);
+  const em = W5.methodChangeEmails({ lead, broker: own, booking }, r.plan, 0);
+  assert.equal(em.smc_email.guest_email, 'thabo@gmail.com', 'the guest gets the change notice once');
+  assert.equal(em.guest_drop, true);
+  // after the drop the load finds no guest: the next change emails the client only
+  const again = W5.methodChangeEmails({ lead, broker: own, booking: { ...booking, method: 'phone', guest_email: null } }, { ...r.plan, method: 'teams' }, 60_000);
+  assert.equal(again.smc_email.guest_email, undefined); assert.equal(again.guest_drop, false);
+  // staying on Teams keeps the guest on the attendee list
+  const tt = W5.planUpdateMethod({ req: { method: 'teams', email: 'sipho.test@example.com', email_confirmed: true }, booking, lead, broker: own, mx: { 'example.com': true } });
+  assert.deepEqual(tt.graph_patch.attendees.map((a) => a.emailAddress.address), ['sipho.test@example.com', 'thabo@gmail.com']);
+  assert.match(WF5.nodes.find((x) => x.name === 'Save method').parameters.query, /payload = \(g\.payload - 'guest_email'\)/);
+});
+
+test('W05 /start/ v4 phone: a WhatsApp-proven lead books a phone call with no email at once (no hold, no client email); Teams still held; a desktop web lead keeps the email rule', async () => {
+  const req = (k, over = {}) => ({ slot_start: '2026-10-14T10:30:00+02:00', method: 'phone', email: null, booked_via: 'page', idempotency_key: k, ...over });
+  for (const proven of [{ origin: 'ctwa' }, { wa_verified: true }, { verified_at: '2026-10-12T09:00:00+02:00' }]) {
+    const lead = startLead({ email: null, email_verified: false, ...proven });
+    const d = W5.decide(ctx5({ lead, req: req(`ph-${Object.keys(proven)[0]}`) }));
+    assert.deepEqual([d.action, d.plan.hold, d.plan.email], ['check', false, null], JSON.stringify(proven));
+    const c = ctx5({ lead: { ...lead, brand_code: 'SMC', call_number: '+27600000999', alt_number: '+27600000888' }, broker: ownCal() });
+    const f = W5.finish(c, d.plan, bkOf('bk-ph', d.plan), { ok: true, graph_event_id: 'AAMk' });
+    assert.equal(f.client_email, null, 'no email: confirmation and reminders on WhatsApp only');
+    assert.deepEqual(f.lead_update, { stage: 'booked', broker_id: broker().broker_id });
+    const ev = W5.graphEvent(c, d.plan);
+    assert.match(ev.body.content, /Call Sipho on \+27600000999/); assert.match(ev.body.content, /If no answer: \+27600000888/);
+  }
+  // the CTWA lead's WhatsApp call too (it goes to the proven number itself)
+  assert.equal(W5.decide(ctx5({ lead: startLead({ origin: 'ctwa' }), req: req('wc', { method: 'whatsapp_call' }) })).plan.hold, false);
+  // Teams still needs the email + the link
+  assert.equal(W5.decide(ctx5({ lead: startLead({ origin: 'ctwa' }), req: req('pt', { method: 'teams' }) })).body.error_code, 'email_required');
+  const pt = W5.decide(ctx5({ lead: startLead({ origin: 'ctwa' }), req: req('pt2', { method: 'teams', email: 'sipho@gmail.com' }) }));
+  assert.deepEqual([pt.plan.hold, pt.plan.hold_for], [true, 'email']);
+  // desktop web lead (origin page, never messaged us): phone needs the email, then is held for the link
+  const web = startLead({ routing_reason: 'start_page_pending', conv_state: { state: 'start_page', via: 'start_page' } });
+  assert.equal(W5.decide(ctx5({ lead: web, req: req('pw') })).body.error_code, 'email_required');
+  const pw = W5.decide(ctx5({ lead: web, req: req('pw2', { email: 'sipho@gmail.com' }) }));
+  assert.deepEqual([pw.plan.hold, pw.plan.hold_for], [true, 'email']);
+  // the LOAD feeds the proof + the alt number
+  assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.call_number, l\.alt_number,[\s\S]*l\.email_verified, l\.wa_verified, l\.verified_at,/);
+  // the offline adapter end to end: 201 booked, nothing held
+  const sys = offlineSys();
+  const id = 'lead_ctwa_phone';
+  sys.st.leads.set(id, { id, origin: 'ctwa', first_name: 'Ayanda', mobile: '+27600000123', age_band: '35_44', budget_band: null, conv_state: { via: 'start_page' }, email_verified: false, consent_ads_at: null });
+  const r = await sys.book({ lead_id: id, slot_start: '2026-10-14T10:30:00+02:00', method: 'phone', booked_via: 'page', request_id: 'req-ctwa-phone-1' }, '2026-10-12T11:40:00+02:00', { verify: false });
+  assert.equal(r.http_status, 201, JSON.stringify(r.body)); assert.equal(r.body.booked, true); assert.equal(r.body.held, undefined);
 });

@@ -51,6 +51,10 @@ export interface ClientEmailInput {
   booking_id?: string;
   calendar_invite?: Invite;
   idempotency_key?: string;
+  /** Optional guest on a Teams call (Jono, 2026-10-19): gets the same email as a second message (guestInput). */
+  guest_email?: string;
+  /** Set only by guestInput(): the client's first name, for the guest's own wording. Never read from a request. */
+  guest_of?: string;
 }
 
 export interface RenderedEmail {
@@ -100,6 +104,8 @@ export function validate(body: unknown): { ok: true; input: ClientEmailInput } |
   if (!(INVITES as readonly string[]).includes(invite)) errors.push("calendar_invite");
   const key = b.idempotency_key == null || b.idempotency_key === "" ? "" : String(b.idempotency_key);
   if (key && !KEY_RE.test(key)) errors.push("idempotency_key");
+  const guest = b.guest_email == null || b.guest_email === "" ? "" : String(b.guest_email).trim().toLowerCase();
+  if (guest && (guest.length > 254 || !EMAIL_RE.test(guest) || guest === to || method !== "teams")) errors.push("guest_email");
   if (errors.length) return { ok: false, errors };
   return {
     ok: true,
@@ -107,9 +113,17 @@ export function validate(body: unknown): { ok: true; input: ClientEmailInput } |
       kind: kind as Kind, to, lead_first_name: line(b.lead_first_name, 60), slot_start: new Date(Date.parse(start)).toISOString(), slot_end: new Date(Date.parse(end)).toISOString(),
       method: method as Method, adviser_name: adviser, practice_name: practice, fsp_number: fsp,
       ...(join ? { join_url: join } : {}), ...(bookingId ? { booking_id: bookingId } : {}), calendar_invite: invite as Invite,
-      ...(key ? { idempotency_key: key } : {}),
+      ...(key ? { idempotency_key: key } : {}), ...(guest ? { guest_email: guest } : {}),
     },
   };
+}
+
+/** The guest's copy of a validated input: to the guest, the guest's wording, its own Resend idempotency key (+ ':guest'). */
+export function guestInput(i: ClientEmailInput): ClientEmailInput | null {
+  if (!i.guest_email) return null;
+  const { guest_email, ...rest } = i;
+  return { ...rest, to: guest_email, guest_of: i.lead_first_name || "", lead_first_name: "",
+    ...(i.idempotency_key ? { idempotency_key: `${i.idempotency_key}:guest`.slice(0, 200) } : {}) };
 }
 
 // ------------------------------------------------------------------ time (SAST = UTC+2 all year, no DST)
@@ -174,6 +188,8 @@ export const esc = escHtml;
 /** The parts of one email, as plain sentences; html() and text() lay out the same parts, so both always say the same thing. */
 export function copyFor(i: ClientEmailInput) {
   const first = i.lead_first_name ? firstWord(i.lead_first_name) : "there";
+  const guest = i.guest_of !== undefined;
+  const host = guest && i.guest_of ? firstWord(i.guest_of) : "The person who booked it";
   const adviserFirst = firstWord(i.adviser_name);
   const how = METHOD_LABEL[i.method];
   const day = dayText(i.slot_start);
@@ -187,12 +203,16 @@ export function copyFor(i: ClientEmailInput) {
   const accent = k === "booking_confirmed" ? "booked" : k === "booking_updated" ? "updated" : "cancelled";
   const title = k === "booking_confirmed" ? "Your call is booked" : k === "booking_updated" ? "Your call has been updated" : "Your call has been cancelled";
   const subject = `${k === "booking_confirmed" ? "Booked" : k === "booking_updated" ? "Updated" : "Cancelled"}: your call with ${adviserFirst} on ${shortWhen(i.slot_start)}`;
-  const intro = k === "booking_confirmed"
+  const intro0 = k === "booking_confirmed"
     ? `SortMyCover has introduced you to ${i.adviser_name} from ${i.practice_name}, an authorised financial services provider (FSP ${i.fsp_number}), and your call is booked.`
     : k === "booking_updated"
       ? `Your call with ${i.adviser_name} from ${i.practice_name}, an authorised financial services provider (FSP ${i.fsp_number}), has changed. These are the details now.`
       : `Your call with ${i.adviser_name} from ${i.practice_name} (FSP ${i.fsp_number}) on ${day}, ${time} has been cancelled.`;
 
+  // the guest's copy: who added them, then the same details
+  const intro = guest
+    ? `${host} ${k === "booking_confirmed" ? "booked a call through SortMyCover and added you as a guest" : k === "booking_updated" ? "added you as a guest to a call booked through SortMyCover, and it has changed" : "added you as a guest to a call booked through SortMyCover, and it has been cancelled"}. ${k === "booking_cancelled" ? `It was with ${i.adviser_name} from ${i.practice_name} (FSP ${i.fsp_number}) on ${day}, ${time}.` : `The adviser is ${i.adviser_name} from ${i.practice_name}, an authorised financial services provider (FSP ${i.fsp_number}).`}`
+    : intro0;
   let calendar: string;
   if (k === "booking_cancelled") calendar = adviser ? `${adviserFirst}'s calendar will send the cancellation. You can remove the invite from your calendar.` : "The attached calendar file marks the call as cancelled in your calendar.";
   else if (adviser) calendar = k === "booking_confirmed"
@@ -205,13 +225,17 @@ export function copyFor(i: ClientEmailInput) {
     if (online) joining = i.join_url ? `Join the ${SHORT_LABEL[i.method]} call with this link at the time: ${i.join_url}` : adviser ? "The joining link is in the calendar invite." : `${adviserFirst} will send you the ${SHORT_LABEL[i.method]} link before the call.`;
     else joining = i.method === "phone" ? `${adviserFirst} will phone you at that time on the number you gave us.` : `${adviserFirst} will call you on WhatsApp at that time.`;
   }
-  const change = k === "booking_cancelled"
+  const change = guest
+    ? `To change the time, ${host === "The person who booked it" ? "the person who booked it" : host} can reply to SortMyCover on WhatsApp on ${WHATSAPP_DISPLAY}.`
+    : k === "booking_cancelled"
     ? `Would you like another time? Reply to SortMyCover on WhatsApp on ${WHATSAPP_DISPLAY} and we will find one with ${adviserFirst}.`
     : `Need another time? Reply to SortMyCover on WhatsApp on ${WHATSAPP_DISPLAY} and we will move it for you.`;
   const details: Array<[string, string]> = [["When", `${day}, ${time}`], ["How", how], ["Adviser", who]];
   const disclosure = "SortMyCover is not a financial services provider. We introduce you to an authorised financial adviser and give no financial advice, product comparisons or premium quotes. Authorised financial advisers do.";
-  const popia = "We handle your personal information under POPIA. It goes only to the adviser you were introduced to and is never sold.";
-  const why = "You are getting this email because you booked a call through SortMyCover.";
+  const popia = guest
+    ? "We use your email only to send you this call's invite and any change to it. It is never used for marketing and is deleted with the booking."
+    : "We handle your personal information under POPIA. It goes only to the adviser you were introduced to and is never sold.";
+  const why = guest ? "You are getting this email because you were added as a guest to a call booked through SortMyCover." : "You are getting this email because you booked a call through SortMyCover.";
   const preheader = k === "booking_cancelled" ? `Your call with ${adviserFirst} on ${shortWhen(i.slot_start)} is cancelled.` : `${i.adviser_name}, ${day}, ${time}, ${how}.`;
   return { first, subject, eyebrow, title, accent, intro, calendar, joining, change, details, disclosure, popia, why, preheader, adviserFirst };
 }

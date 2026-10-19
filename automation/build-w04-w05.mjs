@@ -155,8 +155,8 @@ function buildW05() {
   const LOAD = `-- lead + its broker + idempotent replay + the lead's live booking (one round trip)
 WITH ld AS (
   SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,
-         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.method_pref, l.language,
-         l.conv_state, l.opted_out_at, l.is_synthetic, l.email_verified,
+         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.alt_number, l.method_pref, l.language,
+         l.conv_state, l.routing_reason, l.opted_out_at, l.is_synthetic, l.email_verified, l.wa_verified, l.verified_at,
          (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code
     FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL
 ), bk AS (
@@ -191,11 +191,12 @@ SELECT (SELECT count(*) FROM public.webhook_events w WHERE w.source = 'w01_ip' A
   n.push(code('Normalise sub-call (w05.parseSub)', 'w05.mjs', `return $input.all().map((it) => ({ json: { lane: 'sub', ok: true, req: L.parseSub(it.json || {}, $env, Date.now()), hdr: {} } }));`));
   n.push(sw('Sub op?', '={{ $json.req.op }}', ['book', 'update_method', 'invite_bounced', 'to_w10', 'reject', 'finalize']));
   // op finalize (smc-email-verify, after the link / code): the lead's held slot -> the documented book request
-  n.push(pg('Load held slot + lead (finalize)', `SELECT (SELECT to_jsonb(h) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by, a.booked_via, a.idempotency_key, a.previous_booking_id, a.schedule_event_id
+  n.push(pg('Load held slot + lead (finalize)', `SELECT (SELECT to_jsonb(h) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status, a.verify_by, a.booked_via, a.idempotency_key, a.previous_booking_id, a.schedule_event_id,
+                                       (SELECT g.payload->>'guest_email' FROM public.lead_activities g WHERE g.idempotency_key = 'w05:guest:' || a.id::text LIMIT 1) AS guest_email
                                   FROM public.appointments a
                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND ($2 = '' OR a.id::text = $2)
                                  ORDER BY a.booked_at DESC LIMIT 1) h) AS hold,
-       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;`, "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"));
+       (SELECT to_jsonb(q) FROM (SELECT l.id, l.email, l.email_verified, l.budget_band, l.conv_state, l.routing_reason FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS lead;`, "={{ [$json.req.lead_id || '', $json.req.booking_id || ''] }}"));
   n.push(code('Finalize request (w05.finalizeRequest)', 'w05.mjs', `const x = $input.first().json;\nconst req = L.finalizeRequest(x.hold, x.lead, Date.now());\nreturn req ? [{ json: { lane: 'sub', ok: true, req, hdr: {} } }] : [];`));
   // brand_id required by the n8n_app RLS policy (see W04); skipped, not fatal, when no brand can be found.
   n.push(pg('Log subcall_rejected', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at)
@@ -208,7 +209,7 @@ RETURNING id;`, "={{ [$json.req.lead_id || '', $json.req.reason || 'unknown', $j
   n.push(code('W10 pick payload', 'w05.mjs', `return $input.all().map((it) => ({ json: it.json.req ? (it.json.req.w10 || it.json.w10) : it.json.w10 }));`));
   n.push(sub('-> W10 reschedule pick', 'W10 Reschedule / cancel'));
   n.push(pg('Load lead, broker, replay, live booking', LOAD, "={{ [$json.req.lead_id || '', $json.req.idempotency_key || '', $json.mode === 'broker' ? ($json.user_id || '') : ''] }}"));
-  n.push(code('Decide (w05.decide + MX)', 'w05.mjs', `const dns = require('dns').promises;\nconst x = $('Load lead, broker, replay, live booking').first().json;\nconst c = $input.first().json.req ? $input.first().json : ($('Parse + verify caller (w05.parseHttp)').isExecuted ? $('Parse + verify caller (w05.parseHttp)').first().json : $('Finalize request (w05.finalizeRequest)').isExecuted ? $('Finalize request (w05.finalizeRequest)').first().json : $('Normalise sub-call (w05.parseSub)').first().json);\nconst wall = Date.now();\nconst now = L.clockFor(c.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic), wall);\nconst mx = {};\nconst d = L.emailDomain(c.req.email || (x.lead && x.lead.email) || '');\nif (d) { try { const r = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[d] = Array.isArray(r) && r.length > 0; } catch (e) { mx[d] = false; } }\nconst ctx = { lane: c.lane, mode: c.mode, req: c.req, lead: x.lead, broker: x.broker, broker_by_user: x.broker_by_user, existing: x.existing, live: x.live, mx, now, test_clock: now !== wall };\nconst dec = L.decide(ctx);\nreturn [{ json: { ctx, dec, action: dec.action, lane: c.lane, status: dec.status, body: dec.body, wa: dec.wa || null, to: 'lead', lead_id: x.lead ? x.lead.id : null, w10: dec.w10 || null } }];`));
+  n.push(code('Decide (w05.decide + MX)', 'w05.mjs', `const dns = require('dns').promises;\nconst x = $('Load lead, broker, replay, live booking').first().json;\nconst c = $input.first().json.req ? $input.first().json : ($('Parse + verify caller (w05.parseHttp)').isExecuted ? $('Parse + verify caller (w05.parseHttp)').first().json : $('Finalize request (w05.finalizeRequest)').isExecuted ? $('Finalize request (w05.finalizeRequest)').first().json : $('Normalise sub-call (w05.parseSub)').first().json);\nconst wall = Date.now();\nconst now = L.clockFor(c.hdr || {}, $env, !!(x.lead && x.lead.is_synthetic), wall);\nconst mx = {};\nconst doms = [...new Set([L.emailDomain(c.req.email || (x.lead && x.lead.email) || ''), c.req.guest_prechecked ? null : L.emailDomain(c.req.guest_email || '')].filter(Boolean))];\nawait Promise.all(doms.map(async (d) => { try { const r = await Promise.race([dns.resolveMx(d), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[d] = Array.isArray(r) && r.length > 0; } catch (e) { mx[d] = false; } }));\nconst ctx = { lane: c.lane, mode: c.mode, req: c.req, lead: x.lead, broker: x.broker, broker_by_user: x.broker_by_user, existing: x.existing, live: x.live, mx, now, test_clock: now !== wall };\nconst dec = L.decide(ctx);\nreturn [{ json: { ctx, dec, action: dec.action, lane: c.lane, status: dec.status, body: dec.body, wa: dec.wa || null, to: 'lead', lead_id: x.lead ? x.lead.id : null, w10: dec.w10 || null } }];`));
   n.push(sw('Decision?', '={{ $json.action }}', ['respond', 'replay', 'message', 'to_w10', 'stop', 'check']));
   n.push(code('is_free input', 'w05.mjs', `return [{ json: $input.first().json.dec.is_free }];`));
   n.push(sub('W04 is_free (re-check, waits)', 'W04 Slots API', true));
@@ -249,11 +250,16 @@ WITH u AS (
          email_verified = CASE WHEN $2 <> '' AND lower(coalesce(l.email, '')) <> lower($2) THEN false ELSE l.email_verified END,
          broker_id = $4::uuid, updated_at = now()
    WHERE l.id = $1::uuid
-  RETURNING l.id, l.brand_id)
+  RETURNING l.id, l.brand_id
+), g AS (
+  -- optional Teams guest (Jono, 2026-10-19): kept with the booking, used only for this meeting's invite and its changes
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT u.id, u.brand_id, $4::uuid, 'W05', 'lead', 'booking_guest', jsonb_build_object('booking_id', $6::text, 'guest_email', $7::text), now(), 'w05:guest:' || $6 FROM u WHERE $7 <> ''
+  ON CONFLICT (idempotency_key) DO NOTHING RETURNING id)
 INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
 SELECT u.id, u.brand_id, $4::uuid, 'W05', 'lead', 'booking_held', $5::jsonb, now(), 'w05:held:' || $6 FROM u
 ON CONFLICT (idempotency_key) DO NOTHING
-RETURNING lead_id;`, "={{ (() => { const h = $json.hold; const p = $json.dec.plan; return [p.lead_id, (h.lead_update || {}).email || '', (h.lead_update || {}).email_status || '', p.broker_id, JSON.stringify(h.timeline.payload), $json.booking.id]; })() }}"));
+RETURNING lead_id;`, "={{ (() => { const h = $json.hold; const p = $json.dec.plan; return [p.lead_id, (h.lead_update || {}).email || '', (h.lead_update || {}).email_status || '', p.broker_id, JSON.stringify(h.timeline.payload), $json.booking.id, p.guest_email || '']; })() }}"));
   n.push(code('Email verification item (hold)', 'w05.mjs', `const h = $('Hold plan (w05.holdPending)').first().json.hold;\nreturn h.issue ? [{ json: h.issue }] : [];`));
   n.push(node('-> Email verify (hold: issue)', 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-email-verify', cachedResultName: 'Email Verify' }, options: { waitForSubWorkflow: false } }));
   n.push(pg('Release the hold (finalize lost the slot)', `-- op finalize whose re-check failed (the broker filled the time in Outlook meanwhile): the hold goes; the lead got the next times.
@@ -290,9 +296,14 @@ RETURNING l.id;`, "={{ (() => { const f = $json.f; const u = f.appointment_updat
   // from hello@sortmycover.co.za via Resend; smc-email-verify keeps a 10-minute gap, so a re-run sends nothing new).
   n.push(code('Email verification item (invite email stored)', 'w05.mjs', `const d = $('After event (w05.finish)').first().json;\nconst lu = (d.f && d.f.lead_update) || {};\nreturn lu.email ? [{ json: { op: 'issue', lead_id: d.dec.plan.lead_id } }] : [];`));
   n.push(node('-> Email verify (smc-email-verify issue)', 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-email-verify', cachedResultName: 'Email Verify' }, options: { waitForSubWorkflow: false } }));
-  n.push(pg('Timeline: booked', `INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  n.push(pg('Timeline: booked', `WITH g AS (
+  -- optional Teams guest (a finalize finds the row written with the hold: same booking id, nothing new)
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT $1::uuid, NULLIF($2, '')::uuid, $3::uuid, 'W05', 'lead', 'booking_guest', jsonb_build_object('booking_id', $4::text, 'guest_email', $9::text), now(), 'w05:guest:' || $4 WHERE $9 <> ''
+  ON CONFLICT (idempotency_key) DO NOTHING RETURNING id)
+INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
 VALUES ($1::uuid, NULLIF($2, '')::uuid, $3::uuid, 'W05', 'lead', 'booking_created', jsonb_build_object('booking_id', $4::text, 'start', $5::text, 'method', $6::text, 'booked_via', $7::text, 'graph_event', $8::boolean), now(), 'w05:booked:' || $4)
-ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok]; })() }}"));
+ON CONFLICT (idempotency_key) DO NOTHING RETURNING id;`, "={{ (() => { const d = $('After event (w05.finish)').first().json; const p = d.dec.plan; return [p.lead_id, (d.ctx.lead || {}).brand_id || '', p.broker_id, d.booking.id, p.start, p.method, p.booked_via, !!d.ev.ok, p.guest_email || '']; })() }}"));
   n.push(code('Answer', 'w05.mjs', `const j = $input.first().json;\nconst src = j.f ? j : ($('After event (w05.finish)').isExecuted ? $('After event (w05.finish)').first().json : $('Hold plan (w05.holdPending)').isExecuted ? $('Hold plan (w05.holdPending)').first().json : j);\nreturn [{ json: { lane: src.lane, status: src.status || 200, body: src.body || {}, wa: src.wa || null, to: 'lead', lead_id: src.lead_id || (src.ctx && src.ctx.lead && src.ctx.lead.id) || null, f: src.f || null } }];`));
   n.push(ifTrue('HTTP lane?', "$json.lane === 'http'"));
   n.push(respond('Respond (book JSON)'));
@@ -327,13 +338,14 @@ SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a
   n.push(code('.ics not found (404)', 'w05.mjs', `return [{ json: { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' } }];`));
   n.push(node('Respond (.ics)', 'respondToWebhook', 1.1, { respondWith: 'text', responseBody: '={{ $json.body }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Content-Type', value: '={{ $json.headers["Content-Type"] }}' }, { name: 'Cache-Control', value: 'no-store' }, { name: 'Content-Disposition', value: '={{ $json.headers["Content-Disposition"] || "inline" }}' }] } } }));
   // update_method (W10)
-  n.push(pg('Load booking for method change', `SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via FROM public.appointments a WHERE a.id::text = $1) k) AS booking,
-       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.email_verified, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.language, l.brand_id,
+  n.push(pg('Load booking for method change', `SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via,
+                                   (SELECT g.payload->>'guest_email' FROM public.lead_activities g WHERE g.idempotency_key = 'w05:guest:' || a.id::text LIMIT 1) AS guest_email FROM public.appointments a WHERE a.id::text = $1) k) AS booking,
+       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.email_verified, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.alt_number, l.language, l.brand_id,
                                         (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code
                                    FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,
        (SELECT to_jsonb(r) FROM (SELECT ${BROKER_COLS} FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;`, '={{ [$json.req.booking_id] }}'));
   // SMC lead -> smc_email (booking_updated, SortMyCover via smc-client-email); any other brand -> the howzit@ invite as before.
-  n.push(code('Plan method change (w05.planUpdateMethod)', 'w05.mjs', `const x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];`));
+  n.push(code('Plan method change (w05.planUpdateMethod)', 'w05.mjs', `const x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, guest_drop: !!em.guest_drop, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];`));
   n.push(sw('Method plan?', '={{ $json.action }}', ['patch', 'ask_email', 'reject']));
   // I-54h (F15): PATCH the calendar the event was created in (appointments.calendar_provider): shared_lv -> howzit@ shared
   // calendar with the howzit@ Calendars credential; otherwise the broker's own calendar with the W04 graph_token.
@@ -343,7 +355,13 @@ SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a
   n.push(code('graph_token input (method)', 'w05.mjs', `return [{ json: { op: 'graph_token', broker_id: $json.broker_id } }];`));
   n.push(sub('W04 graph_token (method, waits)', 'W04 Slots API', true));
   n.push(http('Graph PATCH event (method, ASSUMPTION)', 'PATCH', "={{ $('Method calendar target (w05.graphEventTarget)').first().json.target.url }}", { params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $json.access_token }}' }] }, sendBody: true, specifyBody: 'json', jsonBody: "={{ JSON.stringify($('Plan method change (w05.planUpdateMethod)').first().json.graph_patch) }}" } }));
-  n.push(pg('Save method', `UPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END, updated_at = now() WHERE id = $1::uuid RETURNING id;`, "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status]; })() }}"));
+  // the Teams guest goes when the call leaves Teams ($5 guest_drop): the change email above is the guest's last one; the
+  // address is removed from the guest row (POPIA: kept no longer than its purpose), the row keeps booking_id + dropped_at
+  n.push(pg('Save method', `WITH gd AS (
+  UPDATE public.lead_activities g SET payload = (g.payload - 'guest_email') || jsonb_build_object('dropped_at', now())
+   WHERE $5 = 'true' AND g.idempotency_key = 'w05:guest:' || $1 AND g.payload ? 'guest_email'
+  RETURNING g.id)
+UPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END, updated_at = now() WHERE id = $1::uuid RETURNING id;`, "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status, p.guest_drop ? 'true' : 'false']; })() }}"));
   n.push(code('Method invite?', 'w05.mjs', `const p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];`));
   n.push(code('ask_email input (method)', 'w05.mjs', `return [{ json: $json.ask }];`));
   // invite_bounced (W17)

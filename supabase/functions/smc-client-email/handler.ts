@@ -1,6 +1,6 @@
 // smc-client-email request handler, with its outside world passed in (relay-token lookup, Resend key, fetch) so the
 // tests run it without Supabase, Resend or Deno. index.ts wires the real ones.
-import { resendBody, validate } from "./render.ts";
+import { guestInput, resendBody, validate, type ClientEmailInput } from "./render.ts";
 
 export const RESEND_URL = "https://api.resend.com/emails";
 
@@ -36,23 +36,32 @@ export function makeHandler(deps: Deps): (req: Request) => Promise<Response> {
 
     const key = deps.resendKey();
     if (!key) return json({ error: "RESEND_API_KEY not configured" }, 500);
-    const payload = resendBody(v.input, (deps.now ?? Date.now)());
-    let res: Response;
-    try {
-      res = await deps.fetch(RESEND_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`, "Content-Type": "application/json",
-          ...(v.input.idempotency_key ? { "Idempotency-Key": v.input.idempotency_key } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-    } catch (e) {
-      return json({ error: "resend_unreachable", detail: String((e as Error)?.message ?? e).slice(0, 200) }, 502);
-    }
-    const out = await res.json().catch(() => ({})) as { id?: string; message?: string; name?: string };
+    const now = (deps.now ?? Date.now)();
+    const send = async (input: ClientEmailInput): Promise<{ id?: string; error?: unknown }> => {
+      let res: Response;
+      try {
+        res = await deps.fetch(RESEND_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`, "Content-Type": "application/json",
+            ...(input.idempotency_key ? { "Idempotency-Key": input.idempotency_key } : {}),
+          },
+          body: JSON.stringify(resendBody(input, now)),
+        });
+      } catch (e) {
+        return { error: { error: "resend_unreachable", detail: String((e as Error)?.message ?? e).slice(0, 200) } };
+      }
+      const out = await res.json().catch(() => ({})) as { id?: string; message?: string; name?: string };
+      if (!res.ok || !out.id) return { error: { error: "resend", status: res.status, detail: String(out.message ?? out.name ?? "").slice(0, 200) } };
+      return { id: out.id };
+    };
     // Never echo the recipient or the body back: n8n stores this response in its execution log.
-    if (!res.ok || !out.id) return json({ error: "resend", status: res.status, detail: String(out.message ?? out.name ?? "").slice(0, 200) }, 502);
-    return json({ id: out.id });
+    const main = await send(v.input);
+    if (!main.id) return json(main.error, 502);
+    // The optional Teams guest: a separate message (own idempotency key) only after the client's email went.
+    const g = guestInput(v.input);
+    if (!g) return json({ id: main.id });
+    const gs = await send(g);
+    return json(gs.id ? { id: main.id, guest_id: gs.id } : { id: main.id, guest_error: (gs.error as { error?: string })?.error ?? "resend" });
   };
 }

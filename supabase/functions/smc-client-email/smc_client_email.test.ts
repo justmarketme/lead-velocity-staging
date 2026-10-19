@@ -232,3 +232,39 @@ test("render() without slot_end ends the call 30 minutes after the start, never 
     if (calendar_invite === "attached") assert.match(fromB64(m.attachments[0].content), /DTEND:20261021T083000Z/);
   }
 });
+
+// Optional guest on a Teams call (Jono, 2026-10-19): the guest gets the same email as a second message, own key, own wording.
+test("validate: guest_email is Teams only, a real address, never the client's own", () => {
+  assert.equal(ok({ ...BASE, guest_email: " Guest.Test@Example.org " }).guest_email, "guest.test@example.org");
+  const bad = (patch: Record<string, unknown>) => { const v = validate({ ...BASE, ...patch }); assert.equal(v.ok, false); return (v as { errors: string[] }).errors; };
+  assert.deepEqual(bad({ guest_email: "nope" }), ["guest_email"]);
+  assert.deepEqual(bad({ guest_email: "thandi.test@example.com" }), ["guest_email"], "same as the client");
+  assert.deepEqual(bad({ guest_email: "g@example.org", method: "phone", join_url: undefined }), ["guest_email"], "phone call: no guest");
+  assert.equal(ok({ ...BASE, guest_of: "Mallory" }).guest_of, undefined, "guest_of is never read from a request");
+});
+
+test("handler: with a guest -> the client's email, then the guest's (to the guest only, key + ':guest', guest wording)", async () => {
+  const { post, calls } = harness();
+  const r = await post({ ...BASE, kind: "booking_confirmed", calendar_invite: "attached", guest_email: "guest.test@example.org", idempotency_key: "w05:client_email:booking_confirmed:bk1" });
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { id: "email_123", guest_id: "email_123" });
+  assert.equal(calls.length, 2);
+  const [c, g] = calls.map((x) => ({ body: JSON.parse(String(x.init.body)), key: (x.init.headers as Record<string, string>)["Idempotency-Key"] }));
+  assert.deepEqual(c.body.to, ["thandi.test@example.com"]); assert.deepEqual(g.body.to, ["guest.test@example.org"], "one recipient per message");
+  assert.equal(c.key, "w05:client_email:booking_confirmed:bk1"); assert.equal(g.key, "w05:client_email:booking_confirmed:bk1:guest");
+  assert.match(g.body.text, /^Your call is booked\n\nHi there,\n\nThandi booked a call through SortMyCover and added you as a guest\./);
+  assert.match(g.body.text, /never used for marketing and is deleted with the booking/);
+  assert.doesNotMatch(g.body.text, /Hi Thandi/);
+  assert.equal(g.body.attachments.length, 1, "the guest gets the .ics too");
+  assert.match(c.body.text, /Hi Thandi/); assert.doesNotMatch(c.body.text, /added you as a guest/);
+});
+
+test("handler: the guest copy failing never fails the client's email (200 + guest_error, no address echoed)", async () => {
+  let n = 0;
+  const h = harness({ resend: () => (++n === 1 ? new Response(JSON.stringify({ id: "email_1" }), { status: 200 }) : new Response(JSON.stringify({ name: "x" }), { status: 422 })) });
+  const r = await h.post({ ...BASE, guest_email: "guest.test@example.org" });
+  assert.equal(r.status, 200);
+  const j = await r.json();
+  assert.deepEqual(j, { id: "email_1", guest_error: "resend" });
+  assert.doesNotMatch(JSON.stringify(j), /guest\.test/);
+});

@@ -139,6 +139,8 @@ export function parseHttp(headers = {}, body = {}, env = {}, nowMs = Date.now())
   if (!isoOk(slot)) return fail(400, 'bad_slot', 'bad_slot');
   const method = normMethod(b.method);
   if (!METHODS.includes(method)) return fail(422, 'method_not_supported', 'bad_method');
+  // the optional guest is for Teams calls only (Jono, 2026-10-19): any other method with a guest is a bad request
+  if (b.guest_email != null && b.guest_email !== '' && method !== 'teams') return { ok: false, status: 400, body: { error: 'invalid', field: 'guest_email' }, reason: 'guest_not_teams' };
   const rid = typeof b.request_id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(b.request_id) ? b.request_id : null;
   const idem = keyOk(b.idempotency_key) ? b.idempotency_key : rid ? `page:${leadId}:${rid}` : `book:${leadId}:${iso(ms(slot))}`;
   const ev = b.context && typeof b.context.event_id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(b.context.event_id) ? b.context.event_id : null;
@@ -158,6 +160,8 @@ export function parseHttp(headers = {}, body = {}, env = {}, nowMs = Date.now())
       op: 'book', lead_id: leadId, slot_start: iso(ms(slot)), method,
       email: b.email ? String(b.email) : null, // invite methods: the invite; every method: the verification (2026-10-11)
       email_confirmed: b.email_confirmed === true, booked_via: c.mode === 'broker' ? 'console' : 'page',
+      // optional guest on the invite (Jono, 2026-10-19): checked like the lead email in decide(), never verified, never marketed
+      guest_email: b.guest_email ? String(b.guest_email) : null, guest_email_confirmed: b.guest_email_confirmed === true,
       idempotency_key: idem, previous_booking_id: null, context: { event_id: ev },
     },
   };
@@ -284,7 +288,9 @@ export function finalizeRequest(hold, lead = {}, nowMs = Date.now()) {
   // quiz v2 band gate: the hold also waits for the self-declared budget band (W03 calls finalize again when it arrives)
   if (!bandKnown(lead)) return null;
   if (hold.verify_by && ms(hold.verify_by) <= nowMs) return null; // released by the sweep, never revived
-  return { op: 'book', lead_id: String(lead.id), slot_start: iso(ms(hold.appointment_date)), method: hold.method, email: lead.email || null, email_confirmed: true,
+  // the guest stored with the held booking (lead_activities 'w05:guest:<booking>') rides along; it was checked when stored
+  const guest = hold.guest_email ? { guest_email: String(hold.guest_email), guest_prechecked: true } : {};
+  return { op: 'book', lead_id: String(lead.id), slot_start: iso(ms(hold.appointment_date)), method: hold.method, email: lead.email || null, email_confirmed: true, ...guest,
     booked_via: hold.booked_via || 'chat', idempotency_key: hold.idempotency_key, previous_booking_id: hold.previous_booking_id || null,
     // the page's browser CAPI event id was stored on the held row (schedule_event_id): the Schedule event keeps its Pixel twin
     context: hold.booked_via === 'page' && hold.schedule_event_id ? { event_id: hold.schedule_event_id } : {}, finalize_booking_id: String(hold.id) };
@@ -304,8 +310,19 @@ const leadView = (l = {}) => ({ ...l, phone: l.phone || l.mobile || null });
  * Quiz v2 (2026-10-13): the landing page no longer asks the budget, so a page lead can book before its band is known.
  * Contract 5.1(c) / S2.2: a Qualified Lead carries a self-declared band, and 5.7(a) gives it to the broker at the offer.
  * So the booking is handed over only when the email is verified AND budget_band is set; otherwise the slot is HELD.
+ * /start/ v4 (Jono, 2026-10-19): the start page no longer asks the budget either, and its booking must not wait for a
+ * band nobody will ask. A start-page lead is band-known: conv_state.via 'start_page' (W01 web path), conv_state.start.via
+ * 'start_page' (W39 answers), or routing_reason 'start_page*' (W01 'start_page_pending'; routing later overwrites it with
+ * 'single_broker', so conv_state is the main signal). The email gate is unchanged: hold_for 'email' until the link is clicked.
  */
-export const bandKnown = (lead = {}) => lead.budget_band != null && lead.budget_band !== '';
+const convState = (l) => { const c = l && l.conv_state; if (c && typeof c === 'object') return c; if (typeof c === 'string') { try { return JSON.parse(c) || {}; } catch { return {}; } } return {}; };
+export const isStartPageLead = (lead = {}) => {
+  const cs = convState(lead);
+  return cs.via === 'start_page' || !!(cs.start && cs.start.via === 'start_page') || String((lead && lead.routing_reason) || '').startsWith('start_page');
+};
+/** The lead's WhatsApp number is proven: it messaged us (W07 verified_at, W03 wa_verified, or a click-to-WhatsApp lead). */
+export const waProven = (lead = {}) => !!lead && (lead.wa_verified === true || !!lead.verified_at || lead.origin === 'ctwa');
+export const bandKnown = (lead = {}) => (lead.budget_band != null && lead.budget_band !== '') || isStartPageLead(lead);
 
 /**
  * decide(ctx) after the database load.
@@ -358,7 +375,10 @@ export function decide(ctx = {}) {
   let email = null; let emailStatus = null; let askEmail = false;
   // 2026-10-11 verify gate: an unverified lead needs an email for EVERY method (the verification), invite methods always
   const verifiedBefore = lead.email_verified === true;
-  if (INVITE_METHODS.has(method) || !verifiedBefore || req.email) {
+  // /start/ v4 (Jono, 2026-10-19): a phone / WhatsApp call for a lead whose WhatsApp number is PROVEN (the lead messaged us)
+  // needs no email and is not held for one. Desktop web leads (origin page, never messaged) keep the email + link rule.
+  const noEmailCall = CALL_METHODS.has(method) && waProven(lead) && !req.email;
+  if (INVITE_METHODS.has(method) || (!verifiedBefore && !noEmailCall) || req.email) {
     const raw = req.email || (!http && lead.email && lead.email_status !== 'bounced' && (lead.email_purpose === 'meeting_invite' || verifiedBefore) ? lead.email : null);
     if (!raw) {
       if (http) return out(422, { error_code: 'email_required' });
@@ -371,9 +391,21 @@ export function decide(ctx = {}) {
       } else { email = chk.email; emailStatus = chk.status; }
     }
   }
+  // Optional guest (Jono, 2026-10-19; Teams only): same layers as the lead email (syntax, typo, disposable, MX), no
+  // verification (not the lead), never the lead's own address. Finalize re-uses the guest stored with the hold as is.
+  let guest = null;
+  if (req.guest_email && method === 'teams') {
+    if (req.guest_prechecked) guest = String(req.guest_email).trim().toLowerCase();
+    else {
+      const g = checkEmail(req.guest_email, { acceptTypo: !!req.guest_email_confirmed, hasMx: mxFrom(ctx.mx) });
+      if (!g.ok) { if (http) return out(422, { error_code: `guest_email_${g.reason}`, ...(g.suggestion ? { suggestion: g.suggestion } : {}) }); }
+      else if (sameEmail(g.email, email || req.email) || sameEmail(g.email, lead.email)) { if (http) return out(422, { error_code: 'guest_email_same' }); }
+      else guest = g.email;
+    }
+  }
   const end = start + b.slot_minutes * MIN;
   // the booking reaches the broker only when the email it carries is the lead's VERIFIED email; anything else is a hold
-  const emailOk = verifiedBefore && (!email || sameEmail(email, lead.email));
+  const emailOk = (verifiedBefore && (!email || sameEmail(email, lead.email))) || (noEmailCall && !email);
   // a broker booking his own lead (portal, broker JWT) is not gated on the band: he already has the lead
   const band = bandKnown(lead) || (http && mode === 'broker');
   const verified = emailOk && band;
@@ -381,7 +413,7 @@ export function decide(ctx = {}) {
     action: 'check',
     is_free: { op: 'is_free', broker_id: b.broker_id, start: iso(start), end: iso(end), ...(fin ? { exclude_booking_id: String(req.finalize_booking_id) } : {}), ...(ctx.test_clock ? { now: iso(ctx.now), is_synthetic: true } : {}) },
     plan: { lead_id: lead.id, broker_id: b.broker_id, start: iso(start), end: iso(end), method, email, email_status: emailStatus, ask_email: askEmail, booked_via: req.booked_via, idempotency_key: req.idempotency_key, previous_booking_id: req.previous_booking_id || null, context: req.context || {}, adviser_first: adviserFirst, route: calendarRoute(b),
-      hold: !verified, hold_for: verified ? null : !emailOk ? 'email' : 'budget', finalize_booking_id: fin ? String(req.finalize_booking_id) : null },
+      hold: !verified, hold_for: verified ? null : !emailOk ? 'email' : 'budget', finalize_booking_id: fin ? String(req.finalize_booking_id) : null, guest_email: guest },
   };
 }
 
@@ -405,8 +437,12 @@ export function joinRedirect(params = {}, a = null) {
 }
 const ONLINE_METHODS = new Set(['teams', 'zoom', 'meet']);
 /** booking_confirmed {{5}}: the method, plus the join link for an online meeting (Teams link in the confirmation). */
-export const confirmDetail = (method, bookingId, site = SITE) => (ONLINE_METHODS.has(method) && bookingId
-  ? `${CONFIRM_LABEL[method]} (join link: ${site}/j/${bookingId})` : CONFIRM_LABEL[method]);
+// Phone (19 Oct 2026): "phone call on 0XX XXX XXXX" (the number he will call: call_number || phone), which lets the sender pick the
+// approved booking_confirmed_phone_v3 variant (lib/wa-provider.mjs TEMPLATE_VARIANTS) and reads naturally in v1 as well.
+const prettyZa = (e164) => { const m = /^\+27(\d{2})(\d{3})(\d{4})$/.exec(String(e164 || '')); return m ? `0${m[1]} ${m[2]} ${m[3]}` : null; };
+export const confirmDetail = (method, bookingId, site = SITE, number = null) => (ONLINE_METHODS.has(method) && bookingId
+  ? `${CONFIRM_LABEL[method]} (join link: ${site}/j/${bookingId})`
+  : method === 'phone' && prettyZa(number) ? `${CONFIRM_LABEL.phone} on ${prettyZa(number)}` : CONFIRM_LABEL[method]);
 
 /** I-45j: `.../c/{booking_id}?k={sig}` when a secret is given (the link lives in an invite / a WhatsApp, so it cannot carry a header); unsigned only without a secret (tests). */
 export const icsUrl = (id, site = SITE, secret = null) => (id ? (secret ? `${site}/c/${id}?k=${icsSig(secret, id)}` : `${site}/c/${id}`) : null);
@@ -543,7 +579,10 @@ export function graphEvent(ctx, p, opts = {}) {
     `Method: ${TITLE_LABEL[p.method]}`,
     p.method === 'phone' ? `Call ${first} on ${number}` : null,
     p.method === 'whatsapp_call' ? `WhatsApp-call ${first} on ${number}` : null,
+    // /start/ v4: leads.alt_number (alt_purpose reach_fallback) = the number to try when the call number does not answer
+    CALL_METHODS.has(p.method) && lead.alt_number && lead.alt_number !== number ? `If no answer: ${lead.alt_number}` : null,
     p.method === 'zoom' ? 'Zoom: use your Zoom meeting link (Zoom app not connected).' : null,
+    p.method === 'teams' && p.guest_email ? `Joining: one guest (${p.guest_email})` : null,
     `Consent ref: ${lead.id}/${lead.consent_text_version ?? '-'} at ${lead.consent_at ?? '-'}`,
     `Source: ${lead.origin ?? '-'}${lead.ad_id ? ' · ' + lead.ad_id : ''}`,
     `Pre-call brief: ${portal}/l/${lead.id}`,
@@ -558,7 +597,9 @@ export function graphEvent(ctx, p, opts = {}) {
     isReminderOn: true,
     reminderMinutesBeforeStart: 15,
     isOnlineMeeting: p.method === 'teams',
-    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: first }, type: 'required' }] : [],
+    // the guest follows the client's invite rule: an attendee only when the client is one (add_client_as_attendee)
+    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: first }, type: 'required' },
+      ...(p.method === 'teams' && p.guest_email ? [{ emailAddress: { address: p.guest_email, name: 'Guest' }, type: 'required' }] : [])] : [],
     body: { contentType: 'text', content: lines.join('\n') },
   };
   if (p.method === 'teams') ev.onlineMeetingProvider = 'teamsForBusiness';
@@ -771,7 +812,12 @@ export function smcClientEmail(ctx, p, booking = {}, ev = {}, kind = 'booking_co
   const join = INVITE_METHODS.has(p.method) && kind !== 'booking_cancelled' ? (ev.join_url || booking.join_url || null) : null;
   const viaOutlook = opts.viaOutlook !== undefined ? !!opts.viaOutlook : invitedByOutlook(ctx, p, booking, ev);
   const stamp = kind === 'booking_confirmed' ? '' : `:${Math.floor(Number(opts.now || 0) / 60000)}`;
+  // Optional guest (Teams only): the function sends the guest the same email as a separate message (key + ':guest').
+  // opts.guest overrides (update_method Teams -> other: the guest gets this one change notice, then is dropped).
+  const g = opts.guest !== undefined ? opts.guest : (p.method === 'teams' ? (p.guest_email || booking.guest_email || null) : null);
+  const guest = g && !sameEmail(g, to) ? String(g).trim().toLowerCase() : null;
   return {
+    ...(guest ? { guest_email: guest } : {}),
     kind, to: String(to).trim(), lead_first_name: firstName(lead.first_name),
     slot_start: iso(ms(p.start)), slot_end: iso(ms(p.end)), method: p.method,
     adviser_name: clean(b.adviser_name || b.contact_person, ''), practice_name: clean(b.practice_name || b.firm_name, ''), fsp_number: clean(b.fsp_number, ''),
@@ -790,12 +836,16 @@ export function methodChangeEmails({ lead, broker, booking }, plan, nowMs = 0) {
   const ctx = { lead, broker };
   if (!isSmcLead(lead)) {
     const invite = inviteMail(ctx, plan, booking, {});
-    return { mail: invite ? { message: invite.message, saveToSentItems: true } : null, smc_email: null };
+    return { mail: invite ? { message: invite.message, saveToSentItems: true } : null, smc_email: null, guest_drop: !!(booking && booking.guest_email) && plan.method !== 'teams' };
   }
   const l = leadView(lead);
   const to = plan.email || (l.email_verified === true && l.email && l.email_status !== 'bounced' ? l.email : null);
   const viaOutlook = invitedByOutlook(ctx, plan, booking, {}) || (!!to && invitedByOutlook(ctx, { ...plan, method: booking && booking.method, email: to }, booking, {}));
-  return { mail: null, smc_email: smcClientEmail(ctx, plan, booking, {}, 'booking_updated', { viaOutlook, now: nowMs }) };
+  // guest (Teams only): stays while the call stays on Teams; a change away from Teams sends the guest this one notice and
+  // drops the guest (guest_drop -> the W05 node clears lead_activities 'w05:guest:<booking>'), so later changes skip them
+  const g = booking && booking.guest_email ? String(booking.guest_email) : null;
+  const guestDrop = !!g && plan.method !== 'teams';
+  return { mail: null, smc_email: smcClientEmail(ctx, plan, booking, {}, 'booking_updated', { viaOutlook, now: nowMs, guest: g }), guest_drop: guestDrop };
 }
 
 /**
@@ -807,8 +857,15 @@ export function clientEmailResult(res = {}, sent = {}) {
   if (r.dry_run === true) return null;
   const status = Number(r.statusCode || 0);
   const body = r.body && typeof r.body === 'object' ? r.body : {};
-  if (status >= 200 && status < 300 && body.id) return null;
   const e = sent.smc_email || {};
+  if (status >= 200 && status < 300 && body.id) {
+    if (!body.guest_error) return null;
+    // the client's email went; only the guest's copy failed (never names the guest)
+    return { signal_key: 'client_email_failed', scope: `booking:${e.booking_id || 'unknown'}:guest`, severity: 'amber',
+      what: `SortMyCover ${e.kind || 'booking'} email to the booking's guest not sent for booking ${e.booking_id || '?'} (${String(body.guest_error).slice(0, 80)})`,
+      impact: 'The client got the email; the guest did not', first_action: 'Check the smc-client-email function logs and Resend; then resend the guest copy by hand',
+      source: 'W05', lead_id: sent.lead_id || null };
+  }
   const reason = r.error ? `error: ${String((r.error && r.error.message) || r.error).slice(0, 120)}` : `HTTP ${status || '?'}${body.error ? ` ${body.error}` : ''}${body.status ? ` (Resend ${body.status})` : ''}${Array.isArray(body.fields) ? ` fields ${body.fields.join(',')}` : ''}`;
   return { signal_key: 'client_email_failed', scope: `booking:${e.booking_id || 'unknown'}`, severity: 'amber',
     what: `SortMyCover ${e.kind || 'booking'} email to the client not sent for booking ${e.booking_id || '?'} (${reason})`,
@@ -827,7 +884,7 @@ export function brokerNotice(ctx, p) {
   return {
     template: 'broker_new_booking', to, vars,
     wa: to ? templateWa(to, 'broker_new_booking', vars, [{ url: `l/${lead.id}` }]) : null,
-    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1]} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. Age band ${vars[5]}, budget band ${vars[6]}. It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
+    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1]} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. Age band ${vars[5]}, budget band ${vars[6]}.${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
   };
 }
 
@@ -835,7 +892,7 @@ export function brokerNotice(ctx, p) {
 export function bookingConfirmed(ctx, p, booking) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id)].map((v) => clean(v));
+  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id, SITE, booking.call_number || lead.call_number || lead.phone)].map((v) => clean(v));
   return templateWa(lead.phone, 'booking_confirmed', vars, [{ url: booking.id }, { quick_reply: `confirm:${booking.id}` }, { quick_reply: `reschedule:${booking.id}` }, { quick_reply: `cancel:${booking.id}` }], lead.language);
 }
 
@@ -934,11 +991,17 @@ export function planUpdateMethod(ctx = {}) {
     if (!chk.ok) return { action: 'ask_email', ask_email: { op: 'ask_email', lead_id: lead.id, method: req.method, booking_id: booking.id, reason: 'change_method' } };
     email = chk.email; status = req.email && lead.email_status === 'bounced' ? 'corrected' : chk.status;
   }
-  const p = { start: iso(ms(booking.appointment_date)), end: iso(ms(booking.ends_at)), method: req.method, email, email_status: status, idempotency_key: booking.idempotency_key || booking.id, booked_via: booking.booked_via };
+  const p = { start: iso(ms(booking.appointment_date)), end: iso(ms(booking.ends_at)), method: req.method, email, email_status: status, idempotency_key: booking.idempotency_key || booking.id, booked_via: booking.booked_via,
+    guest_email: req.method === 'teams' && booking.guest_email ? String(booking.guest_email) : null }; // a PATCHed attendee list keeps the guest
   const ev = graphEvent({ ...ctx, lead }, p);
+  // Teams -> another method with a guest on the Outlook event: PATCH the attendee list down to the client (Exchange sends
+  // the guest the cancellation; our booking_updated email is the guest's last one)
+  const clientMail = lead.email && lead.email_status !== 'bounced' ? lead.email : null;
+  const guestOff = !!booking.guest_email && req.method !== 'teams' && !!clientMail && invitedByOutlook({ ...ctx, lead }, { ...p, method: booking.method, email: clientMail }, booking, {});
+  const attendees = ev.attendees.length ? ev.attendees : guestOff ? [{ emailAddress: { address: clientMail, name: firstName(lead.first_name || lead.name) }, type: 'required' }] : [];
   return {
     action: 'patch',
-    graph_patch: { subject: ev.subject, body: ev.body, isOnlineMeeting: ev.isOnlineMeeting, ...(ev.onlineMeetingProvider ? { onlineMeetingProvider: ev.onlineMeetingProvider } : {}), ...(ev.attendees.length ? { attendees: ev.attendees } : {}) },
+    graph_patch: { subject: ev.subject, body: ev.body, isOnlineMeeting: ev.isOnlineMeeting, ...(ev.onlineMeetingProvider ? { onlineMeetingProvider: ev.onlineMeetingProvider } : {}), ...(attendees.length ? { attendees } : {}) },
     appointment_update: { method: req.method, call_number: CALL_METHODS.has(req.method) ? (lead.call_number || lead.phone) : null, invite_email_status: INVITE_METHODS.has(req.method) ? 'sent' : 'not_needed' },
     lead_update: email ? { email, email_status: status, email_purpose: 'meeting_invite' } : {},
     plan: p,
