@@ -220,6 +220,12 @@ const node = (name) => WF.nodes.find((n) => n.name === name);
 const BK = broker();
 const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: BK.broker_id, appointment_date: fx.reschedule_request?.new_slot_start ?? fx.booking_request.slot_start, slot_end: endOf(fx), status: 'booked', first_name: 'Pieter', last_name: 'V', phone: '+27600000004', language: 'en', opted_out_at: null, adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, broker_mark: null, reach: null, sent_outcome_check: false, sent_broker_nudge: false, sent_reach_check: false, outcome_exists: false, ...over });
 const sweep = async (row, now) => (await runCode(WF, 'Decide (w12.sweepItems)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
+// Follow-up claim chain (19 Oct 2026): Claim source (adds the query params) -> Claim W12 follow-ups (a row = claim won)
+// -> Claimed follow-ups. won=false runs the last node as n8n does when the claim insert returned nothing.
+const claimed = async (claimItem, won = true) => {
+  const src = (await runCode(WF, 'Claim source', { json: claimItem })).json;
+  return (await runCode(WF, 'Claimed follow-ups (w12.claimedFollowUps)', { items: [won ? { id: 'act_claim' } : {}], refs: { 'Claim source': src } })).map((x) => x.json);
+};
 const follow = async (item, outcomeId) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item } })).map((x) => x.json);
 
 test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes require(\'lv-automation\').w12, id smc-w12', () => {
@@ -329,9 +335,12 @@ test('W12.json unmarked at 24 h: attended + auto_marked + unconfirmed (marked_vi
   assert.equal(d.o, null);
   const fu = await follow({ ...d, row: { ...row, broker_mark: 'no_show', reach: 'yes' } });
   assert.deepEqual(fu.map((x) => [x.fu, x.kind]), [['alert', 'outcome_unmarked']]);
-  // W11 backstop entry: the attended path only (no broker re-ask)
-  const auto = (await runCode(WF, 'Auto-attended follow-ups (w12.resolveOutcome at 24 h)', { items: [{ ...row, outcome_id: 'out_auto', reach: 'none' }] })).map((x) => x.json);
+  // W11 backstop entry: the attended path only (no broker re-ask), behind the w12:outcome claim (19 Oct 2026)
+  const [c] = (await runCode(WF, 'Auto-attended resolution (w12.autoAttendedResolution)', { items: [{ ...row, outcome_id: 'out_auto', reach: 'none' }] })).map((x) => x.json);
+  assert.deepEqual([c.fu, c.via, c.outcome_id, c.appointment_status, c.lead_stage, c.dispute_open], ['claim', 'auto', 'out_auto', null, null, false], 'W11 already wrote status and stage');
+  const auto = await claimed(c);
   assert.deepEqual(auto.map((x) => x.fu).sort(), ['capi', 'send', 'w29']);
+  assert.deepEqual(await claimed(c, false), [], 'claim lost (W12 or the portal path ran first): nothing');
 });
 
 test('W12 voice note: only the WhatsApp media reference is stored (no download, no transcript in W12)', async () => {
@@ -631,4 +640,104 @@ test('W12.json Store outbound records the sender reason in failed_reason (twilio
   const logged = JSON.parse(evalParam(WF, 'Log send failed (once; W22 reads it)', P, { json: { ok: false, error: 'twilio_content_sid_missing' }, refs: { 'Live send?': { send } } })[3]);
   assert.equal(logged.error, 'twilio_content_sid_missing', 'the string error from smc-whatsapp-send, not "no wamid"');
   assert.deepEqual(checkSql(workflowSql({ nodes: [node('Store outbound')] })), []);
+});
+
+// ============================================================================================
+// Portal-marked outcomes (19 Oct 2026): the broker portal (src/pages/portal/Leads.tsx MarkOne.save) writes outcomes
+// directly. The tick resolves those rows with the same two-sided rules and runs the follow-ups once, behind the
+// w12:outcome:{bk} claim the sweep's own insert writes (so a WhatsApp-resolved booking is never followed up twice).
+// ============================================================================================
+const PEND = '2026-10-15T10:30:00+02:00';
+const prow = (over = {}) => ({ outcome_id: 'out_p', outcome: 'attended', disposition_code: 'fit_proceeding', booking_id: 'bkg_p', lead_id: 'lead_p', brand_id: 'brand_smc', broker_id: BK.broker_id,
+  appointment_date: '2026-10-15T10:00:00+02:00', slot_end: PEND, first_name: 'Thandi', last_name: 'N', phone: '+27600000009', language: 'en', opted_out_at: null,
+  adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, reach: null, ...over });
+const pat = (min) => ms(PEND) + min * MIN;
+const fus = (c) => R.claimedFollowUps(c);
+const kinds = (c) => fus(c).map((x) => x.fu).sort();
+
+test('Portal attended: thank-you + W29 at once; CAPI Attended goes through the I-51b gate (held until the lead answered or her window closed)', () => {
+  const c = R.portalResolution(prow(), pat(10));
+  assert.deepEqual([c.fu, c.via, c.outcome_id, c.r.outcome, c.dispute_open, c.appointment_status, c.lead_stage], ['claim', 'portal', 'out_p', 'attended', false, 'attended', 'dispositioned']);
+  assert.deepEqual(kinds(c), ['capi_hold', 'send', 'w29']);
+  const thanks = fus(c).find((x) => x.fu === 'send');
+  assert.deepEqual([thanks.send.to, thanks.send.template, thanks.send.wa.to, thanks.send.key], ['lead', 'attended_thanks', '+27600000009', 'w12:attended_thanks:bkg_p']);
+  assert.equal(fus(c).find((x) => x.fu === 'capi_hold').reason, 'awaiting_lead');
+  assert.equal(fus(c).find((x) => x.fu === 'w29').outcome_id, 'out_p');
+  // lead said yes -> Attended now, same event id as the WhatsApp path
+  const yes = fus(R.portalResolution(prow({ reach: 'yes' }), pat(40))).find((x) => x.fu === 'capi');
+  assert.deepEqual([yes.event_name, yes.event_id, yes.action_source, yes.event_time], ['Attended', 'evt_lead_p_attended', 'system_generated', PEND]);
+  // no disposition on the row yet -> stage attended (W29 moves it on)
+  assert.equal(R.portalResolution(prow({ disposition_code: null }), pat(10)).lead_stage, 'attended');
+  // unreachable disposition -> Attended dropped with its reason (I-51b c)
+  const un = fus(R.portalResolution(prow({ disposition_code: 'unreachable', reach: 'yes' }), pat(40))).find((x) => x.fu === 'capi_release');
+  assert.deepEqual([un.decision, un.reason], ['drop', 'unreachable_disposition']);
+  // opted-out lead: no thank-you
+  assert.ok(!kinds(R.portalResolution(prow({ opted_out_at: '2026-10-15T09:00:00+02:00' }), pat(10))).includes('send'));
+});
+
+test('Portal no-show: waits for the lead reach window (end + 30 min + 2 h), then W13 no_show (missed_you + 48-h clock); never a W12 send', () => {
+  const row = prow({ outcome: 'no_show', disposition_code: null });
+  const confirm = 30 + 120;
+  assert.equal(R.portalResolution(row, pat(confirm) - 1), null, 'pending: the next tick looks again (no claim)');
+  const c = R.portalResolution(row, pat(confirm));
+  assert.deepEqual([c.r.outcome, c.appointment_status, c.lead_stage, c.dispute_open], ['no_show', 'no_show', 'no_show', false]);
+  assert.deepEqual(kinds(c), ['w13', 'w29']);
+  const w13 = fus(c).find((x) => x.fu === 'w13');
+  assert.deepEqual(w13, { fu: 'w13', ...R.w13NoShow('out_p', { id: 'bkg_p' }, 'lead_p', iso(pat(confirm))) });
+  assert.equal(w13.idempotency_key, 'w12:no_show:bkg_p', 'same key as a WhatsApp no-show: W13 runs once');
+});
+
+test('Portal mark vs the lead answer (R6-03): disagreement opens the dispute for KG, nothing to the lead, no W13, Attended held', () => {
+  const att = R.portalResolution(prow({ reach: 'no' }), pat(40));
+  assert.deepEqual([att.dispute_open, att.appointment_status], [true, 'attended'], 'as the WhatsApp path: the row says attended, the dispute is open');
+  assert.deepEqual(kinds(att), ['alert', 'capi_hold', 'w29']);
+  assert.equal(fus(att).find((x) => x.fu === 'capi_hold').reason, 'conflict_pending_kg');
+  assert.match(fus(att).find((x) => x.fu === 'alert').note, /^esc_kind=outcome_disputed; .*broker marked attended \(portal\), lead answered no/);
+  const ns = R.portalResolution(prow({ outcome: 'no_show', disposition_code: null, reach: 'yes' }), pat(40));
+  assert.equal(ns.dispute_open, true); assert.deepEqual(kinds(ns), ['alert', 'w29']);
+  const rs = R.portalResolution(prow({ outcome: 'rescheduled', disposition_code: null, reach: 'no' }), pat(40));
+  assert.equal(rs.dispute_open, true); assert.ok(!kinds(rs).includes('w10'), 'no W10 offer until KG decides');
+});
+
+test('Portal rescheduled -> W10 rebook (broker_rescheduled); outside the sweep window or before the slot ended -> nothing', () => {
+  const c = R.portalResolution(prow({ outcome: 'rescheduled', disposition_code: null }), pat(20));
+  assert.deepEqual([c.appointment_status, c.lead_stage], ['rescheduled', null]);
+  const w10 = fus(c).find((x) => x.fu === 'w10');
+  assert.deepEqual([w10.source, w10.reason, w10.schedule_d], ['W12', 'broker_rescheduled', false]);
+  assert.equal(R.portalResolution(prow(), ms(PEND) + R.STALE_AFTER_END), null, 'stale (48 h): never a late thank-you');
+  assert.equal(R.portalResolution(prow(), ms(PEND) - 1), null);
+  assert.equal(R.portalResolution(prow({ outcome: 'broker_no_show' }), pat(40)), null, 'not a portal button');
+  assert.equal(R.portalResolution(prow({ outcome_id: null }), pat(40)), null);
+});
+
+test('W12.json: tick reads portal rows without a w12:outcome claim; they and the W11 row run follow-ups only after winning that claim (no double sends)', async () => {
+  const to = (from, out = 0) => ((WF.connections[from] || {}).main || [])[out]?.map((x) => x.node) || [];
+  const Q = 'Portal-marked outcomes (no W12 follow-ups yet)';
+  const RES = 'Portal resolution (w12.portalResolution)';
+  const CL = 'Claim W12 follow-ups (w12:outcome, once per booking)';
+  const FU = 'Claimed follow-ups (w12.claimedFollowUps)';
+  assert.ok(to('Op', 0).includes(Q), 'tick output'); for (let i = 1; i < 8; i++) assert.ok(!to('Op', i).includes(Q), `op output ${i}`);
+  assert.deepEqual(to(Q), [RES]); assert.deepEqual(to(RES), ['Claim source']);
+  assert.deepEqual(to('Load auto-attended outcome (W11)'), ['Auto-attended resolution (w12.autoAttendedResolution)']);
+  assert.deepEqual(to('Auto-attended resolution (w12.autoAttendedResolution)'), ['Claim source']);
+  assert.deepEqual(to('Claim source'), [CL]); assert.deepEqual(to(CL), [FU]); assert.deepEqual(to(FU), ['Follow-up']);
+  const sql = node(Q).parameters.query;
+  assert.match(sql, /o\.marked_via = 'portal' AND o\.dispute_status = 'none'/);
+  assert.match(sql, /o\.outcome IN \('attended', 'no_show', 'rescheduled'\)/);
+  assert.match(sql, /NOT EXISTS \(SELECT 1 FROM public\.lead_activities c WHERE c\.idempotency_key = 'w12:outcome:' \|\| a\.id::text\)/);
+  assert.match(sql, /interval '48 hours'/); assert.match(sql, /NOT \$2::boolean OR l\.is_synthetic/);
+  // ONE key for "follow-ups ran": the sweep's insert writes it with its own row, the claim takes it for every other writer
+  assert.match(node('Insert outcome + appointment + stage + timeline').parameters.query, /'outcome_recorded'[\s\S]*'w12:outcome:' \|\| o\.booking_id::text/);
+  const cl = node(CL).parameters.query;
+  assert.match(cl, /'outcome_recorded'[\s\S]*'w12:outcome:' \|\| \$4::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  for (const t of ['outcomes', 'appointments', 'leads']) assert.match(cl, new RegExp(`UPDATE public\\.${t} [\\s\\S]*?EXISTS \\(SELECT 1 FROM c\\)`), `${t} written only by the claim winner`);
+  assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => n.name === Q || n.name === CL) })), [], 'physical columns only');
+  // the real Code nodes, as n8n runs them
+  const [c, ...rest] = (await runCode(WF, RES, { items: [prow(), prow({ booking_id: 'bkg_q', outcome: 'no_show', disposition_code: null })], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: iso(pat(10)) } } })).map((x) => x.json);
+  assert.equal(c.row.booking_id, 'bkg_p'); assert.equal(rest.length, 0, 'the no-show inside its reach window waits');
+  const src = (await runCode(WF, 'Claim source', { json: c })).json;
+  assert.deepEqual(evalParam(WF, CL, 'options.queryReplacement', { json: src }),
+    ['lead_p', 'brand_smc', BK.broker_id, 'bkg_p', 'attended', 'portal', 'attended', 'none', false, 'attended', 'dispositioned']);
+  assert.deepEqual((await claimed(c)).map((x) => x.fu).sort(), ['capi_hold', 'send', 'w29']);
+  assert.deepEqual(await claimed(c, false), [], 'claim lost: nothing sent');
 });
