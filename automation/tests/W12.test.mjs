@@ -741,3 +741,36 @@ test('W12.json: tick reads portal rows without a w12:outcome claim; they and the
   assert.deepEqual((await claimed(c)).map((x) => x.fu).sort(), ['capi_hold', 'send', 'w29']);
   assert.deepEqual(await claimed(c, false), [], 'claim lost: nothing sent');
 });
+
+test('v4b16: "Yes, we spoke" while the outcome is open -> one short reply (claimed key); later attended_thanks is not sent again', async () => {
+  const fx = lead('L01');
+  const END = endOf(fx);
+  const base = mrow(fx, { first_name: 'Lerato', phone: '+27600000001', reach: 'yes', reach_at: iso(ms(END) + 35 * MIN), sent_outcome_check: true, sent_reach_check: true });
+  const now = iso(ms(END) + 40 * MIN);
+  const items = await sweep(base, now);
+  const reply = items.find((x) => x.fu === 'send' && x.send.key === 'w12:reach_thanks:' + base.booking_id);
+  assert.ok(reply, 'reply item');
+  assert.deepEqual([reply.send.to, reply.send.wa.type, reply.send.wa.to, reply.send.template, reply.send.claim], ['lead', 'text', '+27600000001', null, true]);
+  const adv = BK.adviser_name.split(' ')[0];
+  assert.equal(reply.send.wa.text.body, `Thanks, Lerato. Glad you and ${adv} could talk. ${adv} will follow up with you directly.`);
+  assert.ok(!/R\s?\d|price|fee|free|AI|commission/i.test(reply.send.wa.text.body));
+  assert.ok(!items.some((x) => x.fu === 'resolve'), 'broker has not marked yet: still pending');
+  // already sent / opted out / tap outside the 24-h window -> nothing
+  for (const over of [{ sent_reach_thanks: true }, { opted_out_at: now }, { reach_at: iso(ms(now) - 24 * H) }]) {
+    assert.ok(!(await sweep({ ...base, ...over }, now)).some((x) => x.send && x.send.key.startsWith('w12:reach_thanks:')), JSON.stringify(over));
+  }
+  // the broker marks attended later: attended_thanks is skipped because she already got the reply
+  const later = { ...base, broker_mark: 'attended', sent_reach_thanks: true };
+  const [res] = (await sweep(later, iso(ms(END) + 2 * H))).filter((x) => x.fu === 'resolve');
+  assert.equal(res.o.outcome, 'attended');
+  const fu = await follow({ ...res, row: later }, 'out_L01');
+  assert.ok(!fu.some((x) => x.fu === 'send'), 'no second thank-you');
+  assert.ok(fu.some((x) => x.fu === 'w29'));
+  // both sides in the same pass (L01): no reach reply, attended_thanks as before
+  const same = await sweep({ ...base, broker_mark: 'attended' }, now);
+  assert.ok(!same.some((x) => x.send && x.send.key.startsWith('w12:reach_thanks:')));
+  // the state query carries the two columns the rule reads
+  const q = WF.nodes.find((n) => n.name === 'Meeting state (ended, no outcome yet)').parameters.query;
+  assert.match(q, /'w12:reach_thanks:' \|\| a\.id::text\) AS sent_reach_thanks/);
+  assert.match(q, /AS reach_at/);
+});

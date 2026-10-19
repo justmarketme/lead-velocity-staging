@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 2026-10-11: routes every direct WhatsApp send of the workflow JSON that has no generator (W07, W08, W10, W11, W23)
+// 2026-10-11: routes every direct WhatsApp send of the workflow JSON that has no generator (W07, W08, W10, W11, W23, W29)
 // through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER = meta | twilio switches them too. Generated
 // workflows (W03, W05, W06, W09, W12, W13, W15, W28) do the same inside their generators. Idempotent.
 // usage: node automation/route-wa-sends.mjs [--check]
@@ -19,6 +19,8 @@ const CONFIG = {
   W08: { caller: 'W08', nodes: { 'Send WhatsApp': { record: false }, 'Send close line': { record: true } } },
   W10: { caller: 'W10', nodes: { 'Send WhatsApp': { record: true } } },
   W11: { caller: 'W11', nodes: { 'Send digest': { record: true }, 'Send pre-call brief': { record: true } } },
+  // W29 (19 Oct 2026, v4b16): quality ask, thanks and the +7 d fit_followup template to the broker; no log node of its own
+  W29: { caller: 'W29', nodes: { 'Send WhatsApp (broker)': { record: true } } },
   W23: { caller: 'W23', nodes: {
     'WhatsApp: got it': { record: true },
     'WhatsApp: ready to approve': { record: true },

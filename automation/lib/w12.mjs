@@ -253,6 +253,18 @@ export function attendedThanksMessage(lead, broker) {
   return { to: 'lead', template: 'attended_thanks', wa: templateMessage(lead.phone, 'attended_thanks', { body: [String(lead.first_name || '').trim() || 'there', broker.adviser_name || broker.contact_person] }) };
 }
 
+/**
+ * v4b16 (19 Oct 2026): the lead's "Yes, we spoke" tap gets a short reply at once (session text: the tap opened her
+ * 24-h window). It is her thank-you: attended_thanks is not sent again once this went (followUps reads
+ * sent_reach_thanks). No price wording, nothing about how the adviser is paid.
+ */
+export function reachThanksMessage(lead, broker) {
+  const adv = firstName(broker.adviser_name || broker.contact_person) || 'Your adviser';
+  const first = String(lead.first_name || '').trim();
+  return { to: 'lead', template: null, wa: textMessage(lead.phone, `Thanks${first ? ', ' + first : ''}. Glad you and ${adv} could talk. ${adv} will follow up with you directly.`) };
+}
+export const REACH_THANKS_WINDOW = 23 * H; // a tap older than this is outside her 24-h window: no session reply
+
 /** The in-window disposition list (automation/templates/session/broker_disposition_list.json, row ids = 4.12a codes). */
 export function dispositionListMessage(lead, broker) {
   return { to: 'broker', template: null, wa: listMessage(brokerTo(broker), {
@@ -380,7 +392,7 @@ const sendItem = (r, m, key, extra = {}) => {
 /** meetingFromRow(row) -> the sweepActions() input for one "Meeting state" row. */
 export const meetingFromRow = (r = {}) => ({
   slot_end: r.slot_end, lead_id: r.lead_id,
-  sent: { outcome_check: Boolean(r.sent_outcome_check), broker_nudge: Boolean(r.sent_broker_nudge), reach_check: Boolean(r.sent_reach_check) },
+  sent: { outcome_check: Boolean(r.sent_outcome_check), broker_nudge: Boolean(r.sent_broker_nudge), reach_check: Boolean(r.sent_reach_check), reach_thanks: Boolean(r.sent_reach_thanks) },
   brokerMark: r.broker_mark || null, reach: r.reach || null, disposition: r.disposition_code || null, outcome_exists: Boolean(r.outcome_exists), optedOut: Boolean(r.opted_out_at)
 });
 
@@ -390,11 +402,19 @@ export const meetingFromRow = (r = {}) => ({
  */
 export function sweepItems(r = {}, now) {
   const { booking, lead, broker } = partsOf(r);
-  return sweepActions(meetingFromRow(r), now).map((a) => {
+  const actions = sweepActions(meetingFromRow(r), now);
+  const items = actions.map((a) => {
     if (a.kind === 'outcome_check' || a.kind === 'broker_nudge') return sendItem(r, outcomeCheckMessage(booking, lead, broker), `w12:${a.kind}:${r.booking_id}`, { claim: true });
     if (a.kind === 'reach_check') return sendItem(r, reachCheckMessage(booking, lead, broker), `w12:reach_check:${r.booking_id}`, { claim: true });
     return { fu: 'resolve', r: a.r, o: outcomeRow(a.r, { now }), row: r };
   });
+  // v4b16: "Yes, we spoke" while the outcome is still open -> reply once (claimed key). When this pass resolves the
+  // meeting (or disputes it), attended_thanks / the console takes over instead.
+  if (r.reach === 'yes' && !r.sent_reach_thanks && !r.opted_out_at && !actions.some((a) => a.kind === 'resolve')
+      && !(r.reach_at && now - ms(r.reach_at) > REACH_THANKS_WINDOW)) {
+    items.push(sendItem(r, reachThanksMessage(lead, broker), `w12:reach_thanks:${r.booking_id}`, { claim: true }));
+  }
+  return items;
 }
 
 /**
@@ -406,7 +426,7 @@ export function sweepItems(r = {}, now) {
 export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   const { booking, lead, broker } = partsOf(row);
   const out = outcomeId ? [{ fu: 'w29', event: 'outcome_recorded', outcome_id: outcomeId }] : []; // disputed: no row, alert only
-  if (r.lead_message === 'attended_thanks') out.push(sendItem(row, attendedThanksMessage(lead, broker), `w12:attended_thanks:${row.booking_id}`));
+  if (r.lead_message === 'attended_thanks' && !row.sent_reach_thanks) out.push(sendItem(row, attendedThanksMessage(lead, broker), `w12:attended_thanks:${row.booking_id}`));
   if (r.lead_message === 'broker_no_show_apology') out.push(sendItem(row, brokerNoShowApology(lead, broker), `w12:apology:${row.booking_id}`));
   for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId, row.slot_end) });
   // I-51b: a held Attended is parked (w12:capi_hold row = the release queue); a dropped one is logged with its reason.

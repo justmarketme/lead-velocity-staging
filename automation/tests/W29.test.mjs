@@ -118,7 +118,7 @@ test('W29.json: physical columns only; disposition cast to the enum; W13 owns re
   assert.ok(s.includes("'quality_signal'"), 'kill/scale + tuning signals land on the lead timeline');
   for (const bad of ['good_fit_', 'not_fit_']) assert.ok(!s.includes(bad), bad);
   const execs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow').map((n) => n.parameters.workflowId.cachedResultName);
-  assert.deepEqual(execs, ['W13 No-show & replacement']);
+  assert.deepEqual(execs, ['W13 No-show & replacement', 'WhatsApp Send']);
   assert.ok(s.includes('CASE WHEN o.auto_marked THEN o.unconfirmed ELSE false END'), 'respects outcomes CHECK (auto_marked => unconfirmed)');
 });
 
@@ -168,4 +168,35 @@ test("ad window: thanks counts only this broker's calls on the ad; signals use e
   const rows = WF.nodes.find((n) => n.name === 'Outcomes for this ad + this broker (30 d)');
   assert.match(rows.parameters.query, /o\.broker_id = \$2::uuid AND o\.created_at > now\(\) - interval '30 days'/);
   assert.equal(evalParam(WF, rows.name, 'options.queryReplacement', { json: {}, refs: { Merge: { o } } }).join('|'), 'ad_123|brk_mark');
+});
+
+test('v4b16: broker sends go through the shared sender (Twilio or Meta by WHATSAPP_PROVIDER), never straight to Graph', async () => {
+  const { directWaSends } = (await import('node:module')).createRequire(import.meta.url)('../lib/wa-route.cjs');
+  assert.deepEqual(directWaSends(WF), []);
+  const send = WF.nodes.find((n) => n.name === 'Send WhatsApp (broker)');
+  assert.equal(send.type, 'n8n-nodes-base.executeWorkflow');
+  assert.equal(send.parameters.workflowId.value, 'smc-whatsapp-send');
+  const { runCode } = await import('./_n8ncode.mjs');
+  const wa = { messaging_product: 'whatsapp', to: '+27600000002', type: 'text', text: { body: 'Logged, thank you.' } };
+  const [x] = [await runCode(WF, 'SUB input (Send WhatsApp (broker))', { json: { wa } })].map((r) => r.json);
+  assert.deepEqual([x.kind, x.to, x.record, x.caller], ['prebuilt', '+27600000002', true, 'W29'], 'the sub writes the communications row (W29 has no log node)');
+  assert.ok(!JSON.stringify(WF).includes('/{{ $env.PHONE_NUMBER_ID }}/messages'));
+});
+
+test('v4b16: voice note fetch works for a Twilio MediaUrl (Basic auth) and a Meta media id; the audio file goes to the transcriber', () => {
+  const IFN = 'Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)';
+  assert.deepEqual(WF.connections.Kind.main[2].map((c) => c.node), [IFN]);
+  assert.deepEqual(WF.connections[IFN].main.map((o) => o.map((c) => c.node)), [['Download voice note (Twilio MediaUrl, Basic auth)'], ['Fetch WhatsApp media URL']]);
+  assert.deepEqual(WF.connections['Fetch WhatsApp media URL'].main[0].map((c) => c.node), ['Download voice note (Meta media URL)']);
+  for (const dl of ['Download voice note (Twilio MediaUrl, Basic auth)', 'Download voice note (Meta media URL)']) assert.deepEqual(WF.connections[dl].main[0].map((c) => c.node), ['Transcribe (Whisper-class, audio not stored)']);
+  const cond = WF.nodes.find((n) => n.name === IFN).parameters.conditions.conditions[0].leftValue;
+  const isTwilio = (value) => new Function('$json', 'return ' + cond.replace(/^=\{\{|\}\}$/g, ''))({ value });
+  assert.equal(isTwilio('twilio:https://api.twilio.com/2010-04-01/Accounts/AC1/Messages/MM1/Media/ME1'), 'true');
+  assert.equal(isTwilio('1234567890'), 'false');
+  assert.equal(isTwilio('twilio:https://evil.example/x'), 'false', 'only api.twilio.com gets the Twilio credentials');
+  const tr = WF.nodes.find((n) => n.name === 'Transcribe (Whisper-class, audio not stored)').parameters;
+  assert.equal(tr.contentType, 'multipart-form-data');
+  assert.deepEqual(tr.bodyParameters.parameters.find((p) => p.name === 'file'), { parameterType: 'formBinaryData', name: 'file', inputDataFieldName: 'data' });
+  assert.equal(tr.bodyParameters.parameters.find((p) => p.name === 'response_format').value, 'verbose_json', 'the gate reads duration + text');
+  assert.ok(!JSON.stringify(WF.nodes.filter((n) => n.type === 'n8n-nodes-base.readWriteFile')).includes('voice'), 'audio is never written to disk');
 });

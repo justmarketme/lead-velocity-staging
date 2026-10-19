@@ -475,16 +475,32 @@
             {
               "name": "Authorization",
               "value": "=Bearer {{ $env.TRANSCRIBE_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ media_url: $json.url, bearer_ref: 'META_SYSTEM_USER_TOKEN', model: $env.WHISPER_MODEL, language_hint: 'en' }) }}",
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "={{ $env.WHISPER_MODEL }}"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            }
+          ]
+        },
         "options": {
           "timeout": 30000,
           "response": {
@@ -754,43 +770,24 @@
     {
       "id": "n29",
       "name": "Send WhatsApp (broker)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         880,
         600
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 3000
+      }
     },
     {
       "id": "n30",
@@ -925,6 +922,119 @@
         520
       ],
       "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "id": "n18t",
+      "name": "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(/^twilio:https:\\/\\/api\\.twilio\\.com\\//.test(String($json.value || ''))) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n18u",
+      "name": "Download voice note (Twilio MediaUrl, Basic auth)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        40
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ String($json.value).replace(/^twilio:/, '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + Buffer.from($env.TWILIO_API_KEY_SID ? $env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET : $env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "n18v",
+      "name": "Download voice note (Meta media URL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        360
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "644d6829-5757-a907-482e-9aee67e75f90",
+      "name": "SUB input (Send WhatsApp (broker))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp (broker)\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W29\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W29:Send WhatsApp (broker):\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
@@ -990,7 +1100,7 @@
         ],
         [
           {
-            "node": "Fetch WhatsApp media URL",
+            "node": "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)",
             "type": "main",
             "index": 0
           }
@@ -1113,7 +1223,7 @@
       "main": [
         [
           {
-            "node": "Transcribe (Whisper-class, audio not stored)",
+            "node": "Download voice note (Meta media URL)",
             "type": "main",
             "index": 0
           }
@@ -1212,7 +1322,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp (broker)",
+            "node": "SUB input (Send WhatsApp (broker))",
             "type": "main",
             "index": 0
           }
@@ -1286,6 +1396,57 @@
         [
           {
             "node": "Voice note gate (w29.voiceNote)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)": {
+      "main": [
+        [
+          {
+            "node": "Download voice note (Twilio MediaUrl, Basic auth)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch WhatsApp media URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download voice note (Twilio MediaUrl, Basic auth)": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (Whisper-class, audio not stored)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download voice note (Meta media URL)": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (Whisper-class, audio not stored)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send WhatsApp (broker))": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (broker)",
             "type": "main",
             "index": 0
           }
