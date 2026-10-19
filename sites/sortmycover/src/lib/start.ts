@@ -21,8 +21,8 @@ export function readTokenFromHash(hash: string): string | null {
 
 /* ---------------- answers (asked after the booking) ---------------- */
 export type AgeBand = "lt35" | "35_44" | "45_50" | "51plus";
-/** leads.income_band CHECK codes (no DDL). Monthly, before tax. */
-export type IncomeBand = "lt20k" | "20k_40k" | "40k_60k" | "60k_100k" | "100kplus" | "prefer_not";
+/** Monthly income before tax, Jono's bands (final, 19 Oct 2026). */
+export type IncomeBand = "lt15k" | "15k_30k" | "30k_50k" | "50k_80k" | "80kplus" | "prefer_not";
 export type Topic = "life" | "disability_income" | "severe_illness" | "review" | "new_bond" | "will";
 
 export interface Answers {
@@ -33,8 +33,8 @@ export interface Answers {
 
 export const AGE_BANDS: { v: AgeBand; t: string }[] = [{ v: "lt35", t: "Under 35" }, { v: "35_44", t: "35 to 44" }, { v: "45_50", t: "45 to 50" }, { v: "51plus", t: "Over 50" }];
 export const INCOME_BANDS: { v: IncomeBand; t: string }[] = [
-  { v: "lt20k", t: "Under R20,000" }, { v: "20k_40k", t: "R20,000 to R40,000" }, { v: "40k_60k", t: "R40,000 to R60,000" },
-  { v: "60k_100k", t: "R60,000 to R100,000" }, { v: "100kplus", t: "R100,000 or more" }, { v: "prefer_not", t: "Prefer not to say" },
+  { v: "lt15k", t: "Up to R15,000" }, { v: "15k_30k", t: "R15,000 to R30,000" }, { v: "30k_50k", t: "R30,000 to R50,000" },
+  { v: "50k_80k", t: "R50,000 to R80,000" }, { v: "80kplus", t: "R80,000 or more" }, { v: "prefer_not", t: "Prefer not to say" },
 ];
 export const TOPICS: { v: Topic; t: string }[] = [
   { v: "life", t: "Life cover" }, { v: "disability_income", t: "Disability or income protection" }, { v: "severe_illness", t: "Severe illness cover" },

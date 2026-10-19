@@ -69,7 +69,7 @@ describe("step order (v4: book first)", () => {
 
 describe("resume from GET /start", () => {
   const b = { start: "2026-10-21T10:30:00+02:00", end: "2026-10-21T11:00:00+02:00", method: "teams", held: false };
-  const full = { age_band: "35_44", income_band: "40k_60k", topics: ["life"] } as const;
+  const full = { age_band: "35_44", income_band: "30k_50k", topics: ["life"] } as const;
   it("no booking: the time step (adviser card first)", () => {
     expect(resumeAt(null, {})).toBe("time");
     expect(resumeAt(null, { ...full, topics: ["life"] })).toBe("time");
@@ -80,8 +80,8 @@ describe("resume from GET /start", () => {
   it("booking exists but answers missing: the age step (the booking is kept)", () => {
     expect(resumeAt(b, {})).toBe("age");
     expect(resumeAt({ ...b, held: true }, {})).toBe("age");
-    expect(resumeAt(b, { age_band: "lt35", income_band: "lt20k" })).toBe("age");
-    expect(resumeAt(b, { age_band: "lt35", income_band: "lt20k", topics: [] })).toBe("age");
+    expect(resumeAt(b, { age_band: "lt35", income_band: "lt15k" })).toBe("age");
+    expect(resumeAt(b, { age_band: "lt35", income_band: "lt15k", topics: [] })).toBe("age");
   });
   it("old answers (intent, has_cover, budget_band, want) are ignored", () => {
     expect(cleanAnswers({ intent: "life", has_cover: "yes", budget_band: "lt750", want: "family", age_band: "45_50", topics: ["will", "nope", "life"] })).toEqual({ age_band: "45_50", topics: ["life", "will"] });
@@ -94,7 +94,7 @@ describe("resume from GET /start", () => {
     if (r.kind !== "ok") return;
     expect(r.data.booking).toBeTruthy();
     expect(resumeAt(r.data.booking, r.data.answers)).toBe("age");
-    expect(await api.postAnswers({ age_band: "35_44", income_band: "lt20k", topics: ["review"], request_id: "r1" })).toEqual({ kind: "ok" });
+    expect(await api.postAnswers({ age_band: "35_44", income_band: "lt15k", topics: ["review"], request_id: "r1" })).toEqual({ kind: "ok" });
     const r2 = await api.getStart();
     expect(r2.kind === "ok" && resumeAt(r2.data.booking, r2.data.answers)).toBe("allset");
   }, 10000);
@@ -104,11 +104,14 @@ describe("age, income and topics (POST /start/answers after booking)", () => {
   it("age bands", () => {
     expect(AGE_BANDS.map((o) => o.v)).toEqual(["lt35", "35_44", "45_50", "51plus"]);
   });
-  it("income uses the six leads.income_band codes, with the approved labels", () => {
+  it("income uses Jono's six bands and codes", () => {
     expect(INCOME_BANDS).toEqual([
-      { v: "lt20k", t: "Under R20,000" }, { v: "20k_40k", t: "R20,000 to R40,000" }, { v: "40k_60k", t: "R40,000 to R60,000" },
-      { v: "60k_100k", t: "R60,000 to R100,000" }, { v: "100kplus", t: "R100,000 or more" }, { v: "prefer_not", t: "Prefer not to say" },
+      { v: "lt15k", t: "Up to R15,000" }, { v: "15k_30k", t: "R15,000 to R30,000" }, { v: "30k_50k", t: "R30,000 to R50,000" },
+      { v: "50k_80k", t: "R50,000 to R80,000" }, { v: "80kplus", t: "R80,000 or more" }, { v: "prefer_not", t: "Prefer not to say" },
     ]);
+    // the earlier draft codes are not sent
+    for (const old of ["lt20k", "20k_40k", "40k_60k", "60k_100k", "100kplus"]) expect(cleanAnswers({ income_band: old })).toEqual({});
+    expect(cleanAnswers({ income_band: "30k_50k" })).toEqual({ income_band: "30k_50k" });
     expect(PAGE).toContain("Before tax. A band is enough.");
   });
   it("topics: six options, multi-select in page order, Done only once one is ticked", () => {
@@ -127,14 +130,14 @@ describe("age, income and topics (POST /start/answers after booking)", () => {
     expect(PAGE).toContain("Pick as many as you like.");
   });
   it("the payload needs all three; no routing fields", () => {
-    expect(answersPayload({ age_band: "lt35", income_band: "lt20k" }, "r")).toBeNull();
+    expect(answersPayload({ age_band: "lt35", income_band: "lt15k" }, "r")).toBeNull();
     expect(answersPayload({ age_band: "lt35", topics: ["life"] }, "r")).toBeNull();
     expect(answersPayload({ age_band: "51plus", income_band: "prefer_not", topics: ["life", "new_bond"] }, "r")).toEqual({ age_band: "51plus", income_band: "prefer_not", topics: ["life", "new_bond"], request_id: "r" });
     expect(answersComplete({ age_band: "51plus", income_band: "prefer_not", topics: ["will"] })).toBe(true);
   });
   it("the mock rejects incomplete answers", async () => {
     const api = createMockApi();
-    expect((await api.postAnswers({ age_band: "lt35", income_band: "lt20k", topics: [], request_id: "r" })).kind).toBe("error");
+    expect((await api.postAnswers({ age_band: "lt35", income_band: "lt15k", topics: [], request_id: "r" })).kind).toBe("error");
     expect((await api.postAnswers({ age_band: "lt35", income_band: "1500_plus", topics: ["life"], request_id: "r" })).kind).toBe("error");
   }, 10000);
 });
@@ -465,6 +468,13 @@ describe("/start/ copy passes the site wording rules", () => {
       [/\b(he|she|his|her|him|hers)\b/i, "he/she"],
     ];
     for (const c of copy) for (const [re, label] of [...BANNED, ...EXTRA]) expect(c, `${label}: ${c}`).not.toMatch(re);
+  });
+  it("no STOP in the page's own copy (the verbatim named consent is config), and the only help address is hello@sortmycover.co.za", () => {
+    for (const c of copy) expect(c, c).not.toMatch(/\bSTOP\b/);
+    const all = files.join("\n");
+    const emails = [...all.matchAll(/[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.(?:co\.za|com|net|org)\b/g)].map((m) => m[0]);
+    const help = emails.filter((e) => /sortmycover|leadvelocity|vantagestack/i.test(e));
+    for (const e of help) expect(e).toBe("hello@sortmycover.co.za");
   });
 });
 
