@@ -208,7 +208,7 @@ export function copyFor(i: ClientEmailInput) {
     ? `Would you like another time? Reply to SortMyCover on WhatsApp on ${WHATSAPP_DISPLAY} and we will find one with ${adviserFirst}.`
     : `Need another time? Reply to SortMyCover on WhatsApp on ${WHATSAPP_DISPLAY} and we will move it for you.`;
   const details: Array<[string, string]> = [["When", `${day}, ${time}`], ["How", how], ["Adviser", who]];
-  const disclosure = "SortMyCover is not a financial services provider. We introduce you to an authorised financial adviser and give no financial advice, product comparisons or premium quotes. Licensed financial advisers do.";
+  const disclosure = "SortMyCover is not a financial services provider. We introduce you to an authorised financial adviser and give no financial advice, product comparisons or premium quotes. Authorised financial advisers do.";
   const popia = "We handle your personal information under POPIA. It goes only to the adviser you were introduced to and is never sold.";
   const why = "You are getting this email because you booked a call through SortMyCover.";
   const preheader = k === "booking_cancelled" ? `Your call with ${adviserFirst} on ${shortWhen(i.slot_start)} is cancelled.` : `${i.adviser_name}, ${day}, ${time}, ${how}.`;

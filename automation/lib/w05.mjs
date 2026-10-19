@@ -724,7 +724,7 @@ export function inviteMail(ctx, p, booking, ev = {}) {
   const when = `${dateLabel(p.start)} at ${timeLabel(p.start)} (South African time)`;
   const link = ev.join_url || null;
   const word = METHOD_LABEL[p.method];
-  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Licensed financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
+  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Authorised financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
   const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Your call with ${adviserFirst}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
   return {
     to: p.email,

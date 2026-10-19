@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Version | `script-gate-v1.1.0` (2026-10-02: day-neutral close, NH-24 a; rules 15-20 and I-7 from `deliverables/intro-media/rubric.md`) |
-| Model | `claude-haiku-4-5-20251001`, temperature 0, max_tokens 250. Escalate a `pass` with `confidence < 0.8` to `claude-sonnet-5-5`. |
+| Model | the LLM relay (`$env.LLM_RELAY_URL`, model `relay-default`, no fallback; there is no Anthropic API in this system), temperature 0, max_tokens 250. A `pass` with `confidence < 0.8` is re-checked once; relay unset or failing = fails closed. |
 | Runs on | every generated script AND the broker's edited script, after the deterministic `scriptCheck()` in `conversation/guardrail.mjs` passes. Recording unlocks only when both pass. |
 | Fails closed | API error, timeout or invalid JSON = `block`; the portal shows "We couldn't check this script right now, try again in a minute." |
 | After recording | the transcript of the actual take (W23, Whisper-class) runs the same two checks, because people ad-lib. A failed take is not approved; the broker sees the exact phrase to re-record. compliance-qa spot-checks the first approved video per broker (4.10b step 7). |
@@ -19,7 +19,7 @@
 ## System prompt (LLM half)
 
 ```prompt
-You check a short script that a licensed financial adviser will read in a 20-30 second intro video. The video is sent to a person who booked a free call. The script must not be financial advice or marketing of any product.
+You check a short script that an authorised financial adviser will read in a 20-30 second intro video. The video is sent to a person who booked a free call. The script must not be financial advice or marketing of any product.
 
 Block the script if it does any of these, even softly:
 1. Names or describes a product or policy type, an insurer, a bank, or a price, premium, amount, return or percentage.

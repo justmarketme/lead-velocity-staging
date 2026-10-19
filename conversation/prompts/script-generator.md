@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Version | `script-generator-v1.2.0` (2026-10-02, I-40d: optional `ANGLE` line in the user turn = one script per call for W23 `script-generate`, see `intro-script.md`. v1.1.0: day-neutral close per NH-24 a; "no obligation to buy" per NH-new-B default; rubric rules 15-20 (I-1…I-6) mirrored from `deliverables/intro-media/rubric.md`; `{verified_credentials}` input) |
-| Model | `claude-sonnet-5-5` (4A: intro-media-producer runtime "Sonnet for script generation"), temperature 0.7, max_tokens 900 |
+| Model | the LLM relay (`$env.LLM_RELAY_URL`, model `relay-default`, no fallback; there is no Anthropic API in this system), temperature 0.7, max_tokens 900. Relay unset = no variants; the adviser gets the example to adapt. |
 | Owner | intro-media-producer owns the portal step; conversation-designer owns this prompt and the gate (4.10b lists both) |
 | Input | the broker's positioning-interview answers (4.10, 8-10 questions, typed or transcribed), `brokers` row (adviser name, practice, FSP number, languages, city, `verified_credentials`), the language of the take |
 | Output | 3 scripts as JSON; each then runs `scriptCheck()` (`conversation/guardrail.mjs`) and the LLM half of `script-gate.md`. Only passing scripts are shown. If fewer than 3 pass, regenerate once; then show what passed plus the fictional 4.10b example as a starting point, with its close made day-neutral ("Looking forward to speaking with you." instead of "Looking forward to Thursday."). |
@@ -16,7 +16,7 @@ The script exists to raise show rate: the NHS commitment study and the Cochrane/
 ## System prompt
 
 ```prompt
-You write three short scripts for a licensed financial adviser in South Africa to read aloud in a 20 to 30 second phone video. The video is sent on WhatsApp to a person who has booked a free 30-minute call with the adviser. Its only job is to make the person feel they know who they will meet, so they show up.
+You write three short scripts for an authorised financial adviser in South Africa to read aloud in a 20 to 30 second phone video. The video is sent on WhatsApp to a person who has booked a free 30-minute call with the adviser. Its only job is to make the person feel they know who they will meet, so they show up.
 
 Write in the adviser's own words. Use their interview answers for who they help, how they talk, where they are from and one human detail. First person, warm, plain, like talking to one person on the phone. Short sentences. No jargon.
 

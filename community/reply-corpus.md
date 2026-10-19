@@ -6,7 +6,7 @@ Parser contract (do not change the layout): a template starts with a line `#### 
 
 Placeholders: `{first_name}` (omitted with its trailing comma if not visible), `{ctwa_link}` (CTWA link with `ref=cmt_{ad_id}`), `{page_link}` (page with `utm_source=meta&utm_medium=comment&utm_campaign=cmt_{ad_id}`), `{adviser_line}` (empty while there is one broker).
 
-Dependency note (stub): `knowledge/faq.md` and `conversation/prompts/guardrail.md` are being written by conversation-designer and did not exist when this was written. Until they land, the "FAQ topics" block below is the only grounding for Haiku drafts and the lint in W30 is the only gate. When they exist, W30 reads them through the nodes "Read faq" and "Read guardrail" (both already wired, both `continueOnFail`, both fail closed to fixed templates). Do not copy faq.md text into this file; add a topic key here only when faq.md has the answer.
+Dependency note (stub): `knowledge/faq.md` and `conversation/prompts/guardrail.md` are being written by conversation-designer and did not exist when this was written. Until they land, the "FAQ topics" block below is the only grounding for the relay drafts and the lint in W30 is the only gate. When they exist, W30 reads them through the nodes "Read faq" and "Read guardrail" (both already wired, both `continueOnFail`, both fail closed to fixed templates). Do not copy faq.md text into this file; add a topic key here only when faq.md has the answer.
 
 ## Hard rules for every template
 
@@ -14,15 +14,15 @@ Dependency note (stub): `knowledge/faq.md` and `conversation/prompts/guardrail.m
 - Private: the first message always says it is SortMyCover's assistant (an AI) and that a person is one message away. One link only. No qualifying question until the person replies.
 - Never claim a result. "The call is free" and "no obligation to buy" are the only price statements allowed. Never say "nothing is sold on the call" or "the person pays nothing" (a promise about the adviser's conduct we cannot secure). The adviser pays a flat fee; that is stated only in the objection answer.
 
-## FAQ topics (ground truth for Haiku public drafts until knowledge/faq.md exists)
+## FAQ topics (ground truth for the relay public drafts until knowledge/faq.md exists)
 
 | topic | answer in one plain sentence |
 |---|---|
 | duration | The call is about 30 minutes. |
 | cost | The call is free and there is no obligation to buy. |
-| who | SortMyCover connects people with a licensed financial adviser who calls them. |
-| how | The person picks a time, then the licensed adviser phones or video-calls at that time. |
-| who_calls | A licensed adviser, not a call centre. |
+| who | SortMyCover connects people with an authorised financial adviser who calls them. |
+| how | The person picks a time, then the authorised adviser phones or video-calls at that time. |
+| who_calls | An authorised adviser, not a call centre. |
 | privacy | Details go to the assigned adviser and the processors listed in the privacy notice, are coded for ad measurement, are never sold, and the person can say STOP at any time. |
 | money | The adviser pays Lead Velocity (which runs SortMyCover) a flat fee, the call is free, and there is no obligation to buy. |
 | hours | The person chooses a time that suits them. |
@@ -30,8 +30,8 @@ Dependency note (stub): `knowledge/faq.md` and `conversation/prompts/guardrail.m
 ## Public replies
 
 #### question_process | en
-- {first_name}, the call is about 30 minutes with a licensed adviser, and the call is free with no obligation to buy. Happy to send the details privately.
-- {first_name}, a licensed adviser phones at a time the person picks, and the call is free. Happy to send the details privately.
+- {first_name}, the call is about 30 minutes with an authorised adviser, and the call is free with no obligation to buy. Happy to send the details privately.
+- {first_name}, an authorised adviser phones at a time the person picks, and the call is free. Happy to send the details privately.
 - Good question, {first_name}. The call is 30 minutes and free, with no obligation to buy, and we can send the details privately.
 
 #### question_process | af
@@ -50,7 +50,7 @@ Dependency note (stub): `knowledge/faq.md` and `conversation/prompts/guardrail.m
 - Dankie, {first_name}, ons het 'n kort boodskap oor die gesprek gestuur.
 
 #### objection_calm | en
-- Fair question, {first_name}. SortMyCover connects people with licensed advisers for a flat fee paid by the adviser, the call is free with no obligation to buy, and it is explained on our website under How we make money.
+- Fair question, {first_name}. SortMyCover connects people with authorised advisers for a flat fee paid by the adviser, the call is free with no obligation to buy, and it is explained on our website under How we make money.
 - Fair to ask, {first_name}. The call is free, the adviser pays Lead Velocity (which runs SortMyCover) a flat fee, and there is no obligation to buy, so we have sent you a message with more.
 
 #### objection_calm | af
@@ -58,9 +58,9 @@ Dependency note (stub): `knowledge/faq.md` and `conversation/prompts/guardrail.m
 - Goed dat jy vra, {first_name}. Die gesprek is gratis, die adviseur betaal SortMyCover 'n vaste fooi, en daar is geen verpligting om te koop nie, so ons het 'n boodskap met meer gestuur.
 
 #### deferral_advice | en
-- That is exactly what a licensed adviser goes through on the call, we don't quote or advise. {first_name}, we have sent you a message with the next step.
-- Good question, {first_name}. A licensed adviser covers that on the call, and we don't quote or advise, so we have sent you a message.
-- That is for the licensed adviser to go through, {first_name}, we don't quote or advise. Check your messages for how to book.
+- That is exactly what an authorised adviser goes through on the call, we don't quote or advise. {first_name}, we have sent you a message with the next step.
+- Good question, {first_name}. An authorised adviser covers that on the call, and we don't quote or advise, so we have sent you a message.
+- That is for the authorised adviser to go through, {first_name}, we don't quote or advise. Check your messages for how to book.
 
 #### deferral_advice | af
 - Dis presies wat 'n gelisensieerde adviseur op die gesprek deurgaan, ons kwoteer of adviseer nie. {first_name}, ons het 'n boodskap met die volgende stap gestuur.
@@ -102,25 +102,25 @@ All private replies start with the disclosure line. `{disclosure}` below expands
 - Hallo {first_name}, dit is SortMyCover se assistent (KI). 'n Persoon is net een boodskap weg, antwoord net "persoon".
 
 #### private_question | en
-- {disclosure} Thanks for asking under our post. The call is about 30 minutes with a licensed adviser, free, no obligation to buy, and you pick a time that suits you: {ctwa_link}
+- {disclosure} Thanks for asking under our post. The call is about 30 minutes with an authorised adviser, free, no obligation to buy, and you pick a time that suits you: {ctwa_link}
 
 #### private_question | af
 - {disclosure} Dankie vir die vraag onder ons plasing. Die gesprek is ongeveer 30 minute met 'n gelisensieerde adviseur, gratis, geen verpligting om te koop nie, en jy kies 'n tyd wat jou pas: {ctwa_link}
 
 #### private_interest | en
-- {disclosure} Here is how it works: 30 minutes with a licensed adviser, free, no obligation to buy, pick a time that suits you: {ctwa_link}
+- {disclosure} Here is how it works: 30 minutes with an authorised adviser, free, no obligation to buy, pick a time that suits you: {ctwa_link}
 
 #### private_interest | af
 - {disclosure} Só werk dit: 30 minute met 'n gelisensieerde adviseur, gratis, geen verpligting om te koop nie, kies 'n tyd wat jou pas: {ctwa_link}
 
 #### private_objection | en
-- {disclosure} Happy to answer privately. SortMyCover connects people with licensed advisers, the adviser pays us a flat fee, the call is free and there is no obligation to buy. If you want to see for yourself: {ctwa_link}
+- {disclosure} Happy to answer privately. SortMyCover connects people with authorised advisers, the adviser pays us a flat fee, the call is free and there is no obligation to buy. If you want to see for yourself: {ctwa_link}
 
 #### private_objection | af
 - {disclosure} Ons antwoord graag privaat. SortMyCover bring mense in kontak met gelisensieerde adviseurs, die adviseur betaal ons 'n vaste fooi, die gesprek is gratis en daar is geen verpligting om te koop nie. As jy self wil kyk: {ctwa_link}
 
 #### private_advice | en
-- {disclosure} A licensed adviser goes through prices, amounts and what suits a person on the call. We don't quote or advise. 30 minutes, free, no obligation to buy, pick a time that suits you: {ctwa_link}
+- {disclosure} An authorised adviser goes through prices, amounts and what suits a person on the call. We don't quote or advise. 30 minutes, free, no obligation to buy, pick a time that suits you: {ctwa_link}
 
 #### private_advice | af
 - {disclosure} 'n Gelisensieerde adviseur gaan op die gesprek deur wat dinge kos en wat iemand pas. Ons kwoteer of adviseer nie. 30 minute, gratis, geen verpligting om te koop nie, kies 'n tyd wat jou pas: {ctwa_link}
@@ -132,7 +132,7 @@ All private replies start with the disclosure line. `{disclosure}` below expands
 - {disclosure} Ons is jammer oor jou ervaring. Vertel ons asseblief wat gebeur het, en 'n persoon sal dit lees en terugkom na jou. Geen skakel nodig nie, antwoord net hier.
 
 #### private_own_data | en
-- {disclosure} We have hidden your comment to protect your personal details, please don't post them in public. If you want a call with a licensed adviser, continue here: {ctwa_link}
+- {disclosure} We have hidden your comment to protect your personal details, please don't post them in public. If you want a call with an authorised adviser, continue here: {ctwa_link}
 
 #### private_own_data | af
 - {disclosure} Ons het jou kommentaar versteek om jou persoonlike besonderhede te beskerm, moet asseblief nie dit in die openbaar plaas nie. As jy 'n gesprek met 'n gelisensieerde adviseur wil hê, gaan hier voort: {ctwa_link}
@@ -158,7 +158,7 @@ All private replies start with the disclosure line. `{disclosure}` below expands
 - Een vinnige vraag sodat die adviseur reg pas: in watter ouderdomsgroep is jy? Onder 35, 35 tot 44, 45 tot 50, of 51 en ouer.
 
 #### dm_cta | en
-- Thanks. To book, continue on WhatsApp, it is where the calendar and reminders live. 30 minutes with a licensed adviser, free, no obligation to buy: {ctwa_link}
+- Thanks. To book, continue on WhatsApp, it is where the calendar and reminders live. 30 minutes with an authorised adviser, free, no obligation to buy: {ctwa_link}
 
 #### dm_cta | af
 - Dankie. Om te bespreek, gaan voort op WhatsApp, daar is die kalender en onthounotas. 30 minute met 'n gelisensieerde adviseur, gratis, geen verpligting om te koop nie: {ctwa_link}
@@ -170,7 +170,7 @@ All private replies start with the disclosure line. `{disclosure}` below expands
 - Verstaan. 'n Persoon van die SortMyCover-span sal jou hier boodskap stuur, ons het hulle laat weet.
 
 #### dm_advice_deferral | en
-- That is exactly what a licensed adviser goes through on the call, we don't quote or advise. If you would like that call: {ctwa_link}
+- That is exactly what an authorised adviser goes through on the call, we don't quote or advise. If you would like that call: {ctwa_link}
 
 #### dm_advice_deferral | af
 - Dis presies wat 'n gelisensieerde adviseur op die gesprek deurgaan, ons kwoteer of adviseer nie. As jy daardie gesprek wil hê: {ctwa_link}

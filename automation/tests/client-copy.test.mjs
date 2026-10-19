@@ -10,6 +10,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LINES } from '../../conversation/lines.mjs';
 import * as W7 from '../lib/w07.mjs';
+import { stripComments, walk, isTest, relPath } from './_scan.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BANNED = /\bvirtual assistant\b|\bAI[- ]assistant\b/i;
@@ -61,5 +62,21 @@ test('conversation docs: no price word, no "licensed", no assistant label, no ag
 test('the ElevenLabs config (sync-voice-agents) and the phone persona: same rules', () => {
   for (const f of ['supabase/functions/sync-voice-agents/index.ts', 'supabase/functions/_shared/smc_receptionist_persona.ts']) {
     scan(f, noComments(readFileSync(join(ROOT, f), 'utf8')));
+  }
+});
+
+// "an authorised financial adviser", never "licensed" (19 Oct 2026): the adviser-facing prompts (pre-call brief, intro
+// scripts and their gate), every workflow JSON (W30/W31 drafts and gates included) and every automation lib, comments stripped.
+test('no "licensed" in conversation/prompts, any workflow JSON or automation code: "authorised" instead', () => {
+  const prompts = walk(ROOT, join(ROOT, 'conversation', 'prompts'), (r) => r.endsWith('.md'));
+  const json = walk(ROOT, join(ROOT, 'automation'), (r) => r.endsWith('.json') && !isTest(r));
+  const code = walk(ROOT, join(ROOT, 'automation'), (r) => /\.(mjs|js|cjs)$/.test(r) && !isTest(r));
+  assert.ok(prompts.length >= 8 && json.length > 40 && code.length > 40);
+  const hits = [];
+  for (const p of [...prompts, ...json]) if (LICENSED.test(readFileSync(p, 'utf8'))) hits.push(relPath(ROOT, p));
+  for (const p of code) if (LICENSED.test(stripComments(readFileSync(p, 'utf8')))) hits.push(relPath(ROOT, p));
+  assert.deepEqual(hits, []);
+  for (const f of ['precall-brief.md', 'script-gate.md', 'script-generator.md']) {
+    assert.match(readFileSync(join(ROOT, 'conversation', 'prompts', f), 'utf8'), /an authorised financial adviser/, f);
   }
 });
