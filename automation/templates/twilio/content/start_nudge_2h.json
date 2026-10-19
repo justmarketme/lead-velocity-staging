@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "key": "start_nudge_2h",
+    "source": "lib/w08.mjs startWords (W08 start track, 19 Oct 2026)",
+    "approval": {
+      "name": "smc_start_nudge_2h",
+      "category": "UTILITY"
+    },
+    "core": false,
+    "banner": "header-welcome.png",
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ]
+  },
+  "content": {
+    "friendly_name": "smc_start_nudge_2h",
+    "language": "en",
+    "variables": {
+      "1": "Naledi",
+      "2": "Mark",
+      "3": "lt1.sample",
+      "4": "not_now:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, your 30-minute call with {{2}} is one tap away. Pick a time that suits you, by Microsoft Teams or phone. It takes about a minute. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Pick a time",
+            "url": "https://sortmycover.co.za/start/#lt={{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not now",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}
