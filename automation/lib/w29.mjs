@@ -3,11 +3,12 @@
 //  1. Broker picks a row on session/broker_disposition_list.json (row id = 4.12a code) -> outcomes.disposition_code.
 //  2. broker_quality (1-5) -> outcomes.quality_score.  3. Optional voice note (<= 60 s) -> transcript (redacted) +
 //     2-line summary on the outcome; never sent to the lead.  4. broker_feedback_thanks with a true "what changed" line.
-//  Feeds: W13 (unreachable / nofit_criteria open the 48-h dispute window; nothing else does), ad_metrics
-//  quality_index / quality_n / nofit_rate per ad (n >= 5 before the index is shown or acted on), kill/scale signal
-//  rows in insights (3.4: index < 2.5 or not-a-fit > 40% -> pause signal; index >= 4 -> scale candidate; the
-//  media rules apply them, W29 never touches spend), qualification tuning (nofit_budget > 15%; nofit_covered
-//  concentrated in one angle), "what mattered" corpus for pre-call briefs, fit_followup nudge at +7 d.
+//  Feeds: W13 (unreachable / nofit_criteria open the 48-h dispute window; nothing else does); the per-ad quality
+//  index (n >= 5 before it is shown or acted on) is derived from outcomes wherever it is read, never stored; kill/scale
+//  signals (3.4: index < 2.5 or not-a-fit > 40% -> pause signal; index >= 4 -> scale candidate; the media rules apply
+//  them, W29 never touches spend) and qualification tuning (nofit_budget > 15%; nofit_covered concentrated in one
+//  angle) go to an admin-only quality_signal row on the lead timeline; outcomes.summary is the "what mattered" corpus
+//  for pre-call briefs; fit_followup nudge at +7 d. There is no insights / ad_metrics / cycles table (CRM-nurture, 11 Oct).
 import { redactForStorage, prefilter } from '../../conversation/guardrail.mjs';
 
 export const CODES = ['fit_proceeding', 'fit_followup', 'nofit_budget', 'nofit_covered', 'nofit_criteria', 'unreachable'];
@@ -105,6 +106,7 @@ export function tuning(rows) {
 
 /** The "what changed" line for broker_feedback_thanks ({{1}}). Only true statements; no promise of spend. */
 export function thanksLine(q) {
+  if (!q.quality_n) return 'Your rating is saved on the lead.'; // no ad behind this lead (organic / CTWA without referral)
   if (q.quality_index !== null && q.quality_n >= MIN_N) return `That ad is now rated ${q.quality_index.toFixed(1)} from ${q.quality_n} of your calls.`;
   return `So far ${q.quality_n} of your calls from this ad have a rating.`;
 }

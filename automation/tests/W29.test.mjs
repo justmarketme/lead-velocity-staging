@@ -98,6 +98,7 @@ test('thanks line is always true and never promises spend; renders in broker_fee
   assert.equal(many, 'That ad is now rated 4.2 from 6 of your calls.');
   assert.ok(!/budget|more behind|spend/i.test(few + many));
   assert.equal(renderBody('broker_feedback_thanks', [many]), 'Logged, thank you. That ad is now rated 4.2 from 6 of your calls. Your feedback shapes the next leads we send you.');
+  assert.equal(F.thanksLine({ quality_index: null, quality_n: 0 }), 'Your rating is saved on the lead.', 'a lead with no ad never hears "from this ad"');
 });
 
 test('fit_followup nudge: due at +7 d, once', () => {
@@ -108,12 +109,13 @@ test('fit_followup nudge: due at +7 d, once', () => {
   assert.equal(F.followupDue({ ...o, disposition_code: 'fit_proceeding' }, ms(E.broker_fit_followup_at), false), false);
 });
 
-test('W29.json: physical columns only; disposition cast to the enum; W13 owns replacements; ad_metrics + insights fed', () => {
+test('W29.json: physical columns only; disposition cast to the enum; W13 owns replacements; no dropped tables (insights / ad_metrics / cycles)', () => {
   assert.deepEqual(checkSql(workflowSql(WF)), []);
   const s = JSON.stringify(WF);
   assert.ok(s.includes('$2::public.smc_disposition_code'));
   assert.ok(!s.includes('INSERT INTO public.replacements'), 'W29 never writes replacements itself');
-  assert.ok(s.includes('UPDATE public.ad_metrics') && s.includes('INSERT INTO public.insights'));
+  for (const gone of ['public.insights', 'public.ad_metrics', 'cycle_id']) assert.ok(!s.includes(gone), gone);
+  assert.ok(s.includes("'quality_signal'"), 'kill/scale + tuning signals land on the lead timeline');
   for (const bad of ['good_fit_', 'not_fit_']) assert.ok(!s.includes(bad), bad);
   const execs = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow').map((n) => n.parameters.workflowId.cachedResultName);
   assert.deepEqual(execs, ['W13 No-show & replacement']);
@@ -134,20 +136,36 @@ test('I-45k: W29 -> W13 sends { op, outcome_id, reason, reason_code, idempotency
 });
 
 import { evalParam } from './_n8ncode.mjs';
-test('F10 (REHEARSAL-L01 execs 56/58/61/72) "insights" params come from the Ad quality item, not $json (the ad_metrics UPDATE output replaces it)', () => {
+test('F10 (REHEARSAL-L01 execs 56/58/61/72) signal params come from the Ad quality item, not $json; admin-only timeline row', () => {
   const AQ = 'Ad quality + tuning (w29.adQuality / tuning)';
-  const INS = 'insights: kill/scale + tuning (once per 24 h per kind)';
-  const o = { brand_id: 'brand_smc', broker_id: 'brk_mark', cycle_id: 'cyc_1', ad_id: 'ad_123', angle: 'bond' };
-  const insights = [{ kind: 'kill_signal', text: 'Lead quality 2.1 from 5 calls', n: 5 }];
-  const aq = { o, q: { quality_index: 2.1, quality_n: 5, nofit_rate: 0.4 }, insights };
-  // What the rehearsal's insights node actually received: the Postgres UPDATE result, no `o`.
-  const pgOut = { success: true };
-  const p = evalParam(WF, INS, 'options.queryReplacement', { json: pgOut, refs: { [AQ]: aq } });
-  assert.ok(Array.isArray(p), 'query parameters are an array');
-  assert.deepEqual(p, ['brand_smc', 'brk_mark', 'cyc_1', 'ad_123', 'bond', JSON.stringify(insights)]);
+  const SIG = 'Quality signals -> LV-only lead timeline (once per day per kind)';
+  assert.deepEqual(WF.connections[AQ].main[0].map((c) => c.node), [SIG]);
+  assert.deepEqual(WF.connections[SIG].main[0].map((c) => c.node), ['Send thanks? (quality just logged)']);
+  const o = { brand_id: 'brand_smc', broker_id: 'brk_mark', lead_id: L01.lead_id, ad_id: 'ad_123', angle: 'bond' };
+  const signals = [{ kind: 'kill_signal', text: 'Lead quality 2.1 from 5 calls', n: 5 }];
+  const aq = { o, q: { quality_index: 2.1, quality_n: 5, nofit_rate: 0.4 }, signals };
+  const p = evalParam(WF, SIG, 'options.queryReplacement', { json: { success: true }, refs: { [AQ]: aq } });
+  assert.deepEqual(p, ['brand_smc', 'brk_mark', L01.lead_id, 'ad_123', 'bond', JSON.stringify(signals)]);
   // An outcome with no ad (organic / CTWA without referral) still gives a valid array.
-  const p2 = evalParam(WF, INS, 'options.queryReplacement', { json: pgOut, refs: { [AQ]: { ...aq, o: { ...o, ad_id: undefined, angle: undefined }, insights: [] } } });
-  assert.deepEqual(p2, ['brand_smc', 'brk_mark', 'cyc_1', null, null, '[]']);
-  const q = evalParam(WF, 'ad_metrics quality (latest row for the ad)', 'options.queryReplacement', { json: aq, refs: { [AQ]: aq } });
-  assert.deepEqual(q, ['ad_123', 2.1, 5, 0.4]);
+  const p2 = evalParam(WF, SIG, 'options.queryReplacement', { json: {}, refs: { [AQ]: { ...aq, o: { ...o, ad_id: undefined, angle: undefined }, signals: [] } } });
+  assert.deepEqual(p2, ['brand_smc', 'brk_mark', L01.lead_id, null, null, '[]']);
+  // broker_id stays out of the column list: the broker's own-timeline policy must never show him media-rule signals.
+  const sql = WF.nodes.find((n) => n.name === SIG).parameters.query;
+  assert.match(sql, /^INSERT INTO public\.lead_activities \(lead_id, brand_id, workflow,/);
+  assert.match(sql, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
+});
+
+test("ad window: thanks counts only this broker's calls on the ad; signals use every broker; tuning = broker's last 30 days", async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  const AQ = 'Ad quality + tuning (w29.adQuality / tuning)';
+  const row = (q, own, own_30d = own, same_ad = true, code = 'fit_proceeding') => ({ quality_score: q, disposition_code: code, ad_id: 'ad_123', angle: 'bond', same_ad, own, own_30d });
+  const items = [row(5, true), row(4, true), ...[1, 1, 2, 1, 2].map((q) => row(q, false))];
+  const o = { brand_id: 'brand_smc', broker_id: 'brk_mark', lead_id: L01.lead_id, ad_id: 'ad_123', angle: 'bond' };
+  const [out] = (await runCode(WF, AQ, { items, refs: { Merge: { o, kind: 'quality' } } })).map((x) => x.json);
+  assert.equal(out.thanks, 'So far 2 of your calls from this ad have a rating.');
+  assert.equal(out.q.quality_n, 7);
+  assert.deepEqual(out.signals.map((x) => x.kind), ['kill_signal']);
+  const rows = WF.nodes.find((n) => n.name === 'Outcomes for this ad + this broker (30 d)');
+  assert.match(rows.parameters.query, /o\.broker_id = \$2::uuid AND o\.created_at > now\(\) - interval '30 days'/);
+  assert.equal(evalParam(WF, rows.name, 'options.queryReplacement', { json: {}, refs: { Merge: { o } } }).join('|'), 'ad_123|brk_mark');
 });
