@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 import * as L12 from './lib/w12.mjs';
+import { QUALIFIED_INCOME, QUALIFIED_AGE } from './lib/w39.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PG_CRED = 'LV Supabase - n8n_app (least privilege)';
@@ -658,9 +659,9 @@ RETURNING o.id, o.lead_id;`,
     FROM public.leads l
    WHERE l.brand_id IS NOT NULL AND l.qualified_at IS NOT NULL
      AND l.qualified_at > $1::timestamptz - interval '${L12.QUALITY_SWEEP_LOOKBACK_H} hours' AND l.qualified_at <= $1::timestamptz
-     -- tier A/B on the budget, or (/start/ v4, 19 Oct 2026: no budget asked) the page's rule: qualified_at is written once the age
-     -- and the income band are stored (lib/w39.mjs decideV4Answers); tier C (lt750) never qualifies either way
-     AND (l.budget_band IN (${qBands}) OR (l.budget_band IS NULL AND l.age_band IS NOT NULL AND l.income_band IS NOT NULL))
+     -- tier A/B on the budget, or (/start/ v4, Jono 19 Oct 2026 FINAL: no budget asked) the page's rule, the same as
+     -- lib/w39.mjs isQualifiedV4: income R15k+ AND age 35-50; tier C (lt750) never qualifies either way
+     AND (l.budget_band IN (${qBands}) OR (l.budget_band IS NULL AND l.age_band IN (${QUALIFIED_AGE.map((x) => `'${x}'`).join(', ')}) AND l.income_band IN (${QUALIFIED_INCOME.map((x) => `'${x}'`).join(', ')})))
      AND l.opted_out_at IS NULL AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'opted_out')
      AND (l.ctwa_clid IS NOT NULL OR l.consent_ads_at IS NOT NULL)
      AND (NOT $2::boolean OR l.is_synthetic)

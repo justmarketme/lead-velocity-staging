@@ -54,15 +54,33 @@ export const REASONS_OF = { life: ['life_cover'], income: ['disability'], other:
 /** Meeting types the page offers (Jono, 18 Oct 2026): Teams and phone only, and only those the broker supports. */
 export const PAGE_METHODS = ['teams', 'phone'];
 // ---- v4 (19 Oct 2026): the income bracket (leads.income_band CHECK, no DDL) and the multi-select topics
+/** The original leads_capture_v2_checks codes (still accepted: rows written before, and pages opened during the deploy). */
 export const INCOME_BANDS_DB = ['lt20k', '20k_40k', '40k_60k', '60k_100k', '100kplus', 'prefer_not'];
 /**
- * Jono's draft brackets (R15k / R30k / R50k / R80k). DDL-GATED: leads_capture_v2_checks only allows INCOME_BANDS_DB, so these
- * codes would be refused by the database. Leave INCOME_DRAFT_BANDS_ON false until a migration widens the CHECK (and the page
- * shows the same brackets); then flip it here, in one place.
+ * Jono's brackets (19 Oct 2026, final): Up to R15,000 / R15,000 to R30,000 / R30,000 to R50,000 / R50,000 to R80,000 /
+ * R80,000 or more / Prefer not to say. Needs migration 20261019200000_smc_income_bands_v4.sql (widens the CHECK, keeps the
+ * old codes): apply it BEFORE importing W39. With the switch off, only INCOME_BANDS_DB is accepted.
  */
 export const INCOME_DRAFT_BANDS = ['lt15k', '15k_30k', '30k_50k', '50k_80k', '80kplus', 'prefer_not'];
-export const INCOME_DRAFT_BANDS_ON = false;
-export const INCOME_BANDS = INCOME_DRAFT_BANDS_ON ? INCOME_DRAFT_BANDS : INCOME_BANDS_DB;
+export const INCOME_DRAFT_BANDS_ON = true;
+export const INCOME_LABELS = { lt15k: 'Up to R15,000', '15k_30k': 'R15,000 to R30,000', '30k_50k': 'R30,000 to R50,000', '50k_80k': 'R50,000 to R80,000', '80kplus': 'R80,000 or more', prefer_not: 'Prefer not to say' };
+/** Accepted on POST /start/answers: the new codes, plus the old ones for compatibility. */
+export const INCOME_BANDS = INCOME_DRAFT_BANDS_ON ? [...new Set([...INCOME_DRAFT_BANDS, ...INCOME_BANDS_DB])] : INCOME_BANDS_DB;
+/**
+ * Qualified (qualified_at + the Meta Qualified event), Jono 19 Oct 2026 FINAL: income R15k or more AND age 35-44 or 45-50.
+ * Under R15k, prefer not to say, under 35 and over 50 are not Qualified. Every age still books and is routed: this only sets
+ * qualified_at and the Meta signal. Old codes: 20k and up count as R15k+ (lt20k does not: it may be under R15k).
+ */
+export const QUALIFIED_INCOME = ['15k_30k', '30k_50k', '50k_80k', '80kplus', '20k_40k', '40k_60k', '60k_100k', '100kplus'];
+export const QUALIFIED_AGE = ['35_44', '45_50'];
+export const isQualifiedV4 = (age, income) => QUALIFIED_AGE.includes(age) && QUALIFIED_INCOME.includes(income);
+/**
+ * Internal low-income flag (the old "tier C" idea; Jono 19 Oct: internal only, never a hold or a reject). Under R15k (old lt20k)
+ * -> conv_state.income_flag = 'low' + a timeline note. budget_band is never set on the v4 path, so the routing trigger
+ * (smc_leads_route_check, tier C = budget_band lt750) never holds a /start/ lead; leads.lead_tier is left alone (the trigger
+ * clears a 'C' that has no lt750 band).
+ */
+export const LOW_INCOME = ['lt15k', 'lt20k'];
 export const TOPICS = ['life', 'disability_income', 'severe_illness', 'review', 'new_bond', 'will'];
 /** topic -> lib/w01.mjs HELP_WITH (conv_state.help_with). A new bond is life cover for the bond. */
 export const TOPIC_HELP_WITH = { life: 'life', disability_income: 'disability_income', severe_illness: 'severe_illness', review: 'review', new_bond: 'life', will: 'wills' };
@@ -286,20 +304,25 @@ const COVER_PATHS = new Set(['route', 'route_tier_c', 'oob_book', 'adviser']);
 /**
  * v4 answers (after booking; never routes): leads.age_band + income_band, conv_state.start = { topics, at, via, request_id },
  * help_with from the first topic that is not a will (a will alone -> wills), leads.reasons where they map (life -> life_cover,
- * disability_income -> disability), qualified_at + stage qualified (the stage only moves forward from the pre-booking stages, so
- * a booked lead stays booked; counting never reads qualified_at). 'will' -> a timeline note + a console escalation for a person:
+ * disability_income -> disability), qualified_at + stage qualified only when isQualifiedV4 (income R15k+ and age 35-50; the
+ * stage only moves forward from the pre-booking stages, so a booked lead stays booked; counting never reads qualified_at). 'will' -> a timeline note + a console escalation for a person:
  * wills are a separate project, nothing is routed and product_interest is NOT set (it would hold a routed lead, migration 03).
  */
 function decideV4Answers({ lead, answers: a, request_id, at }) {
   const key = answersKey(lead.id, request_id);
   const firstCover = a.topics.find((t) => t !== 'will') || a.topics[0];
   const reasons = [...new Set(a.topics.map((t) => TOPIC_REASONS[t]).filter(Boolean))];
-  const set = { age_band: a.age_band, income_band: a.income_band, qualified_at: at, stage: 'qualified',
+  const set = { age_band: a.age_band, income_band: a.income_band,
     conv_state: { start: { topics: a.topics, at, via: 'start_page', request_id }, help_with: TOPIC_HELP_WITH[firstCover], via: 'start_page' } };
+  if (isQualifiedV4(a.age_band, a.income_band)) Object.assign(set, { qualified_at: at, stage: 'qualified' });
+  const low = LOW_INCOME.includes(a.income_band);
+  if (low) set.conv_state.income_flag = 'low';
   if (reasons.length) set.reasons = reasons;
   const will = a.topics.includes('will');
-  const notes = will ? [{ activity_type: 'start_page_will_requested', idempotency_key: `w39:will:${lead.id}`,
-    payload: { topics: a.topics, via: 'start_page', note: 'wills are a separate project: a person follows up; nothing routed' } }] : [];
+  const notes = [];
+  if (will) notes.push({ activity_type: 'start_page_will_requested', idempotency_key: `w39:will:${lead.id}`,
+    payload: { topics: a.topics, via: 'start_page', note: 'wills are a separate project: a person follows up; nothing routed' } });
+  if (low) notes.push({ activity_type: 'start_page_low_income', idempotency_key: `w39:low_income:${lead.id}`, payload: { income_band: a.income_band, via: 'start_page', note: 'internal flag only: never held or rejected' } });
   return { kind: 'work', path: 'answers_v4', key, set, notes, send: null, cover: false, confirm_adviser: null, thread_stage: 'done', next: 'done',
     escalate: will ? { note: 'start page: the lead also asked for help with a will (wills are a separate project, nothing routed); a person follows up' } : null,
     activity: { activity_type: 'start_page_answers', idempotency_key: key, payload: { path: 'answers_v4', ...a, request_id, via: 'start_page' } } };

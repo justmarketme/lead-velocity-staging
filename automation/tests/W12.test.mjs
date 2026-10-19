@@ -543,7 +543,11 @@ test('W12.json: the tick feeds Qualified + GoodFit to CAPI Send through the Foll
   assert.match(sql, new RegExp(`interval '${R.QUALITY_SWEEP_LOOKBACK_H} hours'`));
   for (const b of R.CAPI_QUALIFIED_BANDS) assert.ok(sql.includes(`'${b}'`), b);
   assert.ok(!sql.includes("'lt750'"));
-  assert.match(sql, /OR \(l\.budget_band IS NULL AND l\.age_band IS NOT NULL AND l\.income_band IS NOT NULL\)/, '/start/ v4: age + income, no budget band (proven once on the real schema in start-page.local.test.mjs)');
+  // /start/ v4 (Jono, 19 Oct FINAL): no budget band -> income R15k+ AND age 35-50 (lib/w39.mjs isQualifiedV4); proven on the real schema in start-page.local.test.mjs
+  const W39L = await import('../lib/w39.mjs');
+  const page = sql.slice(sql.indexOf('l.budget_band IS NULL AND'), sql.indexOf('AND l.opted_out_at'));
+  for (const x of [...W39L.QUALIFIED_AGE, ...W39L.QUALIFIED_INCOME]) assert.ok(page.includes(`'${x}'`), x);
+  for (const x of ['lt35', '51plus', 'lt15k', 'lt20k', 'prefer_not']) assert.ok(!page.includes(`'${x}'`), `${x} never Qualified`);
   assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => n.name === Q) })), [], 'physical columns only');
   // the real Code node -> items CAPI Send accepts as valid input
   const { normalise } = await import('../lib/sub-capi-send.mjs');

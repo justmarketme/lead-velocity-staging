@@ -296,20 +296,20 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   assert.equal(q(`SELECT count(*) FROM public.communications WHERE lead_id = '${LEAD_ID}' AND template_name = 'broker_intro_booked'`)[0][0], '0');
 
   // =========================================================================================== 6b. POST /start/answers v4 (after booking) -> done
-  const ANS = { age_band: '35_44', income_band: '40k_60k', topics: ['life', 'new_bond', 'will'], request_id: 'req-sp-ans-01' };
+  const ANS = { age_band: '35_44', income_band: '30k_50k', topics: ['life', 'new_bond', 'will'], request_id: 'req-sp-ans-01' };
   assert.deepEqual((await postAnswers(TOKEN, { ...ANS, topics: ['car'] })).body, { error: 'invalid' });
   const an = await postAnswers(TOKEN, ANS);
   assert.deepEqual([an.status, an.body], [200, { ok: true, next: 'done' }]);
   assert.equal(an.core, null, 'answers never route');
   const l7 = lead(LEAD_ID);
-  assert.deepEqual([l7.age_band, l7.income_band, l7.stage, l7.broker_id, l7.budget_band, l7.product_interest], ['35_44', '40k_60k', 'booked', MARK, null, null], 'stored; a booked lead stays booked; never product_interest wills');
-  assert.ok(l7.qualified_at, 'qualified once age and income are stored');
+  assert.deepEqual([l7.age_band, l7.income_band, l7.stage, l7.broker_id, l7.budget_band, l7.product_interest], ['35_44', '30k_50k', 'booked', MARK, null, null], 'stored (a new bracket: migration 20261019200000); a booked lead stays booked; never product_interest wills');
+  assert.ok(l7.qualified_at, 'Qualified: income R15k+ and age 35-50');
   assert.deepEqual([l7.conv_state.start.topics, l7.conv_state.help_with, l7.conv_state.start.via], [['life', 'new_bond', 'will'], 'life', 'start_page']);
   assert.deepEqual(l7.reasons, ['life_cover']);
   assert.ok(acts(LEAD_ID).includes('start_page_will_requested'), 'the will is noted for a person');
   assert.equal(q(`SELECT count(*) FROM public.escalations WHERE lead_id = '${LEAD_ID}' AND kind = 'human_handoff'`)[0][0], '1', 'a person is asked about the will');
   const vA = await getStart(TOKEN);
-  assert.deepEqual(vA.body.answers, { age_band: '35_44', income_band: '40k_60k', topics: ['life', 'new_bond', 'will'] });
+  assert.deepEqual(vA.body.answers, { age_band: '35_44', income_band: '30k_50k', topics: ['life', 'new_bond', 'will'] });
   const anAgain = await postAnswers(TOKEN, ANS);
   assert.deepEqual([anAgain.body, anAgain.plan.kind, anAgain.effects], [{ ok: true, next: 'done' }, 'replay', []], 'the same request replays (no second escalation)');
   // Meta Qualified (W12 quality sweep): a /start/ lead with age + income and NO budget band qualifies, exactly once
@@ -491,7 +491,7 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   assert.deepEqual(wans.body, { ok: true, next: 'done' });
   const lwa = lead(WID);
   assert.deepEqual([lwa.age_band, lwa.income_band, lwa.conv_state.start.topics, lwa.conv_state.help_with, lwa.stage], ['51plus', 'prefer_not', ['review', 'severe_illness'], 'review', 'booked'], 'every age; income + topics stored');
-  assert.ok(lwa.qualified_at);
+  assert.equal(lwa.qualified_at, null, 'over 50 / prefer not to say: books and is routed, but not Qualified (Jono, 19 Oct)');
   // a web lead's "something else" goes to a person, never a session text
   const wl2 = await postLead({ ...webBody, mobile: '082 000 0312', request_id: 'req-sp-web-0312', context: { ...webBody.context, event_id: crypto.randomUUID() } });
   const wo = await postAnswers(wl2.http.body.lead_token, { intent: 'other', request_id: 'req-sp-web-o1' }); // a v3 body

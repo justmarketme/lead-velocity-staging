@@ -222,6 +222,7 @@ test('adviser card: bio only when the bio review is accepted or there is none; p
   assert.equal(W39.approvedPhoto({ intro_card_url: 'https://x/card.png', card_approved_at: '2026-10-13T10:00:00Z' }), 'https://x/card.png', 'the approved intro card');
   assert.equal(W39.approvedPhoto({ intro_card_url: 'https://x/card.png' }), null, 'card not approved in the portal');
   assert.equal(W39.approvedPhoto({ headshot_url: 'https://raw/upload.jpg' }), null, 'the raw upload is never sent');
+  assert.equal(W39.approvedPhoto({ headshot_approved_url: 'broker-media/b1/headshot-1791885876918.jpg' }), null, 'a Storage path in the PRIVATE broker-media bucket: no public URL, never signed into a cached page');
   assert.equal(W39.approvedPhoto({ headshot_approved_url: 'http://insecure/x.jpg' }), null);
   assert.deepEqual(W39.adviserCard({ ...PICK, bio_short: bio, bio_review: { status: 'changes_suggested' }, intro_card_url: 'https://x/c.png', card_approved_at: 't' }), { ...CARD, photo_url: 'https://x/c.png' });
   assert.deepEqual(W39.adviserCard({ ...PICK, bio_short: bio, bio_review: { status: 'accepted' } }).bio, bio);
@@ -530,12 +531,27 @@ test('POST /start/answers v4 { age_band, income_band, topics[] }: stored, help_w
     { age_band: '45_50', income_band: '60k_100k', topics: ['car'] }, { age_band: '45_50', income_band: '60k_100k', topics: 'life' }, { age_band: '45_50', topics: ['life'] }]) {
     assert.deepEqual([P(bad).status, P(bad).body], [400, { error: 'invalid' }], JSON.stringify(bad));
   }
-  for (const b of W39.INCOME_BANDS) assert.ok(['lt20k', '20k_40k', '40k_60k', '60k_100k', '100kplus', 'prefer_not'].includes(b), `${b}: leads_capture_v2_checks income_band`);
-  assert.equal(W39.INCOME_DRAFT_BANDS_ON, false, "Jono's 15k/30k/50k/80k draft is DDL-gated: off until a migration widens the CHECK");
-  assert.deepEqual(W39.INCOME_BANDS, W39.INCOME_BANDS_DB);
+  // Jono's brackets (final, 19 Oct): the new codes + the old ones; migration 20261019200000 widens the CHECK to exactly these
+  assert.equal(W39.INCOME_DRAFT_BANDS_ON, true);
+  assert.deepEqual([...W39.INCOME_BANDS].sort(), ['100kplus', '15k_30k', '20k_40k', '30k_50k', '40k_60k', '50k_80k', '60k_100k', '80kplus', 'lt15k', 'lt20k', 'prefer_not']);
+  const mig = readFileSync(new URL('../../supabase/migrations/20261019200000_smc_income_bands_v4.sql', import.meta.url), 'utf8');
+  for (const b of W39.INCOME_BANDS) assert.ok(mig.includes(`'${b}'`), `${b} is in the widened CHECK`);
+  assert.ok(readFileSync(new URL('../../supabase/migrations/undo/20261019200000_smc_income_bands_v4.undo.sql', import.meta.url), 'utf8').includes("'100kplus','prefer_not'))"), 'undo restores the original list');
+  assert.deepEqual(Object.keys(W39.INCOME_LABELS), W39.INCOME_DRAFT_BANDS);
+  assert.equal(P({ age_band: '45_50', income_band: '30k_50k', topics: ['life'] }).ok, true);
   assert.equal(P({ intent: 'life', age_band: '35_44', budget_band: '1500_plus' }).v, undefined, 'the v3 body keeps its own parser');
   assert.equal(P({ intent: 'life', age_band: '35_44', budget_band: '1500_plus' }).ok, true);
   const dv = (topics, over = {}) => W39.decideAnswers({ lead: LEAD({ broker_id: BROKER_ID, stage: 'booked', ...over }), answers: { age_band: '35_44', income_band: '20k_40k', topics }, request_id: RID4, now: NOW });
+  // Qualified (Jono, 19 Oct FINAL): income R15k+ AND age 35-50; every age still books (this only sets qualified_at / the Meta signal)
+  const qa = (age, income) => W39.decideAnswers({ lead: LEAD(), answers: { age_band: age, income_band: income, topics: ['life'] }, request_id: RID4, now: NOW }).set;
+  for (const inc of ['15k_30k', '30k_50k', '50k_80k', '80kplus', '20k_40k', '100kplus']) for (const age of ['35_44', '45_50']) assert.equal(qa(age, inc).stage, 'qualified', `${age} ${inc}`);
+  for (const [age, inc] of [['35_44', 'lt15k'], ['45_50', 'prefer_not'], ['lt35', '50k_80k'], ['51plus', '80kplus'], ['35_44', 'lt20k']]) {
+    assert.equal(qa(age, inc).qualified_at, undefined, `${age} ${inc}: not Qualified`); assert.equal(qa(age, inc).stage, undefined);
+  }
+  assert.equal(qa('35_44', 'lt15k').conv_state.income_flag, 'low', 'under R15k: an internal flag, never a hold');
+  assert.equal(qa('35_44', 'lt15k').budget_band, undefined, 'no budget band: the tier-C routing trigger can never hold a /start/ lead');
+  assert.deepEqual(W39.decideAnswers({ lead: LEAD(), answers: { age_band: '35_44', income_band: 'lt15k', topics: ['life'] }, request_id: RID4, now: NOW }).notes.map((x) => x.activity_type), ['start_page_low_income']);
+  assert.equal(qa('35_44', '15k_30k').conv_state.income_flag, undefined);
   const p = dv(['disability_income', 'life', 'new_bond']);
   assert.deepEqual([p.kind, p.path, p.cover, p.send, p.escalate], ['work', 'answers_v4', false, null, null], 'never routes, no WhatsApp line');
   assert.deepEqual(p.set, { age_band: '35_44', income_band: '20k_40k', qualified_at: '2026-10-19T09:00:00+02:00', stage: 'qualified', reasons: ['disability', 'life_cover'],
