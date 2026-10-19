@@ -15,7 +15,7 @@ const node = (name) => { const n = wf.nodes.find((x) => x.name === name); if (!n
 
 const FETCH = `const M = require('lv-automation').metaAds;
 const W01 = require('lv-automation').w01;
-const client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 5000 });
+const client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_GRAPH_VERSION || $env.META_API_VERSION || 'v25.0', maxInlineWaitMs: 5000 });
 const ev = $('Verify signature + parse leadgen events').item.json;
 if ($input.item.json.id) return [{ json: { action: 'duplicate', leadgen_id: ev.leadgen_id } }]; // webhook re-delivery
 const lead = await client.fetchLead(ev.leadgen_id);

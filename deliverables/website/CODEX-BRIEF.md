@@ -60,7 +60,7 @@ Tell Claude Code: branch name, what changed, `npm run build` + `npm test` result
 **Live checklist (source of truth):** https://claude.ai/artifact/JccX7b52ooU4brtX68Gdiy. Read it first.
 
 **Done and live**
-- Meta: ad account `1651253736358759` (ZAR, SAST), Pixel `1088568384160686`, domain verified, Page `61595175929084` linked to Instagram @sortmycover. Card added; account spending limit R3,000 (about R3,450 with 15% VAT).
+- Meta: ad account `1651253736358759` (ZAR, SAST), Pixel `1088568384160686`, domain verified, Page `1291324720737673` (Graph id; profile id 61595175929084) linked to Instagram @sortmycover. Card added; account spending limit R3,000 (about R3,450 with 15% VAT).
 - Campaign **draft** `SMC | Leads | Cycle 1 | Quiz` (campaign 120248625965480618, ad set 120248625965470618, placeholder ad 120248625965490618). All toggles OFF. R150/day, ages 35-50 hard, 78 affluent suburbs across all provinces, FB + IG feeds/Stories/Reels. Destination is currently `https://sortmycover.co.za/book/`; change it to the per-angle landing pages from section 7 if you prefer.
 - WhatsApp sender +27 60 015 6480 ONLINE, 9 templates approved. Voice receptionist Lindi answers the same number.
 - Broker portal: bio approval, intro card (waiting for Mark), ad likeness consent, per-ad approval, change requests.

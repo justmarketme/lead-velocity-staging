@@ -4,12 +4,9 @@
  * Nothing here is sent unless a caller invokes it with a real pixelId/token. */
 const crypto = require('crypto');
 
-// ASSUMPTION: v23.0 is a current Graph API version; override with META_API_VERSION.
-const DEFAULT_API_VERSION = 'v23.0';
-function apiVersion() {
-  const v = String(process.env.META_API_VERSION || process.env.API_VERSION || DEFAULT_API_VERSION).trim();
-  return v.startsWith('v') ? v : 'v' + v;
-}
+// Graph version: META_GRAPH_VERSION, falling back to META_API_VERSION / API_VERSION, default v25.0 (../graph-version.cjs).
+const { graphVersion } = require('../graph-version.cjs');
+const apiVersion = () => graphVersion(process.env);
 
 const sha256 = (s) => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
 const isHash = (s) => /^[a-f0-9]{64}$/.test(s);

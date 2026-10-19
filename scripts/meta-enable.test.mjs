@@ -8,17 +8,22 @@ const ENV = {
   META_BUSINESS_ID: "222276519074106",
 };
 
+const APP_SCOPED = "122108167305506208"; // what /me returns for the system user (app-scoped), not 61595186266038
+
 /** Fake Graph: state decides what the GETs return; every call is recorded. */
 function fakeGraph(state) {
   const calls = [];
+  const versions = [];
   const fetch = async (url, init = {}) => {
     const u = new URL(url);
     const method = init.method || "GET";
     const params = method === "GET" ? u.searchParams : new URLSearchParams(init.body);
     const path = u.pathname.replace(/^\/v[\d.]+\//, "");
     calls.push({ method, path, params: Object.fromEntries(params) });
+    versions.push(/^\/(v[\d.]+)\//.exec(u.pathname)?.[1]);
     const ok = (b) => ({ ok: true, status: 200, json: async () => b });
-    if (method === "GET" && path === "me") return ok({ id: state.meId ?? DEFAULTS.SYSTEM_USER_ID, name: "SortMyCover n8n" });
+    if (method === "GET" && path === "me") return ok({ id: state.meId ?? APP_SCOPED, name: "SortMyCover n8n" });
+    if (method === "GET" && path === "debug_token") return ok({ data: state.debug ?? { is_valid: true, type: "SYSTEM_USER", app_id: DEFAULTS.APP_ID, user_id: APP_SCOPED } });
     if (method === "GET" && path === `${DEFAULTS.APP_ID}/subscriptions`) return ok({ data: state.appSubs ?? [] });
     if (method === "POST" && path === `${DEFAULTS.APP_ID}/subscriptions`) return ok({ success: true });
     if (method === "GET" && path === DEFAULTS.PAGE_ID) return ok({ id: DEFAULTS.PAGE_ID, access_token: "PAGE-token-abc" });
@@ -28,7 +33,7 @@ function fakeGraph(state) {
     if (method === "GET" && path === `${DEFAULTS.DATASET_ID}/assigned_users`) return ok({ data: state.assigned ?? [] });
     return { ok: false, status: 400, json: async () => ({ error: { code: 100, message: `unexpected ${method} ${path}` } }) };
   };
-  return { fetch, calls };
+  return { fetch, calls, versions };
 }
 const capture = () => { const lines = []; return { lines, log: (s) => lines.push(String(s)) }; };
 const DONE = {
@@ -85,9 +90,51 @@ test("dataset not assigned to the system user fails the run", async () => {
   assert.ok(out.lines.some((l) => l.startsWith("FAIL") && l.includes("dataset")));
 });
 
-test("a token of another user fails the owner check", async () => {
-  const g = fakeGraph({ ...DONE, meId: "123" });
-  assert.equal((await run({ env: ENV, fetch: g.fetch, log: () => {} })).ok, false);
+test("token check uses debug_token (SYSTEM_USER + is_valid), not the /me id", async () => {
+  const g = fakeGraph(DONE);
+  const out = capture();
+  const r = await run({ env: ENV, fetch: g.fetch, log: out.log });
+  assert.ok(r.ok);
+  const dbg = g.calls.find((c) => c.path === "debug_token");
+  assert.equal(dbg.params.input_token, ENV.META_SYSTEM_USER_TOKEN);
+  assert.equal(dbg.params.access_token, `${DEFAULTS.APP_ID}|${ENV.META_APP_SECRET}`);
+  assert.ok(!g.calls.some((c) => c.path === "me"), "no /me id comparison when the app secret is known");
+  assert.ok(out.lines.some((l) => l.startsWith("PASS") && l.includes("system-user token")));
+});
+
+test("a valid USER (not SYSTEM_USER) token, or an invalid one, fails", async () => {
+  for (const debug of [{ is_valid: true, type: "USER" }, { is_valid: false, type: "SYSTEM_USER" }]) {
+    const g = fakeGraph({ ...DONE, debug });
+    assert.equal((await run({ env: ENV, fetch: g.fetch, log: () => {} })).ok, false);
+  }
+});
+
+test("without the app secret, the app-scoped /me id is a WARN, never a FAIL", async () => {
+  const g = fakeGraph(DONE);
+  const out = capture();
+  const { META_APP_SECRET: _omit, ...env } = ENV;
+  await run({ env, fetch: g.fetch, log: out.log });
+  assert.ok(out.lines.some((l) => l.startsWith("WARN") && l.includes(APP_SCOPED)));
+  assert.ok(!out.lines.some((l) => l.startsWith("FAIL") && l.includes("system-user token")));
+});
+
+test("dataset assignment matches the business id or the token's app-scoped id", async () => {
+  for (const id of [DEFAULTS.SYSTEM_USER_ID, APP_SCOPED]) {
+    const g = fakeGraph({ ...DONE, assigned: [{ id, tasks: ["MANAGE"] }] });
+    assert.ok((await run({ env: ENV, fetch: g.fetch, log: () => {} })).ok, id);
+  }
+});
+
+test("the default Page is the Graph Page id, never the profile id", () => {
+  assert.equal(DEFAULTS.PAGE_ID, "1291324720737673");
+  assert.notEqual(DEFAULTS.PAGE_ID, "61595175929084");
+});
+
+test("Graph version: META_GRAPH_VERSION first, META_API_VERSION as fallback, default v25.0", async () => {
+  const urlVersion = async (env) => { const g = fakeGraph(DONE); await run({ env: { ...ENV, ...env }, fetch: g.fetch, log: () => {} }); return g.versions[0]; };
+  assert.equal(await urlVersion({ META_GRAPH_VERSION: "v26.0", META_API_VERSION: "v23.0" }), "v26.0");
+  assert.equal(await urlVersion({ META_API_VERSION: "v23.0" }), "v23.0");
+  assert.equal(await urlVersion({}), "v25.0");
 });
 
 test("missing token: no Graph call needs it, the run fails, nothing is posted", async () => {

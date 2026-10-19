@@ -10,12 +10,9 @@
 const crypto = require('crypto');
 const LP = require('./launch-plan.js');
 
-// ASSUMPTION: v23.0 is a current Graph API version; override with META_API_VERSION.
-const DEFAULT_API_VERSION = 'v23.0';
-function apiVersion() {
-  const v = String(process.env.META_API_VERSION || DEFAULT_API_VERSION).trim();
-  return v.startsWith('v') ? v : 'v' + v;
-}
+// Graph version: META_GRAPH_VERSION, falling back to META_API_VERSION, default v25.0 (../graph-version.cjs).
+const { graphVersion } = require('../graph-version.cjs');
+const apiVersion = () => graphVersion(process.env);
 
 const BACKOFF_PCT = 80;                 // 0.3 #11
 const MAX_BATCH = 50;                   // 6.2

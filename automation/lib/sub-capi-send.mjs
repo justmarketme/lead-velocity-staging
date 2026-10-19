@@ -91,7 +91,7 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
   }
   const body = { data: [ev] };
   if (env.CAPI_TEST_EVENT_CODE) body.test_event_code = env.CAPI_TEST_EVENT_CODE;
-  const version = env.META_GRAPH_VERSION || 'v21.0';
+  const version = env.META_GRAPH_VERSION || env.META_API_VERSION || 'v25.0';
   const url = `https://graph.facebook.com/${version}/${encodeURIComponent(pixel)}/events`;
   if (String(env.DRY_RUN_SENDS || '').toLowerCase() === 'true') return { action: 'dry', reason: 'dry_run', log, test_event_code: env.CAPI_TEST_EVENT_CODE || null };
   return { action: 'send', url, body, log, test_event_code: env.CAPI_TEST_EVENT_CODE || null };

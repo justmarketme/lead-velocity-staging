@@ -210,7 +210,7 @@ async function applyWrite({ d, env = {}, fetchImpl, nowMs, sleep }) {
     // Rehearsal: the token and every guardrail were already checked in decide(); send nothing. Audit rows are still produced.
     return { ok: true, dry_run: true, result: { dry_run: true }, audit: dryAudit(d, nowMs), blockedUntil: 0 };
   }
-  const client = M.createClient({ token: env.META_SYSTEM_USER_TOKEN, apiVersion: env.META_API_VERSION || undefined, confirmSecret: env.META_CONFIRM_SECRET, brand: d.brand,
+  const client = M.createClient({ token: env.META_SYSTEM_USER_TOKEN, apiVersion: env.META_GRAPH_VERSION || env.META_API_VERSION || undefined, confirmSecret: env.META_CONFIRM_SECRET, brand: d.brand,
     fetchImpl, sleep, now: nowMs ? () => nowMs : undefined, maxInlineWaitMs: 15000, maxRetries: 2 });
   const base = { confirmToken: d.confirmToken, confirmedBy: d.confirmedBy };
   try {

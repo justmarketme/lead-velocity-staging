@@ -5,10 +5,11 @@
      node scripts/meta-enable.mjs [--env /opt/leadvelocity-n8n/repo/.env] [--apply]
    It never prints a token, secret or verify token (values are reduced to "set" / "missing").
    What it does (see docs/CAPI-ENABLE-2026-10-18.md):
-     1. The token belongs to the system user (GET /me).
+     1. The token is a valid SYSTEM_USER token (GET /debug_token with the app token; /me only gives an app-scoped id).
      2. App webhook: object=page, field leadgen -> https://n8n.sortmycover.co.za/webhook/meta-leadgen, with the existing
         META_WEBHOOK_VERIFY_TOKEN (app token = META_APP_ID|META_APP_SECRET). POST only when missing or different.
-     3. Page subscription: Page 61595175929084 subscribed to the app for leadgen. POST only when missing.
+     3. Page subscription: Page 1291324720737673 subscribed to the app for leadgen. POST only when missing.
+        (61595175929084 is the Page's PROFILE id: Graph answers 100/33 on it. Use the Page id from /me/accounts.)
      4. Dataset 1088568384160686 is assigned to system user 61595186266038 (read-only check).
      5. Prints (never runs) the brands SQL, lists what is still manual, and recommends META_GRAPH_VERSION. */
 import fs from "node:fs";
@@ -16,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 export const DEFAULTS = {
   APP_ID: "2615802055547479",
-  PAGE_ID: "61595175929084",
+  PAGE_ID: "1291324720737673", // Graph Page id (not the profile id 61595175929084)
   DATASET_ID: "1088568384160686",
   SYSTEM_USER_ID: "61595186266038",
   WABA_ID: "1370588024885127",
@@ -56,7 +57,7 @@ export async function run({ env, fetch: f = globalThis.fetch, apply = false, log
     systemUser: DEFAULTS.SYSTEM_USER_ID,
     waba: env.WABA_ID || DEFAULTS.WABA_ID,
   };
-  const version = env.META_GRAPH_VERSION || DEFAULTS.GRAPH_VERSION;
+  const version = env.META_GRAPH_VERSION || env.META_API_VERSION || DEFAULTS.GRAPH_VERSION;
   const base = `https://graph.facebook.com/${version}`;
   const result = { ok: true, changes: [], manual: [] };
   const bad = (name, why) => { result.ok = false; say("FAIL", name, why); };
@@ -81,14 +82,23 @@ export async function run({ env, fetch: f = globalThis.fetch, apply = false, log
   }
   const sut = env.META_SYSTEM_USER_TOKEN;
 
-  // 1. Token owner
+  // 1. Token type. /me returns the APP-SCOPED id of the system user (e.g. 122108167305506208), not its business id
+  // (61595186266038), so the id is not compared. debug_token (app token) says whether it is a valid SYSTEM_USER token.
+  const tokenIds = new Set([ids.systemUser]);
   if (!sut) bad("system-user token", "META_SYSTEM_USER_TOKEN missing (waits on KG)");
-  else {
+  else if (env.META_APP_SECRET) {
+    try {
+      const d = (await graph("GET", "debug_token", { input_token: sut }, `${ids.app}|${env.META_APP_SECRET}`)).data || {};
+      if (d.user_id) tokenIds.add(String(d.user_id));
+      if (d.is_valid && d.type === "SYSTEM_USER") say("PASS", "token is a system-user token", `valid, app ${d.app_id ?? "?"}, expires ${d.expires_at ? new Date(d.expires_at * 1000).toISOString().slice(0, 10) : "never"}`);
+      else bad("token is a system-user token", `is_valid=${!!d.is_valid}, type=${d.type ?? "?"}`);
+    } catch (e) { bad("token is a system-user token", e.message); }
+  } else {
     try {
       const me = await graph("GET", "me", { fields: "id,name" }, sut);
-      if (me.id === ids.systemUser) say("PASS", "token is the system user", `${me.name ?? ""} (${me.id})`);
-      else bad("token is the system user", `token belongs to ${me.id}, expected ${ids.systemUser}`);
-    } catch (e) { bad("token is the system user", e.message); }
+      tokenIds.add(String(me.id));
+      say("WARN", "token is a system-user token", `token works (${me.name ?? ""}, app-scoped id ${me.id}); set META_APP_SECRET to check its type`);
+    } catch (e) { bad("token is a system-user token", e.message); }
   }
 
   // 2. App webhook (object page, field leadgen)
@@ -139,9 +149,9 @@ export async function run({ env, fetch: f = globalThis.fetch, apply = false, log
       const ds = await graph("GET", ids.dataset, { fields: "id,name" }, sut);
       if (env.META_BUSINESS_ID) {
         const au = await graph("GET", `${ids.dataset}/assigned_users`, { business: env.META_BUSINESS_ID, fields: "id,name,tasks" }, sut);
-        const me = (au.data || []).find((u) => String(u.id) === ids.systemUser);
+        const me = (au.data || []).find((u) => tokenIds.has(String(u.id)));
         if (me) say("PASS", "dataset assigned to system user", `${ds.name ?? ids.dataset}: ${(me.tasks || []).join(", ") || "assigned"}`);
-        else bad("dataset assigned to system user", `system user ${ids.systemUser} not in assigned_users of ${ids.dataset}`);
+        else bad("dataset assigned to system user", `system user ${[...tokenIds].join(" / ")} not in assigned_users of ${ids.dataset}`);
       } else {
         say("WARN", "dataset assigned to system user", `token can read ${ds.name ?? ids.dataset}; set META_BUSINESS_ID to verify the assignment itself`);
       }

@@ -65,7 +65,7 @@ add({ name: 'Note: smc-ads-console', type: 'n8n-nodes-base.stickyNote', typeVers
   '4. Go-live: the share is read from `cycles` here; a browser-sent share is ignored.\n' +
   '5. Token: HMAC `META_CONFIRM_SECRET`, bound to action + target + server params, 15 min. Single use is a unique nonce row in `public.ads_write_log` claimed BEFORE the Graph call (migration smc_17).\n' +
   '6. Result: `ads_write_log` (audited by smc_audit), `ad_objects` cache (budget, status, last_budget_change_at), one `ops.notifications` row (ads_audit).\n\n' +
-  '**Env:** `SUPABASE_JWT_SECRET`, `META_CONFIRM_SECRET` (>= 16 chars), `META_SYSTEM_USER_TOKEN`, `META_API_VERSION` (optional), `PUBLIC_ALLOWED_ORIGINS`, `ADS_DRY_RUN=true` (validate and log, send nothing).\n' +
+  '**Env:** `SUPABASE_JWT_SECRET`, `META_CONFIRM_SECRET` (>= 16 chars), `META_SYSTEM_USER_TOKEN`, `META_GRAPH_VERSION` (fallback `META_API_VERSION`, optional), `PUBLIC_ALLOWED_ORIGINS`, `ADS_DRY_RUN=true` (validate and log, send nothing).\n' +
   'Needs migrations smc_16 (ads_launch_plan) and smc_17 (ads_write_log). A failed Graph call after the claim spends the token: preview again. Never autonomous: only a console tap reaches these webhooks.' } });
 
 const wf = { id: ID, name: 'Ads console webhooks (confirm, budget, ad status, campaign status)', nodes, connections, active: false,
