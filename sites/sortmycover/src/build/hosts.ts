@@ -154,6 +154,10 @@ export function htaccess(): string {
   p("<FilesMatch \"\\.(js|css|woff2)$\">");
   p('  Header set Cache-Control "public, max-age=31536000, immutable"');
   p("</FilesMatch>");
+  p("# the site fonts are also used by the client emails (supabase/functions/_shared/smc_layout.ts), so mail clients may load them");
+  p("<FilesMatch \"\\.woff2$\">");
+  p('  Header set Access-Control-Allow-Origin "*"');
+  p("</FilesMatch>");
   p("<FilesMatch \"\\.(png|webp|avif|jpg|ico|svg|webmanifest)$\">");
   p('  Header set Cache-Control "public, max-age=86400"');
   p("</FilesMatch>");

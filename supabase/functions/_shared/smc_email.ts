@@ -1,20 +1,17 @@
 // SortMyCover branded CLIENT emails. A SortMyCover lead (leads.brand_id IS NOT NULL) must never receive the dark Lead Velocity
-// layout or the Lead Velocity sender. Colours, type and wording come from brand/tokens.json (SortMyCover brand system v1.0.0)
-// and sites/sortmycover/config/site.json: amber #F5A623, charcoal #1F2933, off-white #FBF8F2, amber ink #2A1B02, white cards,
-// rule #DCD6CB, muted #5C6672, DM Sans with a system fallback. No colour outside those tokens is used here.
+// layout or the Lead Velocity sender. The look is the site's (19 Oct 2026, Jono: "to the T"): smc_layout.ts holds the tokens
+// and the layout (white base, navy text and wordmark band, logo yellow accent, DM Sans, pill buttons). No other colour is used.
 // Pure functions: values in, { subject, html, text } out (no Deno APIs), so they can be tested and previewed offline.
 import { esc, htmlToText, textBlocks } from "./lv_email.ts";
 import { cleanRichHtml, looksLikeHtml, type BuiltEmail } from "./lv_emails.ts";
+import { SMC, P_STYLE, smcButtons, smcHeading, smcShell } from "./smc_layout.ts";
 
-export const SMC_BRAND = {
-  amber: "#F5A623", charcoal: "#1F2933", offWhite: "#FBF8F2", accentText: "#2A1B02",
-  white: "#FFFFFF", muted: "#5C6672", rule: "#DCD6CB",
-} as const;
+/** Every colour an SMC email may use (the site tokens, smc_layout.ts). */
+export const SMC_BRAND = SMC;
 
 export const SMC_FROM = "SortMyCover <hello@sortmycover.co.za>";
 export const SMC_REPLY_TO = "hello@sortmycover.co.za";
 const SITE = "https://sortmycover.co.za";
-const F = "'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 // brand/tokens.json brand.disclosure and sites/sortmycover/config/site.json company block.
 const DISCLOSURE = "SortMyCover is a service of Lead Velocity (Pty) Ltd. We connect you with authorised financial services providers. We do not give financial advice, compare products or quote premiums.";
 const ADDRESS = "210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria 0184";
@@ -22,15 +19,14 @@ const ADDRESS = "210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria 
 /** SortMyCover rows carry a brand_id; every legacy Lead Velocity row keeps it NULL. */
 export const isSmcLead = (lead: { brand_id?: string | null } | null | undefined): boolean => !!lead?.brand_id;
 
-const B = SMC_BRAND;
-const P = `margin:0 0 14px;font-family:${F};font-size:16px;line-height:24px;color:${B.charcoal}`;
+const P = P_STYLE;
 
 /** Restyle the Lead Velocity-palette HTML that cleanRichHtml emits into SortMyCover colours (allow-listed output, safe to rewrite). */
 function recolour(html: string): string {
   return html
-    .replace(/color:#b9b0d6/g, `color:${B.charcoal}`)
-    .replace(/color:#ffffff/g, `color:${B.charcoal}`)
-    .replace(/color:#b83df5;text-decoration:none;font-weight:500/g, `color:${B.charcoal};text-decoration:underline;font-weight:500`);
+    .replace(/color:#b9b0d6/g, `color:${SMC.navy}`)
+    .replace(/color:#ffffff/g, `color:${SMC.navy}`)
+    .replace(/color:#b83df5;text-decoration:none;font-weight:500/g, `color:${SMC.navy};text-decoration:underline;font-weight:500`);
 }
 const smcBlocks = (t: unknown) => recolour(textBlocks(t)).replace(/(font-size:15px;line-height:25px)/g, "font-size:16px;line-height:24px");
 
@@ -43,48 +39,20 @@ export interface SmcEmailOptions {
   bodyHtml: string;
   button?: { label: string; url: string };
   signoff?: string;
+  /** A word in the title set in the site's italic serif over the yellow marker. */
+  accent?: string;
 }
 
-/** The SortMyCover layout: off-white page, white card, amber top rule and CTA, charcoal type, brand disclosure footer. */
+/** The SortMyCover layout (smc_layout.ts): the site's white page, navy wordmark band, yellow pill CTA, navy type. */
 export function smcEmail(o: SmcEmailOptions): string {
-  const url = o.button && /^https:\/\/[^\s"<>]+$/.test(o.button.url) ? esc(o.button.url) : SITE;
-  const pre = o.preheader
-    ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${B.offWhite};opacity:0">${esc(o.preheader)}</div>` : "";
-  const button = o.button
-    ? `<tr><td style="padding:6px 36px 28px"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate"><tr><td bgcolor="${B.amber}" style="border-radius:12px;background-color:${B.amber}"><a href="${url}" style="display:inline-block;padding:15px 28px;font-family:${F};font-size:16px;line-height:22px;font-weight:800;color:${B.accentText};text-decoration:none;border-radius:12px">${esc(o.button.label)}</a></td></tr></table></td></tr>` : "";
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
-<title>SortMyCover</title>
-</head>
-<body style="margin:0;padding:0;background-color:${B.offWhite}" bgcolor="${B.offWhite}">
-${pre}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${B.offWhite}" style="background-color:${B.offWhite}">
-<tr><td align="center" style="padding:32px 12px 40px">
-  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:${F}">
-    <tr><td style="padding:0 4px 18px;font-family:${F};font-size:24px;line-height:28px;font-weight:800;letter-spacing:-0.3px;color:${B.charcoal}"><a href="${SITE}" style="color:${B.charcoal};text-decoration:none">SortMyCover</a></td></tr>
-    <tr><td bgcolor="${B.white}" style="background-color:${B.white};border:1px solid ${B.rule};border-radius:16px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr><td height="6" bgcolor="${B.amber}" style="height:6px;line-height:6px;font-size:6px;background-color:${B.amber};border-radius:16px 16px 0 0">&nbsp;</td></tr>
-        <tr><td style="padding:30px 36px 6px">
-          <p style="margin:0 0 10px;font-family:${F};font-size:13px;line-height:18px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:${B.muted}">${esc(o.eyebrow)}</p>
-          <h1 style="margin:0 0 18px;font-family:${F};font-size:28px;line-height:32px;font-weight:800;letter-spacing:-0.4px;color:${B.charcoal}">${esc(o.title)}</h1>
-        </td></tr>
-        <tr><td style="padding:0 36px 8px">${o.bodyHtml}</td></tr>
-${button}
-        <tr><td style="padding:6px 36px 30px"><p style="margin:0;font-family:${F};font-size:16px;line-height:24px;color:${B.charcoal}">Kind regards,<br><strong>${esc(o.signoff ?? "The SortMyCover team")}</strong></p></td></tr>
-      </table>
-    </td></tr>
-    <tr><td style="padding:20px 8px 0;font-family:${F};font-size:12px;line-height:18px;color:${B.muted}">${esc(DISCLOSURE)}<br>Questions? <a href="mailto:${SMC_REPLY_TO}" style="color:${B.muted};text-decoration:underline">${SMC_REPLY_TO}</a> &middot; <a href="${SITE}" style="color:${B.muted};text-decoration:underline">sortmycover.co.za</a><br>${esc(ADDRESS)}</td></tr>
-  </table>
-</td></tr>
-</table>
-</body>
-</html>`;
+  const button = o.button && /^https:\/\/[^\s"<>]+$/.test(o.button.url) ? smcButtons([{ href: o.button.url, label: o.button.label }])
+    : o.button ? smcButtons([{ href: SITE, label: o.button.label }]) : undefined;
+  const muted = "color:inherit;text-decoration:underline";
+  return smcShell({
+    docTitle: "SortMyCover", preheader: o.preheader, eyebrow: o.eyebrow, headingHtml: smcHeading(o.title, o.accent), bodyHtml: o.bodyHtml,
+    actionsHtml: button, signoff: o.signoff,
+    footerLines: [esc(DISCLOSURE), `Questions? <a href="mailto:${SMC_REPLY_TO}" style="${muted}">${SMC_REPLY_TO}</a> &middot; <a href="${SITE}" style="${muted}">sortmycover.co.za</a>`, esc(ADDRESS)],
+  });
 }
 
 function smcText(title: string, parts: string[], signoff = "The SortMyCover team"): string {
@@ -121,7 +89,7 @@ export function smcBookingConfirmationEmail(d: { firstName?: string | null; brok
   const parts = [`Hi ${first},`, `You're booked. ${line}`, "Need to change the time? Reply to this email or WhatsApp us and we'll sort it out."];
   const bodyHtml = parts.map((p) => `<p style="${P}">${esc(p)}</p>`).join("");
   const subject = `Booked: your SortMyCover call on ${d.whenText}`;
-  const html = smcEmail({ preheader: line, eyebrow: "Booking confirmed", title: "Your call is booked", bodyHtml });
+  const html = smcEmail({ preheader: line, eyebrow: "Booking confirmed", title: "Your call is booked", accent: "booked", bodyHtml });
   return { subject, html, text: smcText("Your call is booked", parts) };
 }
 

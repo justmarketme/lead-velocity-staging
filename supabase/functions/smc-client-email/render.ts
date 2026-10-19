@@ -1,21 +1,23 @@
 // smc-client-email renderer: the SortMyCover booking emails a CLIENT gets (confirmed / updated / cancelled).
 // Pure: values in, { subject, html, text, attachments } out. No Deno or Node APIs beyond the web platform (btoa,
-// TextEncoder), no imports, so `deno test` and `node --test` both run smc_client_email.test.ts against this file.
+// TextEncoder); its one import is the import-free layout, so `deno test` and `node --test` both run smc_client_email.test.ts.
 //
-// Layout: the SortMyCover client layout from feat/client-emails-split (_shared/smc_email.ts smcEmail: off-white page,
-// white card, amber top rule, amber CTA, charcoal type, brand tokens from brand/tokens.json) with a logo header and a
+// Layout (19 Oct 2026, Jono: match the site "to the T"): _shared/smc_layout.ts, the site's tokens (white base, navy text and
+// wordmark band, logo yellow only as the accent, DM Sans + the Instrument Serif headline accent, pill buttons), with a
 // footer that never names the operating company (disclosure-wording.md DW-v2: the company appears only on the privacy
 // notice and terms). Copy rules (Jono, 17 Oct 2026): no price or "free" language, no AI / assistant / Lead Velocity
 // wording, SortMyCover is not an FSP and introduces the client to an authorised adviser (name, practice, FSP number),
 // the calendar invite comes from the adviser's own calendar and the client is asked to accept it, time in SAST,
 // reschedule by WhatsApp to SortMyCover +27 60 015 6480, privacy notice link and the POPIA line.
 
+import { escHtml, smcButtons, smcHeading, smcP, smcPanel, smcShell, LINK_STYLE, P_STYLE, WORDMARK_URL, type SmcButton } from "../_shared/smc_layout.ts";
+
 export const SMC_FROM = "SortMyCover <hello@sortmycover.co.za>";
 export const SMC_REPLY_TO = "hello@sortmycover.co.za";
 export const SITE = "https://sortmycover.co.za";
 export const PRIVACY_URL = "https://sortmycover.co.za/privacy/";
-// Served by Caddy on the VPS from /srv/smc-media (checklist/whatsapp-kit/profile/README.md, applied live 17 Oct 2026).
-export const LOGO_URL = "https://n8n.sortmycover.co.za/media/whatsapp/logo-640.png";
+/** The site wordmark (white, on the navy header band). */
+export const LOGO_URL = WORDMARK_URL;
 export const WHATSAPP_DISPLAY = "+27 60 015 6480";
 export const WHATSAPP_LINK = "https://wa.me/27600156480";
 
@@ -34,10 +36,6 @@ const METHOD_LABEL: Record<Method, string> = {
 };
 const SHORT_LABEL: Record<Method, string> = { teams: "Teams", zoom: "Zoom", meet: "Google Meet", whatsapp_call: "WhatsApp", phone: "phone" };
 
-// Brand tokens (brand/tokens.json, SortMyCover brand system v1.0.0); nothing outside them is used.
-const B = { amber: "#F5A623", charcoal: "#1F2933", offWhite: "#FBF8F2", accentText: "#2A1B02", white: "#FFFFFF", muted: "#5C6672", rule: "#DCD6CB" };
-const F = "'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const P = `margin:0 0 14px;font-family:${F};font-size:16px;line-height:24px;color:${B.charcoal}`;
 
 export interface ClientEmailInput {
   kind: Kind;
@@ -146,6 +144,9 @@ export function icsFold(s: string): string {
 /** FNV-1a, only for a stable UID when no booking id is given (not a security function). */
 const fnv = (s: string) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0"); };
 const firstWord = (s: string) => s.trim().split(/\s+/)[0] || s;
+/** The end of the call: slot_end, or start + 30 minutes when a caller leaves it out (validate() already fills it in). */
+export const endOf = (i: Pick<ClientEmailInput, "slot_start" | "slot_end">) =>
+  i.slot_end && !Number.isNaN(Date.parse(i.slot_end)) ? i.slot_end : new Date(Date.parse(i.slot_start) + 30 * 60_000).toISOString();
 
 export function icsFor(i: ClientEmailInput, nowMs: number): string {
   const uid = `${i.booking_id || `smc-${fnv(`${i.to}|${i.slot_start}`)}`}@sortmycover.co.za`;
@@ -160,7 +161,7 @@ export function icsFor(i: ClientEmailInput, nowMs: number): string {
   const seq = i.kind === "booking_confirmed" ? 0 : minute;
   const stamp = i.kind === "booking_confirmed" ? i.slot_start : new Date(minute * 60_000).toISOString();
   return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SortMyCover//Client email//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT",
-    `UID:${uid}`, `DTSTAMP:${icsTime(stamp)}`, `DTSTART:${icsTime(i.slot_start)}`, `DTEND:${icsTime(i.slot_end!)}`,
+    `UID:${uid}`, `DTSTAMP:${icsTime(stamp)}`, `DTSTART:${icsTime(i.slot_start)}`, `DTEND:${icsTime(endOf(i))}`,
     `SUMMARY:${icsText(`${cancelled ? "Cancelled: " : ""}Your call with ${firstWord(i.adviser_name)}`)}`, `LOCATION:${icsText(where)}`,
     `DESCRIPTION:${icsText(desc)}`, ...(i.join_url ? [`URL:${i.join_url}`] : []), `STATUS:${cancelled ? "CANCELLED" : "CONFIRMED"}`, `SEQUENCE:${seq}`,
     "END:VEVENT", "END:VCALENDAR"].map(icsFold).join("\r\n") + "\r\n";
@@ -168,8 +169,7 @@ export function icsFor(i: ClientEmailInput, nowMs: number): string {
 const b64 = (s: string) => { const bytes = new TextEncoder().encode(s); let bin = ""; for (const x of bytes) bin += String.fromCharCode(x); return btoa(bin); };
 
 // ------------------------------------------------------------------ copy
-const HTML_ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => HTML_ESC[c]);
+export const esc = escHtml;
 
 /** The parts of one email, as plain sentences; html() and text() lay out the same parts, so both always say the same thing. */
 export function copyFor(i: ClientEmailInput) {
@@ -177,13 +177,14 @@ export function copyFor(i: ClientEmailInput) {
   const adviserFirst = firstWord(i.adviser_name);
   const how = METHOD_LABEL[i.method];
   const day = dayText(i.slot_start);
-  const time = timeText(i.slot_start, i.slot_end!);
+  const time = timeText(i.slot_start, endOf(i));
   const who = `${i.adviser_name}, ${i.practice_name} (FSP ${i.fsp_number})`;
   const adviser = i.calendar_invite === "adviser";
   const online = ONLINE.has(i.method);
   const k = i.kind;
 
   const eyebrow = k === "booking_confirmed" ? "Booking confirmed" : k === "booking_updated" ? "Booking updated" : "Booking cancelled";
+  const accent = k === "booking_confirmed" ? "booked" : k === "booking_updated" ? "updated" : "cancelled";
   const title = k === "booking_confirmed" ? "Your call is booked" : k === "booking_updated" ? "Your call has been updated" : "Your call has been cancelled";
   const subject = `${k === "booking_confirmed" ? "Booked" : k === "booking_updated" ? "Updated" : "Cancelled"}: your call with ${adviserFirst} on ${shortWhen(i.slot_start)}`;
   const intro = k === "booking_confirmed"
@@ -212,65 +213,26 @@ export function copyFor(i: ClientEmailInput) {
   const popia = "We handle your personal information under POPIA. It goes only to the adviser you were introduced to and is never sold.";
   const why = "You are getting this email because you booked a call through SortMyCover.";
   const preheader = k === "booking_cancelled" ? `Your call with ${adviserFirst} on ${shortWhen(i.slot_start)} is cancelled.` : `${i.adviser_name}, ${day}, ${time}, ${how}.`;
-  return { first, subject, eyebrow, title, intro, calendar, joining, change, details, disclosure, popia, why, preheader, adviserFirst };
+  return { first, subject, eyebrow, title, accent, intro, calendar, joining, change, details, disclosure, popia, why, preheader, adviserFirst };
 }
 
 // ------------------------------------------------------------------ layout
 function html(i: ClientEmailInput, c: ReturnType<typeof copyFor>): string {
-  const p = (s: string) => `<p style="${P}">${esc(s)}</p>`;
-  const panelRows = c.details.map(([k, v]) =>
-    `<tr><td valign="top" style="padding:6px 12px 6px 0;font-family:${F};font-size:13px;line-height:20px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:${B.muted};white-space:nowrap">${esc(k)}</td>` +
-    `<td valign="top" style="padding:6px 0;font-family:${F};font-size:16px;line-height:22px;color:${B.charcoal}${k === "When" ? ";font-weight:800" : ""}">${esc(v)}</td></tr>`).join("");
-  const panel = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 18px;border-collapse:separate"><tr><td bgcolor="${B.offWhite}" style="background-color:${B.offWhite};border:1px solid ${B.rule};border-radius:12px;padding:12px 18px"><table role="presentation" cellpadding="0" cellspacing="0" border="0">${panelRows}</table></td></tr></table>`;
   const join = i.kind !== "booking_cancelled" && i.join_url && ONLINE.has(i.method) ? i.join_url : null;
-  const button = (href: string, label: string, bg: string, fg: string) =>
-    `<td bgcolor="${bg}" style="border-radius:12px;background-color:${bg}${bg === B.white ? `;border:1px solid ${B.charcoal}` : ""}"><a href="${esc(href)}" style="display:inline-block;padding:14px 24px;font-family:${F};font-size:16px;line-height:22px;font-weight:800;color:${fg};text-decoration:none;border-radius:12px">${esc(label)}</a></td>`;
-  const buttons = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0 0 18px"><tr>${join ? button(join, "Join the call", B.amber, B.accentText) + '<td width="10" style="width:10px">&nbsp;</td>' : ""}${button(WHATSAPP_LINK, "Message us on WhatsApp", join ? B.white : B.amber, join ? B.charcoal : B.accentText)}</tr></table>`;
-  const joiningHtml = c.joining ? (join ? `<p style="${P}">Join the ${esc(SHORT_LABEL[i.method])} call with the button below at the time. Link: <a href="${esc(join)}" style="color:${B.charcoal};text-decoration:underline;word-break:break-all">${esc(join)}</a></p>` : p(c.joining)) : "";
-  const body = [p(`Hi ${c.first},`), p(c.intro), i.kind === "booking_cancelled" ? "" : panel, p(c.calendar), joiningHtml, p(c.change)].join("");
-  const pre = `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${B.offWhite};opacity:0">${esc(c.preheader)}</div>`;
-  const small = `font-family:${F};font-size:12px;line-height:18px;color:${B.muted}`;
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
-<title>${esc(c.title)} | SortMyCover</title>
-</head>
-<body style="margin:0;padding:0;background-color:${B.offWhite}" bgcolor="${B.offWhite}">
-${pre}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${B.offWhite}" style="background-color:${B.offWhite}">
-<tr><td align="center" style="padding:32px 12px 40px">
-  <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;font-family:${F}">
-    <tr><td style="padding:0 4px 18px"><a href="${SITE}" style="text-decoration:none;color:${B.charcoal}"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td valign="middle" style="padding:0 10px 0 0"><img src="${LOGO_URL}" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border:0;border-radius:10px"></td>
-      <td valign="middle" style="font-family:${F};font-size:24px;line-height:28px;font-weight:800;letter-spacing:-0.3px;color:${B.charcoal}">SortMyCover</td>
-    </tr></table></a></td></tr>
-    <tr><td bgcolor="${B.white}" style="background-color:${B.white};border:1px solid ${B.rule};border-radius:16px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr><td height="6" bgcolor="${B.amber}" style="height:6px;line-height:6px;font-size:6px;background-color:${B.amber};border-radius:16px 16px 0 0">&nbsp;</td></tr>
-        <tr><td style="padding:30px 36px 6px">
-          <p style="margin:0 0 10px;font-family:${F};font-size:13px;line-height:18px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:${B.muted}">${esc(c.eyebrow)}</p>
-          <h1 style="margin:0 0 18px;font-family:${F};font-size:28px;line-height:32px;font-weight:800;letter-spacing:-0.4px;color:${B.charcoal}">${esc(c.title)}</h1>
-        </td></tr>
-        <tr><td style="padding:0 36px 4px">${body}</td></tr>
-        <tr><td style="padding:0 36px 8px">${buttons}</td></tr>
-        <tr><td style="padding:6px 36px 30px"><p style="margin:0;font-family:${F};font-size:16px;line-height:24px;color:${B.charcoal}">Kind regards,<br><strong>The SortMyCover team</strong></p></td></tr>
-      </table>
-    </td></tr>
-    <tr><td style="padding:20px 8px 0;${small}">
-      <p style="margin:0 0 8px;${small}">${esc(c.disclosure)}</p>
-      <p style="margin:0 0 8px;${small}">${esc(c.popia)} <a href="${PRIVACY_URL}" style="color:${B.muted};text-decoration:underline">Privacy notice</a></p>
-      <p style="margin:0 0 8px;${small}">${esc(c.why)}</p>
-      <p style="margin:0;${small}"><a href="${SITE}" style="color:${B.muted};text-decoration:underline">sortmycover.co.za</a> &middot; <a href="mailto:${SMC_REPLY_TO}" style="color:${B.muted};text-decoration:underline">${SMC_REPLY_TO}</a> &middot; WhatsApp ${esc(WHATSAPP_DISPLAY)}</p>
-    </td></tr>
-  </table>
-</td></tr>
-</table>
-</body>
-</html>`;
+  const joiningHtml = c.joining ? (join
+    ? `<p style="${P_STYLE}">${esc(`Join the ${SHORT_LABEL[i.method]} call with the button below at the time.`)} Link: <a href="${esc(join)}" style="${LINK_STYLE};word-break:break-all">${esc(join)}</a></p>`
+    : smcP(c.joining)) : "";
+  const body = [smcP(`Hi ${c.first},`), smcP(c.intro), i.kind === "booking_cancelled" ? "" : smcPanel(c.details), smcP(c.calendar), joiningHtml, smcP(c.change)].join("");
+  // the WhatsApp number never breaks across lines
+  const bodyHtml = body.split(esc(WHATSAPP_DISPLAY)).join(WHATSAPP_DISPLAY.replace(/ /g, "&nbsp;"));
+  const buttons: SmcButton[] = [...(join ? [{ href: join, label: "Join the call" }] : []), { href: WHATSAPP_LINK, label: "Message us on WhatsApp", secondary: !!join }];
+  const muted = `color:inherit;text-decoration:underline`;
+  return smcShell({
+    docTitle: `${c.title} | SortMyCover`, preheader: c.preheader, eyebrow: c.eyebrow, headingHtml: smcHeading(c.title, c.accent),
+    bodyHtml, actionsHtml: smcButtons(buttons),
+    footerLines: [esc(c.disclosure), `${esc(c.popia)} <a href="${PRIVACY_URL}" style="${muted}">Privacy notice</a>`, esc(c.why),
+      `<a href="${SITE}" style="${muted}">sortmycover.co.za</a> &middot; <a href="mailto:${SMC_REPLY_TO}" style="${muted}">${SMC_REPLY_TO}</a> &middot; WhatsApp ${esc(WHATSAPP_DISPLAY)}`],
+  });
 }
 
 function text(i: ClientEmailInput, c: ReturnType<typeof copyFor>): string {

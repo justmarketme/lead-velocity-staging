@@ -201,7 +201,7 @@ function issueEmailVerification(lead, { secret, now, baseUrl = 'https://sortmyco
   const sig = b64url(crypto.createHmac('sha256', secret).update(`${payload}|${sha(String(lead.email).toLowerCase())}`).digest());
   const token = `${payload}.${sig}`;
   const link = `${baseUrl}/v/${token}`;
-  const vars = { first_name: firstWord(lead.first_name), adviser, link, code };
+  const vars = { first_name: firstWord(lead.first_name) || 'there', adviser, link, code };
   return {
     set: { email_verify_code_hash: sha(`${lead.id}|${code}`), email_verify_sent_at: new Date(now).toISOString(), email_verify_expires_at: new Date(exp * 1000).toISOString(), email_verify_attempts: 0 },
     code, token, link,

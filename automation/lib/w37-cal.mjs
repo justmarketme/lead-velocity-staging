@@ -3,6 +3,7 @@
 // n8n /webhook/cal. W37 verifies the signature, stores the lead + appointment + consent in the Lead Velocity CRM and sends the
 // UTILITY template booking_confirm_chat ("Yes, let's chat" -> W07 contact confirm). Pure functions; the W37 Code nodes call them
 // through require('lv-automation').w37, and automation/tests/W37.test.mjs runs the same code.
+import * as L from './smc-email-layout.mjs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { toE164 } from './w07.mjs';
 
@@ -207,22 +208,20 @@ export function confirmationEmail(ev, plan, env = {}, { appointmentId = null, no
     "We'll message you on WhatsApp from +27 60 015 6480 to confirm a few things before the call.", '',
     `Need another time? ${links.reschedule}`, `Can't make it? ${links.cancel}`, '', 'The calendar invite is attached.', '',
     'SortMyCover', 'sortmycover.co.za | Privacy notice: https://sortmycover.co.za/privacy/'].join('\n');
-  const btn = (href, label, bg, fg) => `<a href="${esc(href)}" style="display:inline-block;padding:12px 20px;border-radius:999px;background:${bg};color:${fg};font-weight:700;text-decoration:none;margin:4px 8px 4px 0">${esc(label)}</a>`;
-  const html = `<!doctype html><html><body style="margin:0;background:#FBF8F2;font-family:'DM Sans',Arial,sans-serif;color:#1F2933">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FBF8F2"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden">
-<tr><td style="background:#1F2933;padding:20px 28px;color:#FBF8F2;font-size:20px;font-weight:800">Sort<span style="color:#F5A623">My</span>Cover</td></tr>
-<tr><td style="padding:28px">
-<p style="margin:0 0 12px;font-size:16px">Hi ${esc(first)},</p>
-<p style="margin:0 0 16px;font-size:16px;line-height:1.5">Your call with <strong>${esc(adviser)}</strong> is booked.</p>
-<p style="margin:0 0 20px;padding:16px;border-radius:12px;background:#FFF4E0;font-size:18px;font-weight:700;line-height:1.4">${esc(when)}<br><span style="font-size:14px;font-weight:500">South African time, by ${esc(how)}</span></p>
-${ev.video_url ? `<p style="margin:0 0 20px">${btn(ev.video_url, 'Join the call', '#F5A623', '#2A1B02')}</p>` : ''}
-<p style="margin:0 0 20px;font-size:15px;line-height:1.5">We'll message you on WhatsApp from <strong>+27 60 015 6480</strong> to confirm a few things before the call.</p>
-<p style="margin:0 0 8px">${btn(links.reschedule, 'Reschedule', '#1F2933', '#FBF8F2')}${btn(links.cancel, 'Cancel', '#ffffff', '#1F2933')}</p>
-<p style="margin:16px 0 0;font-size:13px;color:#52606D">The calendar invite is attached.</p>
-</td></tr>
-<tr><td style="padding:16px 28px;background:#FBF8F2;font-size:12px;color:#52606D">SortMyCover | <a href="https://sortmycover.co.za" style="color:#52606D">sortmycover.co.za</a> | <a href="https://sortmycover.co.za/privacy/" style="color:#52606D">Privacy notice</a></td></tr>
-</table></td></tr></table></body></html>`;
+  // the site's look (19 Oct 2026, Jono: client emails match the site "to the T"): automation/lib/smc-email-layout.mjs
+  const muted = 'color:inherit;text-decoration:underline';
+  const html = L.smcShell({
+    docTitle: 'Your call is booked | SortMyCover', preheader: `${adviser}, ${when} (South African time), by ${how}.`, eyebrow: 'Booking confirmed',
+    headingHtml: L.smcHeading('Your call is booked', 'booked'),
+    bodyHtml: L.smcP(`Hi ${first},`) + L.smcP(`Your call with ${adviser} is booked.`)
+      + L.smcPanel([['When', `${when} (South African time)`], ['How', how], ['Adviser', adviser]])
+      + L.smcP("We'll message you on WhatsApp from +27 60 015 6480 to confirm a few things before the call.")
+      + L.smcP('The calendar invite is attached.'),
+    actionsHtml: L.smcButtons([...(ev.video_url ? [{ href: ev.video_url, label: 'Join the call' }] : []),
+      { href: links.reschedule, label: 'Reschedule', secondary: !!ev.video_url }, { href: links.cancel, label: 'Cancel', secondary: true }]),
+    footerLines: ['You are getting this email because you booked a call through SortMyCover.',
+      `<a href="https://sortmycover.co.za" style="${muted}">sortmycover.co.za</a> &middot; <a href="https://sortmycover.co.za/privacy/" style="${muted}">Privacy notice</a>`],
+  });
   const ics = icsFor(ev, { adviser, now, env });
   const body = { from, to: [ev.email], subject, text, html,
     attachments: [{ filename: 'sortmycover-call.ics', content: Buffer.from(ics, 'utf8').toString('base64'), content_type: 'text/calendar; charset=utf-8; method=PUBLISH' }],

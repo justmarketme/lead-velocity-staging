@@ -11,6 +11,7 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const C = require('../ctwa/capture-v2.js');
+import { escHtml, smcButtons, smcHeading, smcP, smcShell, LINK_STYLE, P_STYLE, SMC_SITE } from './smc-email-layout.mjs';
 
 export const RESEND_URL = 'https://api.resend.com/emails';
 export const SMC_EMAIL_RELAY_URL = 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-email-send';
@@ -55,7 +56,8 @@ export function issuePlan(lead, env = {}, now = Date.now()) {
   const iss = C.issueEmailVerification(lead, { secret: env.EMAIL_VERIFY_SECRET, now, baseUrl: env.VERIFY_BASE_URL || 'https://sortmycover.co.za', adviser: first(lead.adviser_name) || 'your adviser' });
   if (!iss) return { action: 'skip', reason: 'no_email' };
   const m = iss.mail.message;
-  const body = { from: env.VERIFY_EMAIL_FROM || DEFAULT_FROM, to: [lead.email], subject: m.subject, text: m.body.content, ...(env.VERIFY_EMAIL_REPLY_TO ? { reply_to: env.VERIFY_EMAIL_REPLY_TO } : {}),
+  const html = verifyEmailHtml({ firstName: first(lead.first_name), adviser: first(lead.adviser_name) || 'your adviser', link: iss.link });
+  const body = { from: env.VERIFY_EMAIL_FROM || DEFAULT_FROM, to: [lead.email], subject: m.subject, html, text: m.body.content, ...(env.VERIFY_EMAIL_REPLY_TO ? { reply_to: env.VERIFY_EMAIL_REPLY_TO } : {}),
     tags: [{ name: 'flow', value: 'email_verification' }] };
   return {
     action: 'send',
@@ -97,9 +99,27 @@ export function linkPlan(token, lead, env = {}, now = Date.now()) {
   return { ok: true, set: r.set, status: 200, page: page('Your email is confirmed', 'Thank you. You can close this page.'), activity: { activity_type: 'email_verified', payload: { via: 'link' } } };
 }
 
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/** The verify email in the site's look (19 Oct 2026, Jono: client emails match the site "to the T"). Same words as the
+    text part (capture-v2 COPY.verify_body), with the link as the yellow button. */
+export function verifyEmailHtml({ firstName, adviser, link }) {
+  const muted = 'color:inherit;text-decoration:underline';
+  return smcShell({
+    docTitle: 'Confirm your email | SortMyCover',
+    preheader: `Confirm this address so ${adviser} can send you your meeting details.`,
+    eyebrow: 'One quick step',
+    headingHtml: smcHeading('Confirm your email', 'email'),
+    bodyHtml: smcP(`Hi ${firstName || 'there'},`) + smcP(`Please confirm this is your email address so ${adviser} can send you your meeting details.`),
+    actionsHtml: smcButtons([{ href: link, label: 'Confirm my email' }])
+      + `<p style="${P_STYLE};font-size:14px;line-height:22px">The link works for 24 hours. If you did not ask for this, ignore this email.</p>`
+      + `<p style="${P_STYLE};font-size:14px;line-height:22px">If the button does not work, open this link: <a href="${escHtml(link)}" style="${LINK_STYLE};word-break:break-all">${escHtml(link)}</a></p>`,
+    footerLines: ['You are getting this email because this address was given to book a call through SortMyCover.',
+      `<a href="${SMC_SITE}" style="${muted}">sortmycover.co.za</a> &middot; <a href="${SMC_SITE}/privacy/" style="${muted}">Privacy notice</a>`],
+  });
+}
+
+/** The page the one-tap link opens, in the same look. */
 export function page(title, line) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)}</title>`
-    + '<style>body{font-family:system-ui,sans-serif;margin:0;padding:48px 16px;background:#f7f7f5;color:#1d1d1b}main{max-width:420px;margin:auto;background:#fff;border-radius:12px;padding:32px}h1{font-size:22px;margin:0 0 12px}p{margin:0;line-height:1.5}</style>'
-    + `</head><body><main><h1>${esc(title)}</h1><p>${esc(line)}</p><p style="margin-top:24px;color:#777">SortMyCover</p></main></body></html>`;
+  return smcShell({ docTitle: `${title} | SortMyCover`, eyebrow: 'SortMyCover', headingHtml: smcHeading(title), bodyHtml: smcP(line), signoff: null,
+    footerLines: [`<a href="${SMC_SITE}" style="color:inherit;text-decoration:underline">sortmycover.co.za</a>`] })
+    .replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<meta name="robots" content="noindex">');
 }

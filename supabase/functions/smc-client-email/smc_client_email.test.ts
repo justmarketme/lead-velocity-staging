@@ -72,7 +72,14 @@ test("booking_confirmed (Teams, invite from the adviser's calendar): adviser, pr
   assert.match(m.html, /https:\/\/wa\.me\/27600156480/);
   assert.ok(m.html.includes(`src="${LOGO_URL}"`) && /^https:\/\//.test(LOGO_URL), "absolute https logo");
   assert.match(m.html, /href="https:\/\/teams\.microsoft\.com\/l\/meetup-join\/TEST_123"[^>]*>Join the call</);
-  assert.match(m.html, /#F5A623/); assert.match(m.html, /#1F2933/); assert.match(m.html, /#FBF8F2/);
+  // the site's look (19 Oct 2026): white base, navy text and wordmark band, logo yellow accent; no cream / off-white
+  assert.match(m.html, /#F5A623/); assert.match(m.html, /#1F2933/); assert.match(m.html, /background-color:#FFFFFF/);
+  assert.doesNotMatch(m.html, /#FBF8F2|#DCD6CB/i, "no cream page or beige rule");
+  assert.equal(LOGO_URL, "https://sortmycover.co.za/email/wordmark-white.png", "the site wordmark, not the app-icon tile");
+  assert.match(m.html, /alt="SortMyCover"/);
+  assert.match(m.html, /font-family:'DM Sans'/);
+  assert.match(m.html, /border-radius:999px/, "pill buttons, as on the site");
+  assert.match(m.html, /<em [^>]*Instrument Serif[^>]*>booked<\/em>/, "the headline accent word, as on the site's page titles");
   assert.equal(m.attachments.length, 0, "the adviser's calendar sends the invite; no file attached");
 });
 
@@ -214,4 +221,14 @@ test("handler: Resend refusal or outage -> 502 without echoing the recipient", a
   const down = harness({ resend: () => { throw new Error("connection reset"); } });
   const d = await down.post(BASE);
   assert.equal(d.status, 502); assert.equal((await d.json()).error, "resend_unreachable");
+});
+
+test("render() without slot_end ends the call 30 minutes after the start, never NaN", () => {
+  const { slot_end: _drop, ...noEnd } = ok(BASE);
+  for (const calendar_invite of ["adviser", "attached"] as const) {
+    const m = render({ ...noEnd, calendar_invite }, NOW);
+    assert.doesNotMatch(m.html + m.text, /NaN/);
+    assert.match(m.text, /10:00 to 10:30 \(South African time\)/);
+    if (calendar_invite === "attached") assert.match(fromB64(m.attachments[0].content), /DTEND:20261021T083000Z/);
+  }
 });

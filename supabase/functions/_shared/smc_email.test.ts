@@ -16,7 +16,10 @@ function colours(html: string): string[] { return [...new Set((html.match(/#[0-9
 function assertSmcLook(html: string, label: string) {
   for (const c of colours(html)) assert(TOKENS.includes(c), `${label}: colour ${c} is not a SortMyCover brand token`);
   for (const lv of LV_COLOURS) assert(!html.toLowerCase().includes(lv), `${label}: Lead Velocity styling leaked (${lv})`);
-  assert(!/url\(/i.test(html), `${label}: CSS url() found`);
+  // the only url() allowed is the site's own font files (@font-face); nothing else is fetched by CSS
+  for (const u of html.match(/url\([^)]*\)/gi) ?? []) assert(/^url\(https:\/\/sortmycover\.co\.za\/fonts\/[\w.-]+\.woff2\)$/.test(u), `${label}: CSS ${u}`);
+  assert(html.includes("https://sortmycover.co.za/email/wordmark-white.png"), `${label}: not the site wordmark`);
+  assert(!/#fbf8f2|#dcd6cb/i.test(html), `${label}: cream / beige from the old layout`);
   assert(html.includes("SortMyCover"), `${label}: no SortMyCover wordmark`);
   assert(html.includes("hello@sortmycover.co.za"), `${label}: no SMC contact`);
   assert(!html.includes("howzit@leadvelocity.co.za"), `${label}: LV contact leaked`);
