@@ -24,7 +24,7 @@ import {
   AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, TOKEN_KEY, TOPICS, WHY_WHATSAPP, afterAdviser, answersPayload, availableMethods, canFinishTopics,
   bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
   namedConsent, nextStep, onLoadFailure, prettyLocal, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt, startIntroLine,
-  guestEmail, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, readMoveFromHash, suggestEmail, toE164, withinDays, toggleTopic, validEmail, validFirstName, waLink,
+  guestEmail, inviteLine, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, readMoveFromHash, suggestEmail, toE164, withinDays, toggleTopic, validEmail, validFirstName, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
 
@@ -487,7 +487,8 @@ function StartFlow() {
       </div>
     );
   };
-  const guestLine = guestSent ? <p className="st-done-p">We've sent the invite to you and {guestSent}.</p> : null;
+  /** Teams only: what happens with the invite (held = waiting on the email link, so nothing is sent yet). */
+  const inviteNote = (b: Booking | null) => { const t = b && b.method !== "phone" ? inviteLine(b.held, guestSent) : null; return t ? <p className="st-done-p" data-invite>{t}</p> : null; };
   /** Switching to a phone call clears any guest (the guest field is on the Teams step only). */
   const pickMethod = (m: Method) => { setMethod(m); if (m !== "teams") { setGuestOn(false); setGuest(""); setGuestErr(null); } };
   const slotList = (retry: () => void) => {
@@ -565,7 +566,7 @@ function StartFlow() {
           {b.method === "phone"
             ? <p className="st-done-p">{Who} will call you{callOn ? ` on ${callOn}` : ""} at {formatTime(b.start)} on {formatDay(b.start)}. Your confirmation and reminders come on WhatsApp.</p>
             : <p className="st-done-p">{b.held ? "Check your email and tap the link to confirm." : "Your calendar invite is on its way."}</p>}
-          {guestLine}
+          {inviteNote(b)}
           <p className="st-done-p"><strong>Just a few quick things so {who} is well prepared.</strong> It takes about 30 seconds.</p>
           <div className="st-foot">
             <button type="button" className="btn st-btn" onClick={() => go("age")}>Carry on</button>
@@ -595,8 +596,7 @@ function StartFlow() {
           <span className="st-bigtick" aria-hidden="true"><TickSvg size={34} width={3.4} /></span>
           <Q ref={headRef} className="st-done-h">Great, that's <em>all set.</em></Q>
           <p className="st-done-p">{Who} has what they need{b ? ` for ${formatWhen(b.start)}` : " for your call"}. We'll be in touch on WhatsApp to remind you along the way.</p>
-          {guestLine}
-          {b?.held && b.method !== "phone" && <p className="st-done-p">If you haven't yet, check your email and tap the link to confirm.</p>}
+          {inviteNote(b)}
           <div className="st-foot">
             <a className="btn st-btn" href={WA}>Back to WhatsApp</a>
             <p className="st-fine">Nothing is bought on the call. Any next step is your choice.</p>

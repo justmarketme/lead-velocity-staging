@@ -117,8 +117,10 @@ Header always set X-Robots-Tag "noindex, nofollow" env=CAMPAIGN_HOST
 SetEnvIf Request_URI "^/start(/|$)" START_PAGE=1
 Header always set X-Robots-Tag "noindex, nofollow" env=START_PAGE
 Header always set Referrer-Policy "no-referrer" env=START_PAGE
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com https://cmsylaupctrbsvzrgzwy.supabase.co; font-src 'self'; connect-src 'self' https://n8n.sortmycover.co.za https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://n8n.sortmycover.co.za; base-uri 'none'; object-src 'none'; frame-ancestors 'none'" env=START_PAGE
 Header always set X-Robots-Tag "noindex, nofollow" env=REDIRECT_START_PAGE
 Header always set Referrer-Policy "no-referrer" env=REDIRECT_START_PAGE
+Header always set Content-Security-Policy "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com https://cmsylaupctrbsvzrgzwy.supabase.co; font-src 'self'; connect-src 'self' https://n8n.sortmycover.co.za https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://n8n.sortmycover.co.za; base-uri 'none'; object-src 'none'; frame-ancestors 'none'" env=REDIRECT_START_PAGE
 <FilesMatch "\.(html)$">
   Header set Cache-Control "public, max-age=0, must-revalidate"
 </FilesMatch>

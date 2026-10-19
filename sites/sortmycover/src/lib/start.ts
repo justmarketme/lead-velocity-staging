@@ -427,3 +427,10 @@ export const moveNeedsNumber = (method: Method, booking: BookingState, contact: 
   method === "phone" && booking.method !== "phone" && !contact?.call_number;
 /** Body for POST /start/move: { slot_start, method?, request_id } (contract "Reschedule (v4.6)"); the method is always sent. */
 export const moveBody = (slot_start: string, method: Method, request_id: string) => ({ slot_start, method, request_id });
+
+/** The invite line on Booked and All set (Teams only; a phone call has no invite). While the booking is held (waiting on the email
+    link) nothing has been sent yet, so it says what happens after the tap; once booked it names the guest it went to. */
+export function inviteLine(held: boolean, guest: string | null): string | null {
+  if (held) return guest ? `Once you tap the link in your email, we'll send the invite to you and ${guest}.` : "Once you tap the link in your email, we'll send your invite.";
+  return guest ? `We've sent the invite to you and ${guest}.` : null;
+}

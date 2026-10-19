@@ -10,7 +10,7 @@ import { AdviserCard } from "../src/pages/Start";
 import { MOCK_ADVISER, createMockApi, mockPostLead, type MockLog } from "../src/lib/start-mock";
 import consentJson from "../config/consent.json";
 import {
-  AGE_BANDS, INCOME_BANDS, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, prettyLocal, readMoveFromHash, withinDays, INTRO_DISCLOSURE, START_ADVISER, TOPICS, afterAdviser, answersComplete, answersPayload, availableMethods, bookBody, bookingCalls,
+  AGE_BANDS, INCOME_BANDS, inviteLine, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, prettyLocal, readMoveFromHash, withinDays, INTRO_DISCLOSURE, START_ADVISER, TOPICS, afterAdviser, answersComplete, answersPayload, availableMethods, bookBody, bookingCalls,
   canFinishTopics, cleanAnswers, contactPayload, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, guestEmail, initials,
   leadAttribution, leadBody, limitGroups, methodLabel, namedConsent, nextStep, onLoadFailure, prettyMobile, prevStep, progress, readTokenFromHash, resumeAt,
   startIntroLine, stepNumber, suggestEmail, toE164, toSaNumber, toggleTopic, validEmail, waLink, WHY_WHATSAPP,
@@ -183,6 +183,9 @@ describe("adviser confirm gate (two-phase POST /start/adviser before any open ti
     const html = renderToStaticMarkup(createElement(AdviserCard, { adviser: { ...other, photo_url: "https://example.com/t.jpg" } }));
     expect(html).toMatch(/<img[^>]+src="https:\/\/example\.com\/t\.jpg"/);
     expect(html).not.toContain("st-bio");
+    // a photo that fails to load (blocked, 404) falls back to the initials
+    expect(PAGE).toContain("onError={() => setBroken(true)}");
+    expect(PAGE).toMatch(/const pic = adviser\.photo_url && !broken \? adviser\.photo_url : null/);
     expect(html).not.toContain("“");
   });
   it("the required small print sits under Book this time, in the contract wording", () => {
@@ -285,8 +288,23 @@ describe("someone else joining (optional guest, Teams invite step only)", () => 
     expect(PAGE).not.toContain("Add their email so they get the details too");
     expect(PAGE).toMatch(/if \(m !== "teams"\) \{ setGuestOn\(false\); setGuest\(""\); setGuestErr\(null\); \}/);
     expect(PAGE).toContain("Someone else joining?");
-    expect(PAGE).toContain("We've sent the invite to you and {guestSent}.");
-    expect(PAGE.match(/\{guestLine\}/g)?.length).toBe(2);
+    expect(PAGE.match(/\{inviteNote\(b\)\}/g)?.length).toBe(2); // Booked and All set
+  });
+});
+
+describe("invite line on Booked and All set: held (waiting on the email link) vs booked", () => {
+  it("held: nothing is sent yet, so it says what happens after the tap (with and without a guest)", () => {
+    expect(inviteLine(true, "thabo@gmail.com")).toBe("Once you tap the link in your email, we'll send the invite to you and thabo@gmail.com.");
+    expect(inviteLine(true, null)).toBe("Once you tap the link in your email, we'll send your invite.");
+    expect(inviteLine(true, "thabo@gmail.com")).not.toMatch(/We've sent/);
+  });
+  it("booked: names the guest it went to; nothing extra without a guest", () => {
+    expect(inviteLine(false, "thabo@gmail.com")).toBe("We've sent the invite to you and thabo@gmail.com.");
+    expect(inviteLine(false, null)).toBeNull();
+  });
+  it("the page shows it for Teams only, from the booking's held state", () => {
+    expect(PAGE).toContain('b && b.method !== "phone" ? inviteLine(b.held, guestSent) : null');
+    expect(PAGE).not.toContain("We've sent the invite to you and {guestSent}");
   });
 });
 
