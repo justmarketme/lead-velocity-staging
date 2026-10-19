@@ -296,7 +296,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, email_verified: c.email_verified === true || c.email_verified === 't', call_number: c.call_number, best_time: c.best_time, email_verify_pending: c.email_verify_pending === true || c.email_verify_pending === 't' } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name, fsp_number: c.fsp_number || null, practice_name: c.practice_name || null }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: r.route === 'email_code' ? '[email verification code]' : r.route === 'email_reply' ? '[email address]' : pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
+        "jsCode": "const L = require('lv-automation').w07;\nlet msg; try { msg = $('Verify signature + normalise').item.json.msg; } catch (e) { msg = $('W03 forward: loop guard (origin w03)').item.json.msg; } // I-37e: W03 hand-back carries origin 'w03'\nconst c = $json;\nconst lead = c.id ? { id: c.id, first_name: c.first_name, last_name: c.last_name, phone: c.phone, line_type: c.line_type, brand_id: c.brand_id, broker_id: c.broker_id, stage: c.stage, conv_state: c.conv_state || {}, opted_out_at: c.opted_out_at, language: c.language, origin: c.origin, age_band: c.age_band, budget_band: c.budget_band, method_pref: c.method_pref, email: c.email, email_verified: c.email_verified === true || c.email_verified === 't', call_number: c.call_number, best_time: c.best_time, email_verify_pending: c.email_verify_pending === true || c.email_verify_pending === 't' } : null;\nconst brokerNumbers = new Set(c.from_broker_id ? [msg.from] : []);\nconst opsNumbers = new Set([$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean).map((x) => '+' + String(x).replace(/\\D/g, '')));\nconst r = L.routeInbound(msg, { lead, broker_numbers: brokerNumbers, ops_numbers: opsNumbers, broker_status: c.from_broker_status, has_live_booking: !!c.booking_id, suppressed: c.suppressed });\nconst pre = L.preStep(msg, lead || {}, { contact_person: c.contact_person });\nconst booking = c.booking_id ? { id: c.booking_id, appointment_date: c.appointment_date, method: c.method, status: c.booking_status, graph_event_id: c.graph_event_id } : null;\nreturn { json: { route: r.route, reason: r.reason, ...(r.delegate ? { delegate: r.delegate } : {}), msg, lead, booking, broker: { id: c.broker_id || c.from_broker_id, contact_person: c.contact_person, firm_name: c.firm_name, fsp_number: c.fsp_number || null, practice_name: c.practice_name || null }, from_broker_id: c.from_broker_id, brand_id: (lead && lead.brand_id) || c.from_broker_brand_id || null, last_inbound_at: c.last_inbound_at, pre: pre.pre, text_llm: pre.text_llm, text_store: r.route === 'email_code' ? '[email verification code]' : r.route === 'email_reply' ? '[email address]' : pre.text_store, adviser_first: pre.adviser_first, skip_llm: pre.skip_llm } };"
       }
     },
     {
@@ -3147,6 +3147,224 @@
         "mode": "runOnceForAllItems",
         "jsCode": "// DRY_RUN_SENDS=true: nothing leaves the box (notify). Pass the input on with a fake 2xx so downstream logging still runs.\nreturn $input.all().map((i, n) => ({ json: { ...i.json, dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:' + n }] } } }));"
       }
+    },
+    {
+      "id": "w07-banner-plan",
+      "name": "Session banner plan (W07)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -260,
+        1360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-banner.cjs (patch-w07-session-banners.mjs): WA_SESSION_BANNERS=on -> the header card first for a list / Twilio buttons.\nconst P = require('lv-automation').waProvider;\nconst sb = P.sessionBanner($json.wa, { WA_SESSION_BANNERS: $env.WA_SESSION_BANNERS, WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER });\nreturn { json: { ...$json, wa: sb.wa, _banner: sb.banner } };"
+      }
+    },
+    {
+      "id": "w07-banner-if",
+      "name": "Banner first? (W07)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        1360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json._banner }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w07-banner-in",
+      "name": "SUB input (WhatsApp send (banner, W07))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The banner image through smc-whatsapp-send (same transport, DRY_RUN_SENDS and suppression as the reply); own correlation.\nconst wa = $json._banner;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: { kind: 'prebuilt', wa, to: wa && wa.to, record: false, caller: 'W07', bypass_suppression: false, phone_number_id: null, lead_id: null, broker_id: null,\n  correlation: 'W07:banner:' + exec + ':' + idx } };"
+      }
+    },
+    {
+      "id": "w07-banner-send",
+      "name": "WhatsApp send (banner, W07)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        1200
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "w07-banner-done",
+      "name": "Banner done: the message (W07)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        1280
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: $('Banner first? (W07)').item.json };"
+      }
+    },
+    {
+      "id": "w07-resched-flag",
+      "name": "Reschedule card: brand flag (W07)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -40,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- brands.start_page (migration 20261018120000, default 'off'), read through to_jsonb so the query never depends on the column.\n-- Always one row: the W10-bound item rides along as $2 and comes back as item.\nSELECT $2::jsonb AS item,\n       coalesce((SELECT to_jsonb(br)->>'start_page' FROM public.brands br WHERE br.id = nullif($1, '')::uuid), 'off') = 'on' AS start_page;",
+        "options": {
+          "queryReplacement": "={{ [ $json.brand_id || '', JSON.stringify($json) ] }}"
+        }
+      }
+    },
+    {
+      "id": "w07-resched-plan",
+      "name": "Reschedule card plan (W07)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-provider.mjs rescheduleCardPlan (patch-w07-reschedule-card.mjs). No card -> the item goes to W10 unchanged.\nconst A = require('lv-automation'); const P = A.waProvider;\nconst item = typeof $json.item === 'string' ? JSON.parse($json.item) : ($json.item || {});\nconst sp = $json.start_page === true || $json.start_page === 't';\nlet token = null;\nif (sp && P.isRescheduleRequest(item) && item.lead && item.lead.id) { try { token = A.leadToken.mintLeadToken(item.lead.id, { secret: $env.LEAD_TOKEN_SECRET }).token; } catch (e) { token = null; } }\nconst plan = P.rescheduleCardPlan(item, { start_page: sp, token, env: { WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER, TWILIO_CONTENT_SIDS: $env.TWILIO_CONTENT_SIDS } });\nreturn { json: { ...item, reschedule_card: plan.send ? { via: plan.via, wa: plan.send } : null, reschedule_card_skip: plan.skip || null } };"
+      }
+    },
+    {
+      "id": "w07-resched-if",
+      "name": "Reschedule card? (W07)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.reschedule_card }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w07-resched-in",
+      "name": "SUB input (Send reschedule card (W07))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        240
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The card through smc-whatsapp-send; record:true = the sub writes the communications row (never-silent sees it).\nconst c = $json.reschedule_card;\nreturn { json: { kind: 'prebuilt', wa: c.wa, to: c.wa && c.wa.to, record: true, caller: 'W07', bypass_suppression: false, phone_number_id: null,\n  lead_id: ($json.lead && $json.lead.id) || null, broker_id: null,\n  correlation: 'W07:reschedule_card:' + (($json.msg && ($json.msg.wamid || $json.msg.id)) || (($json.booking && $json.booking.id) || 'x') + ':' + Date.now()) } };"
+      }
+    },
+    {
+      "id": "w07-resched-send",
+      "name": "Send reschedule card (W07)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        240
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "w07-resched-back",
+      "name": "Not a card: on to W10 (W07)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// unchanged W10 input (the plan fields removed)\nconst j = { ...$json }; delete j.reschedule_card; delete j.reschedule_card_skip; return { json: j };"
+      }
     }
   ],
   "connections": {
@@ -3331,7 +3549,7 @@
         ],
         [
           {
-            "node": "-> W10",
+            "node": "Reschedule card: brand flag (W07)",
             "type": "main",
             "index": 0
           },
@@ -3715,7 +3933,7 @@
         ],
         [
           {
-            "node": "-> W10",
+            "node": "Reschedule card: brand flag (W07)",
             "type": "main",
             "index": 0
           },
@@ -4191,7 +4409,7 @@
       "main": [
         [
           {
-            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "node": "Session banner plan (W07)",
             "type": "main",
             "index": 0
           }
@@ -4397,6 +4615,130 @@
     "Dry-run stub (Never silent: notify Jono (EMMA /api/notify))": {
       "main": [
         []
+      ]
+    },
+    "Session banner plan (W07)": {
+      "main": [
+        [
+          {
+            "node": "Banner first? (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Banner first? (W07)": {
+      "main": [
+        [
+          {
+            "node": "SUB input (WhatsApp send (banner, W07))",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (WhatsApp send (banner, W07))": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp send (banner, W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp send (banner, W07)": {
+      "main": [
+        [
+          {
+            "node": "Banner done: the message (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Banner done: the message (W07)": {
+      "main": [
+        [
+          {
+            "node": "SUB input (Send WhatsApp (session, in 24-h window))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reschedule card: brand flag (W07)": {
+      "main": [
+        [
+          {
+            "node": "Reschedule card plan (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reschedule card plan (W07)": {
+      "main": [
+        [
+          {
+            "node": "Reschedule card? (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reschedule card? (W07)": {
+      "main": [
+        [
+          {
+            "node": "SUB input (Send reschedule card (W07))",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not a card: on to W10 (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send reschedule card (W07))": {
+      "main": [
+        [
+          {
+            "node": "Send reschedule card (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not a card: on to W10 (W07)": {
+      "main": [
+        [
+          {
+            "node": "-> W10",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

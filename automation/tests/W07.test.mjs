@@ -52,7 +52,7 @@ test('router: STOP, CTWA, opted out, broker numbers, every tap, handoff pause, f
   assert.equal(why("Hi, I'd like to book a 30-minute call with an adviser."), 'CTWA entry');
   assert.equal(why("Hi, I'd like to check my life cover"), 'CTWA entry');
   assert.equal(why('hello'), 'unknown number: W03 consent first');
-  assert.equal(r({ text: 'hello' }, { lead: { ...ld, opted_out_at: '2026-10-12T10:00:00Z' } }), 'ignore_opted_out');
+  assert.equal(r({ text: 'hello' }, { lead: { ...ld, opted_out_at: '2026-10-12T10:00:00Z' } }), 'W15', '19 Oct: W15 decides every message after STOP');
   assert.equal(r({ from: B.adviser_whatsapp, payload: 'attended:bk1' }), 'W12');
   assert.equal(r({ from: B.adviser_whatsapp, list_id: 'nofit_budget' }), 'W29');
   assert.equal(r({ from: B.adviser_whatsapp, media: 'audio' }), 'W29');
@@ -532,7 +532,8 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   assert.deepEqual(W28, ['-> W28']);
   // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
   // 2026-10-11 (verify gate): a typed email address -> save + smc-email-verify issue + one reply
-  assert.deepEqual(now, { ...expected, email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
+  // 2026-10-19: W10-bound items pass the reschedule card check first (patch-w07-reschedule-card.mjs; not a card -> -> W10)
+  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });

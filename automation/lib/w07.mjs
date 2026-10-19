@@ -54,6 +54,8 @@ export function normaliseInbound(body = {}) {
 // Payload contract (templates README "Send-time notes"): quick-reply payloads are set at send time.
 const LEAD_TAPS = {
   confirm: 'W09', reschedule: 'W10', cancel: 'W10', keep_it: 'W10', cancel_yes: 'W10', other_times: 'W10',
+  // 19 Oct 2026: the W10 cancel card's reason list (row ids cancel_reason:<code>:<booking_id>, lib/w10.mjs cancelCard)
+  cancel_reason: 'W10',
   see_open_times: 'W04_list', not_now: 'W08', no_thanks: 'W08',
   reach_yes: 'W12', reach_no: 'W12', pulse_yes: 'W35', pulse_no: 'W35',
   call_number_yes: 'W07_contact', call_number_other: 'W07_contact', alt_add: 'W07_contact', alt_no: 'W07_contact',
@@ -137,7 +139,8 @@ export function routeInbound(msg, ctx = {}) {
 }
 
 function routeCore(msg, ctx) {
-  const tapKey = (msg.payload || '').split(':')[0];
+  // 19 Oct 2026: list replies carry their row id in list_id (the W10 cancel card's reasons), so taps read both fields
+  const tapKey = (msg.payload || msg.list_id || '').split(':')[0];
   // I-37e: W32 Approve / Later taps, only from the ops numbers that receive them; anyone else's tap falls through.
   if (ctx.ops_numbers && ctx.ops_numbers.has(msg.from) && W32_TAP.test(msg.payload || '')) return { route: 'W32_decision', reason: `W32 ${tapKey} tap` };
   if (ctx.broker_numbers && ctx.broker_numbers.has(msg.from)) {
@@ -149,7 +152,10 @@ function routeCore(msg, ctx) {
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.
   if (STOP_WORDS.test(msg.text || '') || (msg.text && prefilter(msg.text).stop)) return { route: 'W15', reason: 'STOP' };
   if (!ctx.lead) return msg.referral || CTWA_OPENER_RE.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
-  if (ctx.lead.opted_out_at) return { route: 'ignore_opted_out', reason: 'opted out: logged only, no reply (W15 sent the one confirmation)' };
+  // 19 Oct 2026: every message from an opted-out lead goes to W15 and nowhere else (never Lindi, never another sender).
+  // W15 decides (lib/w15.mjs followupOf): a stop_why:<code> reason is stored, stop_undo:changed_mind gets its one reply,
+  // a typed CANCEL releases a kept booking; anything else is stored by nobody and answered by nobody.
+  if (ctx.lead.opted_out_at) return { route: 'W15', reason: 'stop_followup' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
   // 18 Oct 2026 (Jono): the email is confirmed by the link only. No code is offered any more, so a typed 6-digit number is
@@ -168,6 +174,13 @@ function routeCore(msg, ctx) {
   // I-39d: "No thanks" tap while a booking is live = C1A (b) no call -> W10 (its router treats no_thanks as no_call)
   if (tapKey === 'no_thanks' && ctx.has_live_booking) return { route: 'W10', reason: 'no_call (live booking)' };
   if (tapKey && LEAD_TAPS[tapKey]) return { route: LEAD_TAPS[tapKey], reason: `tap ${tapKey}` };
+  // 19 Oct 2026: the W10 cancel card's "Another reason": while W10 waits for the typed reason (conv_state
+  // cancel_reason_pending, 30 min, that booking) the lead's next free text goes to W10 as the reason (lib/w10.mjs classifyOp).
+  const pend = ctx.lead.conv_state && ctx.lead.conv_state.cancel_reason_pending;
+  const nowMs = Number.isFinite(ctx.now_ms) ? ctx.now_ms : Date.now();
+  if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs) {
+    return { route: 'W10', reason: 'typed cancel reason', delegate: { to: 'W10', action: 'cancel_reason_text', actions: ['cancel_reason_text'], booking_id: pend.booking_id || null } };
+  }
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };
   // w07-alignment #13: the optional one-line answer after a W35 pulse tap goes to W35 (conversation/pulse.mjs decides;
   // advice / person / STOP / complaint / claim / distress return false and stay on the normal W07 path).
