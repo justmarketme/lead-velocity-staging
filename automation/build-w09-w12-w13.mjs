@@ -645,7 +645,7 @@ RETURNING o.id, o.lead_id;`,
   const live = sendChain('W12', 13, 0);
   link(claimedItem, live); link(fuSw, live, 0);
 
-  // ---- CAPI quality events (19 Oct 2026): Qualified (leads.qualified_at on a tier A/B band, written by W03 / W39 / the
+  // ---- CAPI quality events (19 Oct 2026): Qualified (leads.qualified_at on a tier A/B band, or a /start/ v4 lead with age + income and no band, written by W03 / W39 / the
   // capture Flow) and GoodFit (a good-fit disposition, from W29 on WhatsApp or the broker portal, which writes outcomes
   // directly). Read on the tick so every writer is covered; capi_log is the dedupe (callee rule). The consent pre-filter
   // mirrors the callee's gate so a lead it would skip is not re-offered every 5 min: Qualified = ctwa_clid (click reference
@@ -658,7 +658,9 @@ RETURNING o.id, o.lead_id;`,
     FROM public.leads l
    WHERE l.brand_id IS NOT NULL AND l.qualified_at IS NOT NULL
      AND l.qualified_at > $1::timestamptz - interval '${L12.QUALITY_SWEEP_LOOKBACK_H} hours' AND l.qualified_at <= $1::timestamptz
-     AND l.budget_band IN (${qBands})
+     -- tier A/B on the budget, or (/start/ v4, 19 Oct 2026: no budget asked) the page's rule: qualified_at is written once the age
+     -- and the income band are stored (lib/w39.mjs decideV4Answers); tier C (lt750) never qualifies either way
+     AND (l.budget_band IN (${qBands}) OR (l.budget_band IS NULL AND l.age_band IS NOT NULL AND l.income_band IS NOT NULL))
      AND l.opted_out_at IS NULL AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'opted_out')
      AND (l.ctwa_clid IS NOT NULL OR l.consent_ads_at IS NOT NULL)
      AND (NOT $2::boolean OR l.is_synthetic)

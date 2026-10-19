@@ -543,6 +543,7 @@ test('W12.json: the tick feeds Qualified + GoodFit to CAPI Send through the Foll
   assert.match(sql, new RegExp(`interval '${R.QUALITY_SWEEP_LOOKBACK_H} hours'`));
   for (const b of R.CAPI_QUALIFIED_BANDS) assert.ok(sql.includes(`'${b}'`), b);
   assert.ok(!sql.includes("'lt750'"));
+  assert.match(sql, /OR \(l\.budget_band IS NULL AND l\.age_band IS NOT NULL AND l\.income_band IS NOT NULL\)/, '/start/ v4: age + income, no budget band (proven once on the real schema in start-page.local.test.mjs)');
   assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => n.name === Q) })), [], 'physical columns only');
   // the real Code node -> items CAPI Send accepts as valid input
   const { normalise } = await import('../lib/sub-capi-send.mjs');
