@@ -2,7 +2,7 @@
 
 Owner: devops-security. **Names and types only. No value ever goes in this file, in chat or in git.**
 
-One underlying secret is often copied into several n8n credentials (Meta system-user token: 5 credentials under 5 names; Anthropic: 3; Twilio: 2; Microsoft Entra app: 6). A rotation that misses a copy fails only the workflow that holds it, and often silently. n8n copies are encrypted with `N8N_ENCRYPTION_KEY` and do **not** read `.env` at run time, so updating `.env` alone changes nothing inside a credential.
+One underlying secret is often copied into several n8n credentials (Meta system-user token: 5 credentials under 5 names; Twilio: 2; Microsoft Entra app: 6). A rotation that misses a copy fails only the workflow that holds it, and often silently. n8n copies are encrypted with `N8N_ENCRYPTION_KEY` and do **not** read `.env` at run time, so updating `.env` alone changes nothing inside a credential.
 
 ## 1. Copies table (machine-derived, machine-checked)
 Printed by `node automation/vps/credential-copies.mjs` from `automation/W*.json` and `SUB-*.json`. `automation/tests/credential-copies.test.mjs` fails if this block differs from the script output, or if a workflow credential is not mapped to a secret. Paste the new output between the markers after any workflow credential change.
@@ -16,9 +16,6 @@ Printed by `node automation/vps/credential-copies.mjs` from `automation/W*.json`
 | Meta system-user token | META_SYSTEM_USER_TOKEN | WhatsApp Cloud API token (SMC ops) | `httpHeaderAuth` | W32 |
 | Meta system-user token | META_SYSTEM_USER_TOKEN | WhatsApp Graph bearer (system user) | `httpHeaderAuth` | W23 |
 | Meta Page token | PAGE_ACCESS_TOKEN | Meta Page Token | `httpHeaderAuth` | W30, W31 |
-| Anthropic API key | ANTHROPIC_API_KEY | Anthropic API | `httpHeaderAuth` | W30, W31 |
-| Anthropic API key | ANTHROPIC_API_KEY | Anthropic API (SMC) | `httpHeaderAuth` | W32, W33 |
-| Anthropic API key | ANTHROPIC_API_KEY | Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 |
 | Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio (SMC voice) | `httpBasicAuth` | W32 |
 | Twilio API key | TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET | Twilio API key (Basic) | `httpBasicAuth` | W01, W06, W15 |
 | Microsoft Entra app (howzit@ and broker connect) | MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W14, W17, W19, W34 |
@@ -43,7 +40,7 @@ Printed by `node automation/vps/credential-copies.mjs` from `automation/W*.json`
 Credential names and types are fixed. `local/pubcheck.mjs` hashes them and the live-staging import binds by name + type, so a rotation **never renames or merges** a credential.
 
 ## 2. Rotation order (same for every secret)
-1. **Issue the new secret** at the provider (Meta Business settings, Anthropic console, Twilio console, Entra app registration, Supabase dashboard, Paystack dashboard). Keep the old one **active**. For overlap-capable secrets (HMAC `*_PREVIOUS` variables, Entra supports two client secrets) use the overlap.
+1. **Issue the new secret** at the provider (Meta Business settings, Twilio console, Entra app registration, Supabase dashboard, Paystack dashboard). Keep the old one **active**. For overlap-capable secrets (HMAC `*_PREVIOUS` variables, Entra supports two client secrets) use the overlap.
 2. **Update `.env`** (repo root on the laptop, `/opt/lead-velocity/.env` on the VPS, mode 0600) and the password manager. Never paste the value into chat, a ticket or a commit.
 3. **Update every n8n credential copy** listed in section 1 for that secret: n8n UI, Credentials, open the row by name + type, paste the new value, Save. For OAuth2 credentials (`microsoftOutlookOAuth2Api`, `oAuth2Api`) re-enter the client secret and **reconnect** (consent again as howzit@). Restart n8n if `.env` values read through `$env` changed (`docker compose ... up -d n8n`).
 4. **Re-run the check**: `check-credentials.mjs` (names and types, see `local/CREDENTIALS.md`) proves each credential still exists. It cannot see values or OAuth connection state, so also run one real execution per workflow in the "Used by" column (the synthetic suite, W26 step 14) and read W22 token-health the next morning.
@@ -55,7 +52,7 @@ Credential names and types are fixed. `local/pubcheck.mjs` hashes them and the l
 |---|---|
 | Meta system-user token | Outbound WhatsApp (`SUB-whatsapp-send`, W03, W28, W14, W32, W23) or CAPI / ads / token-health (`SUB-capi-send`, W20) returns 401 once the old token is revoked. Leads get no 60-second first message |
 | Meta Page token | Comment and Messenger replies stop (W30, W31) |
-| Anthropic API key | The workflow holding the stale copy stops replying or judging (W23, W30, W31, W32, W33), others keep working, so it looks like a partial outage |
+| `LINDI_RELAY_TOKEN` / `LLM_RELAY_TOKEN` (`.env` only, no n8n copy) | Lindi stops answering and the never-silent holding line + owner alert go out (W07), or the relay jobs fall back (W11/W23/W29-W33). Rotate: new token, new SHA-256 in `public.relay_tokens` 'lindi-whatsapp', `.env`, restart n8n |
 | Twilio API key | SMS fallback, voice and call alerts fail in the workflow with the stale copy (W01, W06, W15, W32) |
 | Microsoft Entra app | Booking events, invoices, bounces and broker connect fail (W04, W05, W15, W17, W19, W20, W32, W34). OAuth copies also need reconnecting. An expired client secret takes all six down at once |
 | Supabase service-role key | Magic links (W16, W20) or signed uploads (W23) fail. Also rotate the edge-function secrets (`provision.sh` step 13) |
@@ -71,4 +68,4 @@ Webhook signature secrets read through `$env` (`META_APP_SECRET`, `INTERNAL_HMAC
 If a secret or personal data appears in chat, a log, a commit or a screenshot: **halt** the task that exposed it, **rotate** that secret now using section 2 (every copy, then revoke), purge the exposure (history rewrite for a commit, redact the log), and record it in the secret inventory. Do not wait to see whether it was used. The pre-commit guard (`.githooks`, `git config core.hooksPath .githooks`) is the first line of defence, not a reason to skip rotation.
 
 ## 5. Future consolidation (not done here)
-`CREDENTIALS.md` C1 proposes **one credential per secret** (for example one `Meta system user token (Bearer)`, one `Anthropic API key (x-api-key)`, one `Twilio API key (Basic)`), which would turn each rotation into a single edit. It means regenerating the workflow JSON and re-baselining `pubcheck.mjs` hashes, so it is a decision for the automation-engineer and generator owners, not a runbook edit. Until then, section 1 is the checklist.
+`CREDENTIALS.md` C1 proposes **one credential per secret** (for example one `Meta system user token (Bearer)`, one one `Twilio API key (Basic)`), which would turn each rotation into a single edit. It means regenerating the workflow JSON and re-baselining `pubcheck.mjs` hashes, so it is a decision for the automation-engineer and generator owners, not a runbook edit. Until then, section 1 is the checklist.

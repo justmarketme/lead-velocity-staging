@@ -16,15 +16,15 @@ import { inlineModule } from '../security/inline-for-n8n.mjs';
 // GUARD: do not re-run casually. W23.json has no generator; this script drops and rebuilds W23's intro/* webhooks and the
 // script-generate / script-recheck nodes from the definitions below, which predate later edits to W23.json. A re-run silently
 // reverts them (checked 7 Oct 2026: 18 Code nodes go back from require('lv-automation') to import($env.REPO_DIR ...), which the
-// n8n runner does not allow-list, and 8 Anthropic calls lose ANTHROPIC_BASE_URL), plus any send gate or fix added to those nodes since.
+// n8n runner does not allow-list, and the LLM calls lose the relay guards of patch-llm-relay.mjs), plus any send gate or fix added since.
 // Make W23 changes as minimal, targeted edits to automation/W23.json instead, then run node automation/gate-egress.mjs --check.
 const FORCE_FLAG = '--i-know-this-rebuilds-w23';
 if (!process.argv.slice(2).includes(FORCE_FLAG)) {
   console.error([
     'patch-w23-auth.mjs: refused, W23.json not touched.',
     'This script rebuilds W23 from a stale base: it drops and re-creates the intro/* webhooks and the script-generate /',
-    'script-recheck nodes, reverting every later change to them (the require(\'lv-automation\') Code nodes, ANTHROPIC_BASE_URL',
-    'on the LLM calls, any send gate or fix added since). Edit automation/W23.json in place instead (minimal, targeted),',
+    'script-recheck nodes, reverting every later change to them (the require(\'lv-automation\') Code nodes, the LLM relay',
+    'guards, any send gate or fix added since). Edit automation/W23.json in place instead (minimal, targeted),',
     'then run: node automation/gate-egress.mjs --check',
     `If you really mean to rebuild and will re-apply the later changes by hand: node automation/media/patch-w23-auth.mjs ${FORCE_FLAG}`,
   ].join('\n'));
@@ -204,24 +204,25 @@ return [{ json: { ok, broker_id: broker, take_id, mime, object_key: broker + '/'
 
 // ===================================================================== I-40i: script-generate + script-recheck
 // Logic lives in automation/media/intro-script.mjs (imported from $env.REPO_DIR like W07, so the tested code is the running code).
-// Contract: conversation/prompts/intro-script.md. LLM calls: x-api-key from $env.ANTHROPIC_API_KEY (the W07 pattern; no n8n credential holds a key).
-// Order of the rules is the contract's: generate -> scriptCheck (deterministic) -> gate LLM (Haiku, fails closed; pass < 0.8 re-checked on Sonnet).
+// Contract: conversation/prompts/intro-script.md. LLM calls: the relay ($env.LLM_RELAY_URL, x-api-key $env.LLM_RELAY_TOKEN, lib/llm-relay.cjs;
+// no n8n credential holds a key). Order of the rules is the contract's: generate -> scriptCheck (deterministic) -> gate LLM (fails closed;
+// pass < 0.8 re-checked once). After a forced re-run, run node automation/patch-llm-relay.mjs to put the relay guards back.
 for (const n of w.nodes.filter((x) => x.id.startsWith('w23-y'))) delete w.connections[n.name];
 w.nodes = w.nodes.filter((x) => !x.id.startsWith('w23-y'));
 let yid = 0; const Y = () => 'w23-y' + String(++yid).padStart(2, '0');
 const PRE = "const url = require('url');\nconst M = await import(url.pathToFileURL(($env.REPO_DIR || '/home/node/repo') + '/automation/media/intro-script.mjs').href);\n";
 const mcode = (name, pos, body, mode) => ({ parameters: Object.assign({ jsCode: PRE + body }, mode ? { mode } : {}), id: Y(), name, type: 'n8n-nodes-base.code', typeVersion: 2, position: pos });
-const llm = (name, pos, expr, timeout) => ({ parameters: { method: 'POST', url: 'https://api.anthropic.com/v1/messages', sendHeaders: true, headerParameters: { parameters: [{ name: 'x-api-key', value: '={{ $env.ANTHROPIC_API_KEY }}' }, { name: 'anthropic-version', value: '2023-06-01' }, { name: 'content-type', value: 'application/json' }] }, sendBody: true, specifyBody: 'json', jsonBody: expr, options: { timeout, response: { response: { neverError: true } } } }, id: Y(), name, type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: pos, onError: 'continueRegularOutput' });
+const llm = (name, pos, expr, timeout) => ({ parameters: { method: 'POST', url: '={{ $env.LLM_RELAY_URL }}', sendHeaders: true, headerParameters: { parameters: [{ name: 'x-api-key', value: '={{ $env.LLM_RELAY_TOKEN }}' }, { name: 'content-type', value: 'application/json' }] }, sendBody: true, specifyBody: 'json', jsonBody: expr, options: { timeout, response: { response: { neverError: true } } } }, id: Y(), name, type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: pos, onError: 'continueRegularOutput' });
 const ifx = (name, pos, expr) => ifOk(Y(), name, pos, expr);
-const SONNET = '$env.ANTHROPIC_MODEL_STRONG || undefined', HAIKU = '$env.ANTHROPIC_MODEL_FAST || undefined';
+const RELAY_MODEL = "'relay-default'";
 const BROKER_SQL = "select b.id::text as broker_id, b.contact_person as adviser_name, b.firm_name as practice_name, b.fsp_number, coalesce(to_jsonb(b)->'verified_credentials', '[]'::jsonb) as verified_credentials, coalesce(b.positioning_answers, '{}'::jsonb) as positioning_answers from brokers b where b.user_id::text = $1 limit 1";
 
 // the gate half shared by generate (per variant) and recheck. `from` = node holding {text, facts, lang, det}; returns the node to link a det-pass item into and the final node name.
 function gateChain(sfx, y, from) {
-  const h = llm(`Script gate LLM (Haiku, fails closed) ${sfx}`, [0, y], '={{ JSON.stringify($json.gate_body) }}', 8000);
-  const pg_ = mcode(`Parse gate ${sfx}`, [0, y], `const src = $('${from}').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: ${SONNET} }) : null }) }];`);
-  const conf = ifx(`Gate confident? ${sfx}`, [0, y], '={{ $json.gate.needs_sonnet !== true }}');
-  const hs = llm(`Script gate re-check (Sonnet) ${sfx}`, [0, y], '={{ JSON.stringify($json.sonnet_body) }}', 15000);
+  const h = llm(`Script gate LLM (relay, fails closed) ${sfx}`, [0, y], '={{ JSON.stringify($json.gate_body) }}', 8000);
+  const pg_ = mcode(`Parse gate ${sfx}`, [0, y], `const src = $('${from}').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, recheck_body: g.needs_recheck ? M.gateRequest(src.text, src.facts, src.lang, { model: ${RELAY_MODEL} }) : null }) }];`);
+  const conf = ifx(`Gate confident? ${sfx}`, [0, y], '={{ $json.gate.needs_recheck !== true }}');
+  const hs = llm(`Script gate re-check (relay) ${sfx}`, [0, y], '={{ JSON.stringify($json.recheck_body) }}', 15000);
   const pr = mcode(`Parse re-check ${sfx}`, [0, y], `const src = $('Parse gate ${sfx}').item.json; const rc = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: M.finalGate(src.gate, rc) }) }];`);
   [h, pg_, conf, hs, pr].forEach((n, i) => { n.position = [1500 + i * 220, y]; });
   w.nodes.push(h, pg_, conf, hs, pr);
@@ -253,18 +254,18 @@ return [{ json: Object.assign({ broker_id: broker, source_ref: ${refExpr} }, row
   const lang = `['en', 'af'].includes(${g.body}.lang) ? ${g.body}.lang : (/^[a-z]{2,8}$/.test(String(${g.body}.lang || '')) ? ${g.body}.lang : 'en')`;
   const explode = mcode('Explode 3 angles', [1340, 4000], `const b = $json; const lang = ${lang};
 const facts = { practice: b.practice_name, fsp: b.fsp_number, verified_credentials: b.verified_credentials };
-return M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: ${SONNET} }) }) }));`);
+return M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: ${RELAY_MODEL} }) }) }));`);
   w.nodes.push(load, complete, r409, allowed, r429, explode);
   link(g.ok, load.name, 0); link(load.name, complete.name); link(complete.name, allowed.name, 0); link(complete.name, r409.name, 1); link(allowed.name, explode.name, 0); link(allowed.name, r429.name, 1);
-  // one attempt = generate -> check -> det pass? -> gate (-> sonnet re-check) -> variant result
+  // one attempt = generate -> check -> det pass? -> gate (-> re-check) -> variant result
   const attempt = (n, srcNode, x0) => {
-    const gen = llm(`Generate variant (Sonnet) (${n})`, [x0, 4000], '={{ JSON.stringify($json.req) }}', 30000);
-    const chk = mcode(`Check variant (${n})`, [x0 + 220, 4000], `const src = $('${srcNode}').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: ${HAIKU} }) : null }) }];`);
+    const gen = llm(`Generate variant (relay) (${n})`, [x0, 4000], '={{ JSON.stringify($json.req) }}', 30000);
+    const chk = mcode(`Check variant (${n})`, [x0 + 220, 4000], `const src = $('${srcNode}').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: ${RELAY_MODEL} }) : null }) }];`);
     const dp = ifx(`Det pass? (${n})`, [x0 + 440, 4000], '={{ $json.det.pass === true }}');
     const res = mcode(`Variant result (${n})`, [x0 + 2800, 4000], "const j = $json; return [{ json: Object.assign({}, j, { v: M.variant({ id: j.id, label: j.label, angle: j.angle }, j.text, j.det, j.gate || null) }) }];");
     w.nodes.push(gen, chk, dp, res);
     const gc = gateChain(`(${n})`, 4000, `Check variant (${n})`);
-    costNodes(`generate ${n}`, [`Generate variant (Sonnet) (${n})`, `Script gate LLM (Haiku, fails closed) (${n})`, `Script gate re-check (Sonnet) (${n})`], res.name,
+    costNodes(`generate ${n}`, [`Generate variant (relay) (${n})`, `Script gate LLM (relay, fails closed) (${n})`, `Script gate re-check (relay) (${n})`], res.name,
       "$('Load broker + answers (generate)').first().json.broker_id", "`w23:script-generate:${broker}:${$execution.id}:${$json.angle}:" + n + "`", x0 + 2800, 4000);
     link(gen.name, chk.name); link(chk.name, dp.name); link(dp.name, gc.entry, 0); link(dp.name, res.name, 1); link(gc.okOut, res.name, 0); link(gc.reOut, res.name);
     return { entry: gen.name, out: res.name };
@@ -297,14 +298,14 @@ const lang = ['en', 'af'].includes(b.lang) ? b.lang : (/^[a-z]{2,8}$/.test(Strin
 const facts = { practice: br.practice_name, fsp: br.fsp_number, verified_credentials: br.verified_credentials };
 const tooLong = text.length > 1500;
 const det = tooLong || !text.trim() ? { pass: false, verdict: 'block', issues: ['empty or over 1,500 characters'], rule: 'invalid_input' } : M.detCheck(text, facts, lang);
-return [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: ${HAIKU} }) : null } }];`);
+return [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: ${RELAY_MODEL} }) : null } }];`);
   const dp = ifx('Det pass? (recheck)', [1340, 5000], '={{ $json.det.pass === true }}');
   const res = mcode('Recheck result', [4000, 5000], "const j = $json; return [{ json: Object.assign({}, j, { result: M.recheckResult(j.text, j.facts, j.lang, j.det, j.gate || null) }) }];");
   const choose = ifx('Store chosen script? (recheck)', [4220, 5000], '={{ $json.result.pass === true && $json.choose === true }}');
   const store = pg(Y(), 'Store chosen script (recheck)', [4440, 4940], `update brokers set positioning_answers = coalesce(positioning_answers, '{}'::jsonb) || jsonb_build_object('chosen_script', jsonb_build_object('id', 'custom', 'label', 'Your edited script', 'text', $2::text, 'language', $3::text, 'checked_at', now(), 'gate_version', $4::text)) where user_id::text = $1 returning id::text as broker_id`, "={{ [ " + g.sub + ", $('Recheck result').item.json.text, $('Recheck result').item.json.lang, 'intro-script-v1.0.0' ] }}");
   const r200 = respond(Y(), 'Respond 200 (script-recheck)', [4660, 5000], 200, "={{ $('Recheck result').item.json.result }}");
   w.nodes.push(load, found, r403, chk, dp, res, choose, store, r200);
-  costNodes('recheck', ['Script gate LLM (Haiku, fails closed) (recheck)', 'Script gate re-check (Sonnet) (recheck)'], res.name,
+  costNodes('recheck', ['Script gate LLM (relay, fails closed) (recheck)', 'Script gate re-check (relay) (recheck)'], res.name,
     "$('Load broker facts (recheck)').first().json.broker_id", "`w23:script-recheck:${broker}:${$execution.id}`", 4000, 5000);
   link(g.ok, load.name, 0); link(load.name, found.name); link(found.name, chk.name, 0); link(found.name, r403.name, 1); link(chk.name, dp.name);
   const gc = gateChain('(recheck)', 5000, 'Check edited text'); link(dp.name, gc.entry, 0); link(dp.name, res.name, 1); link(gc.okOut, res.name, 0); link(gc.reOut, res.name);

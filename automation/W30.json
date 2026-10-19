@@ -4,7 +4,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> Haiku classify (Sonnet retry on invalid JSON, then fail closed) -> rules -> optional Haiku draft + FAIS lint + shared guardrail (Sonnet redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `LV Supabase - n8n_app (least privilege)` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), `Anthropic API` (httpHeaderAuth, header x-api-key). Alerts go to W22 by Execute Workflow smc-w22 (I-47g), no credential.\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 alerts by Execute Workflow smc-w22 (I-47g).\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
+        "content": "## W30 Comment handler (community-response-lead, 4.14)\n\nTriggers: Page `feed` and Instagram `comments` webhooks (ad comments live on the ad's effective_object_story_id). Plus three schedules: queue drain (07:15 SAST then every 5 min until 22:00), daily sentiment 21:30, hostile-thread check every 15 min.\n\nFlow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/hide-words/prompt from disk -> dedupe insert -> context (ad, prior exchanges) -> fetch comment + parent -> regex/keyword pre-check -> relay classify (one retry on invalid JSON, then fail closed) -> rules -> optional relay draft + FAIS lint + shared guardrail (one redraft for objections only) -> hide / block / escalate / public reply / like / private reply -> log.\n\nCredentials by name (create in n8n): `LV Supabase - n8n_app (least privilege)` (postgres), `Meta Page Token` (httpHeaderAuth, Authorization: Bearer <system-user page token>), $env.LLM_RELAY_URL + $env.LLM_RELAY_TOKEN (env, no credential). Alerts go to W22 by Execute Workflow smc-w22 (I-47g), no credential.\n\nEnv (never in this file): REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, COMMENT_HASH_SALT, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. n8n must allow env access in nodes (N8N_BLOCK_ENV_ACCESS_IN_NODE=false) and builtin crypto.\n\nDependencies: community/rules.json, reply-corpus.md, hide-words.txt, classifier-prompt.md; knowledge/faq.md and conversation/prompts/guardrail.md (optional at build time, both fail closed to fixed templates); community/comments-schema-additions.sql; W22 alerts by Execute Workflow smc-w22 (I-47g).\n\nExecution data: success runs are not saved (comment text is personal data). Hides run 24/7; replies only 07:00-22:00 SAST.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
         "height": 520,
         "width": 620
       },
@@ -381,7 +381,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const ev = $('Normalise events').item.json;\nconst ctx = $('Context lookup').item.json;\nconst cfg = $('Load config').first().json.cfg;\nconst f = $json || {};\nlet skip = false;\nlet reason = '';\nif (f.error) { skip = true; reason = 'comment_gone_or_unreadable'; }\nelse if (f.is_hidden === true || f.hidden === true) { skip = true; reason = 'already_hidden'; }\nconst raw = ev.text || '';\nlet low = raw.toLowerCase();\nfor (const a of cfg.hide.allow) { if (a) low = low.split(a).join(' '); }\nconst rx = (name) => cfg.hide.regex.filter((r) => r.name.indexOf(name) === 0).map((r) => { try { return new RegExp(r.source, r.flags === '-' ? '' : r.flags); } catch (e) { return null; } }).filter(Boolean);\nconst emailRx = rx('own_data.email');\nlet noEmail = low;\nfor (const e of emailRx) noEmail = noEmail.replace(new RegExp(e.source, 'gi'), ' ');\nconst own = rx('own_data.').some((r) => r.test(low));\nconst spamRx = rx('spam.').some((r) => r.test(noEmail) || (r.flags.indexOf('i') < 0 && r.test(raw)));\nconst kw = (list) => list.some((k) => k && k.charAt(0) !== '<' && low.indexOf(k.trim().toLowerCase()) >= 0);\nconst spamKw = kw(cfg.hide.kw_spam);\nconst compHit = kw(cfg.hide.kw_comp) || rx('competitor.').some((r) => r.test(noEmail));\nlet pre = '';\nif (spamKw || spamRx) pre = 'spam';\nelse if (compHit) pre = 'competitor';\nelse if (own) pre = 'own_data_posted';\nlet red = raw.replace(new RegExp('[0-9]{4,}', 'g'), '[digits]');\nfor (const e of emailRx) red = red.replace(new RegExp(e.source, 'gi'), '[email]');\nred = red.slice(0, 600);\nconst userTurn = { surface: ev.platform + '_comment', text: red, parent_is_ad: !!ctx.ad_id, is_nested_reply: !!ev.is_nested, prior_exchanges_with_person_on_post: ctx.prior_exchanges || 0 };\nconst classify_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 60, temperature: 0, system: cfg.system_prompt, messages: [ { role: 'user', content: JSON.stringify(userTurn) } ] };\nreturn { json: { skip: skip, skip_reason: reason, precheck_class: pre, own_data_hit: own, text_redacted: red, classify_body: classify_body, ad_id: ctx.ad_id || null, launched_at: ctx.launched_at || null, prior_exchanges: ctx.prior_exchanges || 0, prior_hidden: ctx.prior_hidden || 0, praise_replied: ctx.praise_replied || 0 } };",
+        "jsCode": "const ev = $('Normalise events').item.json;\nconst ctx = $('Context lookup').item.json;\nconst cfg = $('Load config').first().json.cfg;\nconst f = $json || {};\nlet skip = false;\nlet reason = '';\nif (f.error) { skip = true; reason = 'comment_gone_or_unreadable'; }\nelse if (f.is_hidden === true || f.hidden === true) { skip = true; reason = 'already_hidden'; }\nconst raw = ev.text || '';\nlet low = raw.toLowerCase();\nfor (const a of cfg.hide.allow) { if (a) low = low.split(a).join(' '); }\nconst rx = (name) => cfg.hide.regex.filter((r) => r.name.indexOf(name) === 0).map((r) => { try { return new RegExp(r.source, r.flags === '-' ? '' : r.flags); } catch (e) { return null; } }).filter(Boolean);\nconst emailRx = rx('own_data.email');\nlet noEmail = low;\nfor (const e of emailRx) noEmail = noEmail.replace(new RegExp(e.source, 'gi'), ' ');\nconst own = rx('own_data.').some((r) => r.test(low));\nconst spamRx = rx('spam.').some((r) => r.test(noEmail) || (r.flags.indexOf('i') < 0 && r.test(raw)));\nconst kw = (list) => list.some((k) => k && k.charAt(0) !== '<' && low.indexOf(k.trim().toLowerCase()) >= 0);\nconst spamKw = kw(cfg.hide.kw_spam);\nconst compHit = kw(cfg.hide.kw_comp) || rx('competitor.').some((r) => r.test(noEmail));\nlet pre = '';\nif (spamKw || spamRx) pre = 'spam';\nelse if (compHit) pre = 'competitor';\nelse if (own) pre = 'own_data_posted';\nlet red = raw.replace(new RegExp('[0-9]{4,}', 'g'), '[digits]');\nfor (const e of emailRx) red = red.replace(new RegExp(e.source, 'gi'), '[email]');\nred = red.slice(0, 600);\nconst userTurn = { surface: ev.platform + '_comment', text: red, parent_is_ad: !!ctx.ad_id, is_nested_reply: !!ev.is_nested, prior_exchanges_with_person_on_post: ctx.prior_exchanges || 0 };\nconst classify_body = { model: 'relay-default', max_tokens: 60, temperature: 0, system: cfg.system_prompt, messages: [ { role: 'user', content: JSON.stringify(userTurn) } ] };\nreturn { json: { skip: skip, skip_reason: reason, precheck_class: pre, own_data_hit: own, text_redacted: red, classify_body: classify_body, ad_id: ctx.ad_id || null, launched_at: ctx.launched_at || null, prior_exchanges: ctx.prior_exchanges || 0, prior_hidden: ctx.prior_hidden || 0, praise_replied: ctx.praise_replied || 0 } };",
         "mode": "runOnceForEachItem"
       },
       "id": "w30-n19",
@@ -458,15 +458,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -482,7 +484,7 @@
         }
       },
       "id": "w30-n23",
-      "name": "Classify (Haiku)",
+      "name": "Classify (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -492,16 +494,11 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const pre = $('Pre-checks').item.json;\nconst r = $json || {};\nlet cls = null;\ntry {\n  let t = ((r.content && r.content[0] && r.content[0].text) || '').trim();\n  t = t.replace(/```json|```/g, '').trim();\n  const o = JSON.parse(t);\n  const ok = ['question', 'interest', 'objection', 'complaint', 'praise', 'spam', 'abuse', 'competitor', 'off_topic', 'sensitive', 'own_data_posted'];\n  if (ok.indexOf(o.intent) >= 0 && typeof o.needs_human === 'boolean' && typeof o.fais_risk === 'boolean' && Object.keys(o).length === 3) cls = { intent: o.intent, needs_human: o.needs_human, fais_risk: o.fais_risk };\n} catch (e) { cls = null; }\nlet sonnet = String(r.model || '').indexOf('sonnet') >= 0;\ntry { if ($('Classify (Sonnet)').isExecuted) sonnet = true; } catch (e) {}\nreturn { json: Object.assign({}, pre, { classification: cls, invalid: !cls, sonnet_tried: sonnet }) };",
+        "jsCode": "const pre = $('Pre-checks').item.json;\nconst r = $json || {};\nlet cls = null;\ntry {\n  let t = ((r.content && r.content[0] && r.content[0].text) || '').trim();\n  t = t.replace(/```json|```/g, '').trim();\n  const o = JSON.parse(t);\n  const ok = ['question', 'interest', 'objection', 'complaint', 'praise', 'spam', 'abuse', 'competitor', 'off_topic', 'sensitive', 'own_data_posted'];\n  if (ok.indexOf(o.intent) >= 0 && typeof o.needs_human === 'boolean' && typeof o.fais_risk === 'boolean' && Object.keys(o).length === 3) cls = { intent: o.intent, needs_human: o.needs_human, fais_risk: o.fais_risk };\n} catch (e) { cls = null; }\n// one retry: on the second pass \"Needs classify retry?\" has already run (also when LLM_RELAY_URL is unset and no call ran)\nlet retried = false;\ntry { if ($('Needs classify retry?').isExecuted) retried = true; } catch (e) {}\nreturn { json: Object.assign({}, pre, { classification: cls, invalid: !cls, retry_tried: retried }) };",
         "mode": "runOnceForEachItem"
       },
       "id": "w30-n24",
@@ -518,14 +515,14 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ $json.invalid && !$json.sonnet_tried }}",
+              "value1": "={{ $json.invalid && !$json.retry_tried }}",
               "value2": true
             }
           ]
         }
       },
       "id": "w30-n25",
-      "name": "Needs Sonnet retry?",
+      "name": "Needs classify retry?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
@@ -536,21 +533,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Pre-checks').item.json.classify_body, { model: 'claude-sonnet-5-5' })) }}",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Pre-checks').item.json.classify_body, { model: 'relay-default' })) }}",
         "options": {
           "response": {
             "response": {
@@ -560,7 +559,7 @@
         }
       },
       "id": "w30-n26",
-      "name": "Classify (Sonnet)",
+      "name": "Classify retry (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -570,12 +569,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -613,7 +607,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const d = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst facts = cfg.faq ? cfg.faq : cfg.facts;\nconst lang = d.plan.lang === 'af' ? 'Afrikaans' : 'plain South African English';\nconst sys = 'You write ONE public reply under a Facebook or Instagram post for SortMyCover. SortMyCover connects people with a licensed financial adviser for a 30-minute call. Rules: at most 2 sentences. Reading grade 5 to 7. Language: ' + lang + '. No exclamation marks. No emoji. No links. No numbers except 30. Never mention price, premium, rand amounts, insurers, products, cover amounts, comparisons or recommendations. Speak about the adviser and SortMyCover in the third person. Do not argue. Use only the FACTS below. For a question, answer from the facts and end by offering to send the details privately. For an objection, state the calm facts only. If the facts do not answer it, output exactly NO_ANSWER. Output only the reply text.' + NL + NL + 'FACTS:' + NL + String(facts).slice(0, 6000);\nconst hint = d.plan.first_name ? 'Start with the first name: ' + d.plan.first_name + '.' : 'No first name available.';\nconst body = { model: 'claude-haiku-4-5-20251001', max_tokens: 120, temperature: 0.2, system: sys, messages: [ { role: 'user', content: hint + NL + 'Type: ' + d.plan.intent + NL + 'Comment: ' + d.text_redacted } ] };\nreturn { json: Object.assign({}, d, { draft_body: body }) };",
+        "jsCode": "const d = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst facts = cfg.faq ? cfg.faq : cfg.facts;\nconst lang = d.plan.lang === 'af' ? 'Afrikaans' : 'plain South African English';\nconst sys = 'You write ONE public reply under a Facebook or Instagram post for SortMyCover. SortMyCover connects people with a licensed financial adviser for a 30-minute call. Rules: at most 2 sentences. Reading grade 5 to 7. Language: ' + lang + '. No exclamation marks. No emoji. No links. No numbers except 30. Never mention price, premium, rand amounts, insurers, products, cover amounts, comparisons or recommendations. Speak about the adviser and SortMyCover in the third person. Do not argue. Use only the FACTS below. For a question, answer from the facts and end by offering to send the details privately. For an objection, state the calm facts only. If the facts do not answer it, output exactly NO_ANSWER. Output only the reply text.' + NL + NL + 'FACTS:' + NL + String(facts).slice(0, 6000);\nconst hint = d.plan.first_name ? 'Start with the first name: ' + d.plan.first_name + '.' : 'No first name available.';\nconst body = { model: 'relay-default', max_tokens: 120, temperature: 0.2, system: sys, messages: [ { role: 'user', content: hint + NL + 'Type: ' + d.plan.intent + NL + 'Comment: ' + d.text_redacted } ] };\nreturn { json: Object.assign({}, d, { draft_body: body }) };",
         "mode": "runOnceForEachItem"
       },
       "id": "w30-n29",
@@ -628,15 +622,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -652,7 +648,7 @@
         }
       },
       "id": "w30-n30",
-      "name": "Draft (Haiku)",
+      "name": "Draft (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -662,16 +658,11 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const d = $('Decide').item.json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nlet retried = false;\ntry { retried = $('Apply gate').item.json.retried === true; } catch (e) { retried = false; }\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for public replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nlet userTurn = '';\ntry {\n  const gm = require('lv-automation').guardrail;\n  userTurn = gm.classifierInput({ draft: draft, question: d.text_redacted || '', lang: d.plan.lang || 'en', surface: 'public' });\n} catch (e) { reasons.push('classifier_input_unavailable'); }\nconst gate_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: userTurn } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, retried: retried, gate_body: gate_body } };",
+        "jsCode": "const d = $('Decide').item.json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nlet retried = false;\ntry { retried = $('Apply gate').item.json.retried === true; } catch (e) { retried = false; }\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for public replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nlet userTurn = '';\ntry {\n  const gm = require('lv-automation').guardrail;\n  userTurn = gm.classifierInput({ draft: draft, question: d.text_redacted || '', lang: d.plan.lang || 'en', surface: 'public' });\n} catch (e) { reasons.push('classifier_input_unavailable'); }\nconst gate_body = { model: 'relay-default', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: userTurn } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, retried: retried, gate_body: gate_body } };",
         "mode": "runOnceForEachItem"
       },
       "id": "w30-n31",
@@ -706,15 +697,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -730,7 +723,7 @@
         }
       },
       "id": "w30-n33",
-      "name": "Guardrail gate (Haiku)",
+      "name": "Guardrail gate (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -740,16 +733,11 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const d = $('Decide').item.json;\nconst L = $('Lint draft').item.json;\nconst r = $json || {};\nconst gate = String((r.content && r.content[0] && r.content[0].text) || '').trim().toUpperCase();\nconst pass = L.lint_ok === true && gate.indexOf('PASS') === 0;\nconst plan = JSON.parse(JSON.stringify(d.plan));\nlet retry = false;\nif (pass) {\n  plan.public_text = L.draft;\n} else {\n  plan.guardrail_trip = L.reasons.indexOf('no_answer') < 0;\n  if (d.key === 'objection' && !L.retried && !d.cls.needs_human) retry = true;\n}\nreturn { json: Object.assign({}, d, { plan: plan, retry_sonnet: retry, retried: retry }) };",
+        "jsCode": "const d = $('Decide').item.json;\nconst L = $('Lint draft').item.json;\nconst r = $json || {};\nconst gate = String((r.content && r.content[0] && r.content[0].text) || '').trim().toUpperCase();\nconst pass = L.lint_ok === true && gate.indexOf('PASS') === 0;\nconst plan = JSON.parse(JSON.stringify(d.plan));\nlet retry = false;\nif (pass) {\n  plan.public_text = L.draft;\n} else {\n  plan.guardrail_trip = L.reasons.indexOf('no_answer') < 0;\n  if (d.key === 'objection' && !L.retried && !d.cls.needs_human) retry = true;\n}\nreturn { json: Object.assign({}, d, { plan: plan, retry_redraft: retry, retried: retry }) };",
         "mode": "runOnceForEachItem"
       },
       "id": "w30-n34",
@@ -766,14 +754,14 @@
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ $json.retry_sonnet }}",
+              "value1": "={{ $json.retry_redraft }}",
               "value2": true
             }
           ]
         }
       },
       "id": "w30-n35",
-      "name": "Sonnet redraft?",
+      "name": "Objection redraft?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
@@ -784,21 +772,23 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Build draft request').item.json.draft_body, { model: 'claude-sonnet-5-5' })) }}",
+        "jsonBody": "={{ JSON.stringify(Object.assign({}, $('Build draft request').item.json.draft_body, { model: 'relay-default' })) }}",
         "options": {
           "response": {
             "response": {
@@ -808,7 +798,7 @@
         }
       },
       "id": "w30-n36",
-      "name": "Draft (Sonnet)",
+      "name": "Redraft (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -818,12 +808,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1389,7 +1374,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().map((i) => i.json);\nif (!rows.length) return [];\nconst sys = 'You summarise public comment sentiment per ad for SortMyCover, a South African service that books calls with licensed advisers. The input is a JSON array of rows with ad_id, class counts and redacted objection comments. Return ONLY a JSON object with the key ads, an array of objects with the keys ad_id, sentiment (positive, neutral or negative), themes (an array of objects with the keys theme and count, objection themes only, short plain phrases) and flag_media_buyer (boolean, true when negative, abuse and complaint comments are 30 percent or more of the total). No prose.';\nconst body = { model: 'claude-haiku-4-5-20251001', max_tokens: 1200, temperature: 0, system: sys, messages: [ { role: 'user', content: JSON.stringify(rows) } ] };\nreturn [{ json: { body: body } }];"
+        "jsCode": "const rows = $input.all().map((i) => i.json);\nif (!rows.length) return [];\nconst sys = 'You summarise public comment sentiment per ad for SortMyCover, a South African service that books calls with licensed advisers. The input is a JSON array of rows with ad_id, class counts and redacted objection comments. Return ONLY a JSON object with the key ads, an array of objects with the keys ad_id, sentiment (positive, neutral or negative), themes (an array of objects with the keys theme and count, objection themes only, short plain phrases) and flag_media_buyer (boolean, true when negative, abuse and complaint comments are 30 percent or more of the total). No prose.';\nconst body = { model: 'relay-default', max_tokens: 1200, temperature: 0, system: sys, messages: [ { role: 'user', content: JSON.stringify(rows) } ] };\nreturn [{ json: { body: body } }];"
       },
       "id": "w30-n61",
       "name": "Build sentiment prompt",
@@ -1403,15 +1388,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -1427,7 +1414,7 @@
         }
       },
       "id": "w30-n62",
-      "name": "Summarise (Haiku)",
+      "name": "Summarise (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -1437,12 +1424,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1685,6 +1667,198 @@
         "mode": "runOnceForAllItems",
         "jsCode": "const out = [];\nfor (const it of $input.all()) {\n  const b64 = String(it.json.raw_body_b64 || '');\n  const buf = Buffer.from(b64, 'base64');\n  let body = {};\n  try { body = JSON.parse(buf.toString('utf8')); } catch (e) { body = {}; }\n  const binary = { data: await this.helpers.prepareBinaryData(buf, 'raw.json', 'application/json') };\n  out.push({ json: { headers: { 'x-hub-signature-256': String(it.json.signature || '') }, body }, binary });\n}\nreturn out;"
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w30-0",
+      "name": "LLM relay set? (Classify (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3020,
+        280
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w30-1",
+      "name": "LLM relay set? (Classify retry (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3680,
+        420
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w30-2",
+      "name": "LLM relay set? (Draft (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        60
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w30-3",
+      "name": "LLM relay set? (Guardrail gate (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5220,
+        -40
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w30-4",
+      "name": "LLM relay set? (Redraft (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5880,
+        -80
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w30-5",
+      "name": "LLM relay set? (Summarise (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        820
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
     }
   ],
   "connections": {
@@ -1962,14 +2136,14 @@
         ],
         [
           {
-            "node": "Classify (Haiku)",
+            "node": "LLM relay set? (Classify (relay))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Classify (Haiku)": {
+    "Classify (relay)": {
       "main": [
         [
           {
@@ -1984,18 +2158,18 @@
       "main": [
         [
           {
-            "node": "Needs Sonnet retry?",
+            "node": "Needs classify retry?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Needs Sonnet retry?": {
+    "Needs classify retry?": {
       "main": [
         [
           {
-            "node": "Classify (Sonnet)",
+            "node": "LLM relay set? (Classify retry (relay))",
             "type": "main",
             "index": 0
           }
@@ -2009,7 +2183,7 @@
         ]
       ]
     },
-    "Classify (Sonnet)": {
+    "Classify retry (relay)": {
       "main": [
         [
           {
@@ -2053,14 +2227,14 @@
       "main": [
         [
           {
-            "node": "Draft (Haiku)",
+            "node": "LLM relay set? (Draft (relay))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Draft (Haiku)": {
+    "Draft (relay)": {
       "main": [
         [
           {
@@ -2086,7 +2260,7 @@
       "main": [
         [
           {
-            "node": "Guardrail gate (Haiku)",
+            "node": "LLM relay set? (Guardrail gate (relay))",
             "type": "main",
             "index": 0
           }
@@ -2100,7 +2274,7 @@
         ]
       ]
     },
-    "Guardrail gate (Haiku)": {
+    "Guardrail gate (relay)": {
       "main": [
         [
           {
@@ -2115,18 +2289,18 @@
       "main": [
         [
           {
-            "node": "Sonnet redraft?",
+            "node": "Objection redraft?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Sonnet redraft?": {
+    "Objection redraft?": {
       "main": [
         [
           {
-            "node": "Draft (Sonnet)",
+            "node": "LLM relay set? (Redraft (relay))",
             "type": "main",
             "index": 0
           }
@@ -2140,7 +2314,7 @@
         ]
       ]
     },
-    "Draft (Sonnet)": {
+    "Redraft (relay)": {
       "main": [
         [
           {
@@ -2446,14 +2620,14 @@
       "main": [
         [
           {
-            "node": "Summarise (Haiku)",
+            "node": "LLM relay set? (Summarise (relay))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Summarise (Haiku)": {
+    "Summarise (relay)": {
       "main": [
         [
           {
@@ -2565,6 +2739,114 @@
         [
           {
             "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Classify (relay))": {
+      "main": [
+        [
+          {
+            "node": "Classify (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Classify retry (relay))": {
+      "main": [
+        [
+          {
+            "node": "Classify retry (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Draft (relay))": {
+      "main": [
+        [
+          {
+            "node": "Draft (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lint draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Guardrail gate (relay))": {
+      "main": [
+        [
+          {
+            "node": "Guardrail gate (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apply gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Redraft (relay))": {
+      "main": [
+        [
+          {
+            "node": "Redraft (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lint draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Summarise (relay))": {
+      "main": [
+        [
+          {
+            "node": "Summarise (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse sentiment",
             "type": "main",
             "index": 0
           }

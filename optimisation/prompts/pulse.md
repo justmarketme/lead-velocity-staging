@@ -1,7 +1,7 @@
 ---
 name: smc-pulse
 workflow: W32 (daily 06:30 SAST, plus event triggers)
-model: claude-haiku-4-5-20251001
+model: relay-default (LLM relay, $env.LLM_RELAY_URL; no Anthropic API in this system)
 max_output_tokens: 1400
 temperature: 0
 writes: ops.pulses, ops.signals, ops.proposals (status = proposed), ops.notifications (via the send nodes)

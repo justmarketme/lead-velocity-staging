@@ -4,7 +4,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> Haiku classify (strict JSON, fail closed to human) -> disclose + FAQ answer (Haiku draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `LV Supabase - n8n_app (least privilege)`, `Meta Page Token`, `Anthropic API`. Alerts go to W22 by Execute Workflow smc-w22 (I-47g). Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002060000_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`; `dm_handoff` and `dm_after_link` -> `dm`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
+        "content": "## W31 DM handler (community-response-lead, 4.14)\n\nTrigger: Messenger and Instagram `messages` webhook (path /webhook/meta-dm). Flow: signature check (automation/security/verify-webhooks.js) -> load rules/corpus/prompt -> fetch first name -> upsert conversation -> route (STOP, human handoff, paused, age answer, classify) -> relay classify (strict JSON, fail closed to human) -> disclose + FAQ answer (relay draft, FAIS lint, shared guardrail) -> ONE age-band question (quick replies) -> CTWA link -> stop. The person typing person, human or manager hands off to Jonathan/KG and pauses the bot. STOP is honoured silently (suppression, no further message).\n\nWe only ever reply inside the 24-hour window after the person's last message (RESPONSE messaging type). Replies 07:00-22:00 SAST; overnight replies are written to dm_queue and sent from 07:15 if the window is still open (otherwise marked expired and nothing is sent). Nobody is DMed unless they commented (private reply) or messaged first. No reply from the person means nothing further.\n\nCredentials by name: `LV Supabase - n8n_app (least privilege)`, `Meta Page Token`, $env.LLM_RELAY_URL + $env.LLM_RELAY_TOKEN (env, no credential). Alerts go to W22 by Execute Workflow smc-w22 (I-47g). Env: REPO_DIR, AUTOMATION_DIR, META_APP_SECRET, META_VERIFY_TOKEN, META_GRAPH_VERSION, CTWA_BASE_URL, CONSOLE_URL, N8N_INTERNAL_URL. Tables: dm_threads (channel, external_id, state, paused, opted_out, last_user_message_at; `conversations` is a per-message view, never written), dm_queue, escalations (assigned_agent text) (supabase/migrations/20261002060000_smc_06_pass2.sql). Ingress: Page `messaging` events forwarded from W02's page ingress and IG messages; forward the raw body with the original X-Hub-Signature-256 header.\n\nDM text is never stored: only the conversation state (step, counts, age band) and the last message id are saved. Success runs are not saved.\n\n## Env + runtime dependencies (I-31c)\n`ESC_REAL_KINDS` (name only in automation/.env.example): unset or false = escalation kinds are mapped to the old constraint (`sensitive` -> `human_handoff`; `dm_handoff` and `dm_after_link` -> `dm`) and the real kind is kept in `kind_requested`; set `ESC_REAL_KINDS=true` once migration 08 (escalations_kind_check with sensitive, dm_handoff, dm_after_link) is applied on the target database. No workflow change needed.\n`conversation/guardrail.mjs` is loaded in the guardrail Code nodes with `require('lv-automation').guardrail` (I-44a: the one allowlisted package, `NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation`, linked to the read-only repo mount; automation/index.cjs). If it cannot load, the gate fails closed (`classifier_input_unavailable` -> fixed template), so a broken mount silences replies rather than sending unchecked text.",
         "height": 480,
         "width": 620
       },
@@ -337,7 +337,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const ev = $('Normalise DM events').item.json;\nconst convo = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst D = cfg.rules.dm_rules;\nconst AP = String.fromCharCode(39);\nconst toks = (ev.text || '').toLowerCase().split('').map((c) => ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === AP ? c : ' ')).join('').split(' ').filter(Boolean);\nconst norm = ' ' + toks.join(' ') + ' ';\nconst has = (p) => norm.indexOf(' ' + String(p).toLowerCase() + ' ') >= 0;\nconst state = convo.state || {};\nlet route = 'classify';\nif (ev.mid && state.last_mid === ev.mid) route = 'dup';\nelse if (convo.opted_out === true) route = 'paused';\nelse if (has('stop') || has('unsubscribe') || has('opt out') || has('optout')) route = 'stop';\nelse if (convo.paused === true) route = 'paused';\nelse if (D.handoff_phrases_en.concat(D.handoff_phrases_af).some((p) => has(p)) || ev.payload === 'HANDOFF') route = 'handoff';\nelse if (state.step === 'asked_age' && (ev.text || '').indexOf('?') < 0) route = 'age_answer';\nconst afw = ['ek', 'jy', 'nie', 'dit', 'die', 'wat', 'kos', 'asseblief', 'dankie', 'hoe', 'lank', 'baie', 'vertrou', 'skelm', 'gesprek', 'bel', 'maand', 'wie', 'eintlik', 'vra', 'nog', 'het', 'sal', 'vir', 'maar', 'net', 'vraag', 'mens', 'persoon', AP + 'n'];\nconst lang = toks.filter((t) => afw.indexOf(t) >= 0).length >= 2 ? 'af' : 'en';\nconst red = (ev.text || '').replace(new RegExp('[0-9]{4,}', 'g'), '[digits]').slice(0, 600);\nconst userTurn = { surface: ev.channel === 'instagram' ? 'ig_dm' : 'messenger', text: red, parent_is_ad: false, is_nested_reply: false, prior_exchanges_with_person_on_post: 0 };\nconst classify_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 60, temperature: 0, system: cfg.system_prompt, messages: [ { role: 'user', content: JSON.stringify(userTurn) } ] };\nreturn { json: { route: route, lang: lang, text_redacted: red, classify_body: classify_body } };",
+        "jsCode": "const ev = $('Normalise DM events').item.json;\nconst convo = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst D = cfg.rules.dm_rules;\nconst AP = String.fromCharCode(39);\nconst toks = (ev.text || '').toLowerCase().split('').map((c) => ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === AP ? c : ' ')).join('').split(' ').filter(Boolean);\nconst norm = ' ' + toks.join(' ') + ' ';\nconst has = (p) => norm.indexOf(' ' + String(p).toLowerCase() + ' ') >= 0;\nconst state = convo.state || {};\nlet route = 'classify';\nif (ev.mid && state.last_mid === ev.mid) route = 'dup';\nelse if (convo.opted_out === true) route = 'paused';\nelse if (has('stop') || has('unsubscribe') || has('opt out') || has('optout')) route = 'stop';\nelse if (convo.paused === true) route = 'paused';\nelse if (D.handoff_phrases_en.concat(D.handoff_phrases_af).some((p) => has(p)) || ev.payload === 'HANDOFF') route = 'handoff';\nelse if (state.step === 'asked_age' && (ev.text || '').indexOf('?') < 0) route = 'age_answer';\nconst afw = ['ek', 'jy', 'nie', 'dit', 'die', 'wat', 'kos', 'asseblief', 'dankie', 'hoe', 'lank', 'baie', 'vertrou', 'skelm', 'gesprek', 'bel', 'maand', 'wie', 'eintlik', 'vra', 'nog', 'het', 'sal', 'vir', 'maar', 'net', 'vraag', 'mens', 'persoon', AP + 'n'];\nconst lang = toks.filter((t) => afw.indexOf(t) >= 0).length >= 2 ? 'af' : 'en';\nconst red = (ev.text || '').replace(new RegExp('[0-9]{4,}', 'g'), '[digits]').slice(0, 600);\nconst userTurn = { surface: ev.channel === 'instagram' ? 'ig_dm' : 'messenger', text: red, parent_is_ad: false, is_nested_reply: false, prior_exchanges_with_person_on_post: 0 };\nconst classify_body = { model: 'relay-default', max_tokens: 60, temperature: 0, system: cfg.system_prompt, messages: [ { role: 'user', content: JSON.stringify(userTurn) } ] };\nreturn { json: { route: route, lang: lang, text_redacted: red, classify_body: classify_body } };",
         "mode": "runOnceForEachItem"
       },
       "id": "w31-n17",
@@ -434,15 +434,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -458,7 +460,7 @@
         }
       },
       "id": "w31-n22",
-      "name": "Classify (Haiku)",
+      "name": "Classify (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -468,12 +470,7 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -525,7 +522,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const d = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst facts = cfg.faq ? cfg.faq : cfg.facts;\nconst lang = d.plan.lang === 'af' ? 'Afrikaans' : 'plain South African English';\nconst sys = 'You write ONE short private chat answer for SortMyCover on Messenger or Instagram. SortMyCover connects people with a licensed financial adviser for a 30-minute call. Rules: at most 2 sentences. Reading grade 5 to 7. Language: ' + lang + '. No exclamation marks. No emoji. No links. No numbers except 30. Never mention price, premium, rand amounts, insurers, products, cover amounts, comparisons or recommendations. Speak about the adviser and SortMyCover in the third person. Do not argue. Use only the FACTS below. If the facts do not answer the question, output exactly NO_ANSWER. Output only the answer text.' + NL + NL + 'FACTS:' + NL + String(facts).slice(0, 6000);\nconst body = { model: 'claude-haiku-4-5-20251001', max_tokens: 120, temperature: 0.2, system: sys, messages: [ { role: 'user', content: 'Type: ' + d.key + NL + 'Message: ' + d.text_redacted } ] };\nreturn { json: Object.assign({}, d, { draft_body: body }) };",
+        "jsCode": "const d = $json;\nconst cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst facts = cfg.faq ? cfg.faq : cfg.facts;\nconst lang = d.plan.lang === 'af' ? 'Afrikaans' : 'plain South African English';\nconst sys = 'You write ONE short private chat answer for SortMyCover on Messenger or Instagram. SortMyCover connects people with a licensed financial adviser for a 30-minute call. Rules: at most 2 sentences. Reading grade 5 to 7. Language: ' + lang + '. No exclamation marks. No emoji. No links. No numbers except 30. Never mention price, premium, rand amounts, insurers, products, cover amounts, comparisons or recommendations. Speak about the adviser and SortMyCover in the third person. Do not argue. Use only the FACTS below. If the facts do not answer the question, output exactly NO_ANSWER. Output only the answer text.' + NL + NL + 'FACTS:' + NL + String(facts).slice(0, 6000);\nconst body = { model: 'relay-default', max_tokens: 120, temperature: 0.2, system: sys, messages: [ { role: 'user', content: 'Type: ' + d.key + NL + 'Message: ' + d.text_redacted } ] };\nreturn { json: Object.assign({}, d, { draft_body: body }) };",
         "mode": "runOnceForEachItem"
       },
       "id": "w31-n26",
@@ -540,15 +537,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -564,7 +563,7 @@
         }
       },
       "id": "w31-n27",
-      "name": "Draft (Haiku)",
+      "name": "Draft (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -574,16 +573,11 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for chat replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nlet userTurn = '';\ntry {\n  const dd = $('Decide DM').item.json;\n  const gm = require('lv-automation').guardrail;\n  userTurn = gm.classifierInput({ draft: draft, question: dd.text_redacted || '', lang: (dd.plan && dd.plan.lang) || 'en', surface: 'whatsapp' });\n} catch (e) { reasons.push('classifier_input_unavailable'); }\nconst gate_body = { model: 'claude-haiku-4-5-20251001', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: userTurn } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, gate_body: gate_body } };",
+        "jsCode": "const cfg = $('Load config').first().json.cfg;\nconst NL = String.fromCharCode(10);\nconst r = $json || {};\nconst draft = ((r.content && r.content[0] && r.content[0].text) || '').trim();\nconst reasons = [];\nif (!draft || draft.indexOf('NO_ANSWER') >= 0) reasons.push('no_answer');\nif (draft.indexOf('!') >= 0) reasons.push('exclamation');\nconst low = draft.toLowerCase();\nif (low.indexOf('http') >= 0 || low.indexOf('www.') >= 0 || low.indexOf('.co.za') >= 0 || low.indexOf('.com') >= 0) reasons.push('link');\nconst digits = draft.replace(new RegExp('[^0-9]', 'g'), '');\nif (digits.length > 0 && digits !== '30') reasons.push('digits');\nconst banned = ['premium', 'price', 'rand', 'insurer', 'policy', 'policies', 'cover amount', 'how much cover', 'compare', 'comparison', 'cheapest', 'best cover', 'you should', 'guarantee', 'financial advice', 'appointment', 'discovery', 'sanlam', 'old mutual', 'liberty', 'momentum', 'outsurance', 'hollard', '1life', 'assupol', 'brightrock', 'tax', 'recommend', 'suits you', 'suitable'];\nfor (const b of banned) { if (low.indexOf(b) >= 0) reasons.push('banned:' + b); }\nconst sentences = draft.split('.').join('|').split('?').join('|').split('|').filter((s) => s.trim().length > 1).length;\nif (sentences > 2) reasons.push('too_long');\nconst stub = 'You are the FAIS guardrail gate for chat replies by SortMyCover, a South African lead-generation service that is not a financial services provider. A reply FAILS if it mentions or implies any premium, price, rand amount, cover amount, product, insurer, comparison, suitability, tax treatment, recommendation, or uses the phrase you should. A reply PASSES only if it answers about the call or the company in the third person, or defers to the licensed adviser.';\nconst sys = (cfg.guardrail ? cfg.guardrail : stub) + NL + NL + 'Community gate mode: judge the DRAFT reply below. Output exactly PASS or FAIL and nothing else.';\nlet userTurn = '';\ntry {\n  const dd = $('Decide DM').item.json;\n  const gm = require('lv-automation').guardrail;\n  userTurn = gm.classifierInput({ draft: draft, question: dd.text_redacted || '', lang: (dd.plan && dd.plan.lang) || 'en', surface: 'whatsapp' });\n} catch (e) { reasons.push('classifier_input_unavailable'); }\nconst gate_body = { model: 'relay-default', max_tokens: 10, temperature: 0, system: sys, messages: [ { role: 'user', content: userTurn } ] };\nreturn { json: { draft: draft, lint_ok: reasons.length === 0, reasons: reasons, gate_body: gate_body } };",
         "mode": "runOnceForEachItem"
       },
       "id": "w31-n28",
@@ -618,15 +612,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
@@ -642,7 +638,7 @@
         }
       },
       "id": "w31-n30",
-      "name": "Guardrail gate (Haiku)",
+      "name": "Guardrail gate (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -652,12 +648,7 @@
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 1500,
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API"
-        }
-      }
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1104,6 +1095,102 @@
         "mode": "runOnceForAllItems",
         "jsCode": "const out = [];\nfor (const it of $input.all()) {\n  const b64 = String(it.json.raw_body_b64 || '');\n  const buf = Buffer.from(b64, 'base64');\n  let body = {};\n  try { body = JSON.parse(buf.toString('utf8')); } catch (e) { body = {}; }\n  const binary = { data: await this.helpers.prepareBinaryData(buf, 'raw.json', 'application/json') };\n  out.push({ json: { headers: { 'x-hub-signature-256': String(it.json.signature || '') }, body }, binary });\n}\nreturn out;"
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w31-0",
+      "name": "LLM relay set? (Classify (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2580,
+        -80
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w31-1",
+      "name": "LLM relay set? (Draft (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3680,
+        0
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w31-2",
+      "name": "LLM relay set? (Guardrail gate (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4340,
+        -100
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
     }
   ],
   "connections": {
@@ -1352,7 +1439,7 @@
       "main": [
         [
           {
-            "node": "Classify (Haiku)",
+            "node": "LLM relay set? (Classify (relay))",
             "type": "main",
             "index": 0
           }
@@ -1366,7 +1453,7 @@
         ]
       ]
     },
-    "Classify (Haiku)": {
+    "Classify (relay)": {
       "main": [
         [
           {
@@ -1421,14 +1508,14 @@
       "main": [
         [
           {
-            "node": "Draft (Haiku)",
+            "node": "LLM relay set? (Draft (relay))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Draft (Haiku)": {
+    "Draft (relay)": {
       "main": [
         [
           {
@@ -1454,7 +1541,7 @@
       "main": [
         [
           {
-            "node": "Guardrail gate (Haiku)",
+            "node": "LLM relay set? (Guardrail gate (relay))",
             "type": "main",
             "index": 0
           }
@@ -1468,7 +1555,7 @@
         ]
       ]
     },
-    "Guardrail gate (Haiku)": {
+    "Guardrail gate (relay)": {
       "main": [
         [
           {
@@ -1711,6 +1798,60 @@
         [
           {
             "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Classify (relay))": {
+      "main": [
+        [
+          {
+            "node": "Classify (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Draft (relay))": {
+      "main": [
+        [
+          {
+            "node": "Draft (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lint draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Guardrail gate (relay))": {
+      "main": [
+        [
+          {
+            "node": "Guardrail gate (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apply gate",
             "type": "main",
             "index": 0
           }

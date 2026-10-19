@@ -1,7 +1,7 @@
 ---
 name: smc-w33-judge
 workflow: W33 (daily 06:00 SAST)
-model: claude-haiku-4-5-20251001
+model: relay-default (LLM relay, $env.LLM_RELAY_URL; no Anthropic API in this system)
 max_output_tokens: 2500
 temperature: 0
 reads: rubrics/*.md (one per call)

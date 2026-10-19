@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W11 Broker reminders (4.6 item 7 + W11 row; 4.11 pre-call brief; 4.12a unmarked rule).\n(1) 07:30 SAST daily digest broker_daily_digest to every active broker with >= 1 live meeting today (none -> nothing sent) + the same list by email.\n(2) Every minute: T-15 min pre-call brief precall_brief. Input built from Postgres only (precall-brief.md \"Inputs\"): bands, contact data, lead_theme rows (I-22, written by W07), confirm/intro signals, the broker's 'what_mattered' corpus (W29). Sonnet writes it; briefCheck() gates it; any failure -> deterministic fallback brief (a brief is never skipped). Health detail never leaves Postgres (only \"has a health question for you\").\n(3) Hourly backstop: slot end + 24 h with no outcomes row -> attended + auto_marked + unconfirmed (ON CONFLICT (booking_id) DO NOTHING so it cannot fight W12, which owns the normal path); lead said \"No, not yet\" -> console queue instead; two unconfirmed in a cycle -> Jonathan calls the broker.\nBrokers see first name + initial only. Idempotency: lead_activities keys w11:digest:{broker}:{date}, w11:brief:{booking}:{epoch}, w11:auto:{booking}. Logic automation/lib/w11.mjs; tests automation/tests/W11.test.mjs.\nNOTE: the brief that launched this asked for broker reminders at T-24 h / T-1 h; 4.6 specifies 07:30 + T-15 and there is no approved broker template for T-24 h / T-1 h - built to 4.6, logged needs_human."
+        "content": "W11 Broker reminders (4.6 item 7 + W11 row; 4.11 pre-call brief; 4.12a unmarked rule).\n(1) 07:30 SAST daily digest broker_daily_digest to every active broker with >= 1 live meeting today (none -> nothing sent) + the same list by email.\n(2) Every minute: T-15 min pre-call brief precall_brief. Input built from Postgres only (precall-brief.md \"Inputs\"): bands, contact data, lead_theme rows (I-22, written by W07), confirm/intro signals, the broker's 'what_mattered' corpus (W29). The LLM relay writes it; briefCheck() gates it; any failure -> deterministic fallback brief (a brief is never skipped). Health detail never leaves Postgres (only \"has a health question for you\").\n(3) Hourly backstop: slot end + 24 h with no outcomes row -> attended + auto_marked + unconfirmed (ON CONFLICT (booking_id) DO NOTHING so it cannot fight W12, which owns the normal path); lead said \"No, not yet\" -> console queue instead; two unconfirmed in a cycle -> Jonathan calls the broker.\nBrokers see first name + initial only. Idempotency: lead_activities keys w11:digest:{broker}:{date}, w11:brief:{booking}:{epoch}, w11:auto:{booking}. Logic automation/lib/w11.mjs; tests automation/tests/W11.test.mjs.\nNOTE: the brief that launched this asked for broker reminders at T-24 h / T-1 h; 4.6 specifies 07:30 + T-15 and there is no approved broker template for T-24 h / T-1 h - built to 4.6, logged needs_human."
       }
     },
     {
@@ -229,7 +229,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w11;\nconst r = $json; if (!r.id) return { json: { skip: true } };\nconst lead = { first_name: r.first_name, last_name: r.last_name, phone: r.phone, age_band: r.age_band, budget_band: r.budget_band, bond: r.bond, dependants: r.dependants, work_cover: r.work_cover, call_number: r.lead_call_number, alt_number: r.alt_number, best_time: r.best_time, language: r.language };\nconst booking = { id: r.id, appointment_date: r.appointment_date, method: r.method, call_number: r.call_number, join_url: r.join_url, reschedule_count: r.reschedule_count, status: r.status };\nconst input = L.briefInput(lead, booking, r.themes || [], { confirmed_t24: !!r.confirmed_at, intro_media_played: !!r.intro_played_at }, r.corpus || []);\nconst fallback = L.fallbackBrief(lead, booking, input);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/precall-brief.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nreturn { json: { skip: false, r, lead, booking, input, fallback, key: L.briefKey(booking), body: { model: $env.ANTHROPIC_MODEL_STRONG || 'claude-sonnet-5-5', max_tokens: 600, temperature: 0.2, system, messages: [{ role: 'user', content: JSON.stringify(input) }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w11;\nconst r = $json; if (!r.id) return { json: { skip: true } };\nconst lead = { first_name: r.first_name, last_name: r.last_name, phone: r.phone, age_band: r.age_band, budget_band: r.budget_band, bond: r.bond, dependants: r.dependants, work_cover: r.work_cover, call_number: r.lead_call_number, alt_number: r.alt_number, best_time: r.best_time, language: r.language };\nconst booking = { id: r.id, appointment_date: r.appointment_date, method: r.method, call_number: r.call_number, join_url: r.join_url, reschedule_count: r.reschedule_count, status: r.status };\nconst input = L.briefInput(lead, booking, r.themes || [], { confirmed_t24: !!r.confirmed_at, intro_media_played: !!r.intro_played_at }, r.corpus || []);\nconst fallback = L.fallbackBrief(lead, booking, input);\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/precall-brief.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nreturn { json: { skip: false, r, lead, booking, input, fallback, key: L.briefKey(booking), body: { model: 'relay-default', max_tokens: 600, temperature: 0.2, system, messages: [{ role: 'user', content: JSON.stringify(input) }] } } };"
       }
     },
     {
@@ -291,7 +291,7 @@
     },
     {
       "id": "n14",
-      "name": "Pre-call brief LLM (Sonnet)",
+      "name": "Pre-call brief LLM (relay)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -300,17 +300,13 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -792,6 +788,38 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// lib/wa-route.cjs: \"Send pre-call brief\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W11\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W11:Send pre-call brief:\" + exec + ':' + idx,\n} };"
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w11-0",
+      "name": "LLM relay set? (Pre-call brief LLM (relay))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        320
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
     }
   ],
   "connections": {
@@ -909,14 +937,14 @@
       "main": [
         [
           {
-            "node": "Pre-call brief LLM (Sonnet)",
+            "node": "LLM relay set? (Pre-call brief LLM (relay))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Pre-call brief LLM (Sonnet)": {
+    "Pre-call brief LLM (relay)": {
       "main": [
         [
           {
@@ -1087,6 +1115,24 @@
         [
           {
             "node": "Send pre-call brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Pre-call brief LLM (relay))": {
+      "main": [
+        [
+          {
+            "node": "Pre-call brief LLM (relay)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "briefCheck -> LLM or fallback",
             "type": "main",
             "index": 0
           }

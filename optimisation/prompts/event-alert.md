@@ -1,7 +1,7 @@
 ---
 name: smc-event-alert
 workflow: W32 event path (within 1 h of: W22 alert, guardrail trip in a live conversation, template or Flow rejection, regulator notice, changelog item classed adopt/trial, a build acceptance test failing twice, compliance control failing)
-model: claude-haiku-4-5-20251001
+model: relay-default (LLM relay, $env.LLM_RELAY_URL; no Anthropic API in this system)
 max_output_tokens: 400
 temperature: 0
 writes: ops.pulses (kind = event), ops.signals, ops.notifications (via the send node: ops_alert)

@@ -7,4 +7,4 @@ const user = 'CHANGES:\n' + JSON.stringify(rows.map((r) => ({ proposal_id: r.pro
 const est = estZar(cfg, cfg.models.fast, PROMPTS.grading_system.length + user.length, 1500);
 if (!allow(cfg, 'grading', est)) return [];
 charge(cfg, 'grading', est);
-return [{ json: { rows, body: anthropicBody(cfg.models.fast, PROMPTS.grading_system, user, 1500) } }];
+return [{ json: { rows, body: relayBody(cfg.models.fast, PROMPTS.grading_system, user, 1500) } }];

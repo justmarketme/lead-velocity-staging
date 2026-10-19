@@ -18,8 +18,8 @@ export const SECRETS = [
     ['httpHeaderAuth', 'WhatsApp Cloud API (system user)'],
     ['httpHeaderAuth', 'WhatsApp Cloud API token (SMC ops)'], ['httpHeaderAuth', 'WhatsApp Graph bearer (system user)']]],
   ['Meta Page token', 'PAGE_ACCESS_TOKEN', [['httpHeaderAuth', 'Meta Page Token']]],
-  ['Anthropic API key', 'ANTHROPIC_API_KEY', [
-    ['httpHeaderAuth', 'Anthropic API'], ['httpHeaderAuth', 'Anthropic API (SMC)'], ['httpHeaderAuth', 'Anthropic API key (x-api-key)']]],
+  // 19 Oct 2026: no Anthropic API in this system. LINDI_RELAY_TOKEN (W07 -> smc-lindi-chat) and LLM_RELAY_TOKEN (the other LLM
+  // jobs) are read from .env by the nodes ($env), never stored in an n8n credential, so they have no copies here (SECURITY.md).
   ['Twilio API key', 'TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET', [
     ['httpBasicAuth', 'Twilio (SMC voice)'], ['httpBasicAuth', 'Twilio API key (Basic)']]],
   ['Microsoft Entra app (howzit@ and broker connect)', 'MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET', [

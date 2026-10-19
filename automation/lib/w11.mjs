@@ -1,7 +1,7 @@
 // automation/lib/w11.mjs  -  W11 broker reminders (4.6 item 7 + W11 row; 4.11 pre-call brief; 4.12a unmarked rule).
 // Imported by automation/W11.json and automation/tests/W11.test.mjs. Node 18+, zero dependencies.
 //  - 07:30 SAST daily digest (broker_daily_digest) for each broker with >= 1 live meeting today. No meetings -> no message.
-//  - T-15 min pre-call brief (precall_brief): Sonnet writes it from the precall-brief.md input; briefCheck() gates it;
+//  - T-15 min pre-call brief (precall_brief): the LLM relay ($env.LLM_RELAY_URL) writes it from the precall-brief.md input; briefCheck() gates it;
 //    if the model fails or the check fails, the deterministic fallback below is sent (a brief is never skipped).
 //  - Unmarked-outcome backstop at slot end + 24 h: attended + auto_marked + unconfirmed (4.12a), written with
 //    ON CONFLICT (booking_id) DO NOTHING so it can never fight W12, which owns the normal path. If the lead said

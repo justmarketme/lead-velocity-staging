@@ -1,6 +1,6 @@
 # Judge rubrics (W33) — shared rules
 
-Read by `prompts/judge.md`. One rubric file per sample type. The judge is read-only, runs on Haiku 4.5 in its own context, and never grades its own output or anything the optimisation-advisor wrote.
+Read by `prompts/judge.md`. One rubric file per sample type. The judge is read-only, runs on the LLM relay in its own context, and never grades its own output or anything the optimisation-advisor wrote.
 
 ## Severity (same everywhere)
 | Severity | Meaning | What happens |

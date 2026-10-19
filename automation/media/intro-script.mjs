@@ -21,9 +21,11 @@ export const EXAMPLE_TEXT = "Hi, I'm Mark from Mark Williams Financial Planning,
 export const credLabels = (list) => (Array.isArray(list) ? list : [])
   .map((c) => (typeof c === 'string' ? c : c && typeof c === 'object' && c.type !== 'fsp' && typeof (c.label || c.name) === 'string' ? (c.label || c.name) : null))
   .filter((c) => c && String(c).trim());
+// Non-Lindi LLM jobs go to ONE relay ($env.LLM_RELAY_URL, no fallback); there is no Anthropic API in this system (19 Oct 2026).
+export const RELAY_MODEL = 'relay-default';
 const lang = (l) => (['en', 'af'].includes(l) ? l : String(l || 'other').slice(0, 8).replace(/[^a-z-]/gi, '') || 'other');
 
-export function genRequest(broker, answers, angle, language, { model = 'claude-sonnet-5-5' } = {}) {
+export function genRequest(broker, answers, angle, language, { model = RELAY_MODEL } = {}) {
   const a = (answers && answers.answers) || {};
   const g = (k) => String(a[k] || '').slice(0, 600);
   const creds = credLabels(broker.verified_credentials).length ? credLabels(broker.verified_credentials).join(', ') : 'none';
@@ -68,7 +70,7 @@ export function detCheck(text, facts, language) {
   const r = scriptCheck(text, { practice: facts.practice, fsp: facts.fsp, verified_credentials: credLabels(facts.verified_credentials) }, { lang: lang(language) });
   return { pass: r.pass, verdict: r.verdict, issues: r.issues, rule: r.issues.length ? ruleOf(r.issues[0]) : null };
 }
-export function gateRequest(text, facts, language, { model = 'claude-haiku-4-5-20251001' } = {}) {
+export function gateRequest(text, facts, language, { model = RELAY_MODEL } = {}) {
   // user turn fenced by classifierInput() (redactForLLM, triple quotes collapsed, 1,200 chars); only the system prompt differs (script-gate.md)
   const fenced = classifierInput({ draft: text, question: '', lang: lang(language), surface: 'whatsapp' });
   const draft = /DRAFT: """([\s\S]*?)"""\nLANGUAGE:/.exec(fenced);
@@ -82,13 +84,13 @@ export function parseGate(raw) {
     if (o.verdict !== 'pass' && o.verdict !== 'block') throw new Error('verdict');
     const confidence = typeof o.confidence === 'number' ? o.confidence : 0;
     const p = (o.problems || [])[0];
-    return { valid: true, pass: o.verdict === 'pass' && o.needs_human !== true, confidence, needs_sonnet: o.verdict === 'pass' && confidence < 0.8, rule: p ? 'llm:' + p.rule : null, issues: (o.problems || []).map((x) => `llm rule ${x.rule}: ${String(x.phrase || '').slice(0, 80)}`) };
-  } catch { return { valid: false, pass: false, confidence: 0, needs_sonnet: false, rule: 'gate_unavailable', issues: ['gate unavailable'] }; }
+    return { valid: true, pass: o.verdict === 'pass' && o.needs_human !== true, confidence, needs_recheck: o.verdict === 'pass' && confidence < 0.8, rule: p ? 'llm:' + p.rule : null, issues: (o.problems || []).map((x) => `llm rule ${x.rule}: ${String(x.phrase || '').slice(0, 80)}`) };
+  } catch { return { valid: false, pass: false, confidence: 0, needs_recheck: false, rule: 'gate_unavailable', issues: ['gate unavailable'] }; }
 }
-/** gate = parseGate(haiku); recheck = parseGate(sonnet) when haiku passed below 0.8. A block is final; a Sonnet pass must be >= 0.8 itself. */
+/** gate = parseGate(first check); recheck = parseGate(second check) when the first passed below 0.8. A block is final; a re-check pass must be >= 0.8 itself. */
 export function finalGate(gate, recheck) {
   if (!gate || !gate.valid || !gate.pass) return gate || parseGate('');
-  if (gate.needs_sonnet) return recheck && recheck.valid && recheck.pass && !recheck.needs_sonnet ? recheck : (recheck && recheck.valid && !recheck.pass ? recheck : { valid: true, pass: false, rule: 'gate_unavailable', issues: ['low-confidence pass not confirmed'] });
+  if (gate.needs_recheck) return recheck && recheck.valid && recheck.pass && !recheck.needs_recheck ? recheck : (recheck && recheck.valid && !recheck.pass ? recheck : { valid: true, pass: false, rule: 'gate_unavailable', issues: ['low-confidence pass not confirmed'] });
   return gate;
 }
 export function variant(meta, text, det, gate) {
@@ -111,12 +113,12 @@ export function recheckResult(text, facts, language, det, gate) {
   return gate.pass ? { pass: true, rule: null, issues: [], warnings: [], verdict: 'pass' } : { pass: false, rule: gate.rule || 'llm', issues: gate.issues || [], warnings: [], verdict: 'block' };
 }
 
-/** Reference orchestration (same functions as the n8n nodes, used by the tests). llm(kind, body) -> raw Anthropic response (object/string) or null. */
+/** Reference orchestration (same functions as the n8n nodes, used by the tests). llm(kind, body) -> raw relay response (object/string) or null. */
 export async function generateAll(broker, answers, language, llm) {
   const facts = { practice: broker.practice_name, fsp: broker.fsp_number, verified_credentials: broker.verified_credentials || [] };
   const gateOf = async (text) => {
     const g = parseGate(await llm('gate', gateRequest(text, facts, language)));
-    return g.needs_sonnet ? finalGate(g, parseGate(await llm('gate_sonnet', gateRequest(text, facts, language, { model: 'claude-sonnet-5-5' })))) : g;
+    return g.needs_recheck ? finalGate(g, parseGate(await llm('gate_recheck', gateRequest(text, facts, language)))) : g;
   };
   const one = async (meta) => {
     let last;
@@ -135,18 +137,17 @@ export async function recheck(text, broker, language, llm) {
   const det = detCheck(text, facts, language);
   if (!det.pass) return recheckResult(text, facts, language, det, null);
   let g = parseGate(await llm('gate', gateRequest(text, facts, language)));
-  if (g.needs_sonnet) g = finalGate(g, parseGate(await llm('gate_sonnet', gateRequest(text, facts, language, { model: 'claude-sonnet-5-5' }))));
+  if (g.needs_recheck) g = finalGate(g, parseGate(await llm('gate_recheck', gateRequest(text, facts, language))));
   return recheckResult(text, facts, language, det, g);
 }
 
 // ---- I-41h: one ops.costs row per LLM-using step (spec step 14 of deliverables/conversation-designer/intro-script-generator.md)
-// ASSUMPTION: USD per million tokens (in/out) from docs/MASTER-PROMPT.md section 4A (Anthropic platform docs, 1 Oct 2026) and a fixed
-// USD->ZAR rate of 18.00. Neither is read from the API response; replace USD_ZAR with the finance rate when billing-automation publishes one.
+// ASSUMPTION: USD per million tokens (in/out) for the LLM relay, held at the dearest rate the build used (in 2 / out 10) until the
+// relay publishes its own price, and a fixed USD->ZAR rate of 18.00. Neither is read from the API response; replace USD_ZAR with the finance rate when billing-automation publishes one.
 // W07 has no cost logger to copy, so this is the single constant for W23.
-export const LLM_RATES = { usd_zar: 18.0, usd_per_mtok: { sonnet: { in: 2, out: 10 }, haiku: { in: 1, out: 5 } } };
-export function llmCostZar(model, usage) {
-  const tier = /haiku/i.test(String(model || '')) ? 'haiku' : 'sonnet'; // unknown model -> the dearer (Sonnet) rate
-  const r = LLM_RATES.usd_per_mtok[tier];
+export const LLM_RATES = { usd_zar: 18.0, usd_per_mtok: { relay: { in: 2, out: 10 } } };
+export function llmCostZar(_model, usage) {
+  const r = LLM_RATES.usd_per_mtok.relay; // one relay, one rate (whatever model label the call carried)
   const inT = Math.max(0, Number(usage && usage.input_tokens) || 0), outT = Math.max(0, Number(usage && usage.output_tokens) || 0);
   return Math.round(((inT * r.in + outT * r.out) / 1e6) * LLM_RATES.usd_zar * 100) / 100;
 }

@@ -65,7 +65,6 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md ยง7). W01โ€
 | W20 | Microsoft Graph (howzit mailbox, app-only) | `oAuth2Api` |
 | W20 | Supabase service role (n8n, W20) | `httpHeaderAuth` |
 | W21 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W23 | Anthropic API key (x-api-key) | `httpHeaderAuth` |
 | W23 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W23 | MinIO intro media | `s3` |
 | W23 | Supabase Storage (service role) | `httpHeaderAuth` |
@@ -80,19 +79,15 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md ยง7). W01โ€
 | W27 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W28 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W29 | LV Supabase - n8n_app (least privilege) | `postgres` |
-| W30 | Anthropic API | `httpHeaderAuth` |
 | W30 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W30 | Meta Page Token | `httpHeaderAuth` |
-| W31 | Anthropic API | `httpHeaderAuth` |
 | W31 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W31 | Meta Page Token | `httpHeaderAuth` |
-| W32 | Anthropic API (SMC) | `httpHeaderAuth` |
 | W32 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W32 | Microsoft Graph (howzit@) | `microsoftOutlookOAuth2Api` |
 | W32 | n8n webhook secret (SMC) | `httpHeaderAuth` |
 | W32 | Twilio (SMC voice) | `httpBasicAuth` |
 | W32 | WhatsApp Cloud API token (SMC ops) | `httpHeaderAuth` |
-| W33 | Anthropic API (SMC) | `httpHeaderAuth` |
 | W33 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W33 | n8n webhook secret (SMC) | `httpHeaderAuth` |
 | W34 | LV Supabase - n8n_app (least privilege) | `postgres` |
@@ -105,13 +100,10 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md ยง7). W01โ€
 | W39 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`. 28 credentials across 46 workflow files.
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`. 25 credentials across 46 workflow files. No credential holds an LLM key: Lindi (W07) reads `LINDI_BRAIN_URL` + `LINDI_RELAY_TOKEN` and the other LLM jobs read `LLM_RELAY_URL` + `LLM_RELAY_TOKEN` from `.env` (`$env`); there is no Anthropic API in this system (19 Oct 2026).
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
-| Anthropic API | `httpHeaderAuth` | W30, W31 | Header `x-api-key` | `ANTHROPIC_API_KEY` (duplicate of the next two, see C1) |
-| Anthropic API (SMC) | `httpHeaderAuth` | W32, W33 | Header `x-api-key` | `ANTHROPIC_API_KEY` (C1) |
-| Anthropic API key (x-api-key) | `httpHeaderAuth` | W23 | Header `x-api-key` | `ANTHROPIC_API_KEY` (C1) |
 | Console -> n8n shared secret | `httpHeaderAuth` | W25 | Webhook header auth on `POST /billing/pricing/publish` | No `.env` name. Same value configured in the console's server-side caller |
 | Hostinger SFTP (static sites) | `sftp` | W25 | Host, port, user, password or key | Hostinger hPanel SFTP account for the static sites (password manager). No `.env` name |
 | LV Supabase - n8n_app (least privilege) | `postgres` | SUB-ads-budget, SUB-ads-console, SUB-capi-send, SUB-email-verify, SUB-visit-beacon, SUB-w20-ms-token, SUB-w26-runner, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W14, W15, W16, W17, W18, W19, W20, W21, W23, W24, W25, W27, W28, W29, W30, W31, W32, W33, W34, W35, W37, W38, W39 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md ยง1b), password from the password manager |
@@ -141,7 +133,7 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md ยง7). W01โ€
 Not credentials (by design, so not in the tables): every webhook signature secret (`META_APP_SECRET`, `PAYSTACK_SECRET_KEY` HMAC, `INTERNAL_HMAC_SECRET`, `LEAD_TOKEN_SECRET`, `W34_MEDIA_ERASE_SECRET`, `TWILIO_AUTH_TOKEN`, `ZOOM_WEBHOOK_SECRET`). Code nodes read these from `$env` through `require('lv-automation').verifyWebhooks` (SECURITY.md ยง2), because a static credential cannot sign or verify a per-request body.
 
 ## C. Findings for the owners (no workflow was edited here)
-- **C1. One secret, many names.** The Meta system-user token is behind 5 credentials (5 names; the `whatsAppApi` copy for W23 went with the 2026-10-11 move of every send to smc-whatsapp-send), Anthropic behind 3, Twilio behind 2, and Microsoft howzit@ behind 5 (C2). It works, but each rotation has to update every copy, and a missed copy fails only the workflow that holds it. Proposal (automation-engineer + the generator owners, by regeneration): one name per secret: `Meta system user token (Bearer)`, `Anthropic API key (x-api-key)`, `Twilio API key (Basic)`. Until then, this table is the rotation checklist.
+- **C1. One secret, many names.** The Meta system-user token is behind 5 credentials (5 names; the `whatsAppApi` copy for W23 went with the 2026-10-11 move of every send to smc-whatsapp-send), Twilio behind 2, and Microsoft howzit@ behind 5 (C2). It works, but each rotation has to update every copy, and a missed copy fails only the workflow that holds it. Proposal (automation-engineer + the generator owners, by regeneration): one name per secret: `Meta system user token (Bearer)`, `Twilio API key (Basic)`. Until then, this table is the rotation checklist.
 - **C2. howzit@ Microsoft access is split across delegated and app-only.** `microsoftOutlookOAuth2Api` (delegated, signed in as howzit@) is used by W05, W15, W17, W19, W32 and W34. App-only `oAuth2Api` is used by W20 and W22. 6.7 says `Mail.Read` and `Mail.Send` are scoped to that mailbox, and app-only needs an Exchange application access policy to stay scoped to howzit@. Decide one model (`needs_human`, devops-security + platform-architect).
 - **C3. Supabase service-role key inside n8n.** Three Header Auth credentials hold `SUPABASE_SERVICE_ROLE_KEY`: W16 and W20 for magic links (Auth admin API), and W23 for signing Storage uploads. `provision.sh` step 5 strips that key from the VPS `.env`. Step 7 then restores n8n's credential table, so the key **reaches the VPS anyway**, encrypted with `N8N_ENCRYPTION_KEY`. That contradicts "the VPS never holds a service-role key" (W26.md step 4/13). Fix pattern already in the repo: an edge function holds the key and n8n calls it with an HMAC (as `w34-media-erase` does). `needs_human`: accept the risk for R0, or move magic links and upload signing behind edge functions before W26.
 - **C4. Unbacked services. Resolved by decision (I-47i, 2026-10-03), awaiting key pair.** `MinIO intro media` (`s3`) and `Transcription API (bearer)` pointed at services in neither compose file. No container is added (0.1: no infrastructure spend before payment); the workflow is not edited and the credential name stays (pubcheck hashes it).

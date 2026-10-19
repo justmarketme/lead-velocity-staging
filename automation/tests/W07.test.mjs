@@ -245,7 +245,7 @@ test('24-h window guard', () => {
 test('W07.json: every SQL column is a physical column (schema.md), webhook + gates present, no secrets', () => {
   assert.deepEqual(checkSql(workflowSql(WF)), []);
   const names = WF.nodes.map((n) => n.name);
-  for (const n of ['Verify signature + normalise', 'Idempotency: claim wamid', 'Intent-slot LLM', 'outputGate + classifierInput (I-27)', 'Guardrail classifier LLM (fails closed)', 'lead_activities: lead_theme rows (I-22)', 'Insert escalation (sensitive -> human_handoff/red, I-25)']) assert.ok(names.includes(n), n);
+  for (const n of ['Verify signature + normalise', 'Idempotency: claim wamid', 'Lindi labels (ElevenLabs)', 'outputGate + classifierInput (I-27)', 'Guardrail check (ElevenLabs, fails closed)', 'lead_activities: lead_theme rows (I-22)', 'Insert escalation (sensitive -> human_handoff/red, I-25)']) assert.ok(names.includes(n), n);
   const code = JSON.stringify(WF);
   assert.ok(code.includes('classifierTurn(') && code.includes("activity_type, payload") && code.includes("'lead_theme'"));
   assert.ok(!/sk-ant-|EAA[A-Za-z0-9]{20}|Bearer [A-Za-z0-9]{20}/.test(code), 'no secrets inlined');
@@ -401,20 +401,16 @@ test('I-46b Explode delegations: all-items mode, every output item is { json: ob
   assert.deepEqual(back.map((o) => o.json.route), targets(book).filter((t) => t !== 'W03'), 'other targets still fan out');
 });
 
-test('I-46a / I-47d egress: every Anthropic call in every workflow (W07/W11/W23/W29-W33) takes its base URL from $env.ANTHROPIC_BASE_URL (default api.anthropic.com)', () => {
+test('I-46a / I-47d egress (ElevenLabs only, 19 Oct 2026): W07 calls only $env.LINDI_BRAIN_URL; W11/W23/W29-W33 only $env.LLM_RELAY_URL; no fallback host', () => {
   const all = readdirSync(new URL('..', import.meta.url)).filter((x) => /^W\d\d\.json$/.test(x)).map((x) => x.slice(0, 3));
-  const withLlm = all.filter((f) => /\/v1\/messages/.test(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')));
-  for (const f of ['W07', 'W11', 'W23', 'W29', 'W30', 'W31', 'W32', 'W33']) assert.ok(withLlm.includes(f), `${f} has Anthropic nodes`);
+  const isLlm = (n) => n.type === 'n8n-nodes-base.httpRequest' && /LINDI_BRAIN_URL|LLM_RELAY_URL/.test(n.parameters.url || '');
+  const withLlm = all.filter((f) => JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')).nodes.some(isLlm));
+  assert.deepEqual(withLlm, ['W07', 'W11', 'W23', 'W29', 'W30', 'W31', 'W32', 'W33']);
   for (const f of withLlm) {
-    assert.doesNotMatch(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'), /"url": "https:\/\/api\.anthropic\.com/, `${f}: no hard-coded Anthropic host`);
     const wf = JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'));
-    const llm = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest' && /\/v1\/messages/.test(n.parameters.url || ''));
-    assert.ok(llm.length > 0, f);
-    for (const n of llm) {
-      assert.equal(n.parameters.url, '={{ ($env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\\/+$/, "") }}/v1/messages', `${f} ${n.name}`);
-      const base = (env) => (env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '') + '/v1/messages';
-      assert.equal(base({}), 'https://api.anthropic.com/v1/messages');
-      assert.equal(base({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:18080/' }), 'http://127.0.0.1:18080/v1/messages');
+    for (const n of wf.nodes.filter(isLlm)) {
+      assert.equal(n.parameters.url, f === 'W07' ? '={{ $env.LINDI_BRAIN_URL }}' : '={{ $env.LLM_RELAY_URL }}', `${f} ${n.name}`);
+      assert.equal(n.parameters.headerParameters.parameters.find((h) => h.name === 'x-api-key').value, f === 'W07' ? '={{ $env.LINDI_RELAY_TOKEN }}' : '={{ $env.LLM_RELAY_TOKEN }}', `${f} ${n.name}`);
     }
   }
 });
@@ -541,23 +537,23 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });
 
-// I-39h: Sonnet re-check of a low-confidence classifier pass (guardrail.md "Escalate to"); LLM stubbed, no live calls.
-test('I-39h re-check: only a pass < 0.8 goes to Sonnet; block is never appealed; failures fail closed', async () => {
-  const body = { model: 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system: 's', messages: [] };
+// I-39h: re-check of a low-confidence classifier pass (guardrail.md "Escalate to"); LLM stubbed, no live calls.
+test('I-39h re-check: only a pass < 0.8 is re-checked; block is never appealed; failures fail closed', async () => {
+  const body = { model: W.LINDI_MODEL, max_tokens: 200, temperature: 0, system: 's', messages: [] };
   const seen = [];
   const stub = (answers) => async (b) => { seen.push(b.model); const a = answers.shift(); if (a instanceof Error) throw a; return a; };
   const J = (verdict, confidence, categories = []) => JSON.stringify({ verdict, categories, confidence });
   assert.equal(W.needsRecheck({ verdict: 'pass', confidence: 0.79 }), true);
   assert.equal(W.needsRecheck({ verdict: 'pass', confidence: 0.8 }), false);
   assert.equal(W.needsRecheck({ verdict: 'block', confidence: 0.1 }), false);
-  // confident pass: one call, Haiku only
-  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.95)]), body)).verdict, 'pass'); assert.deepEqual(seen.splice(0), ['claude-haiku-4-5-20251001']);
+  // confident pass: one call
+  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.95)]), body)).verdict, 'pass'); assert.deepEqual(seen.splice(0), [W.LINDI_MODEL]);
   // block: one call, never appealed
   assert.equal((await W.classifyWithRecheck(stub([J('block', 0.2, ['premium'])]), body)).verdict, 'block'); assert.equal(seen.splice(0).length, 1);
-  // low pass -> Sonnet says confident pass -> pass
-  const ok = await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.9)]), body, { strongModel: 'claude-sonnet-5-5' });
-  assert.equal(ok.verdict, 'pass'); assert.equal(ok.rechecked, true); assert.deepEqual(seen.splice(0), ['claude-haiku-4-5-20251001', 'claude-sonnet-5-5']);
-  // low pass -> Sonnet blocks / still unsure / garbage / throws -> block
+  // low pass -> the re-check says confident pass -> pass (same relay, same model label)
+  const ok = await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.9)]), body);
+  assert.equal(ok.verdict, 'pass'); assert.equal(ok.rechecked, true); assert.deepEqual(seen.splice(0), [W.LINDI_MODEL, W.LINDI_MODEL]);
+  // low pass -> the re-check blocks / still unsure / garbage / throws -> block
   assert.deepEqual((await W.classifyWithRecheck(stub([J('pass', 0.6), J('block', 0.9, ['product'])]), body)).categories, ['product']);
   assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.7)]), body)).verdict, 'block');
   assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), 'not json']), body)).verdict, 'block');
@@ -565,16 +561,16 @@ test('I-39h re-check: only a pass < 0.8 goes to Sonnet; block is never appealed;
   assert.equal((await W.classifyWithRecheck(stub([new Error('down')]), body)).verdict, 'block', 'first call failure fails closed, no re-check');
 });
 
-test('I-39h W07.json: Parse -> Low-confidence pass? -> Sonnet re-check -> Assemble wiring, STRONG model routing', () => {
+test('I-39h W07.json: Parse -> Low-confidence pass? -> re-check -> Assemble wiring, one relay', () => {
   const names = WF.nodes.map((n) => n.name);
-  for (const n of ['Parse verdict + re-check needed? (I-39h)', 'Low-confidence pass? (I-39h)', 'Guardrail re-check LLM (Sonnet, I-39h)']) assert.ok(names.includes(n), n);
+  for (const n of ['Parse verdict + re-check needed? (I-39h)', 'Low-confidence pass? (I-39h)', 'Guardrail re-check (ElevenLabs)']) assert.ok(names.includes(n), n);
   const C = WF.connections;
-  assert.equal(C['Guardrail classifier LLM (fails closed)'].main[0][0].node, 'Parse verdict + re-check needed? (I-39h)');
-  assert.equal(C['Low-confidence pass? (I-39h)'].main[0][0].node, 'Guardrail re-check LLM (Sonnet, I-39h)');
+  assert.equal(C['Guardrail check (ElevenLabs, fails closed)'].main[0][0].node, 'Parse verdict + re-check needed? (I-39h)');
+  assert.equal(C['Low-confidence pass? (I-39h)'].main[0][0].node, 'Guardrail re-check (ElevenLabs)');
   assert.equal(C['Low-confidence pass? (I-39h)'].main[1][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
-  assert.equal(C['Guardrail re-check LLM (Sonnet, I-39h)'].main[0][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
+  assert.equal(C['Guardrail re-check (ElevenLabs)'].main[0][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
   const code = JSON.stringify(WF);
-  assert.ok(code.includes('ANTHROPIC_MODEL_STRONG') && code.includes('resolveRecheck('));
+  assert.ok(code.includes('L.recheckBody(j.classifier_body, { model: L.LINDI_MODEL })') && code.includes('resolveRecheck('));
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -787,11 +783,12 @@ test('Lindi turn: "Lead Velocity" only when they ask who runs SortMyCover; a dro
 test('Lindi turn: W07.json makes ONE model call (labels + reply), reads the recent chat, and skips the old reply/classifier calls', () => {
   const nd = (x) => WF.nodes.find((n) => n.name === x);
   assert.deepEqual(WF.connections['Media only? (never sent to a model)'].main[1].map((t) => t.node), ['Load recent turns (Lindi memory)']);
-  assert.deepEqual(WF.connections['Load recent turns (Lindi memory)'].main[0].map((t) => t.node), ['Build intent-slot request (Haiku)']);
+  assert.deepEqual(WF.connections['Load recent turns (Lindi memory)'].main[0].map((t) => t.node), ['Build labels request (ElevenLabs)']);
+  assert.deepEqual(WF.connections['Build labels request (ElevenLabs)'].main[0].map((t) => t.node), ['Lindi brain set? (LINDI_BRAIN_URL)']);
   assert.match(nd('Load recent turns (Lindi memory)').parameters.query, /json_agg/);
   assert.equal(nd('Load recent turns (Lindi memory)').onError, 'continueRegularOutput');
-  assert.match(nd('Build intent-slot request (Haiku)').parameters.jsCode, /lindi-turn\.md/);
-  assert.match(nd('Build intent-slot request (Haiku)').parameters.jsCode, /L\.turnRequest\(/);
+  assert.match(nd('Build labels request (ElevenLabs)').parameters.jsCode, /lindi-turn\.md/);
+  assert.match(nd('Build labels request (ElevenLabs)').parameters.jsCode, /L\.turnRequest\(/);
   assert.match(nd('Parse NLU -> decide() -> plan').parameters.jsCode, /L\.parseTurn\(raw\)/);
   assert.match(nd('Parse NLU -> decide() -> plan').parameters.jsCode, /L\.applyModelReply\(plan, turn\.reply/);
   assert.match(JSON.stringify(nd('Needs reply LLM?').parameters), /no_second_call/);
