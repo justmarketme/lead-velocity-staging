@@ -35,7 +35,7 @@ const require = createRequire(import.meta.url);
 const LT = require('../security/lead-token.js');
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (f) => JSON.parse(readFileSync(join(ROOT, 'automation', f), 'utf8'));
-const WF01 = load('W01.json'); const WF03 = load('W03.json'); const WF04 = load('W04.json'); const WF05 = load('W05.json'); const WF06 = load('W06.json'); const WF39 = load('W39.json'); const WF10 = load('W10.json');
+const WF01 = load('W01.json'); const WF03 = load('W03.json'); const WF04 = load('W04.json'); const WF05 = load('W05.json'); const WF06 = load('W06.json'); const WF39 = load('W39.json'); const WF10 = load('W10.json'); const WF12 = load('W12.json');
 /** The v4 "Start here" message (Jono, 19 Oct 2026). */
 const START_HERE_RE = /^Hi Synthetic, I'm Lindi from SortMyCover./;
 const sqlOf = (wf, name) => { const n = wf.nodes.find((x) => x.name === name); assert.ok(n, `node ${name}`); return n.parameters.query; };
@@ -278,33 +278,22 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   app(sqlOf(WF05, 'Save event ids + lead (stage, broker, invite email)'), evalParam(WF05, 'Save event ids + lead (stage, broker, invite email)', 'options.queryReplacement', { json: { ...b2.item, booking: b2.row, ev, f } }));
   app(sqlOf(WF05, 'Timeline: booked'), evalParam(WF05, 'Timeline: booked', 'options.queryReplacement', { refs: { 'After event (w05.finish)': { ...b2.item, booking: b2.row, ev, f } } }));
   assert.equal(lead(LEAD_ID).stage, 'booked');
-  assert.ok(f.w06 && f.w06.op === 'booking', 'fan-out: W06 op booking');
+  // v4 (Jono, 19 Oct 2026): a /start/ booking never gets W06 broker_intro_booked (no SID, no SMS sender): W05 sends booking_confirmed
+  assert.equal(f.w06, null, 'no W06 fan-out for a start-page booking');
+  assert.equal(f.w07, null, 'no W07 "which number" ask: the page took the number');
+  assert.equal(f.lead_wa.template.name, 'booking_confirmed', 'W05 sends the booked message (v3 Teams variant once its SID is set)');
+  assert.match(JSON.stringify(f.lead_wa), /Microsoft Teams \(join link: https:\/\/sortmycover\.co\.za\/j\//);
+  assert.deepEqual(f.start_touch, { lead_id: LEAD_ID, booking_id: b1.row.id, idempotency_key: `w06:first:${LEAD_ID}` });
   const vBooked = await getStart(TOKEN);
   assert.equal(vBooked.body.booking.held, false);
-
-  // =========================================================================================== 6. W06 op booking -> the intro card, dry
-  const r6 = app(sqlOf(WF06, 'Load lead, broker, brand, live booking'), [LEAD_ID, f.w06.booking_id])[0];
-  const cols6 = ['id', 'brand_id', 'origin', 'first_name', 'phone', 'language', 'broker_id', 'routed_at', 'stage', 'opted_out_at', 'duplicate_of', 'disqualified_reason', 'first_message_at', 'suppressed', 'practice_name', 'fsp_number', 'adviser_name', 'intro_card_url', 'booking_ui', 'booking'];
-  const l6 = Object.fromEntries(cols6.map((k, i) => [k, r6[i] === '' ? null : r6[i]]));
-  l6.suppressed = l6.suppressed === 't'; l6.booking = j(r6[19]);
-  const trig = { 'Called by W01 / W05 / W07 (op routed | skip | booking | status)': f.w06 };
-  const [hold6] = await runCode(WF06, 'Hold for the in-page booking? (w06.holdSeconds)', { items: [l6], refs: trig });
-  assert.deepEqual([hold6.json.blocked, hold6.json.hold_s], [null, 0], 'a ctwa lead: not blocked, no 45-s page hold');
-  const claim = app(sqlOf(WF06, 'Claim the one first touch (w06:first:{lead_id})'), evalParam(WF06, 'Claim the one first touch (w06:first:{lead_id})', 'options.queryReplacement', { json: hold6.json }));
-  assert.equal(claim.length, 1, 'W39 sent no first touch, so the booking claims the one intro card');
-  const [cl] = await runCode(WF06, 'Claimed? -> need W04 slots?', { items: claim.map((r) => ({ lead_id: r[0] })), refs: { 'Hold for the in-page booking? (w06.holdSeconds)': hold6.json, 'Event after hold': {} } }); // .isExecuted is undefined = not run (no hold)
-  assert.deepEqual([cl.json.claimed, cl.json.need_slots, cl.json.late_booking], [true, false, false]);
-  const [plan6] = await runCode(WF06, 'Plan card (w06.planFirstTouch + toCloudApi)', { items: [{}], refs: { 'Claimed? -> need W04 slots?': cl.json }, env: ENV });
-  assert.equal(plan6.json.plan.template, 'broker_intro_booked', 'the disclosure card with the booked time (practice + FSP + adviser)');
-  assert.equal(plan6.json.dry, true, 'DRY_RUN_SENDS');
-  const stand = await runCode(WF06, 'Dry run: stand-in response (external_id dry:w06:first:{lead_id})', { json: plan6.json });
-  const [evid] = await runCode(WF06, 'Evidence rows (w06.communicationRow + sentUpdate)', { items: [stand[0].json], refs: { 'Plan card (w06.planFirstTouch + toCloudApi)': plan6.json } });
-  app(sqlOf(WF06, 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)'), evalParam(WF06, 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)', 'options.queryReplacement', { json: evid.json }));
-  const comm = q(`SELECT template_name, external_id, metadata->>'dry_run', metadata->>'is_disclosure', content FROM public.communications WHERE lead_id = '${LEAD_ID}' AND workflow = 'W06'`);
-  assert.equal(comm.length, 1);
-  assert.deepEqual(comm[0].slice(0, 4), ['broker_intro_booked', `dry:w06:first:${LEAD_ID}`, 'true', 'true'], 'recorded as dry, as disclosure evidence');
-  assert.match(comm[0][4], /Synthetic Advisory \(FSP 12345\)/);
-  assert.ok(lead(LEAD_ID).first_message_at, 'first_message_at is stamped by the intro card');
+  // the accepted send (a wamid) stamps first_message_at and W06's one-card claim, so no later W06 event sends a card
+  const TOUCH = 'Touch leads.last_contact_at (lead sends)';
+  app(sqlOf(WF05, TOUCH), [LEAD_ID, 'lead', 'wamid.synthetic-booked-1', 'true']);
+  assert.ok(lead(LEAD_ID).first_message_at, 'first_message_at stamped by the booked message');
+  assert.equal(q(`SELECT count(*) FROM public.lead_activities WHERE idempotency_key = 'w06:first:${LEAD_ID}'`)[0][0], '1', 'the one-card claim is taken');
+  const claim6 = app(sqlOf(WF06, 'Claim the one first touch (w06:first:{lead_id})'), [LEAD_ID, 'booking', b1.row.id]);
+  assert.equal(claim6.length, 0, 'a later W06 event cannot claim a second card');
+  assert.equal(q(`SELECT count(*) FROM public.communications WHERE lead_id = '${LEAD_ID}' AND template_name = 'broker_intro_booked'`)[0][0], '0');
 
   // =========================================================================================== 6b. POST /start/answers v4 (after booking) -> done
   const ANS = { age_band: '35_44', income_band: '40k_60k', topics: ['life', 'new_bond', 'will'], request_id: 'req-sp-ans-01' };
@@ -323,6 +312,15 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   assert.deepEqual(vA.body.answers, { age_band: '35_44', income_band: '40k_60k', topics: ['life', 'new_bond', 'will'] });
   const anAgain = await postAnswers(TOKEN, ANS);
   assert.deepEqual([anAgain.body, anAgain.plan.kind, anAgain.effects], [{ ok: true, next: 'done' }, 'replay', []], 'the same request replays (no second escalation)');
+  // Meta Qualified (W12 quality sweep): a /start/ lead with age + income and NO budget band qualifies, exactly once
+  const QS = 'Quality events due (Qualified + GoodFit, not in capi_log)';
+  const qualifiedDue = () => app(sqlOf(WF12, QS), [new Date(Date.now() + 60e3).toISOString(), 'false']).filter((r) => r[0] === 'Qualified' && r[1] === LEAD_ID);
+  assert.equal(qualifiedDue().length, 1, 'W12 offers Qualified for the v4 lead (no budget_band)');
+  const [qi] = await runCode(WF12, 'Quality events (w12.qualityEventItems)', { items: qualifiedDue().map((r) => ({ event_name: r[0], lead_id: r[1], brand_id: r[2], ctwa_clid: r[3] || null, event_time: r[4], quality_score: null })),
+    refs: { 'Classify + validate (w12.classifyOp)': { now_iso: new Date().toISOString() } } });
+  assert.deepEqual([qi.json.event_name, qi.json.event_id], ['Qualified', `evt_${LEAD_ID}_qualified`]);
+  q(`INSERT INTO public.capi_log (lead_id, brand_id, event_name, event_id, action_source, status) VALUES ('${LEAD_ID}', '${BRAND}', 'Qualified', '${qi.json.event_id}', '${qi.json.action_source}', 'test')`); // what CAPI Send logs
+  assert.equal(qualifiedDue().length, 0, 'once: capi_log dedupes the next tick');
 
   // =========================================================================================== 6c. POST /start/move -> W10's own move
   const W10_LOAD = sqlOf(WF10, 'Load booking, lead, broker, brand');
@@ -484,20 +482,10 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   const ffw = W5.finish(bw2.ctx, bw2.dec.plan, bw2.row, evw, { site: ENV.SITE_URL, ics_secret: SECRET });
   app(sqlOf(WF05, 'Save event ids + lead (stage, broker, invite email)'), evalParam(WF05, 'Save event ids + lead (stage, broker, invite email)', 'options.queryReplacement', { json: { ...bw2.item, booking: bw2.row, ev: evw, f: ffw } }));
   assert.equal(lead(WID).stage, 'booked');
-  const r6w = app(sqlOf(WF06, 'Load lead, broker, brand, live booking'), [WID, ffw.w06.booking_id])[0];
-  const l6w = Object.fromEntries(cols6.map((k, i) => [k, r6w[i] === '' ? null : r6w[i]]));
-  l6w.suppressed = l6w.suppressed === 't'; l6w.booking = j(r6w[19]);
-  const [h6w] = await runCode(WF06, 'Hold for the in-page booking? (w06.holdSeconds)', { items: [l6w], refs: { 'Called by W01 / W05 / W07 (op routed | skip | booking | status)': ffw.w06 } });
-  assert.deepEqual([h6w.json.blocked, h6w.json.hold_s, l6w.origin], [null, 0, 'page'], 'a page lead, booking event: no 45-s hold');
-  const cw6 = app(sqlOf(WF06, 'Claim the one first touch (w06:first:{lead_id})'), evalParam(WF06, 'Claim the one first touch (w06:first:{lead_id})', 'options.queryReplacement', { json: h6w.json }));
-  const [clw] = await runCode(WF06, 'Claimed? -> need W04 slots?', { items: cw6.map((r) => ({ lead_id: r[0] })), refs: { 'Hold for the in-page booking? (w06.holdSeconds)': h6w.json, 'Event after hold': {} } });
-  const [pl6w] = await runCode(WF06, 'Plan card (w06.planFirstTouch + toCloudApi)', { items: [{}], refs: { 'Claimed? -> need W04 slots?': clw.json }, env: ENV });
-  assert.equal(pl6w.json.plan.template, 'broker_intro_booked', 'the approved template with the booked time (no session needed)');
-  const stw = await runCode(WF06, 'Dry run: stand-in response (external_id dry:w06:first:{lead_id})', { json: pl6w.json });
-  const [evdw] = await runCode(WF06, 'Evidence rows (w06.communicationRow + sentUpdate)', { items: [stw[0].json], refs: { 'Plan card (w06.planFirstTouch + toCloudApi)': pl6w.json } });
-  app(sqlOf(WF06, 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)'), evalParam(WF06, 'Log card + stamp lead + timeline (one statement; last_contact_at only with a wamid)', 'options.queryReplacement', { json: evdw.json }));
-  const cmw = q(`SELECT template_name, external_id, metadata->>'dry_run' FROM public.communications WHERE lead_id = '${WID}'`);
-  assert.deepEqual(cmw, [['broker_intro_booked', `dry:w06:first:${WID}`, 'true']], 'the only message to the web lead: the template, dry');
+  assert.equal(ffw.w06, null, 'no W06 card for the web lead either');
+  assert.equal(ffw.lead_wa.template.name, 'booking_confirmed', 'the approved template with the booked time (no session needed)');
+  assert.match(JSON.stringify(ffw.lead_wa), /phone call on 011 000 0311/, 'the number Mark will call (booking_confirmed_phone_v3 reads it)');
+  assert.equal(ffw.w07, null);
   // answers after booking -> done
   const wans = await postAnswers(WTOK, { age_band: '51plus', income_band: 'prefer_not', topics: ['review', 'severe_illness'], request_id: 'req-sp-web-ans' });
   assert.deepEqual(wans.body, { ok: true, next: 'done' });
