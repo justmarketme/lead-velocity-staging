@@ -33,6 +33,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { LINES, fill } from '../../conversation/lines.mjs';
 import { ipKey, turnstileVerdict } from './w01.mjs';
 import { brokerConfig, calendarRoute, clockFor, ms, iso, MIN, D, TZ } from './w04.mjs';
+import { INCOME_LABELS } from './w39.mjs';
 export { clockFor };
 
 const require = createRequire(import.meta.url);
@@ -53,6 +54,21 @@ export const BAND_LABEL = {
   budget_band: { under_500: 'Under R500', '500_750': 'R500-R750', lt750: 'Under R750', '750_1499': 'R750-R1,499', '750_1250': 'R750-R1,250', '1250_plus': 'R1,250+ (before split)', '1250plus': 'R1,250+ (before split)', '1250_1499': 'R1,250-R1,499', '1500_plus': 'R1,500+' },
 };
 export const INVITE_FROM = 'howzit@leadvelocity.co.za';
+// /start/ v4 (Jono, 2026-10-19): the adviser's notice shows income + topics instead of the budget band for a start-page lead.
+// Income labels: lib/w39.mjs INCOME_LABELS (the v4 codes) + the older capture codes, each with its own range.
+export const INCOME_LABEL = { ...INCOME_LABELS, lt20k: 'Under R20,000', '20k_40k': 'R20,000 to R40,000', '40k_60k': 'R40,000 to R60,000', '60k_100k': 'R60,000 to R100,000', '100kplus': 'R100,000 or more' };
+export const TOPIC_WORDS = { life: 'life cover', disability_income: 'disability and income protection', severe_illness: 'severe illness cover', review: 'a review of existing cover', new_bond: 'cover for a new bond', will: 'a will' };
+export const PREP_FOLLOW = 'Prep answers follow';
+const AGE_WORDS = { under_35: 'Under 35', lt35: 'Under 35', '35_44': '35-44', '45_50': '45-50', '51_plus': '51+', '51plus': '51+' };
+const ageWord = (a) => AGE_WORDS[a] || '-';
+/** The start-page prep facts for the adviser: { income, topics, line } ("Prep answers follow" while the answers are not in yet). */
+export function prepFacts(lead = {}) {
+  const st = convState(lead).start || {};
+  const income = INCOME_LABEL[lead.income_band] || null;
+  const topics = (Array.isArray(st.topics) ? st.topics : []).map((t) => TOPIC_WORDS[t]).filter(Boolean);
+  const parts = [income ? `Income ${income}` : null, topics.length ? `Wants help with ${topics.join(', ')}` : null].filter(Boolean);
+  return { income, topics, line: parts.length ? parts.join(' · ') : PREP_FOLLOW };
+}
 export const PORTAL = 'https://leadvelocity.co.za';
 export const SITE = 'https://sortmycover.co.za';
 export const LIVE = new Set(['booked', 'confirmed']);
@@ -572,10 +588,11 @@ export function graphEvent(ctx, p, opts = {}) {
   const b = brokerConfig(ctx.broker);
   const first = firstName(lead.first_name || lead.name);
   const number = lead.call_number || lead.phone;
+  const startPage = isStartPageLead(lead);
   const portal = String(opts.portalUrl || PORTAL).replace(/\/$/, '');
   const lines = [
     `${first} · ${lead.phone}`,
-    `Age band ${lead.age_band ?? '-'} · budget band ${lead.budget_band ?? '-'}`,
+    startPage ? `Age band ${ageWord(lead.age_band)} · ${prepFacts(lead).line}` : `Age band ${lead.age_band ?? '-'} · budget band ${lead.budget_band ?? '-'}`,
     `Method: ${TITLE_LABEL[p.method]}`,
     p.method === 'phone' ? `Call ${first} on ${number}` : null,
     p.method === 'whatsapp_call' ? `WhatsApp-call ${first} on ${number}` : null,
@@ -874,9 +891,22 @@ export function clientEmailResult(res = {}, sent = {}) {
     source: 'W05', lead_id: sent.lead_id || null };
 }
 
-/** broker_new_booking (utility template, 7 vars + URL button) + email; first name only, never an email address. */
+/** The start-page facts in the adviser email: age, income + topics (or "Prep answers follow"), the number to call (+ alt). */
+function startPageNotice(lead, p) {
+  const f = prepFacts(lead);
+  const num = lead.call_number || lead.phone;
+  const call = CALL_METHODS.has(p.method) && num ? ` Call them on ${num}${lead.alt_number && lead.alt_number !== num ? ` (if no answer: ${lead.alt_number})` : ''}.` : '';
+  return `Age band ${ageWord(lead.age_band)}. ${f.line}.${call}`;
+}
+
+/**
+ * broker_new_booking (utility template, 7 vars + URL button) + email; first name only, never an email address.
+ * Start-page lead (v4): the approved body reads "Age band {{6}}, budget band {{7}}", so income / topics do not fit {{7}}:
+ * it stays the budget band ('-' when none) and the new facts go in the email and the Outlook event body (free text).
+ */
 export function brokerNotice(ctx, p) {
   const lead = leadView(ctx.lead);
+  const startPage = isStartPageLead(lead);
   const b = brokerConfig(ctx.broker);
   const adviserFirst = firstName(b.adviser_name || b.contact_person);
   const vars = [adviserFirst, firstName(lead.first_name), dateLabel(p.start), timeLabel(p.start), METHOD_LABEL[p.method], BAND_LABEL.age_band[lead.age_band] || '-', BAND_LABEL.budget_band[lead.budget_band] || '-'].map((v) => clean(v));
@@ -884,7 +914,7 @@ export function brokerNotice(ctx, p) {
   return {
     template: 'broker_new_booking', to, vars,
     wa: to ? templateWa(to, 'broker_new_booking', vars, [{ url: `l/${lead.id}` }]) : null,
-    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1]} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. Age band ${vars[5]}, budget band ${vars[6]}.${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
+    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1]} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. ${startPage ? startPageNotice(lead, p) : `Age band ${vars[5]}, budget band ${vars[6]}.`}${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
   };
 }
 
@@ -908,14 +938,15 @@ function templateWa(to, name, vars, buttons = [], lang = 'en') {
 const L = (lead) => LINES[lead && lead.language === 'af' ? 'af' : 'en'];
 const shortSlot = (s) => `${dateLabel(s)}, ${timeLabel(s)}`;
 
-/** SLOT_TAKEN (conversation/lines.mjs) + the next 3 as list rows (slot_<ISO>[:m:<method>] -> back to W05). */
+/** SLOT_TAKEN (conversation/lines.mjs) + the next 3 as list rows (slot_<ISO>[:m:<method>] -> back to W05). No STOP footer
+ * (Jono, 2026-10-19: only the W03 consent text says "Reply STOP to opt out."; a typed STOP still opts out via W15). */
 export function slotTakenMessage(lead, b, next = [], method = null) {
   const adviserFirst = firstName(b.adviser_name || b.contact_person);
   const body = fill(L(lead).SLOT_TAKEN, { adviser_first: adviserFirst }) + ' ' + L(lead).TZ;
   const to = String(lead.phone || '').replace(/^\+/, '');
   if (!next.length) return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body: fill(L(lead).SLOT_TAKEN, { adviser_first: adviserFirst }) } };
   const suffix = method ? `:m:${method}` : '';
-  return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'interactive', interactive: { type: 'list', body: { text: body.slice(0, 1024) }, footer: { text: L(lead).STOP_HINT }, action: { button: 'See times', sections: [{ title: 'Next free times', rows: next.slice(0, 3).map((s) => ({ id: `slot_${s.start}${suffix}`, title: shortSlot(s.start).slice(0, 24) })) }] } } };
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'interactive', interactive: { type: 'list', body: { text: body.slice(0, 1024) }, action: { button: 'See times', sections: [{ title: 'Next free times', rows: next.slice(0, 3).map((s) => ({ id: `slot_${s.start}${suffix}`, title: shortSlot(s.start).slice(0, 24) })) }] } } };
 }
 
 /** METHOD_NOT_OFFERED (lines.mjs) + up to 3 buttons, one per offered method, each re-posting the same slot. */

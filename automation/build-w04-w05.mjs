@@ -155,7 +155,7 @@ function buildW05() {
   const LOAD = `-- lead + its broker + idempotent replay + the lead's live booking (one round trip)
 WITH ld AS (
   SELECT l.id, l.brand_id, l.broker_id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.age_band, l.budget_band,
-         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.alt_number, l.method_pref, l.language,
+         l.consent_text_version, l.consent_at, l.consent_ads_at, l.origin, l.ad_id, l.ctwa_clid, l.call_number, l.alt_number, l.income_band, l.method_pref, l.language,
          l.conv_state, l.routing_reason, l.opted_out_at, l.is_synthetic, l.email_verified, l.wa_verified, l.verified_at,
          (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code
     FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL
@@ -349,7 +349,7 @@ SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.appointment_date, a
   // update_method (W10)
   n.push(pg('Load booking for method change', `SELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.client_id, a.broker_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.idempotency_key, a.booked_via,
                                    (SELECT g.payload->>'guest_email' FROM public.lead_activities g WHERE g.idempotency_key = 'w05:guest:' || a.id::text LIMIT 1) AS guest_email FROM public.appointments a WHERE a.id::text = $1) k) AS booking,
-       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.email_verified, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.alt_number, l.language, l.brand_id,
+       (SELECT to_jsonb(q) FROM (SELECT l.id, l.first_name, l.phone, l.email, l.email_status, l.email_purpose, l.email_verified, l.age_band, l.budget_band, l.consent_text_version, l.consent_at, l.origin, l.ad_id, l.call_number, l.alt_number, l.income_band, l.conv_state, l.routing_reason, l.language, l.brand_id,
                                         (SELECT br.code FROM public.brands br WHERE br.id = l.brand_id) AS brand_code
                                    FROM public.leads l JOIN public.appointments a ON a.client_id = l.id WHERE a.id::text = $1) q) AS lead,
        (SELECT to_jsonb(r) FROM (SELECT ${BROKER_COLS} FROM public.brokers b JOIN public.appointments a ON a.broker_id = b.id WHERE a.id::text = $1) r) AS broker;`, '={{ [$json.req.booking_id] }}'));

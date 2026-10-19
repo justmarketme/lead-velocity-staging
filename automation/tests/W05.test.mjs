@@ -1178,3 +1178,59 @@ test('W05 /start/ v4: a start-page booking gets booking_confirmed from W05 (no W
   assert.match(t.parameters.options.queryReplacement, /\$\('Live send\?'\)\.item\.json\.start_touch \? 'true' : 'false'/);
   assert.deepEqual(checkSql(workflowSql(WF5).filter((x) => x.node === 'Touch leads.last_contact_at (lead sends)')), []);
 });
+
+test('copy pass (Jono, 2026-10-19): no STOP prompt in the v4 session messages W05 / W10 / W15 build; the client help address is hello@sortmycover.co.za', async () => {
+  const R10 = await import('../lib/w10.mjs');
+  const R15 = await import('../lib/w15.mjs');
+  const lead = { ...ctx5().lead, phone: '+27600000002', language: 'en' };
+  const bk = { id: 'bk-copy', appointment_date: '2026-10-21T08:00:00Z', ends_at: '2026-10-21T08:30:00Z', status: 'booked', method: 'phone' };
+  const msgs = [
+    W5.slotTakenMessage(lead, W4.brokerConfig(broker()), [{ start: '2026-10-21T10:00:00+02:00', end: '2026-10-21T10:30:00+02:00' }], 'phone'),
+    W5.slotTakenMessage(lead, W4.brokerConfig(broker()), [], null),
+    W5.heldReminderMessage(lead, bk),
+    R10.cancelCardList(bk, lead), R10.cancelProblemWa(bk, lead), R10.cancelOtherWa(bk, lead),
+    R10.cancelDoneWa({ booking: bk, lead, broker: {}, now_ms: 1, last_inbound_ms: 0 }),
+    R15.leavingList('+27600000002', R15.leavingText('Sipho', { date: 'Wed 21 Oct', time: '10:00' })),
+  ];
+  for (const m of msgs) {
+    const s = JSON.stringify(m);
+    assert.doesNotMatch(s, /\bSTOP\b|opt out/i, s.slice(0, 120));
+    assert.doesNotMatch(s, /hello@leadvelocity|howzit@|support@/i);
+  }
+  assert.equal(msgs[0].interactive.footer, undefined, 'the slot list has no STOP footer');
+  for (const s of [R10.cancelLine('went_wrong', lead, bk), R15.leavingText('Sipho')]) assert.match(s, /hello@sortmycover\.co\.za/);
+});
+
+test('v4b15 adviser notice: a start-page lead shows income + topics (or "Prep answers follow"), the call number + alt and the guest, not the budget band; other leads unchanged', () => {
+  const sp = (over = {}) => smcLead({ age_band: '35_44', budget_band: null, conv_state: { via: 'start_page' }, call_number: '+27600000999', alt_number: '+27600000888', ...over });
+  const pPhone = { ...pTeams, method: 'phone', email: null };
+  // before the answers: "Prep answers follow"
+  const n0 = W5.brokerNotice(ctx5({ lead: sp() }), pPhone);
+  assert.match(n0.email.body, /Age band 35-44\. Prep answers follow\. Call them on \+27600000999 \(if no answer: \+27600000888\)\./);
+  assert.doesNotMatch(n0.email.body, /budget band/);
+  const ev0 = W5.graphEvent(ctx5({ lead: sp(), broker: ownCal() }), pPhone);
+  assert.match(ev0.body.content, /Age band 35-44 · Prep answers follow/);
+  assert.match(ev0.body.content, /Call Sipho on \+27600000999/); assert.match(ev0.body.content, /If no answer: \+27600000888/);
+  assert.doesNotMatch(ev0.body.content, /budget band/);
+  // with the answers: income label + topics as words (old income codes mapped to their own range)
+  const ans = sp({ income_band: '30k_50k', conv_state: { via: 'start_page', start: { via: 'start_page', topics: ['life', 'new_bond', 'will'] } } });
+  const n1 = W5.brokerNotice(ctx5({ lead: ans }), pTeams);
+  assert.match(n1.email.body, /Income R30,000 to R50,000 · Wants help with life cover, cover for a new bond, a will\./);
+  assert.doesNotMatch(n1.email.body, /Call them on/, 'Teams: no number line');
+  assert.equal(W5.prepFacts({ income_band: '40k_60k' }).line, 'Income R40,000 to R60,000');
+  assert.equal(W5.prepFacts({ income_band: 'lt20k' }).income, 'Under R20,000');
+  assert.equal(W5.prepFacts({ income_band: 'prefer_not' }).income, 'Prefer not to say');
+  // guest: "Joining: one guest" (+ the email in the Outlook event, which has the attendee field)
+  const pg = { ...pTeams, guest_email: 'thabo@gmail.com' };
+  assert.match(W5.brokerNotice(ctx5({ lead: ans }), pg).email.body, /Joining: one guest/);
+  assert.match(W5.graphEvent(ctx5({ lead: ans, broker: ownCal() }), pg).body.content, /Joining: one guest \(thabo@gmail\.com\)/);
+  // the approved template: {{7}} reads "budget band", so it keeps the budget band ('-' when none); 7 vars unchanged
+  assert.equal(n1.vars.length, 7); assert.equal(n1.vars[6], '-');
+  // a normal lead keeps the budget band everywhere
+  const nl = ctx5({ lead: smcLead({ age_band: '45_50', budget_band: '1500_plus', conv_state: {} }) });
+  assert.match(W5.brokerNotice(nl, pTeams).email.body, /Age band 45-50, budget band R1,500\+\./);
+  assert.match(W5.graphEvent(nl, pTeams).body.content, /Age band 45_50 · budget band 1500_plus/);
+  // the loads feed income_band (+ conv_state for the method-change PATCH body)
+  assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.alt_number, l\.income_band,/);
+  assert.match(WF5.nodes.find((x) => x.name === 'Load booking for method change').parameters.query, /l\.income_band, l\.conv_state, l\.routing_reason,/);
+});
