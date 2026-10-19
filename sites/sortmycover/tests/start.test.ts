@@ -360,7 +360,7 @@ describe("reschedule: Move your call (#lt=...&move=1)", () => {
     expect(withinDays(r.data.slots, n).every((s) => Date.parse(s.start) <= n.getTime() + 14 * 86400000)).toBe(true);
   }, 10000);
   it("the POST /start/move body", () => {
-    expect(moveBody("2026-10-24T14:00:00+02:00", "teams", "m1")).toEqual({ slot_start: "2026-10-24T14:00:00+02:00", method: "teams", request_id: "m1", context: { source: "start_page" } });
+    expect(moveBody("2026-10-24T14:00:00+02:00", "teams", "m1")).toEqual({ slot_start: "2026-10-24T14:00:00+02:00", method: "teams", request_id: "m1" });
   });
   it("a switch to phone with no confirmed number asks the number step first, then contact, then move", async () => {
     expect(moveNeedsNumber("phone", live, {})).toBe(true);
@@ -380,9 +380,14 @@ describe("reschedule: Move your call (#lt=...&move=1)", () => {
   it("maps /start/move replies like /book", () => {
     const b = { start: "2026-10-24T14:00:00+02:00", end: "2026-10-24T14:30:00+02:00", method: "teams" };
     expect(interpretMove(200, { ok: true, booking: b })).toEqual({ kind: "moved", booking: b });
+    expect(interpretMove(200, { ok: true, moved: true, booking: { ...b, held: true } })).toEqual({ kind: "moved", booking: { ...b, held: true } });
+    expect(interpretMove(200, { ok: true, moved: false, booking: { ...b, held: false } })).toEqual({ kind: "moved", booking: { ...b, held: false } });
+    expect(interpretMove(409, { error: "no_booking" })).toEqual({ kind: "no_booking" });
+    expect(interpretMove(503, { error: "try_again" })).toEqual({ kind: "error" });
     expect(interpretMove(409, { error: "slot_taken", slots: [b] })).toEqual({ kind: "taken", slots: [b] });
     expect(interpretMove(409, { error: "slot_taken" })).toEqual({ kind: "taken", slots: null });
-    expect(interpretMove(400, { error: "invalid" })).toEqual({ kind: "invalid" });
+    expect(interpretMove(400, { error: "invalid", field: "slot_start" })).toEqual({ kind: "invalid" });
+    expect(PAGE).toContain("setMoving(false); setBooking(null); setPicked(null); setSlots(null);");
     expect(interpretMove(401, null)).toEqual({ kind: "expired" });
     expect(interpretMove(200, { ok: true })).toEqual({ kind: "error" });
     expect(interpretMove(0, null)).toEqual({ kind: "error" });

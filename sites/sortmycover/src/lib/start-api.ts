@@ -25,8 +25,13 @@ export type StartResult = { kind: "ok"; data: StartData } | Fail;
 export type AdviserResult = ({ kind: "ok" } & AdviserReply) | Fail;
 export type ContactResult = { kind: "ok" } | { kind: "invalid"; field: "call_number" | "alt_number" } | Fail;
 export type AnswersResult = { kind: "ok" } | Fail;
-export type MoveResult = { kind: "moved"; booking: { start: string; end: string; method: string } } | { kind: "taken"; slots: Slot[] | null } | { kind: "invalid" } | Fail;
-export interface MoveBody { slot_start: string; method: string; request_id: string; context: { source: "start_page" } }
+export type MoveResult =
+  | { kind: "moved"; booking: { start: string; end: string; method: string; held?: boolean } }
+  | { kind: "taken"; slots: Slot[] | null }
+  | { kind: "no_booking" } // 409 no_booking: no live booking any more, so the normal flow
+  | { kind: "invalid" }
+  | Fail;
+export interface MoveBody { slot_start: string; method?: string; request_id: string }
 export type SlotsResult = { kind: "ok"; data: SlotsData } | Fail;
 export type BookResult =
   | { kind: "booked"; info: BookedInfo }
@@ -85,16 +90,18 @@ export function interpretAdviser(status: number, body: any): AdviserResult {
   return { kind: "error" };
 }
 
-/** POST /start/move: { ok:true, booking:{start,end,method} }, 409 slot_taken (with the next open times when sent), 400 invalid. */
+/** POST /start/move (contract "Reschedule (v4.6)"): 200 { ok, moved, booking:{start,end,method,held} } (moved:false = only the
+    method changed), 409 slot_taken / no_booking, 400 invalid. */
 export function interpretMove(status: number, body: any): MoveResult {
   if (isAuth(status)) return { kind: "expired" };
+  if (body?.error === "no_booking") return { kind: "no_booking" };
   if (status === 409 || body?.error === "slot_taken") {
     const list = isSlotList(body?.slots) ? body.slots : isSlotList(body?.next) ? body.next : null;
     return { kind: "taken", slots: list };
   }
   if (status === 400 || body?.error === "invalid") return { kind: "invalid" };
   const b = body?.booking;
-  if (ok2xx(status) && body?.ok === true && b && typeof b.start === "string") return { kind: "moved", booking: { start: b.start, end: b.end, method: b.method } };
+  if (ok2xx(status) && body?.ok === true && b && typeof b.start === "string") return { kind: "moved", booking: { start: b.start, end: b.end, method: b.method, ...(typeof b.held === "boolean" ? { held: b.held } : {}) } };
   return { kind: "error" };
 }
 

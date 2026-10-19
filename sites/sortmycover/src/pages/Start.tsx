@@ -379,9 +379,12 @@ function StartFlow() {
     setBusy(false);
     switch (r.kind) {
       case "moved":
-        setBooking({ ...r.booking, method: r.booking.method || method, held: booking.held });
+        setBooking({ start: r.booking.start, end: r.booking.end, method: r.booking.method || method, held: r.booking.held ?? booking.held });
         return setScreen({ k: "moved" });
       case "contact": setNumErr({ [r.field]: true }); return;
+      case "no_booking": // the booking went in the meantime: book a time the normal way
+        setMoving(false); setBooking(null); setPicked(null); setSlots(null);
+        return requestAdviser(null);
       case "taken": case "invalid":
         setPicked(null); setShowAll(false); setTaken(true);
         if (r.kind === "taken" && r.slots && r.slots.length) { setSlots(withinDays(r.slots, new Date())); go("move"); } else { setSlots(null); go("move"); fetchMoveSlots(); }

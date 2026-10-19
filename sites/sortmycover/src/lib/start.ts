@@ -425,5 +425,5 @@ export const moveWindowLine = (now: Date, days = MOVE_DAYS) => `Open times up to
     call number is stored). */
 export const moveNeedsNumber = (method: Method, booking: BookingState, contact: { call_number?: string | null } | null | undefined) =>
   method === "phone" && booking.method !== "phone" && !contact?.call_number;
-/** Body for POST /start/move. */
-export const moveBody = (slot_start: string, method: Method, request_id: string) => ({ slot_start, method, request_id, context: { source: "start_page" as const } });
+/** Body for POST /start/move: { slot_start, method?, request_id } (contract "Reschedule (v4.6)"); the method is always sent. */
+export const moveBody = (slot_start: string, method: Method, request_id: string) => ({ slot_start, method, request_id });

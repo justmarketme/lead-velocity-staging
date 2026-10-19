@@ -109,12 +109,13 @@ export function createMockApi(opts: { booked?: boolean; log?: MockLog } = {}): S
     async move(body) {
       log("move");
       await wait(600);
-      if (!booking) return { kind: "invalid" };
+      if (!booking) return { kind: "no_booking" };
       if (body.method === "phone" && booking.method !== "phone" && !contactDone) throw new Error("mock: move to a phone call before /start/contact");
       const start = new Date(body.slot_start);
       if (isNaN(start.getTime())) return { kind: "invalid" };
-      booking = { start: body.slot_start, end: new Date(start.getTime() + 30 * 60000).toISOString(), method: body.method, held: booking.held };
-      return { kind: "moved", booking: { start: booking.start, end: booking.end, method: booking.method } };
+      const next = { start: body.slot_start, end: new Date(start.getTime() + 30 * 60000).toISOString(), method: body.method || booking.method, held: booking.held };
+      booking = next;
+      return { kind: "moved", booking: next };
     },
   };
 }
