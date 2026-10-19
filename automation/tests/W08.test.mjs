@@ -170,3 +170,93 @@ test('I-39c: cancelled booking restarts +2/+24/+72 h from cancelled_at with new 
   assert.match(wf.nodes.find((n) => n.name === 'Touch leads.last_contact_at (lead outbound)').parameters.query, /last_contact_at = now\(\)/);
   assert.match(wf.nodes.find((n) => /^Candidates/.test(n.name)).parameters.query, /cancelled_at/);
 });
+
+// ---------- Start track (19 Oct 2026): Start here sent, nothing booked -> start_nudge_2h / _24h / _final ----------
+const startLead = (over = {}) => ({ id: 'lead_start', first_name: 'Naledi', language: 'en', origin: 'ctwa', stage: 'verified', conv_state: { state: 'start_page' }, opted_out_at: null, first_message_at: null, broker_id: null, created_at: '2026-10-20T08:00:00+02:00', ...over });
+const SAST_ISO = (t) => new Date(t + 2 * N.H).toISOString().slice(0, 16);
+
+test('start track: a lead sent Start here (never routed, or routed on the page) is nudged, not stopped as pre-routing', () => {
+  assert.equal(N.isStartPending(startLead()), true);
+  assert.equal(N.isStartPending(startLead({ conv_state: { state: 'unbooked', via: 'start_page' }, broker_id: 'b1' })), true, 'left the page after the adviser card');
+  assert.equal(N.isStartPending(startLead({ first_message_at: '2026-10-20T08:05:00+02:00', broker_id: 'b1' })), false, 'W06 intro sent -> classic track');
+  assert.equal(N.isStartPending(startLead({ conv_state: { state: 'handoff', via: 'start_page' } })), false);
+  assert.equal(N.stopReason(startLead(), ctx({ broker: {} })), null);
+  assert.equal(N.track(startLead()), 'start_ctwa');
+  assert.equal(N.track(startLead({ origin: 'lead_ad' })), 'start');
+});
+
+test('start track timing: +2 h, +24 h, last inside the 72-h free window for CTWA (+72 h for form leads), close 24 h after', () => {
+  const p = N.nurturePlan(startLead());
+  assert.deepEqual(p.steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_2h', '2026-10-20T10:00'], ['start_nudge_24h', '2026-10-21T08:00'], ['start_nudge_final', '2026-10-22T19:30']]);
+  assert.ok(p.steps.every((s) => s.due_ms < Date.parse('2026-10-20T08:00:00+02:00') + N.CTWA_WINDOW), 'all inside the free entry window');
+  assert.equal(SAST_ISO(p.close_ms), '2026-10-23T19:30');
+  const f = N.nurturePlan(startLead({ origin: 'lead_ad', created_at: '2026-10-20T13:00:00+02:00' }));
+  assert.deepEqual(f.steps.map((s) => SAST_ISO(s.due_ms)), ['2026-10-20T15:00', '2026-10-21T13:00', '2026-10-23T13:00']);
+  const night = N.nurturePlan(startLead({ created_at: '2026-10-20T19:50:00+02:00' }));
+  assert.equal(SAST_ISO(night.steps[0].due_ms), '2026-10-21T08:00', 'quiet hours push the first nudge to 08:00');
+});
+
+test('start track stops: booked, opted out, suppressed, No thanks, message cap', () => {
+  const at = Date.parse('2026-10-20T10:01:00+02:00');
+  assert.equal(N.due(startLead(), ctx({ has_live_booking: true, broker: {} }), at).reason, 'booked');
+  assert.equal(N.due(startLead({ opted_out_at: '2026-10-20T09:00:00+02:00' }), ctx(), at).reason, 'opted_out');
+  assert.equal(N.due(startLead(), ctx({ suppressed: true }), at).reason, 'suppressed');
+  assert.equal(N.due(startLead({ conv_state: { state: 'start_page', declined_nurture: true } }), ctx(), at).reason, 'no_thanks');
+  assert.equal(N.due(startLead(), ctx({ outbound_count: 12 }), at).reason, 'message_cap');
+});
+
+test('start nudge messages: banner per touch, adviser named or "an adviser", template outside the window, session card inside it', () => {
+  const at = Date.parse('2026-10-20T10:01:00+02:00');
+  const d = N.due(startLead(), ctx({ broker: {} }), at);
+  assert.equal(d.action, 'send'); assert.equal(d.touch, 'start_nudge_2h'); assert.equal(d.kind, 'start'); assert.equal(d.channel, 'template');
+  assert.equal(d.idempotency_key, 'w08:lead_start:start_nudge_2h'); assert.equal(d.banner, 'welcome');
+  assert.deepEqual(d.vars, ['Naledi', 'an adviser']);
+  assert.match(d.header.link, /headers\/header-welcome\.png$/);
+  assert.deepEqual(d.buttons, [['not_now', 'Not now']]);
+  const s = N.due(startLead({ broker_id: 'b1' }), ctx({ broker: { contact_person: 'Mark Weston' }, last_inbound_ms: at - N.H }), at);
+  assert.equal(s.channel, 'session'); assert.deepEqual(s.vars, ['Naledi', 'Mark']);
+  assert.match(s.session.body, /^Hi Naledi, your 30-minute call with Mark is one tap away\..*Reply STOP to opt out\.$/);
+  const m24 = N.startMessage(startLead(), ctx({ broker: { contact_person: 'Mark Weston' } }), 'start_nudge_24h', at);
+  assert.equal(m24.banner, 'video');
+  const fin = N.startMessage(startLead(), ctx({ broker: { contact_person: 'Mark Weston' } }), 'start_nudge_final', at);
+  assert.equal(fin.banner, 'adviser'); assert.deepEqual(fin.buttons, [['no_thanks', 'No thanks']]);
+  assert.match(N.startWords('start_nudge_final', ['Naledi', 'Mark']), /we won't message again\. Reply STOP to opt out\.$/);
+  for (const t of ['start_nudge_2h', 'start_nudge_24h', 'start_nudge_final']) assert.doesNotMatch(N.startWords(t, ['A', 'Mark']), /\bfree\b|\bAI\b|Lead Velocity|licensed/i, 'client wording rules');
+});
+
+test('startPayload: template = image header, 2 body vars, URL token button, quick reply with lead id; session = cta_url; bad token -> null', () => {
+  const d = { ...N.startMessage(startLead(), ctx({ broker: { contact_person: 'Mark Weston' } }), 'start_nudge_24h', Date.parse('2026-10-21T08:01:00+02:00')), phone: '+27 82 123 4567' };
+  const tok = 'lt1.abcdefghijklmnop.qrstuvwxyz0123';
+  const t = N.startPayload(d, tok);
+  assert.equal(t.type, 'template'); assert.equal(t.template.name, 'start_nudge_24h'); assert.equal(t.to, '27821234567');
+  const [h, b, u, q] = t.template.components;
+  assert.match(h.parameters[0].image.link, /header-video\.png$/);
+  assert.deepEqual(b.parameters.map((p) => p.text), ['Naledi', 'Mark']);
+  assert.equal(u.sub_type, 'url'); assert.equal(u.parameters[0].text, tok);
+  assert.equal(q.sub_type, 'quick_reply'); assert.equal(q.parameters[0].payload, 'not_now:lead_start');
+  const s = N.startPayload({ ...d, channel: 'session' }, tok);
+  assert.equal(s.interactive.type, 'cta_url'); assert.equal(s.interactive.action.parameters.url, N.START_LINK + tok);
+  assert.equal(N.startPayload(d, null), null); assert.equal(N.startPayload(d, 'not-a-token'), null); assert.equal(N.startPayload({ ...d, phone: '' }, tok), null);
+});
+
+test('W08.json: candidates include Start here leads (LEFT JOIN brokers, created_at clock); Build mints a fresh lead token', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W08.json', import.meta.url), 'utf8'));
+  const q = wf.nodes.find((n) => /^Candidates/.test(n.name)).parameters.query;
+  assert.match(q, /LEFT JOIN public\.brokers b/); assert.match(q, /conv_state->>'state' = 'start_page'/); assert.match(q, /COALESCE\(l\.first_message_at, l\.created_at\)/);
+  assert.match(wf.nodes.find((n) => n.name === 'Decide (w08.due)').parameters.jsCode, /created_at: r\.created_at/);
+  const b = wf.nodes.find((n) => n.name === 'Build message (template or session)').parameters.jsCode;
+  assert.match(b, /mintLeadToken\(d\.lead_id, \{ secret: \$env\.LEAD_TOKEN_SECRET \}\)/); assert.match(b, /startPayload\(d, token\)/);
+  assert.deepEqual(checkSql(workflowSql(wf)), []);
+});
+
+test('start nudge Twilio Content files: sender numbering (body 1-2, URL 3, quick reply 4), banner, body = session words', () => {
+  for (const [t, banner, reply] of [['start_nudge_2h', 'welcome', 'Not now'], ['start_nudge_24h', 'video', 'Not now'], ['start_nudge_final', 'adviser', 'No thanks']]) {
+    const c = JSON.parse(readFileSync(new URL(`../templates/twilio/content/${t}.json`, import.meta.url), 'utf8'));
+    const card = c.content.types['twilio/card'];
+    assert.equal(c._meta.key, t); assert.equal(c._meta.approval.category, 'UTILITY');
+    assert.match(card.media[0], new RegExp(`header-${banner}\\.png$`));
+    assert.equal(card.actions[0].type, 'URL'); assert.equal(card.actions[0].url, 'https://sortmycover.co.za/start/#lt={{3}}');
+    assert.equal(card.actions[1].type, 'QUICK_REPLY'); assert.equal(card.actions[1].title, reply); assert.equal(card.actions[1].id, '{{4}}');
+    assert.equal(card.title, N.startWords(t, ['{{1}}', '{{2}}']), 'template body = the session words');
+  }
+});
