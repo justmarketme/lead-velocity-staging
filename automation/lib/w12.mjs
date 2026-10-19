@@ -351,7 +351,31 @@ const partsOf = (r = {}) => ({
   lead: { id: r.lead_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, language: r.language },
   broker: { adviser_name: r.adviser_name, contact_person: r.contact_person, adviser_whatsapp: r.adviser_whatsapp, whatsapp_number: r.whatsapp_number }
 });
-const sendItem = (r, m, key, extra = {}) => ({ fu: 'send', send: { to: m.to, wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: m.template, category: m.template ? 'utility' : 'service', key, workflow: 'W12', ...extra } });
+/** Why a message had nobody to go to (19 Oct 2026: a broker row with no WhatsApp number crashed "Store outbound"). */
+export const NO_RECIPIENT = Object.freeze({ broker: 'no_broker_whatsapp', lead: 'no_lead_phone' });
+const hasNumber = (to) => String(to ?? '').replace(/\D/g, '').length >= 9;
+/**
+ * sendItem -> { fu: 'send', send } or, with no number to send to, { fu: 'send_skipped', skip } (never a send with a NULL
+ * recipient). A claimed message (outcome_check / broker_nudge / reach_check / disposition_ask) is claimed with the skip
+ * under its own key, so the sweep moves on exactly as after a send (the nudge still comes at + 3 h, the 24-h auto-attend
+ * still runs); any other message logs under send_skipped:{key}, so it never looks sent (w12:apology is read by the late
+ * mark check). A broker with no number also raises ONE console escalation per booking: nobody can ask him how it went.
+ */
+const sendItem = (r, m, key, extra = {}) => {
+  if (!hasNumber(m.wa && m.wa.to)) {
+    const reason = NO_RECIPIENT[m.to] || 'no_recipient';
+    const skip = { to: m.to, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, booking_id: r.booking_id || null, template: m.template || null, key: extra.claim ? key : `send_skipped:${key}`, reason, workflow: 'W12' };
+    const out = { fu: 'send_skipped', skip };
+    if (m.to === 'broker') {
+      const { lead, broker } = partsOf(r);
+      const who = firstName(broker.adviser_name || broker.contact_person) || 'The adviser';
+      out.alert = { fu: 'alert', to: 'console', kind: 'other', severity: 'normal', lead_id: r.lead_id, broker_id: r.broker_id, brand_id: r.brand_id, booking_id: r.booking_id,
+        note: `esc_kind=broker_no_whatsapp; ${firstAndInitial(lead)}: ${who} has no WhatsApp number on the broker record (adviser_whatsapp / whatsapp_number), so W12 could not send ${m.template || 'the disposition list'}. Add the number or mark the outcome in the portal; unmarked at 24 h it counts as attended (unconfirmed).` };
+    }
+    return out;
+  }
+  return { fu: 'send', send: { to: m.to, wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: m.template, category: m.template ? 'utility' : 'service', key, workflow: 'W12', ...extra } };
+};
 
 /** meetingFromRow(row) -> the sweepActions() input for one "Meeting state" row. */
 export const meetingFromRow = (r = {}) => ({

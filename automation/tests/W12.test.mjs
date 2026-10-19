@@ -431,7 +431,7 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
   assert.equal(ops.indexOf('reject'), 6); assert.ok(ops.includes('kg_decision'));
   const fus = node('Follow-up').parameters.rules.values.map((v) => v.outputKey);
-  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release']);
+  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release', 'send_skipped']);
   assert.match(node('Park held CAPI Attended (w12:capi_hold)').parameters.query, /'w12:capi_hold:' \|\| \$4::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING/);
   assert.match(node('Claim CAPI release (once per booking, logs the reason)').parameters.query, /'w12:capi_release:'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
   assert.match(node('Record KG decision (w12:kg_decision, first wins)').parameters.query, /'w12:kg_decision:' \|\| a\.id::text/);
@@ -552,4 +552,83 @@ test('W12.json: the tick feeds Qualified + GoodFit to CAPI Send through the Foll
   ], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: '2026-10-19T12:00:00Z' } } })).map((x) => x.json);
   assert.deepEqual(items.map((x) => [x.fu, x.event_name, x.action_source]), [['capi', 'Qualified', 'business_messaging'], ['capi', 'GoodFit', 'system_generated']]);
   for (const x of items) assert.equal(normalise(x).valid, true, `${x.event_name}: ${normalise(x).missing}`);
+});
+
+// ============================================================================================
+// 19 Oct 2026 live gate-test (booking cf9069c2): a broker row with no WhatsApp number crashed "Store outbound" (NULL
+// recipient_contact, execution 4760, the whole tick lost); a failed send stored failed_reason NULL although
+// smc-whatsapp-send knew the cause (twilio_content_sid_missing, execution 4795).
+// ============================================================================================
+import { evalParam } from './_n8ncode.mjs';
+const noNumber = { adviser_whatsapp: null, whatsapp_number: null };
+
+test('W12 broker with no WhatsApp number: outcome check, nudge and disposition ask are skipped with a reason (claimed), one console alert; never a send', async () => {
+  const fx = lead('L04');
+  const r0 = mrow(fx, noNumber);
+  const [a] = await sweep(r0, fx.expected.W12.outcome_check_at);
+  assert.equal(a.fu, 'send_skipped'); assert.equal(a.send, undefined, 'no send item, so nothing reaches Store outbound');
+  assert.deepEqual([a.skip.to, a.skip.template, a.skip.reason, a.skip.key, a.skip.booking_id], ['broker', 'broker_outcome_check', 'no_broker_whatsapp', 'w12:outcome_check:bkg_L04', 'bkg_L04'], 'claims the same key as a send (the sweep moves on)');
+  assert.equal(a.alert.fu, 'alert'); assert.equal(a.alert.kind, 'other'); assert.match(a.alert.note, /^esc_kind=broker_no_whatsapp; Pieter V\.: /);
+  const [n] = await sweep({ ...r0, sent_outcome_check: true, sent_reach_check: true }, iso(ms(endOf(fx)) + 15 * MIN + 3 * H));
+  assert.deepEqual([n.fu, n.skip.key], ['send_skipped', 'w12:broker_nudge:bkg_L04']);
+  // the lead side is unaffected
+  const [l] = await sweep({ ...r0, sent_outcome_check: true }, fx.expected.W12.reach_check_at);
+  assert.deepEqual([l.fu, l.send.template, l.send.wa.to], ['send', 'reach_check', '+27600000004']);
+  // disposition ask (portal feedback op, out of window) with no number
+  const [d] = (await runCode(WF, 'Disposition ask (w12.dispositionItem)', { items: [{ ...r0, broker_last_inbound_at: null }], refs: { 'Classify + validate (w12.classifyOp)': { op: 'feedback', now_iso: '2026-10-15T12:00:00+02:00' } } })).map((x) => x.json);
+  assert.deepEqual([d.fu, d.skip.template, d.skip.key], ['send_skipped', 'broker_disposition', 'w12:disposition_ask:bkg_L04:tpl']);
+  // a bare '+' is not a number either
+  assert.equal(R.sweepItems({ ...r0, adviser_whatsapp: '+', whatsapp_number: null }, ms(fx.expected.W12.outcome_check_at))[0].fu, 'send_skipped');
+});
+
+test('W12 lead with no phone: the thank-you is skipped under send_skipped:{key} (never looks sent), no escalation', () => {
+  const fx = lead('L01');
+  const row = mrow(fx, { phone: null, broker_mark: 'attended', reach: 'yes' });
+  const sk = R.followUps({ outcome: 'attended', lead_message: 'attended_thanks', capi: [] }, row, 'o1').find((x) => x.fu === 'send_skipped');
+  assert.deepEqual([sk.skip.to, sk.skip.reason, sk.skip.key], ['lead', 'no_lead_phone', 'send_skipped:w12:attended_thanks:bkg_L01']);
+  assert.equal(sk.alert, undefined);
+  const ap = R.followUps({ outcome: 'broker_no_show', lead_message: 'broker_no_show_apology', alerts: [] }, row, 'o2').find((x) => x.fu === 'send_skipped');
+  assert.equal(ap.skip.key, 'send_skipped:w12:apology:bkg_L01', 'w12:apology:{id} stays unwritten: the late-mark check reads it as "apology sent"');
+});
+
+test('W12.json wiring: send_skipped from the sweep, the disposition ask and the follow-ups is logged (claims the key) and alerts once; Escalate dedupes per esc_kind', async () => {
+  const to = (from, out = 0) => ((WF.connections[from] || {}).main || [])[out]?.map((x) => x.node) || [];
+  const S = 'Skipped send item (no recipient)';
+  const LOG = 'Log skipped send (no recipient; claims the key)';
+  const ALERT = 'Skip alert (first skip of a broker message only)';
+  const keysOf = (name) => node(name).parameters.rules.values.map((v) => v.outputKey);
+  assert.equal(keysOf('Sweep item').indexOf('send_skipped'), 2); assert.ok(to('Sweep item', 2).includes(S));
+  assert.equal(keysOf('Follow-up').indexOf('send_skipped'), 8); assert.ok(to('Follow-up', 8).includes(S));
+  assert.deepEqual(to('Disposition ask (w12.dispositionItem)'), ['Sweep item'], 'the ask goes through the same send / skip switch');
+  assert.deepEqual(to(S), [LOG]);
+  assert.match(node(LOG).parameters.query, /'send_skipped'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.deepEqual(to(LOG), [ALERT]);
+  assert.deepEqual(to(ALERT), ['Escalate (KG broker no-show / console dispute)']);
+  const fx = lead('L04');
+  const [a] = await sweep(mrow(fx, noNumber), fx.expected.W12.outcome_check_at);
+  assert.deepEqual(evalParam(WF, LOG, 'options.queryReplacement', { json: a }),
+    [a.skip.lead_id, 'brand_smc', BK.broker_id, 'broker_outcome_check', 'broker', 'no_broker_whatsapp', 'bkg_L04', 'w12:outcome_check:bkg_L04']);
+  const alerts = (await runCode(WF, ALERT, { items: [{ id: 'act1' }], refs: { [S]: a } })).map((x) => x.json);
+  assert.deepEqual(alerts.map((x) => x.kind), ['other']);
+  assert.deepEqual(await runCode(WF, ALERT, { items: [{}], refs: { [S]: a } }), [], 'already logged: no second alert');
+  assert.match(node('Escalate (KG broker no-show / console dispute)').parameters.query, /split_part\(COALESCE\(e\.note, ''\), ';', 1\) = split_part\(COALESCE\(\$7, ''\), ';', 1\)/);
+  assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => [LOG, 'Escalate (KG broker no-show / console dispute)'].includes(n.name)) })), []);
+});
+
+test('W12.json Store outbound records the sender reason in failed_reason (twilio_content_sid_missing), never a NULL recipient', () => {
+  const send = { to: 'lead', wa: { to: '+27600000001', type: 'template' }, lead_id: 'L', brand_id: 'B', broker_id: 'R', template: 'reach_check', key: 'w12:reach_check:bk' };
+  const P = 'options.queryReplacement';
+  const q = node('Store outbound').parameters.query;
+  assert.match(q, /failed_reason/); assert.match(q, /COALESCE\(NULLIF\(\$3, ''\), 'unknown'\)/);
+  const at = (json, env = { DRY_RUN_SENDS: 'false' }) => evalParam(WF, 'Store outbound', P, { json, env, refs: { 'Live send?': { send } } });
+  const failed = at({ ok: false, external_id: null, error: 'twilio_content_sid_missing' });
+  assert.deepEqual([failed[4], failed[5], failed[11]], ['failed', 'failed:w12:reach_check:bk', 'twilio_content_sid_missing']);
+  const ok = at({ ok: true, messages: [{ id: 'SM1' }] });
+  assert.deepEqual([ok[4], ok[5], ok[11]], ['sent', 'SM1', '']);
+  assert.equal(at({ error: { message: '(#131047) Re-engagement message' } })[11], '(#131047) Re-engagement message');
+  const dry = at({ send }, { DRY_RUN_SENDS: 'true' });
+  assert.deepEqual([dry[4], dry[11]], ['sent', '']);
+  const logged = JSON.parse(evalParam(WF, 'Log send failed (once; W22 reads it)', P, { json: { ok: false, error: 'twilio_content_sid_missing' }, refs: { 'Live send?': { send } } })[3]);
+  assert.equal(logged.error, 'twilio_content_sid_missing', 'the string error from smc-whatsapp-send, not "no wamid"');
+  assert.deepEqual(checkSql(workflowSql({ nodes: [node('Store outbound')] })), []);
 });

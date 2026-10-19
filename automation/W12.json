@@ -414,6 +414,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "send_skipped",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.fu }}",
+                    "rightValue": "send_skipped",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -797,6 +819,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "send_skipped",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s8",
+                    "leftValue": "={{ $json.fu }}",
+                    "rightValue": "send_skipped",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -904,7 +948,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\nSELECT $1::uuid, $2, $3, 'appointments', $4, $5::uuid, $6::uuid, now(), $7\n WHERE NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.ref_table = 'appointments' AND e.ref_id = $4 AND e.kind = $2 AND e.resolved_at IS NULL);",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\nSELECT $1::uuid, $2, $3, 'appointments', $4, $5::uuid, $6::uuid, now(), $7\n -- one open row per booking + kind + esc_kind (note prefix): a broker_no_whatsapp 'other' must not mask a broker_no_show 'other'\n WHERE NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.ref_table = 'appointments' AND e.ref_id = $4 AND e.kind = $2 AND e.resolved_at IS NULL\n                     AND split_part(COALESCE(e.note, ''), ';', 1) = split_part(COALESCE($7, ''), ';', 1));",
         "options": {
           "queryReplacement": "={{ [$json.brand_id, $json.kind, $json.severity, $json.booking_id, $json.lead_id, $json.broker_id, $json.note] }}"
         }
@@ -919,6 +963,58 @@
     },
     {
       "id": "n27",
+      "name": "Skipped send item (no recipient)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return { json: $json };"
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Log skipped send (no recipient; claims the key)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2160,
+        -800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W12', 'system', 'send_skipped', jsonb_build_object('template', $4::text, 'to', $5::text, 'reason', $6::text, 'booking_id', $7::text), now(), $8)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$json.skip.lead_id, $json.skip.brand_id, $json.skip.broker_id, $json.skip.template, $json.skip.to, $json.skip.reason, $json.skip.booking_id, $json.skip.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n29",
+      "name": "Skip alert (first skip of a broker message only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        -800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const out = [];\n$input.all().forEach((it, i) => {\n  if (!it.json.id) return; // already logged on an earlier tick\n  const a = $('Skipped send item (no recipient)').itemMatching(i).json.alert;\n  if (a) out.push({ json: a });\n});\nreturn out;"
+      }
+    },
+    {
+      "id": "n30",
       "name": "Late broker mark? (apology already sent)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -942,7 +1038,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n28",
+      "id": "n31",
       "name": "Late mark conflict (w12.lateMarkConflict)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -956,7 +1052,7 @@
       }
     },
     {
-      "id": "n29",
+      "id": "n32",
       "name": "Park held CAPI Attended (w12:capi_hold)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -980,7 +1076,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n30",
+      "id": "n33",
       "name": "Claim CAPI release (once per booking, logs the reason)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1004,7 +1100,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n31",
+      "id": "n34",
       "name": "Release item (w12.releaseCapi, only when claimed + decision send)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1018,7 +1114,7 @@
       }
     },
     {
-      "id": "n32",
+      "id": "n35",
       "name": "Release source",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1032,7 +1128,7 @@
       }
     },
     {
-      "id": "n33",
+      "id": "n36",
       "name": "Held CAPI Attended (not yet released)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1056,7 +1152,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n34",
+      "id": "n37",
       "name": "Release held (w12.releaseHeld)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1070,7 +1166,7 @@
       }
     },
     {
-      "id": "n35",
+      "id": "n38",
       "name": "Record KG decision (w12:kg_decision, first wins)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1094,7 +1190,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n36",
+      "id": "n39",
       "name": "Resolve the open dispute escalation",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1118,7 +1214,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n37",
+      "id": "n40",
       "name": "Apply KG not_attended (outcome -> no_show, audit activity)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1142,7 +1238,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n38",
+      "id": "n41",
       "name": "KG no-show -> W13 payload (w12.w13NoShow)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1156,7 +1252,7 @@
       }
     },
     {
-      "id": "n39",
+      "id": "n42",
       "name": "W13 no_show (KG not_attended: replacement path, cap in W13)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
@@ -1178,7 +1274,7 @@
       }
     },
     {
-      "id": "n40",
+      "id": "n43",
       "name": "Attended tap? (ask disposition now)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1208,7 +1304,7 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n44",
       "name": "Load meeting (disposition ask)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1232,7 +1328,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n42",
+      "id": "n45",
       "name": "Disposition ask (w12.dispositionItem)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1246,7 +1342,7 @@
       }
     },
     {
-      "id": "n43",
+      "id": "n46",
       "name": "Voice note reference (w12.voiceNoteRef)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1260,7 +1356,7 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n47",
       "name": "Store voice note reference (no audio, no transcript here)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1284,7 +1380,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n45",
+      "id": "n48",
       "name": "Log subcall_rejected (CONTRACTS: never guessed)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1308,7 +1404,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n46",
+      "id": "n49",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1338,7 +1434,7 @@
       }
     },
     {
-      "id": "n47",
+      "id": "n50",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
@@ -1360,7 +1456,7 @@
       }
     },
     {
-      "id": "n48",
+      "id": "n51",
       "name": "Store outbound",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1370,9 +1466,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', $2, $3, $4, $5, $6, $7::uuid, $8::uuid, 'system', 'W12', $9, $10, $11::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "query": "-- failed_reason = the sender's own reason (smc-whatsapp-send: twilio_content_sid_missing, invalid_input, the Twilio /\n-- Graph error text), 19 Oct 2026. recipient_contact is NOT NULL: a missing number is skipped upstream (lib send_skipped),\n-- so 'unknown' here only keeps a malformed item from failing the whole tick.\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, failed_reason, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', $2, COALESCE(NULLIF($3, ''), 'unknown'), $4, $5, $6, $7::uuid, $8::uuid, 'system', 'W12', $9, $10, NULLIF($12, ''), $11::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || null; return [s.brand_id, s.to === 'lead' ? 'client' : 'broker', s.wa.to, s.template || (s.wa.type === 'interactive' ? 'interactive' : 'text'), id || $env.DRY_RUN_SENDS === 'true' ? 'sent' : 'failed', id || (($env.DRY_RUN_SENDS === 'true' ? 'dry:' : 'failed:') + s.key), s.lead_id, s.broker_id, s.template || null, s.template ? 'utility' : 'service', JSON.stringify({ key: s.key, to: s.to, dry_run: $env.DRY_RUN_SENDS === 'true' })]; })() }}"
+          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || null; const dry = $env.DRY_RUN_SENDS === 'true'; const e = $json.error; const why = id || dry ? '' : String((e && typeof e === 'object' ? (e.message || e.code) : e) || 'no message id').slice(0, 300); return [s.brand_id, s.to === 'lead' ? 'client' : 'broker', (s.wa && s.wa.to) || '', s.template || (s.wa.type === 'interactive' ? 'interactive' : 'text'), id || dry ? 'sent' : 'failed', id || ((dry ? 'dry:' : 'failed:') + s.key), s.lead_id, s.broker_id, s.template || null, s.template ? 'utility' : 'service', JSON.stringify({ key: s.key, to: s.to, dry_run: dry }), why]; })() }}"
         }
       },
       "credentials": {
@@ -1387,7 +1483,7 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n49",
+      "id": "n52",
       "name": "Touch leads.last_contact_at (lead outbound)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1411,7 +1507,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n50",
+      "id": "n53",
       "name": "Accepted by Meta? (wamid)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -1441,7 +1537,7 @@
       }
     },
     {
-      "id": "n51",
+      "id": "n54",
       "name": "Log send failed (once; W22 reads it)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1453,7 +1549,7 @@
         "operation": "executeQuery",
         "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $1::uuid, $2::uuid, $3::uuid, 'W12', 'system', 'send_failed', $4::jsonb, now(), 'send_failed:' || $5\n WHERE $1::uuid IS NOT NULL OR $3::uuid IS NOT NULL\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.brand_id, s.broker_id, JSON.stringify({ key: s.key, template: s.template, error: ($json.error && ($json.error.message || $json.error.code)) || 'no wamid' }), s.key]; })() }}"
+          "queryReplacement": "={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.brand_id, s.broker_id, JSON.stringify({ key: s.key, template: s.template, error: (($json.error && typeof $json.error === 'object') ? ($json.error.message || $json.error.code) : $json.error) || 'no wamid' }), s.key]; })() }}"
         }
       },
       "credentials": {
@@ -1465,7 +1561,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n52",
+      "id": "n55",
       "name": "Quality events due (Qualified + GoodFit, not in capi_log)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1489,7 +1585,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n53",
+      "id": "n56",
       "name": "Quality events (w12.qualityEventItems)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1701,6 +1797,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Skipped send item (no recipient)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -1853,6 +1956,46 @@
         [
           {
             "node": "Release source",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped send item (no recipient)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skipped send item (no recipient)": {
+      "main": [
+        [
+          {
+            "node": "Log skipped send (no recipient; claims the key)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log skipped send (no recipient; claims the key)": {
+      "main": [
+        [
+          {
+            "node": "Skip alert (first skip of a broker message only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip alert (first skip of a broker message only)": {
+      "main": [
+        [
+          {
+            "node": "Escalate (KG broker no-show / console dispute)",
             "type": "main",
             "index": 0
           }
@@ -2011,7 +2154,7 @@
       "main": [
         [
           {
-            "node": "Message item",
+            "node": "Sweep item",
             "type": "main",
             "index": 0
           }

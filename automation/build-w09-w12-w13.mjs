@@ -63,10 +63,13 @@ function sendChain(wf, col, row) {
     options: { timeout: 10000, response: { response: { neverError: true } } }
   });
   const store = pg('Store outbound', [col + 2, row - 1],
-    `INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)
-VALUES ($1::uuid, 'whatsapp', 'outbound', 'system', $2, $3, $4, $5, $6, $7::uuid, $8::uuid, 'system', '${wf}', $9, $10, $11::jsonb)
+    `-- failed_reason = the sender's own reason (smc-whatsapp-send: twilio_content_sid_missing, invalid_input, the Twilio /
+-- Graph error text), 19 Oct 2026. recipient_contact is NOT NULL: a missing number is skipped upstream (lib send_skipped),
+-- so 'unknown' here only keeps a malformed item from failing the whole tick.
+INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, failed_reason, metadata)
+VALUES ($1::uuid, 'whatsapp', 'outbound', 'system', $2, COALESCE(NULLIF($3, ''), 'unknown'), $4, $5, $6, $7::uuid, $8::uuid, 'system', '${wf}', $9, $10, NULLIF($12, ''), $11::jsonb)
 ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;`,
-    `={{ (() => { const s = $('Live send?').item.json.send; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || null; return [s.brand_id, s.to === 'lead' ? 'client' : 'broker', s.wa.to, s.template || (s.wa.type === 'interactive' ? 'interactive' : 'text'), id || $env.DRY_RUN_SENDS === 'true' ? 'sent' : 'failed', id || (($env.DRY_RUN_SENDS === 'true' ? 'dry:' : 'failed:') + s.key), s.lead_id, s.broker_id, s.template || null, s.template ? 'utility' : 'service', JSON.stringify({ key: s.key, to: s.to, dry_run: $env.DRY_RUN_SENDS === 'true' })]; })() }}`,
+    `={{ (() => { const s = $('Live send?').item.json.send; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || null; const dry = $env.DRY_RUN_SENDS === 'true'; const e = $json.error; const why = id || dry ? '' : String((e && typeof e === 'object' ? (e.message || e.code) : e) || 'no message id').slice(0, 300); return [s.brand_id, s.to === 'lead' ? 'client' : 'broker', (s.wa && s.wa.to) || '', s.template || (s.wa.type === 'interactive' ? 'interactive' : 'text'), id || dry ? 'sent' : 'failed', id || ((dry ? 'dry:' : 'failed:') + s.key), s.lead_id, s.broker_id, s.template || null, s.template ? 'utility' : 'service', JSON.stringify({ key: s.key, to: s.to, dry_run: dry }), why]; })() }}`,
     { retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 });
   const touch = pg('Touch leads.last_contact_at (lead outbound)', [col + 2, row],
     `-- CONTRACTS.md I-38d: every lead-facing send Meta accepted (wamid) updates last_contact_at (W34 retention clock).
@@ -81,7 +84,7 @@ RETURNING id;`,
 SELECT $1::uuid, $2::uuid, $3::uuid, '${wf}', 'system', 'send_failed', $4::jsonb, now(), 'send_failed:' || $5
  WHERE $1::uuid IS NOT NULL OR $3::uuid IS NOT NULL
 ON CONFLICT (idempotency_key) DO NOTHING;`,
-    `={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.brand_id, s.broker_id, JSON.stringify({ key: s.key, template: s.template, error: ($json.error && ($json.error.message || $json.error.code)) || 'no wamid' }), s.key]; })() }}`);
+    `={{ (() => { const s = $('Live send?').item.json.send; return [s.lead_id, s.brand_id, s.broker_id, JSON.stringify({ key: s.key, template: s.template, error: (($json.error && typeof $json.error === 'object') ? ($json.error.message || $json.error.code) : $json.error) || 'no wamid' }), s.key]; })() }}`);
   link(live, http, 0); link(live, store, 1);
   link(http, store); link(http, touch); link(http, acc);
   link(acc, fail, 1);
@@ -394,7 +397,7 @@ const out = [];
 for (const it of $input.all()) if (it.json.booking_id) for (const x of L.sweepItems(it.json, now)) out.push({ json: x });
 return out;`, 'runOnceForAllItems');
   link(state, decide);
-  const kind = switchOn('Sweep item', [7, 0], '$json.fu', ['send', 'resolve']);
+  const kind = switchOn('Sweep item', [7, 0], '$json.fu', ['send', 'resolve', 'send_skipped']);
   link(decide, kind);
   const msgItem = code('Message item', [8, -2], 'return { json: $json };');
   link(kind, msgItem, 0);
@@ -474,7 +477,7 @@ for (const it of $input.all()) {
 return out;`, 'runOnceForAllItems');
   link(auto, autoFu);
 
-  const fuSw = switchOn('Follow-up', [11, 2], '$json.fu', ['send', 'capi', 'w29', 'w13', 'w10', 'alert', 'capi_hold', 'capi_release']);
+  const fuSw = switchOn('Follow-up', [11, 2], '$json.fu', ['send', 'capi', 'w29', 'w13', 'w10', 'alert', 'capi_hold', 'capi_release', 'send_skipped']);
   link(fu, fuSw); link(autoFu, fuSw);
   const capi = sub('CAPI Send (Attended)', [12, 2], 'CAPI Send');
   const w29 = sub('W29 outcome_recorded (quality, pulse facts)', [12, 3], 'W29 Feedback loop');
@@ -483,9 +486,34 @@ return out;`, 'runOnceForAllItems');
   const alert = pg('Escalate (KG broker no-show / console dispute)', [12, 6],
 `INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)
 SELECT $1::uuid, $2, $3, 'appointments', $4, $5::uuid, $6::uuid, now(), $7
- WHERE NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.ref_table = 'appointments' AND e.ref_id = $4 AND e.kind = $2 AND e.resolved_at IS NULL);`,
+ -- one open row per booking + kind + esc_kind (note prefix): a broker_no_whatsapp 'other' must not mask a broker_no_show 'other'
+ WHERE NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.ref_table = 'appointments' AND e.ref_id = $4 AND e.kind = $2 AND e.resolved_at IS NULL
+                     AND split_part(COALESCE(e.note, ''), ';', 1) = split_part(COALESCE($7, ''), ';', 1));`,
     '={{ [$json.brand_id, $json.kind, $json.severity, $json.booking_id, $json.lead_id, $json.broker_id, $json.note] }}');
   link(fuSw, capi, 1); link(fuSw, w29, 2); link(fuSw, w13, 3); link(fuSw, w10, 4); link(fuSw, alert, 5);
+
+  // ---- 19 Oct 2026: a message with no number to go to (broker row without adviser_whatsapp / whatsapp_number, lead
+  // without a phone) is skipped with its reason instead of reaching "Store outbound" with a NULL recipient (that error
+  // stopped the whole tick). The skip row claims the message key (sweep moves on as after a send); a broker skip raises
+  // one console escalation per booking.
+  const skipItem = code('Skipped send item (no recipient)', [8, -4], 'return { json: $json };');
+  link(kind, skipItem, 2); link(fuSw, skipItem, 8);
+  const skipLog = pg('Log skipped send (no recipient; claims the key)', [9, -4],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+VALUES ($1::uuid, $2::uuid, $3::uuid, 'W12', 'system', 'send_skipped', jsonb_build_object('template', $4::text, 'to', $5::text, 'reason', $6::text, 'booking_id', $7::text), now(), $8)
+ON CONFLICT (idempotency_key) DO NOTHING
+RETURNING id;`,
+    '={{ [$json.skip.lead_id, $json.skip.brand_id, $json.skip.broker_id, $json.skip.template, $json.skip.to, $json.skip.reason, $json.skip.booking_id, $json.skip.key] }}');
+  link(skipItem, skipLog);
+  const skipAlert = code('Skip alert (first skip of a broker message only)', [10, -4],
+`const out = [];
+$input.all().forEach((it, i) => {
+  if (!it.json.id) return; // already logged on an earlier tick
+  const a = $('Skipped send item (no recipient)').itemMatching(i).json.alert;
+  if (a) out.push({ json: a });
+});
+return out;`, 'runOnceForAllItems');
+  link(skipLog, skipAlert); link(skipAlert, alert);
 
   // ---- I-50f: a broker mark after the Schedule D apology went out -> KG conflict (escalation), nothing else
   const lateQ = pg('Late broker mark? (apology already sent)', [5, -2],
@@ -621,7 +649,7 @@ for (const it of $input.all()) {
 }
 return out;`, 'runOnceForAllItems');
   link(dispLoad, disp);
-  link(disp, msgItem);
+  link(disp, kind); // 'send' -> claim + send; 'send_skipped' (no broker number) -> logged skip
 
   // ---- voice note: media reference only
   const vn = code('Voice note reference (w12.voiceNoteRef)', [4, 7], IMPORT('w12') +
