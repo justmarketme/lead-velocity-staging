@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W11 Broker reminders (4.6 item 7 + W11 row; 4.11 pre-call brief; 4.12a unmarked rule).\n(1) 07:30 SAST daily digest broker_daily_digest to every active broker with >= 1 live meeting today (none -> nothing sent) + the same list by email.\n(2) Every minute: T-15 min pre-call brief precall_brief. Input built from Postgres only (precall-brief.md \"Inputs\"): bands, contact data, lead_theme rows (I-22, written by W07), confirm/intro signals, the broker's 'what_mattered' corpus (W29). The LLM relay writes it; briefCheck() gates it; any failure -> deterministic fallback brief (a brief is never skipped). Health detail never leaves Postgres (only \"has a health question for you\").\n(3) Hourly backstop: slot end + 24 h with no outcomes row -> attended + auto_marked + unconfirmed (ON CONFLICT (booking_id) DO NOTHING so it cannot fight W12, which owns the normal path); lead said \"No, not yet\" -> console queue instead; two unconfirmed in a cycle -> Jonathan calls the broker.\nBrokers see first name + initial only. Idempotency: lead_activities keys w11:digest:{broker}:{date}, w11:brief:{booking}:{epoch}, w11:auto:{booking}. Logic automation/lib/w11.mjs; tests automation/tests/W11.test.mjs.\nNOTE: the brief that launched this asked for broker reminders at T-24 h / T-1 h; 4.6 specifies 07:30 + T-15 and there is no approved broker template for T-24 h / T-1 h - built to 4.6, logged needs_human."
+        "content": "W11 Broker reminders (4.6 item 7 + W11 row; 4.11 pre-call brief; 4.12a unmarked rule).\n(1) 07:30 SAST daily digest broker_daily_digest to every active broker with >= 1 live meeting today (none -> nothing sent) + the same list by email.\n(2) Every minute: T-15 min pre-call brief precall_brief. Input built from Postgres only (precall-brief.md \"Inputs\"): bands, contact data, lead_theme rows (I-22, written by W07), confirm/intro signals, the broker's 'what_mattered' corpus (the last 5 outcomes.summary voice-note summaries for this broker, saved by W29). The LLM relay writes it; briefCheck() gates it; any failure -> deterministic fallback brief (a brief is never skipped). Health detail never leaves Postgres (only \"has a health question for you\").\n(3) Hourly backstop: slot end + 24 h with no outcomes row -> attended + auto_marked + unconfirmed (ON CONFLICT (booking_id) DO NOTHING so it cannot fight W12, which owns the normal path); lead said \"No, not yet\" -> console queue instead; two unconfirmed for this broker within 30 days -> Jonathan calls the broker (there are no cycles: CRM-NURTURE-SCHEMA.md D7).\nBrokers see first name + initial only. Idempotency: lead_activities keys w11:digest:{broker}:{date}, w11:brief:{booking}:{epoch}, w11:auto:{booking}. Logic automation/lib/w11.mjs; tests automation/tests/W11.test.mjs.\nNOTE: the brief that launched this asked for broker reminders at T-24 h / T-1 h; 4.6 specifies 07:30 + T-15 and there is no approved broker template for T-24 h / T-1 h - built to 4.6, logged needs_human."
       }
     },
     {
@@ -202,7 +202,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.cycle_id, a.appointment_date, a.ends_at, a.method, a.status, a.call_number, a.join_url,\n       a.reschedule_count, a.confirmed_at, a.intro_played_at,\n       l.first_name, l.last_name, l.phone, l.age_band, l.budget_band, l.bond, l.dependants, l.work_cover,\n       l.call_number AS lead_call_number, l.alt_number, l.best_time, l.language,\n       b.contact_person, b.whatsapp_number,\n       COALESCE((SELECT jsonb_agg(t.payload ORDER BY t.occurred_at) FROM public.lead_activities t WHERE t.lead_id = l.id AND t.activity_type = 'lead_theme'), '[]'::jsonb) AS themes,\n       COALESCE((SELECT jsonb_agg(q.text) FROM (SELECT i.text FROM public.insights i WHERE i.broker_id = b.id AND i.kind = 'what_mattered' ORDER BY i.created_at DESC LIMIT 5) q), '[]'::jsonb) AS corpus\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND a.appointment_date > now()\n   AND a.appointment_date <= now() + interval '15 minutes'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities x\n                    WHERE x.idempotency_key = 'w11:brief:' || a.id || ':' || extract(epoch FROM a.appointment_date)::bigint);",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.call_number, a.join_url,\n       a.reschedule_count, a.confirmed_at, a.intro_played_at,\n       l.first_name, l.last_name, l.phone, l.age_band, l.budget_band, l.bond, l.dependants, l.work_cover,\n       l.call_number AS lead_call_number, l.alt_number, l.best_time, l.language,\n       b.contact_person, b.whatsapp_number,\n       COALESCE((SELECT jsonb_agg(t.payload ORDER BY t.occurred_at) FROM public.lead_activities t WHERE t.lead_id = l.id AND t.activity_type = 'lead_theme'), '[]'::jsonb) AS themes,\n       -- what_mattered corpus = this broker's last 5 voice-note summaries (outcomes.summary, saved by W29; there is no insights table)\n       COALESCE((SELECT jsonb_agg(q.summary ORDER BY q.marked_at DESC) FROM (SELECT o.summary, o.marked_at FROM public.outcomes o WHERE o.broker_id = b.id AND NULLIF(btrim(o.summary), '') IS NOT NULL ORDER BY o.marked_at DESC LIMIT 5) q), '[]'::jsonb) AS corpus\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND a.appointment_date > now()\n   AND a.appointment_date <= now() + interval '15 minutes'\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities x\n                    WHERE x.idempotency_key = 'w11:brief:' || a.id || ':' || extract(epoch FROM a.appointment_date)::bigint);",
         "options": {
           "queryReplacement": "={{ [] }}"
         }
@@ -243,9 +243,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, cycle_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'W11', 'system', 'precall_brief_sent', jsonb_build_object('booking_id', $5::text), now(), $6)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W11', 'system', 'precall_brief_sent', jsonb_build_object('booking_id', $4::text), now(), $5)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ [$json.r.client_id, $json.r.brand_id, $json.r.broker_id, $json.r.cycle_id, $json.r.id, $json.key] }}"
+          "queryReplacement": "={{ [$json.r.client_id, $json.r.brand_id, $json.r.broker_id, $json.r.id, $json.key] }}"
         }
       },
       "credentials": {
@@ -428,7 +428,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.client_id, a.broker_id, a.cycle_id, a.brand_id, a.ends_at, a.status,\n       (SELECT x.payload->>'answer' FROM public.lead_activities x WHERE x.lead_id = a.client_id AND x.activity_type = 'reach_check' ORDER BY x.occurred_at DESC LIMIT 1) AS reach\n  FROM public.appointments a\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND a.ends_at <= now() - interval '24 hours'\n   AND a.ends_at > now() - interval '14 days'\n   AND NOT EXISTS (SELECT 1 FROM public.outcomes o WHERE o.booking_id = a.id);",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.ends_at, a.status,\n       (SELECT x.payload->>'answer' FROM public.lead_activities x WHERE x.lead_id = a.client_id AND x.activity_type = 'reach_check' ORDER BY x.occurred_at DESC LIMIT 1) AS reach\n  FROM public.appointments a\n WHERE a.brand_id IS NOT NULL\n   AND a.status IN ('booked','confirmed')\n   AND a.ends_at <= now() - interval '24 hours'\n   AND a.ends_at > now() - interval '14 days'\n   AND NOT EXISTS (SELECT 1 FROM public.outcomes o WHERE o.booking_id = a.id);",
         "options": {
           "queryReplacement": "={{ [] }}"
         }
@@ -532,9 +532,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH o AS (\n  INSERT INTO public.outcomes (booking_id, lead_id, broker_id, cycle_id, brand_id, outcome, lead_reach_check, marked_via, auto_marked, unconfirmed)\n  VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, 'attended', $6, 'auto', true, true)\n  ON CONFLICT (booking_id) DO NOTHING\n  RETURNING id, booking_id, lead_id, cycle_id),\na AS (UPDATE public.appointments SET status = 'attended', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),\nl AS (UPDATE public.leads SET stage = 'attended', updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),\ne AS (INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\n      SELECT $5::uuid, 'outcome_unmarked', 'normal', 'outcomes', o.id::text, o.lead_id, $3::uuid, now(), 'esc_kind=outcome_unmarked; auto-marked attended at 24 h, unconfirmed' FROM o RETURNING id)\nSELECT o.id AS outcome_id,\n       (SELECT count(*) FROM public.outcomes x WHERE x.cycle_id = o.cycle_id AND x.unconfirmed) + 1 AS unconfirmed_in_cycle\n  FROM o;",
+        "query": "WITH o AS (\n  INSERT INTO public.outcomes (booking_id, lead_id, broker_id, brand_id, outcome, lead_reach_check, marked_via, auto_marked, unconfirmed)\n  VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, 'attended', $5, 'auto', true, true)\n  ON CONFLICT (booking_id) DO NOTHING\n  RETURNING id, booking_id, lead_id, broker_id),\na AS (UPDATE public.appointments SET status = 'attended', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),\nl AS (UPDATE public.leads SET stage = 'attended', updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),\ne AS (INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, broker_id, raised_at, note)\n      SELECT $4::uuid, 'outcome_unmarked', 'normal', 'outcomes', o.id::text, o.lead_id, $3::uuid, now(), 'esc_kind=outcome_unmarked; auto-marked attended at 24 h, unconfirmed' FROM o RETURNING id)\nSELECT o.id AS outcome_id,\n       -- 4.12a per broker within 30 days (D7: there are no cycles); same rule as W12. The CTE row is not visible here, hence + 1.\n       (SELECT count(*) FROM public.outcomes x WHERE x.broker_id = o.broker_id AND x.unconfirmed AND x.marked_at > now() - interval '30 days') + 1 AS unconfirmed_30d\n  FROM o;",
         "options": {
-          "queryReplacement": "={{ [$json.insert.booking_id, $json.insert.lead_id, $json.insert.broker_id, $json.insert.cycle_id, $json.insert.brand_id, $json.insert.lead_reach_check] }}"
+          "queryReplacement": "={{ [$json.insert.booking_id, $json.insert.lead_id, $json.insert.broker_id, $json.insert.brand_id, $json.insert.lead_reach_check] }}"
         }
       },
       "credentials": {
@@ -603,7 +603,7 @@
     },
     {
       "id": "n25",
-      "name": "Two unconfirmed in cycle? (4.12a)",
+      "name": "Two unconfirmed in 30 days? (4.12a)",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
@@ -620,7 +620,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ String(Number($json.unconfirmed_in_cycle) >= 2) }}",
+              "leftValue": "={{ String(Number($json.unconfirmed_30d) >= 2) }}",
               "rightValue": "true",
               "operator": {
                 "type": "string",
@@ -1048,14 +1048,14 @@
             "index": 0
           },
           {
-            "node": "Two unconfirmed in cycle? (4.12a)",
+            "node": "Two unconfirmed in 30 days? (4.12a)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Two unconfirmed in cycle? (4.12a)": {
+    "Two unconfirmed in 30 days? (4.12a)": {
       "main": [
         [
           {

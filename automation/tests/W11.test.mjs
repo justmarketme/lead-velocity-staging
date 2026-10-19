@@ -12,7 +12,7 @@ const B = broker();
 const BR = { id: B.broker_id, contact_person: B.adviser_name };
 const mk = (fx, last, extra = {}) => {
   const r = fx.booking_request;
-  return { id: 'bk_' + fx.fixture_id, client_id: fx.lead_id, broker_id: B.broker_id, brand_id: 'smc', cycle_id: 'cyc_test_001', appointment_date: r.slot_start, ends_at: iso(ms(r.slot_start) + 30 * MIN), method: r.method, status: 'booked', reschedule_count: 0, join_url: r.method === 'teams' ? 'https://teams.microsoft.com/l/meetup-join/test' : null, lead: { first_name: fx.submission.first_name || fx.submission.profile_name || 'Anele', last_name: last }, ...extra };
+  return { id: 'bk_' + fx.fixture_id, client_id: fx.lead_id, broker_id: B.broker_id, brand_id: 'smc', appointment_date: r.slot_start, ends_at: iso(ms(r.slot_start) + 30 * MIN), method: r.method, status: 'booked', reschedule_count: 0, join_url: r.method === 'teams' ? 'https://teams.microsoft.com/l/meetup-join/test' : null, lead: { first_name: fx.submission.first_name || fx.submission.profile_name || 'Anele', last_name: last }, ...extra };
 };
 const L01 = lead('L01'); const L02 = lead('L02'); const L03 = lead('L03'); const L04 = lead('L04');
 const BOOKINGS = [mk(L01, 'Mokoena'), mk(L04, 'van Wyk'), mk(L02, 'Dlamini'), mk(L03, 'Khumalo')];
@@ -100,8 +100,21 @@ test('L03 (broker silent, lead said "No, not yet"): backstop does NOT auto-atten
   assert.equal(d.action, 'queue'); assert.equal(d.escalation.kind, 'outcome_unmarked');
 });
 
-test('two unconfirmed in a cycle -> Jonathan calls the broker (4.12a)', () => {
+test('two unconfirmed for one broker within 30 days -> Jonathan calls the broker (4.12a; D7: no cycles)', () => {
   assert.equal(K.unconfirmedCall(1), false); assert.equal(K.unconfirmedCall(2), true);
+  const ins = WF.nodes.find((n) => n.name.startsWith('Insert auto-attended outcome')).parameters.query;
+  assert.match(ins, /x\.broker_id = o\.broker_id AND x\.unconfirmed AND x\.marked_at > now\(\) - interval '30 days'/);
+  assert.doesNotMatch(JSON.stringify(WF.nodes.filter((n) => n.parameters.query)), /cycle_id|in_cycle/);
+  const gate = WF.nodes.find((n) => n.name === 'Two unconfirmed in 30 days? (4.12a)');
+  assert.match(JSON.stringify(gate.parameters), /\$json\.unconfirmed_30d/);
+  assert.ok(WF.connections['Inserted?'].main[0].some((c) => c.node === gate.name));
+});
+
+test("pre-call brief corpus = this broker's last 5 outcomes.summary (no insights table)", () => {
+  const q = WF.nodes.find((n) => n.name === 'Meetings starting within 15 min, not yet briefed').parameters.query;
+  assert.doesNotMatch(q, /public\.insights/);
+  assert.match(q, /FROM public\.outcomes o WHERE o\.broker_id = b\.id AND NULLIF\(btrim\(o\.summary\), ''\) IS NOT NULL ORDER BY o\.marked_at DESC LIMIT 5/);
+  assert.equal(K.briefInput({ first_name: 'Anele', last_name: 'Dlamini' }, { appointment_date: '2026-10-14T12:00:00Z', method: 'teams' }, [], {}, ['a', 'b', 'c', 'd', 'e', 'f']).adviser_corpus.length, 5);
 });
 
 test('W11.json: physical columns only; outcome insert cannot override W12; brief claim before send; schedules', () => {
