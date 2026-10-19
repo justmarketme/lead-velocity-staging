@@ -17,6 +17,7 @@
 import { createRequire } from 'node:module';
 import { LINES, fill } from '../../conversation/lines.mjs';
 import { isSmcLead, smcClientEmail, smcRelayEmail } from './w05.mjs';
+import { rescheduleCardPlan } from './wa-provider.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 const ACTIVE = new Set(['booked', 'confirmed']);
@@ -43,7 +44,7 @@ export function pick3(slots) {
  * offerMessage({ booking, lead, broker, brand, slots, now_ms, last_inbound_ms, reason })
  * reason: 'lead_reschedule' | 'broker_rescheduled' | 'rebook_after_cancel'
  */
-export function offerMessage({ booking, lead, broker, brand = {}, slots = [], now_ms, last_inbound_ms, reason = 'lead_reschedule', delegate = null }) {
+export function offerMessage({ booking, lead, broker, brand = {}, slots = [], now_ms, last_inbound_ms, reason = 'lead_reschedule', delegate = null, card = null }) {
   const window = Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H;
   const first = (lead.first_name || '').trim() || 'there';
   const adviser = String(broker.contact_person || '').split(' ')[0];
@@ -53,6 +54,14 @@ export function offerMessage({ booking, lead, broker, brand = {}, slots = [], no
   // After a cancel the old booking is gone: a pick is a NEW booking (plain slot_ -> W07 routes it to W05). A ":resched:"
   // pick would reach W10's move of a cancelled booking, which rejects it.
   const pickId = (s) => (cancelled ? `slot_${s.start}` : `slot_${s.start}:resched:${booking.id}`);
+  // /start/ v4 (Jono, 2026-10-19): outside the 24-h window a start-page brand's lead with a live booking gets the approved
+  // reschedule_card template (banner, "Pick a new time" -> /start/#move=1&lt=<token>, Keep my time) instead of
+  // reschedule_offer, when lib/wa-provider.mjs rescheduleCardPlan can send it as a template (Twilio + the reschedule_card SID
+  // + a lead token). card = { start_page: brands.start_page = 'on', token: lt1 minted like W07's card, env }.
+  if (!window && !cancelled && card) {
+    const plan = rescheduleCardPlan({ delegate: { action: 'reschedule' }, lead, booking, broker }, { start_page: card.start_page === true, token: card.token || null, env: card.env || {} });
+    if (plan.via === 'template') return { kind: 'prebuilt', template: 'reschedule_card', wa: plan.send };
+  }
   if (!slots.length) return cancelled && window ? { kind: 'text_session', body: leadBody('cancel_done', { delegate, lead, booking, broker }) } : { kind: 'no_slots', escalate: 'no_slots', text: null };
   if (brand.booking_ui === 'flow') {
     const prefill = { booking_id: booking.id, current_date: slotLabel(booking.appointment_date).split(',')[0], current_time: slotLabel(booking.appointment_date).split(', ')[1], method: booking.method };

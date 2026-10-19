@@ -599,3 +599,36 @@ test('cancel card: the reason is stored (lead_activities cancel_reason, one row 
   assert.deepEqual(C['Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
   assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /cancel reason|Timeline: cancelled|typed-reason/.test(x.node))), []);
 });
+
+test('reschedule_card: out of the 24-h window a start-page brand lead with a live booking gets the reschedule_card template; anything missing -> reschedule_offer as before', async () => {
+  const LT = (await import('node:module')).createRequire(import.meta.url)('../security/lead-token.js');
+  const token = LT.mintLeadToken('lead_L03', { secret: 'w10-test-lead-token-secret-0123456789abcdef', nowMs: RESCHED_TAP }).token;
+  const env = { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: JSON.stringify({ reschedule_card: 'HXtest' }) };
+  const slots = slotsAt(RESCHED_TAP, []);
+  const live = bk({ appointment_date: '2026-10-21T08:00:00Z', status: 'booked' });
+  const out = (over = {}) => R.offerMessage({ booking: live, lead: ld({ phone: '+27600000003' }), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'broker_rescheduled', card: { start_page: true, token, env }, ...over });
+  const o = out();
+  assert.equal(o.kind, 'prebuilt'); assert.equal(o.template, 'reschedule_card');
+  const t = o.wa.template;
+  assert.equal(t.name, 'reschedule_card');
+  assert.deepEqual(t.components[0].parameters.map((p) => p.text), ['Anele', String(BR.contact_person).split(' ')[0], 'Wed 21 Oct', '10:00'], 'first name, adviser, date, time');
+  assert.deepEqual(t.components[1], { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: token }] }, 'the token is the URL suffix');
+  assert.deepEqual(t.components[2].parameters, [{ type: 'payload', payload: `keep_it:${live.id}` }]);
+  // unchanged: in the window, start_page off, no token, no SID, Meta provider, a cancelled / held booking, a cancel rebook offer
+  assert.equal(out({ last_inbound_ms: RESCHED_TAP }).kind, 'list_session', 'in the window: as before (W07 sends the card there)');
+  for (const [why, over] of [['start_page off', { card: { start_page: false, token, env } }], ['no token', { card: { start_page: true, token: null, env } }],
+    ['no SID', { card: { start_page: true, token, env: { WHATSAPP_PROVIDER: 'twilio' } } }], ['meta', { card: { start_page: true, token, env: { ...env, WHATSAPP_PROVIDER: 'meta' } } }],
+    ['no card', { card: null }], ['booking not live', { booking: bk({ status: 'no_show' }) }], ['cancel', { reason: 'cancel' }]]) {
+    const r = out(over);
+    assert.equal(r.kind === 'template' ? r.template : r.kind, why === 'cancel' ? 'reschedule_offer' : 'reschedule_offer', why);
+  }
+  assert.equal(out({ brand: { booking_ui: 'flow' }, card: null }).template, 'reschedule_offer_v2', 'Flow brand without the card: unchanged');
+  assert.equal(out({ brand: { booking_ui: 'flow' } }).template, 'reschedule_card', 'Flow brand with the card');
+  // W10.json: the load reads brands.start_page (to_jsonb, no column dependency); Merge carries it; Build offer mints + sends
+  assert.match(WF.nodes.find((x) => x.name === 'Load booking, lead, broker, brand').parameters.query, /to_jsonb\(br\)->>'start_page' AS brand_start_page/);
+  assert.match(WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode, /start_page: r\.brand_start_page === 'on'/);
+  const b = WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode;
+  assert.match(b, /leadToken\.mintLeadToken\(j\.ld\.id, \{ secret: \$env\.LEAD_TOKEN_SECRET \}\)\.token/);
+  assert.match(b, /else if \(o\.kind === 'prebuilt'\) wa = o\.wa;/);
+  assert.match(b, /TWILIO_CONTENT_SIDS: \$env\.TWILIO_CONTENT_SIDS/);
+});
