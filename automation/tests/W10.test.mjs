@@ -80,8 +80,8 @@ test('after the meeting (W12 broker Rescheduled / rebook after no-show): NEW boo
   assert.equal(R.replacementEffect('rebooked_after_no_show').w13, 'stop_clock');
 });
 
-test('cancel: button cancels at once, typed asks first; Graph delete, W09 cancel, ONE rebooking offer, no replacement', () => {
-  assert.equal(R.classifyOp({ msg: { payload: 'cancel:bk_L03' } }), 'cancel');
+test('cancel: a Cancel tap and a typed cancel both open the cancel card; Yes cancels; Graph delete, W09 cancel, ONE rebooking offer, no replacement', () => {
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel:bk_L03' } }), 'cancel_ask', 'cancel card (Jono, 2026-10-19; was: cancel at once)');
   assert.equal(R.classifyOp({ delegate: { action: 'cancel_confirm' } }), 'cancel_ask');
   assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_L03' } }), 'cancel');
   assert.equal(R.classifyOp({ msg: { payload: 'keep_it:bk_L03' } }), 'keep');
@@ -452,4 +452,150 @@ test('Build offer passes W10\'s op: a cancel tap (op "cancel") gets the cancel c
   assert.match(o.body, /^Done, your call is cancelled\./);
   assert.doesNotMatch(o.body, /other times|Same as before/);
   assert.match(WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode, /reason: j\.op/);
+});
+
+// /start/ v4 (Jono, 2026-10-19): the optional Teams guest gets the change / cancel emails; a W39 page move sends no "slot taken" WhatsApp
+test('W10 guest: a Teams booking with a guest -> the cancel and the move email go to the guest too (smc-client-email guest_email)', () => {
+  const brand = { code: 'SMC' };
+  const j = { brand, bk: bk({ method: 'teams', calendar_provider: null, guest_email: 'thabo@gmail.com' }), ld: ld({ email: 'anele@example.co.za', email_verified: true }), br: { ...BR, fsp_number: '12345', practice_name: 'Test Practice' } };
+  const cancel = R.smcClientChangeEmail(j, 'booking_cancelled', 0);
+  assert.deepEqual([cancel.to, cancel.guest_email], ['anele@example.co.za', 'thabo@gmail.com']);
+  const moved = R.smcClientChangeEmail(j, 'booking_updated', 0, { start: iso(ms(start0) + 24 * H), end: iso(ms(start0) + 24 * H + 30 * MIN) });
+  assert.equal(moved.guest_email, 'thabo@gmail.com');
+  assert.equal(R.smcClientChangeEmail({ ...j, bk: bk({ method: 'teams', guest_email: null }) }, 'booking_cancelled', 0).guest_email, undefined, 'no guest -> client only');
+  assert.equal(R.smcClientChangeEmail({ ...j, bk: bk({ method: 'phone', guest_email: 'thabo@gmail.com' }) }, 'booking_cancelled', 0).guest_email, undefined, 'Teams only');
+  const q = WF.nodes.find((x) => x.name === 'Load booking, lead, broker, brand').parameters.query;
+  assert.match(q, /'w05:guest:' \|\| a\.id::text LIMIT 1\) AS guest_email/);
+  assert.match(WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode, /guest_email: r\.guest_email \|\| null/);
+});
+
+test('W10 W39 move: source W39 -> no "slot taken" WhatsApp (the page re-fetches /slots); every other source unchanged', () => {
+  assert.equal(R.pageOwnsSlotTaken('W39'), true);
+  for (const s of [undefined, null, 'W07', 'W05', 'W12']) assert.equal(R.pageOwnsSlotTaken(s), false, String(s));
+  const code = WF.nodes.find((x) => x.name === 'Slot taken: next 3').parameters.jsCode;
+  assert.match(code, /wa: L\.pageOwnsSlotTaken\(j\.source\) \? null : L\.slotTakenWa\(/);
+  // wa null never reaches the sender
+  assert.match(JSON.stringify(WF.nodes.find((x) => x.name === 'Has WhatsApp payload + live?').parameters), /!!\$json\.wa/);
+});
+
+// ============================================================================================
+// The cancel card (Jono, 2026-10-19, mockup frames 15-16): banner image first, then "Choose a reason"
+// ============================================================================================
+const cBkLive = (over = {}) => bk({ id: 'bk_C1', appointment_date: '2026-10-21T08:00:00Z', ends_at: '2026-10-21T08:30:00Z', status: 'booked', brand_id: 'brand_smc', ...over });
+const NO_SALES = /\bfree\b|licensed|\bAI\b|artificial|assistant|bot\b|Lead Velocity/i;
+
+test('cancel card: the list (body, "Choose a reason", six reasons + Keep my call as the last row) within WhatsApp limits; copy rules', () => {
+  const l = R.cancelCardList(cBkLive(), ld());
+  const i = l.interactive;
+  assert.equal(i.type, 'list'); assert.equal(i.header, undefined, 'a list takes no image header');
+  assert.equal(i.body.text, "We understand, Anele, plans change. Before I cancel your call on Wed 21 Oct at 10:00, can you tell me why? If it's something we can sort out, we'd love to help.");
+  assert.equal(i.action.button, 'Choose a reason');
+  const rows = i.action.sections[0].rows;
+  assert.deepEqual(rows.map((r) => r.id), ['reschedule:bk_C1', 'cancel_reason:not_ready:bk_C1', 'cancel_reason:sorted_cover:bk_C1', 'cancel_reason:not_expected:bk_C1', 'cancel_reason:went_wrong:bk_C1', 'cancel_reason:other:bk_C1', 'keep_it:bk_C1']);
+  assert.deepEqual(rows.map((r) => r.title), ['I need a different time', "I'm not ready yet", "I've sorted my cover", "I didn't expect a call", 'Something went wrong', 'Another reason', 'Keep my call']);
+  for (const r of rows) { assert.ok(r.title.length <= 24, r.title); assert.ok(!r.description || r.description.length <= 72); assert.ok(r.id.length <= 200); }
+  assert.ok(i.action.button.length <= 20 && i.body.text.length <= 1024 && i.action.sections[0].title.length <= 24);
+  assert.equal(R.cancelCardList(cBkLive(), ld({ first_name: '' })).interactive.body.text.slice(0, 33), 'We understand, plans change. Befo', 'no name -> no dangling comma');
+  for (const k of Object.keys(R.CANCEL_COPY)) assert.doesNotMatch(R.cancelLine(k, ld(), cBkLive()), NO_SALES, k);
+  for (const r of rows) assert.doesNotMatch(r.title + (r.description || ''), NO_SALES);
+});
+
+test('cancel card: the header-cancel image goes FIRST (WA_SESSION_BANNERS=on, both providers); off -> the list alone', () => {
+  for (const WHATSAPP_PROVIDER of ['meta', 'twilio']) {
+    const c = R.cancelCard(cBkLive(), ld(), { WA_SESSION_BANNERS: 'on', WHATSAPP_PROVIDER });
+    assert.deepEqual(c.banner, { messaging_product: 'whatsapp', recipient_type: 'individual', to: '+27600000003', type: 'image', image: { link: 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-cancel.png' } });
+    assert.equal(c.wa.interactive.type, 'list');
+  }
+  const off = R.cancelCard(cBkLive(), ld(), {});
+  assert.equal(off.banner, null); assert.equal(off.wa.interactive.type, 'list');
+  // W10.json: card -> (banner, gated by DRY_RUN_SENDS) -> done -> the list through the normal live gate
+  const C = WF.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const op = WF.nodes.find((x) => x.name === 'Op'); const ix = (k) => op.parameters.rules.values.findIndex((r) => r.outputKey === k);
+  assert.deepEqual(outs('Op', ix('cancel_ask')), ['Cancel card (w10.cancelCard)']);
+  assert.deepEqual(outs('Cancel card (w10.cancelCard)'), ['Cancel banner first? (live)']);
+  assert.deepEqual(outs('Cancel banner first? (live)', 0), ['SUB input (Send cancel banner)']);
+  assert.deepEqual(outs('Cancel banner first? (live)', 1), ['Has WhatsApp payload + live?']);
+  assert.deepEqual(outs('SUB input (Send cancel banner)'), ['Send cancel banner']);
+  assert.deepEqual(outs('Send cancel banner'), ['Cancel banner done'], 'the list waits for the image');
+  assert.deepEqual(outs('Cancel banner done'), ['Has WhatsApp payload + live?']);
+  assert.match(WF.nodes.find((x) => x.name === 'Cancel banner first? (live)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.match(WF.nodes.find((x) => x.name === 'Has WhatsApp payload + live?').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.equal(WF.nodes.find((x) => x.name === 'Send cancel banner').onError, 'continueRegularOutput', 'a failed image never blocks the list');
+  assert.equal(WF.nodes.find((x) => x.name === 'Send cancel banner').parameters.options.waitForSubWorkflow, true);
+  // the no-call confirm (C1A b with a live booking) keeps the plain Yes / Keep question
+  assert.deepEqual(outs('Booking still live? (confirm cancel first)', 0), ['Cancel confirm buttons']);
+});
+
+test('cancel card: each reason -> its action (offer / cancel / problem / other / keep); a cancel reason closes with its own line through the existing cancel', () => {
+  assert.equal(R.classifyOp({ delegate: { action: 'cancel_confirm' } }), 'cancel_ask', 'typed "cancel"');
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel:bk_C1' } }), 'cancel_ask', 'Cancel tap');
+  const tap = (id) => ({ msg: { list_id: id } });
+  assert.equal(R.classifyOp(tap('reschedule:bk_C1')), 'offer', 'I need a different time -> the reschedule card (W07) / W10 offer');
+  for (const c of ['not_ready', 'sorted_cover', 'not_expected']) { assert.equal(R.classifyOp(tap(`cancel_reason:${c}:bk_C1`)), 'cancel', c); assert.deepEqual(R.cancelReasonOf(tap(`cancel_reason:${c}:bk_C1`)), { code: c }); }
+  assert.equal(R.classifyOp(tap('cancel_reason:went_wrong:bk_C1')), 'cancel_problem');
+  assert.equal(R.classifyOp(tap('cancel_reason:other:bk_C1')), 'cancel_other');
+  assert.equal(R.classifyOp(tap('keep_it:bk_C1')), 'keep', 'Keep my call -> no change');
+  assert.equal(R.classifyOp(tap('cancel_reason:bogus:bk_C1')), 'cancel_ask', 'unknown reason -> the card again');
+  assert.deepEqual(R.parseCancelReason('cancel_reason:other:bk_C1'), { code: 'other', booking_id: 'bk_C1' });
+  // closing lines ride the delegate body the cancel path already uses (cancelDoneWa / Build offer)
+  const lines = { not_ready: "No problem, Anele. Your call on Wed 21 Oct at 10:00 is cancelled. Say hi here any time and we'll find a new time.",
+    sorted_cover: 'Thanks for letting us know, Anele, and well done on sorting your cover. Your call on Wed 21 Oct at 10:00 is cancelled.',
+    not_expected: 'Thanks for telling us, Anele. Your call on Wed 21 Oct at 10:00 is cancelled. If you would like one later, just say hi here.' };
+  for (const [code, line] of Object.entries(lines)) {
+    const del = R.reasonDelegate({ code }, ld(), cBkLive());
+    assert.equal(del.body, line, code);
+    const done = R.cancelDoneWa({ booking: cBkLive(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, delegate: del });
+    assert.equal(done.text.body, line);
+    const o = R.offerMessage({ booking: cBkLive(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots: slotsAt(RESCHED_TAP, []), now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'cancel', delegate: del });
+    assert.equal(o.body, line, 'the one rebooking offer carries the same line');
+  }
+  assert.equal(R.reasonDelegate(null, ld(), cBkLive(), null), null, 'no reason -> the existing copy');
+  // C1A unchanged: the same applyCancel whatever the reason; "I didn't expect a call" is not a C1A (b) no-call
+  const a = R.applyCancel(cBkLive(), ld(), { now_ms: RESCHED_TAP });
+  assert.deepEqual([a.action, a.rebook_offer, a.replacement, a.w09], ['cancel', true, 'none', 'cancel_all']);
+  assert.equal(R.isNoCall({ list_id: 'cancel_reason:not_expected:bk_C1', text: "I didn't expect a call" }), false);
+  assert.equal(R.classifyOp(tap('cancel_reason:not_expected:bk_C1')), 'cancel', 'not no_call');
+});
+
+test('cancel card: Something went wrong -> hello@ + Keep my call / Cancel it; Another reason -> type it (30-min wait for this booking) -> cancel with the text', () => {
+  const p = R.cancelProblemWa(cBkLive(), ld());
+  assert.equal(p.interactive.body.text, "I'm sorry to hear that. Please email hello@sortmycover.co.za and a person from our team will reply within 48 hours.");
+  assert.deepEqual(p.interactive.action.buttons.map((b) => [b.reply.id, b.reply.title]), [['keep_it:bk_C1', 'Keep my call'], ['cancel_yes:bk_C1', 'Cancel it']]);
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_C1' } }), 'cancel', 'Cancel it = the existing cancel');
+  const o = R.cancelOtherWa(cBkLive(), ld());
+  assert.deepEqual(o.interactive.action.buttons.map((b) => b.reply.id), ['cancel_yes:bk_C1', 'keep_it:bk_C1']);
+  const now = Date.parse('2026-10-19T10:00:00Z');
+  const wait = R.cancelReasonPending(cBkLive(), now);
+  assert.deepEqual(wait, { booking_id: 'bk_C1', until: '2026-10-19T10:30:00.000Z' });
+  const typed = { delegate: { action: 'cancel_reason_text' }, msg: { text: 'My husband   handles it' } };
+  assert.equal(R.classifyOp(typed), 'cancel');
+  assert.deepEqual(R.cancelReasonOf(typed), { code: 'other', text: 'My husband   handles it', typed: true });
+  assert.deepEqual(R.reasonParams(R.cancelReasonOf(typed)), ['other', 'My husband handles it']);
+  assert.equal(R.reasonDelegate({ code: 'other' }, ld(), cBkLive()).body, "Thank you, I've passed that on to the team. Your call on Wed 21 Oct at 10:00 is cancelled.");
+  const lw = ld({ conv_state: { cancel_reason_pending: wait } });
+  assert.equal(R.typedReasonValid(lw, cBkLive(), now + 60_000), true);
+  assert.equal(R.typedReasonValid(lw, cBkLive(), now + 31 * 60_000), false, 'the wait expired');
+  assert.equal(R.typedReasonValid(lw, cBkLive({ id: 'bk_other' }), now), false, 'another booking');
+  assert.equal(R.typedReasonValid(lw, cBkLive({ status: 'cancelled' }), now), false, 'already cancelled');
+  assert.equal(R.typedReasonValid(ld(), cBkLive(), now), false, 'no wait');
+  const merge = WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode;
+  assert.match(merge, /!W\.typedReasonValid\(__o\.ld, __o\.bk, Date\.now\(\)\)\) __o\.op = 'cancel_reason_stale'/);
+  assert.match(merge, /__o\.delegate = W\.reasonDelegate\(__o\.op === 'cancel'/);
+});
+
+test('cancel card: the reason is stored (lead_activities cancel_reason, one row per booking); Keep ends the typed-reason wait; SQL columns exist', () => {
+  const q = (n) => WF.nodes.find((x) => x.name === n).parameters.query;
+  for (const n of ['Save cancel reason (+ typed-reason wait)', 'Timeline: cancelled']) {
+    assert.match(q(n), /'cancel_reason', jsonb_build_object\('booking_id', \$4::text, 'reason', \$\d::text\), NULLIF\(\$\d, ''\), now\(\), 'w10:cancel_reason:' \|\| \$4 WHERE \$\d <> ''/, n);
+    assert.match(q(n), /ON CONFLICT \(idempotency_key\) DO UPDATE SET payload = EXCLUDED\.payload/, n);
+  }
+  assert.match(q('Timeline: cancelled'), /conv_state - 'cancel_reason_pending'/);
+  assert.match(WF.nodes.find((x) => x.name === 'Timeline: cancelled').parameters.options.queryReplacement, /\(j\.reason_params \|\| \['', ''\]\)\[0\]/);
+  assert.match(q('Keep: clear the typed-reason wait'), /conv_state - 'cancel_reason_pending'/);
+  const C = WF.connections; const op = WF.nodes.find((x) => x.name === 'Op'); const ix = (k) => op.parameters.rules.values.findIndex((r) => r.outputKey === k);
+  assert.deepEqual(C.Op.main[ix('keep')].map((t) => t.node), ['Keep it', 'Keep: clear the typed-reason wait']);
+  for (const k of ['cancel_problem', 'cancel_other']) assert.deepEqual(C.Op.main[ix(k)].map((t) => t.node), ['Save cancel reason (+ typed-reason wait)'], k);
+  assert.deepEqual(C['Save cancel reason (+ typed-reason wait)'].main[0].map((t) => t.node), ['Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)']);
+  assert.deepEqual(C['Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
+  assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /cancel reason|Timeline: cancelled|typed-reason/.test(x.node))), []);
 });

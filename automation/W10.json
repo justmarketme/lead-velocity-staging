@@ -41,7 +41,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json; const op = L.classifyOp(j);\nconst sp = L.parseSlotPayload((j.msg && (j.msg.payload || j.msg.list_id)) || '');\nreturn { json: { ...j, op, pick: sp, booking_id: (sp && sp.booking_id) || (j.booking && j.booking.id) || null, lead_id: j.lead ? j.lead.id : null } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $json; const op = L.classifyOp(j);\nconst sp = L.parseSlotPayload((j.msg && (j.msg.payload || j.msg.list_id)) || '');\nconst cr = L.parseCancelReason((j.msg && (j.msg.payload || j.msg.list_id)) || '');\nreturn { json: { ...j, op, pick: sp, cancel_reason: L.cancelReasonOf(j), booking_id: (sp && sp.booking_id) || (cr && cr.booking_id) || (j.booking && j.booking.id) || null, lead_id: j.lead ? j.lead.id : null } };"
       }
     },
     {
@@ -55,7 +55,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number, a.booked_at, a.verify_by,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.email_verified, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.fsp_number, b.practice_name, b.firm_name, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id, br.code AS brand_code,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
+        "query": "SELECT a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.ends_at, a.method, a.status, a.graph_event_id, a.calendar_provider, a.reschedule_count, a.call_number, a.booked_at, a.verify_by,\n       (SELECT g.payload->>'guest_email' FROM public.lead_activities g WHERE g.idempotency_key = 'w05:guest:' || a.id::text LIMIT 1) AS guest_email,\n       l.first_name, l.last_name, l.phone, l.email, l.email_status, l.email_verified, l.conv_state, l.opted_out_at, l.language, l.stage,\n       b.contact_person, b.fsp_number, b.practice_name, b.firm_name, b.whatsapp_number, b.email AS broker_email, b.methods_supported, b.calendar_email, b.calendar_status, b.calendar_mode, b.calendar_status_detail, b.buffer_minutes, b.slot_minutes,\n       br.booking_ui, br.booking_flow_id, br.code AS brand_code,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.lead_id = l.id AND c.direction = 'inbound') AS last_inbound_at,\n       (SELECT max(c.created_at) FROM public.communications c WHERE c.broker_id = b.id AND c.lead_id IS NULL AND c.direction = 'inbound' AND c.sender_type = 'broker') AS broker_last_inbound_at\n  FROM public.appointments a\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n  JOIN public.brands br ON br.id = a.brand_id\n WHERE a.brand_id IS NOT NULL\n   AND (a.id = $1::uuid OR ($1::uuid IS NULL AND a.client_id = $2::uuid))\n ORDER BY a.appointment_date DESC\n LIMIT 1;",
         "options": {
           "queryReplacement": "={{ [$json.booking_id, $json.lead_id] }}"
         }
@@ -82,7 +82,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nreturn { json: { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count, booked_at: r.booked_at, verify_by: r.verify_by }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, email_verified: r.email_verified === true, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, fsp_number: r.fsp_number || null, practice_name: r.practice_name || null, firm_name: r.firm_name || null, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id, code: r.brand_code || null }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN } };"
+        "jsCode": "const i = $('Classify op').item.json; const r = $json;\nconst __o = { ...i, bk: { id: r.id, client_id: r.client_id, broker_id: r.broker_id, brand_id: r.brand_id, appointment_date: r.appointment_date, ends_at: r.ends_at, method: r.method, status: r.status, graph_event_id: r.graph_event_id, calendar_provider: r.calendar_provider, reschedule_count: r.reschedule_count, booked_at: r.booked_at, verify_by: r.verify_by, guest_email: r.guest_email || null }, ld: { id: r.client_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, email: r.email, email_status: r.email_status, email_verified: r.email_verified === true, conv_state: r.conv_state || {}, opted_out_at: r.opted_out_at, language: r.language, stage: r.stage }, br: { id: r.broker_id, contact_person: r.contact_person, fsp_number: r.fsp_number || null, practice_name: r.practice_name || null, firm_name: r.firm_name || null, whatsapp_number: r.whatsapp_number, email: r.broker_email, methods_supported: r.methods_supported, calendar_email: r.calendar_email, calendar_status: r.calendar_status, calendar_mode: r.calendar_mode, calendar_status_detail: r.calendar_status_detail, buffer_minutes: r.buffer_minutes || 15, slot_minutes: r.slot_minutes || 30, last_inbound_ms: r.broker_last_inbound_at ? Date.parse(r.broker_last_inbound_at) : NaN }, brand: { booking_ui: r.booking_ui || $env.BOOKING_UI_DEFAULT || 'list', booking_flow_id: r.booking_flow_id, code: r.brand_code || null }, last_inbound_ms: r.last_inbound_at ? Date.parse(r.last_inbound_at) : NaN };\n// cancel card (patch-w10-cancel-card.mjs): a typed \"Another reason\" counts only for its booking inside the 30-min wait\nconst W = require('lv-automation').w10;\nif (__o.cancel_reason && __o.cancel_reason.typed && !W.typedReasonValid(__o.ld, __o.bk, Date.now())) __o.op = 'cancel_reason_stale';\n__o.delegate = W.reasonDelegate(__o.op === 'cancel' ? __o.cancel_reason : null, __o.ld, __o.bk, __o.delegate || null);\n__o.reason_params = W.reasonParams(__o.source === 'W12' ? null : __o.cancel_reason); // [code, typed text] for the SQL\n__o.cancel_wait = __o.op === 'cancel_other' ? JSON.stringify(W.cancelReasonPending(__o.bk, Date.now())) : '';\nreturn { json: __o };"
       }
     },
     {
@@ -265,6 +265,50 @@
                     "id": "s8",
                     "leftValue": "={{ $json.op }}",
                     "rightValue": "no_call",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "cancel_problem",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s8",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "cancel_problem",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "cancel_other",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s9",
+                    "leftValue": "={{ $json.op }}",
+                    "rightValue": "cancel_other",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -756,7 +800,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\n// x14 (17 Oct): with no offer slots this used to return wa:null (silence); slotTakenWa now sends a 'See open times' button.\nreturn { json: { to: 'lead', wa: L.slotTakenWa({ phone: j.ld.phone, offer: (j.d && j.d.offer) || [], booking: j.bk, lead: j.ld, broker: j.br, delegate: j.delegate || null }) } };"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\n// x14 (17 Oct): with no offer slots this used to return wa:null (silence); slotTakenWa now sends a 'See open times' button.\n// W39 /start/move: the page shows the lost slot and re-fetches /slots (lib/w10.mjs pageOwnsSlotTaken)\nreturn { json: { to: 'lead', wa: L.pageOwnsSlotTaken(j.source) ? null : L.slotTakenWa({ phone: j.ld.phone, offer: (j.d && j.d.offer) || [], booking: j.bk, lead: j.ld, broker: j.br, delegate: j.delegate || null }) } };"
       }
     },
     {
@@ -921,9 +965,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W10', $5, 'booking_cancelled', jsonb_build_object('booking_id', $4::text, 'replacement', 'none'), now(), 'w10:cancelled:' || $4)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "query": "-- cancel card (patch-w10-cancel-card.mjs): $6 reason code ('' = none), $7 the typed \"Another reason\" text\nWITH r AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, notes, occurred_at, idempotency_key)\n  SELECT $1::uuid, $2::uuid, $3::uuid, 'W10', 'lead', 'cancel_reason', jsonb_build_object('booking_id', $4::text, 'reason', $6::text), NULLIF($7, ''), now(), 'w10:cancel_reason:' || $4 WHERE $6 <> ''\n  ON CONFLICT (idempotency_key) DO UPDATE SET payload = EXCLUDED.payload, notes = COALESCE(EXCLUDED.notes, lead_activities.notes), occurred_at = now()\n  RETURNING id),\nw AS (\n  UPDATE public.leads l SET conv_state = l.conv_state - 'cancel_reason_pending', updated_at = now()\n   WHERE l.id = $1::uuid AND l.conv_state ? 'cancel_reason_pending'\n  RETURNING l.id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W10', $5, 'booking_cancelled', jsonb_build_object('booking_id', $4::text, 'replacement', 'none'), now(), 'w10:cancelled:' || $4)\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const j = $('Decide cancel (w10.applyCancel)').item.json; return [j.ld.id, j.bk.brand_id, j.bk.broker_id, j.bk.id, j.source === 'W12' ? 'broker' : 'lead']; })() }}"
+          "queryReplacement": "={{ (() => { const j = $('Decide cancel (w10.applyCancel)').item.json; return [j.ld.id, j.bk.brand_id, j.bk.broker_id, j.bk.id, j.source === 'W12' ? 'broker' : 'lead', (j.reason_params || ['', ''])[0], (j.reason_params || ['', ''])[1]]; })() }}"
         }
       },
       "credentials": {
@@ -2169,6 +2213,165 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// The lead's own \"Yes, cancel\" always gets an answer; before 17 Oct 2026 a second cancel got silence (W07's fallback answered).\nconst L = require('lv-automation').w10;\nconst j = $('Decide cancel (w10.applyCancel)').item.json;\nreturn { json: { ...j, to: 'lead', wa: L.cancelDoneWa({ booking: j.bk, lead: j.ld, broker: j.br, now_ms: Date.now(), last_inbound_ms: j.last_inbound_ms, delegate: j.delegate || null }) } };"
       }
+    },
+    {
+      "id": "w10-cancel-card",
+      "name": "Cancel card (w10.cancelCard)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/w10.mjs cancelCard: the reason list (+ the header-cancel banner image to send FIRST when WA_SESSION_BANNERS=on).\nconst L = require('lv-automation').w10;\nconst j = $json;\nconst c = L.cancelCard(j.bk, j.ld, { WA_SESSION_BANNERS: $env.WA_SESSION_BANNERS, WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER });\nreturn { json: { to: 'lead', ld: j.ld, wa: c.wa, _banner: c.banner } };"
+      }
+    },
+    {
+      "id": "w10-cancel-bif",
+      "name": "Cancel banner first? (live)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        480
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json._banner && !!$json.wa && $env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w10-cancel-bin",
+      "name": "SUB input (Send cancel banner)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The banner image through smc-whatsapp-send (same transport, DRY_RUN_SENDS and suppression as the list); own correlation.\nconst wa = $json._banner;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: { kind: 'prebuilt', wa, to: wa && wa.to, record: false, caller: 'W10', bypass_suppression: false, phone_number_id: null, lead_id: null, broker_id: null,\n  correlation: 'W10:cancel_banner:' + exec + ':' + idx } };"
+      }
+    },
+    {
+      "id": "w10-cancel-bsend",
+      "name": "Send cancel banner",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1900,
+        360
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "w10-cancel-bdone",
+      "name": "Cancel banner done",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// the list goes only after the image\nreturn { json: $('Cancel banner first? (live)').item.json };"
+      }
+    },
+    {
+      "id": "w10-cancel-save",
+      "name": "Save cancel reason (+ typed-reason wait)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        1080
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The cancel reason (lead_activities 'cancel_reason', one row per booking, last reason wins; no cancel_reason column exists).\n-- $7 = the typed-reason wait for \"Another reason\" (conv_state.cancel_reason_pending: { booking_id, until }), '' = clear it.\nWITH r AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, notes, occurred_at, idempotency_key)\n  SELECT $1::uuid, $2::uuid, $3::uuid, 'W10', 'lead', 'cancel_reason', jsonb_build_object('booking_id', $4::text, 'reason', $5::text), NULLIF($6, ''), now(), 'w10:cancel_reason:' || $4 WHERE $5 <> ''\n  ON CONFLICT (idempotency_key) DO UPDATE SET payload = EXCLUDED.payload, notes = EXCLUDED.notes, occurred_at = now()\n  RETURNING id),\nw AS (\n  UPDATE public.leads l\n     SET conv_state = CASE WHEN $7 <> '' THEN COALESCE(l.conv_state, '{}'::jsonb) || jsonb_build_object('cancel_reason_pending', $7::jsonb)\n                           ELSE COALESCE(l.conv_state, '{}'::jsonb) - 'cancel_reason_pending' END,\n         updated_at = now()\n   WHERE l.id = $1::uuid AND ($7 <> '' OR l.conv_state ? 'cancel_reason_pending')\n  RETURNING l.id)\nSELECT (SELECT count(*) FROM r)::int AS saved, (SELECT count(*) FROM w)::int AS wait;",
+        "options": {
+          "queryReplacement": "={{ [$json.ld.id, $json.bk.brand_id, $json.bk.broker_id, $json.bk.id, $json.reason_params[0], $json.reason_params[1], $json.cancel_wait || ''] }}"
+        }
+      }
+    },
+    {
+      "id": "w10-cancel-reply",
+      "name": "Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        1080
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Merge context').item.json;\n// \"Something went wrong\" -> hello@ + Keep my call / Cancel it; \"Another reason\" -> type it + Just cancel it / Keep my call\nreturn { json: { to: 'lead', ld: j.ld, wa: j.op === 'cancel_problem' ? L.cancelProblemWa(j.bk, j.ld) : L.cancelOtherWa(j.bk, j.ld) } };"
+      }
+    },
+    {
+      "id": "w10-cancel-clear",
+      "name": "Keep: clear the typed-reason wait",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        920
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Keep my call: the typed-reason wait (cancel card \"Another reason\") ends, so a later message is never read as a reason.\nUPDATE public.leads l SET conv_state = l.conv_state - 'cancel_reason_pending', updated_at = now()\n WHERE l.id = $1::uuid AND l.conv_state ? 'cancel_reason_pending'\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ [$json.ld.id] }}"
+        }
+      }
     }
   ],
   "connections": {
@@ -2241,7 +2444,7 @@
         ],
         [
           {
-            "node": "Cancel confirm buttons",
+            "node": "Cancel card (w10.cancelCard)",
             "type": "main",
             "index": 0
           }
@@ -2249,6 +2452,11 @@
         [
           {
             "node": "Keep it",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Keep: clear the typed-reason wait",
             "type": "main",
             "index": 0
           }
@@ -2270,6 +2478,20 @@
         [
           {
             "node": "Decide no-call (C1A point 2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save cancel reason (+ typed-reason wait)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save cancel reason (+ typed-reason wait)",
             "type": "main",
             "index": 0
           }
@@ -3076,6 +3298,90 @@
       ]
     },
     "Cancel confirmation (no rebook offer)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel card (w10.cancelCard)": {
+      "main": [
+        [
+          {
+            "node": "Cancel banner first? (live)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel banner first? (live)": {
+      "main": [
+        [
+          {
+            "node": "SUB input (Send cancel banner)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send cancel banner)": {
+      "main": [
+        [
+          {
+            "node": "Send cancel banner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send cancel banner": {
+      "main": [
+        [
+          {
+            "node": "Cancel banner done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel banner done": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save cancel reason (+ typed-reason wait)": {
+      "main": [
+        [
+          {
+            "node": "Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)": {
       "main": [
         [
           {
