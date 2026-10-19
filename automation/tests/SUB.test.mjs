@@ -178,6 +178,42 @@ test('capi-send: CTWA (default) sends ctwa_clid + WABA id only, with no consent 
   assert.equal(c.log.clid_only, true);
 });
 
+test('capi-send: business messaging uses Meta\'s messaging names (Lead -> LeadSubmitted, Qualified -> QualifiedLead); capi_log keeps ours', async () => {
+  for (const [ours, meta] of [['Lead', 'LeadSubmitted'], ['Qualified', 'QualifiedLead']]) {
+    const c = await capiBuild({ event_name: ours, event_id: `evt_l1_${ours.toLowerCase()}`, lead_id: 'l1', action_source: 'business_messaging', ctwa_clid: 'CLID' }, { ...leadRow, consent_ads_at: null });
+    assert.equal(c.action, 'send', ours);
+    assert.equal(c.body.data[0].event_name, meta);
+    assert.equal(c.body.data[0].action_source, 'business_messaging');
+    assert.deepEqual(c.body.data[0].user_data, { ctwa_clid: 'CLID', whatsapp_business_account_id: 'W' });
+    assert.equal(c.log.event_name, ours, 'capi_log dedupe key is our stage name'); assert.equal(c.log.meta_event_name, meta);
+  }
+  // offline and web events keep our names (Meta: custom CRM stage names are free form)
+  const o = await capiBuild({ event_name: 'Qualified', event_id: 'evt_l1_qualified', lead_id: 'l1', action_source: 'system_generated' }, leadRow);
+  assert.equal(o.body.data[0].event_name, 'Qualified'); assert.equal(o.log.meta_event_name, undefined);
+});
+
+test('capi-send: a stage with no business-messaging name (Schedule, Attended, GoodFit) is skipped for a CTWA lead, never posted to fail', async () => {
+  for (const ev of ['Schedule', 'Attended', 'GoodFit']) {
+    const c = await capiBuild({ event_name: ev, event_id: `evt_l1_${ev.toLowerCase()}`, lead_id: 'l1', action_source: 'business_messaging', ctwa_clid: 'CLID' }, leadRow);
+    assert.equal(c.action, 'skip', ev); assert.equal(c.reason, 'no_messaging_event_type'); assert.equal(c.body, undefined);
+  }
+});
+
+test('capi-send: Qualified and GoodFit offline (system_generated): consent gate, CRM source, GoodFit value = the 1-5 rating in ZAR custom_data', async () => {
+  const q = await capiBuild({ event_name: 'Qualified', event_id: 'evt_l1_qualified', lead_id: 'l1', action_source: 'system_generated', event_time: '2026-10-19T08:00:00Z' }, leadRow);
+  assert.equal(q.action, 'send'); assert.match(q.url, /\/DS\/events$/);
+  assert.equal(q.body.data[0].event_id, 'evt_l1_qualified'); assert.equal(q.body.data[0].event_time, Date.parse('2026-10-19T08:00:00Z') / 1000);
+  assert.equal(q.body.data[0].custom_data.event_source, 'crm'); assert.equal(q.body.data[0].custom_data.lead_event_source, 'SortMyCover');
+  const g = await capiBuild({ event_name: 'GoodFit', event_id: 'evt_l1_goodfit', lead_id: 'l1', action_source: 'system_generated', value: 5 }, leadRow, { CAPI_TEST_EVENT_CODE: 'TEST93801' });
+  assert.equal(g.action, 'send'); assert.equal(g.body.data[0].event_name, 'GoodFit');
+  assert.equal(g.body.data[0].custom_data.value, 5); assert.equal(g.body.data[0].custom_data.currency, 'ZAR');
+  assert.equal(g.body.test_event_code, 'TEST93801');
+  for (const ev of ['Qualified', 'GoodFit']) {
+    const s = await capiBuild({ event_name: ev, event_id: `evt_l1_${ev.toLowerCase()}`, lead_id: 'l1', action_source: 'system_generated' }, { ...leadRow, consent_ads_at: null });
+    assert.equal(s.reason, 'capi_skipped_no_consent', ev);
+  }
+});
+
 test('capi-send: CAPI_CTWA_CLID_ONLY=false restores the consent gate and hashed user data for CTWA', async () => {
   const off = { CAPI_CTWA_CLID_ONLY: 'false' };
   const input = { event_name: 'Lead', event_id: 'evt_l1_ctwa', lead_id: 'l1', action_source: 'business_messaging', ctwa_clid: 'CLID' };

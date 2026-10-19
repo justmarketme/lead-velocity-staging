@@ -484,3 +484,72 @@ test('NH-62: KG-ruled no-shows claim goodwill replacements through W13, at most 
   assert.deepEqual(over.alerts, ['Jonathan: weekly replacement maximum reached']);
   assert.equal(rows.length, 3);
 });
+
+// ============================================================================================
+// CAPI quality events (19 Oct 2026): Qualified + GoodFit from the 5-min tick (w12.qualityEventItems)
+// ============================================================================================
+test('CAPI quality: Qualified = tier A/B band (W01 QUAL_BUDGET), GoodFit = the two good-fit codes (W29 GOOD_FIT); deterministic event ids', async () => {
+  const { QUAL_BUDGET } = await import('../lib/w01.mjs');
+  const { GOOD_FIT } = await import('../lib/w29.mjs');
+  assert.deepEqual(R.CAPI_QUALIFIED_BANDS, [...QUAL_BUDGET]);
+  assert.ok(!R.CAPI_QUALIFIED_BANDS.includes('lt750'), 'tier C (under R750) is never Qualified for Meta');
+  assert.deepEqual(R.CAPI_GOOD_FIT_CODES, [...GOOD_FIT]); assert.deepEqual(R.CAPI_GOOD_FIT_CODES, ['fit_proceeding', 'fit_followup']);
+  assert.equal(R.capiQualified({ lead_id: 'L1', brand_id: 'B' }).event_id, 'evt_L1_qualified');
+  assert.equal(R.capiGoodFit({ lead_id: 'L1', brand_id: 'B' }).event_id, 'evt_L1_goodfit');
+});
+
+test('CAPI quality: CTWA Qualified sends the click reference only; offline otherwise; GoodFit always offline (as Attended), value = rating', () => {
+  const now = Date.parse('2026-10-19T12:00:00Z');
+  const rows = [
+    { event_name: 'Qualified', lead_id: 'Lc', brand_id: 'B', ctwa_clid: 'CLID', event_time: '2026-10-19T10:00:00Z' },
+    { event_name: 'Qualified', lead_id: 'Lw', brand_id: 'B', ctwa_clid: null, event_time: '2026-10-19T10:00:00Z' },
+    { event_name: 'GoodFit', lead_id: 'Lg', brand_id: 'B', ctwa_clid: 'CLID', event_time: '2026-10-19T09:00:00Z', quality_score: 4 },
+  ];
+  assert.deepEqual(R.qualityEventItems(rows, now), [
+    { fu: 'capi', event_name: 'Qualified', event_id: 'evt_Lc_qualified', action_source: 'business_messaging', ctwa_clid: 'CLID', lead_id: 'Lc', brand_id: 'B', event_time: '2026-10-19T10:00:00Z' },
+    { fu: 'capi', event_name: 'Qualified', event_id: 'evt_Lw_qualified', action_source: 'system_generated', lead_id: 'Lw', brand_id: 'B', event_time: '2026-10-19T10:00:00Z' },
+    { fu: 'capi', event_name: 'GoodFit', event_id: 'evt_Lg_goodfit', action_source: 'system_generated', lead_id: 'Lg', brand_id: 'B', value: 4, event_time: '2026-10-19T09:00:00Z' },
+  ]);
+});
+
+test('CAPI quality: an unrated GoodFit waits 2 h for the WhatsApp rating, then goes without a value; stale (Meta 7-day edge) and future events never go', () => {
+  const marked = Date.parse('2026-10-19T10:00:00Z');
+  const g = { event_name: 'GoodFit', lead_id: 'L1', brand_id: 'B', event_time: new Date(marked).toISOString(), quality_score: null };
+  assert.deepEqual(R.qualityEventItems([g], marked + R.GOODFIT_VALUE_WAIT - 1), []);
+  const late = R.qualityEventItems([g], marked + R.GOODFIT_VALUE_WAIT);
+  assert.equal(late.length, 1); assert.equal('value' in late[0], false);
+  assert.equal(R.qualityEventItems([{ ...g, quality_score: '5' }], marked + 60_000)[0].value, 5, 'a rated one goes at once (pg smallint may arrive as text)');
+  const q = { event_name: 'Qualified', lead_id: 'L2', brand_id: 'B', event_time: new Date(marked).toISOString() };
+  assert.deepEqual(R.qualityEventItems([q], marked + R.CAPI_HOLD_MAX), [], 'at the hold edge: dropped (Meta rejects > 7 days)');
+  assert.deepEqual(R.qualityEventItems([q], marked - 1), [], 'future (test clock) not sent');
+  assert.deepEqual(R.qualityEventItems([{ ...q, event_name: 'Attended' }, { ...q, lead_id: null }], marked + 1), [], 'other names / no lead: nothing');
+});
+
+test('W12.json: the tick feeds Qualified + GoodFit to CAPI Send through the Follow-up switch; SQL dedupes on capi_log and pre-filters consent', async () => {
+  const to = (from, out = 0) => ((WF.connections[from] || {}).main || [])[out]?.map((x) => x.node) || [];
+  const Q = 'Quality events due (Qualified + GoodFit, not in capi_log)';
+  const C = 'Quality events (w12.qualityEventItems)';
+  assert.ok(to('Op', 0).includes(Q), 'tick output only');
+  for (let i = 1; i < 8; i++) assert.ok(!to('Op', i).includes(Q), `op output ${i} does not run the sweep`);
+  assert.deepEqual(to(Q), [C]); assert.deepEqual(to(C), ['Follow-up']);
+  const capiSub = WF.nodes.find((n) => n.name === to('Follow-up', 1)[0]);
+  assert.equal(capiSub.type, 'n8n-nodes-base.executeWorkflow'); assert.equal(capiSub.parameters.workflowId.value, 'smc-capi-send');
+  const sql = WF.nodes.find((n) => n.name === Q).parameters.query;
+  assert.match(sql, /g\.event_id = 'evt_' \|\| l\.id::text \|\| '_qualified' AND g\.event_name = 'Qualified'/);
+  assert.match(sql, /g\.event_id = 'evt_' \|\| o\.lead_id::text \|\| '_goodfit' AND g\.event_name = 'GoodFit'/);
+  assert.match(sql, /\(l\.ctwa_clid IS NOT NULL OR l\.consent_ads_at IS NOT NULL\)/);
+  assert.match(sql, /l\.opted_out_at IS NULL AND l\.consent_ads_at IS NOT NULL/);
+  assert.match(sql, /o\.outcome = 'attended' AND o\.dispute_status <> 'open'/);
+  assert.match(sql, new RegExp(`interval '${R.QUALITY_SWEEP_LOOKBACK_H} hours'`));
+  for (const b of R.CAPI_QUALIFIED_BANDS) assert.ok(sql.includes(`'${b}'`), b);
+  assert.ok(!sql.includes("'lt750'"));
+  assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => n.name === Q) })), [], 'physical columns only');
+  // the real Code node -> items CAPI Send accepts as valid input
+  const { normalise } = await import('../lib/sub-capi-send.mjs');
+  const items = (await runCode(WF, C, { items: [
+    { event_name: 'Qualified', lead_id: 'Lc', brand_id: 'B', ctwa_clid: 'CLID', event_time: '2026-10-19T10:00:00Z', quality_score: null },
+    { event_name: 'GoodFit', lead_id: 'Lg', brand_id: 'B', ctwa_clid: null, event_time: '2026-10-19T09:00:00Z', quality_score: 5 },
+  ], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: '2026-10-19T12:00:00Z' } } })).map((x) => x.json);
+  assert.deepEqual(items.map((x) => [x.fu, x.event_name, x.action_source]), [['capi', 'Qualified', 'business_messaging'], ['capi', 'GoodFit', 'system_generated']]);
+  for (const x of items) assert.equal(normalise(x).valid, true, `${x.event_name}: ${normalise(x).missing}`);
+});

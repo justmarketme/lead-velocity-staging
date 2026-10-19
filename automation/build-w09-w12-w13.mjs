@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
+import * as L12 from './lib/w12.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const PG_CRED = 'LV Supabase - n8n_app (least privilege)';
@@ -325,7 +326,7 @@ function buildW12() {
     'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
     'Broker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two within 30 days -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
     'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\n' +
-    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
+    'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook, CAPI Send Qualified + GoodFit (tick sweep of leads.qualified_at on a tier A/B band and good-fit outcomes from W29 or the portal; capi_log dedupe; GoodFit offline only, value = rating). Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
 
   const tSub = trigger('Called by W07 / W11 / portal', [0, 0]);
@@ -643,6 +644,43 @@ RETURNING o.id, o.lead_id;`,
 
   const live = sendChain('W12', 13, 0);
   link(claimedItem, live); link(fuSw, live, 0);
+
+  // ---- CAPI quality events (19 Oct 2026): Qualified (leads.qualified_at on a tier A/B band, written by W03 / W39 / the
+  // capture Flow) and GoodFit (a good-fit disposition, from W29 on WhatsApp or the broker portal, which writes outcomes
+  // directly). Read on the tick so every writer is covered; capi_log is the dedupe (callee rule). The consent pre-filter
+  // mirrors the callee's gate so a lead it would skip is not re-offered every 5 min: Qualified = ctwa_clid (click reference
+  // only) or ads consent; GoodFit = ads consent (always offline, as Attended).
+  const qBands = L12.CAPI_QUALIFIED_BANDS.map((b) => `'${b}'`).join(', ');
+  const qCodes = L12.CAPI_GOOD_FIT_CODES.map((c) => `'${c}'`).join(', ');
+  const qualQ = pg('Quality events due (Qualified + GoodFit, not in capi_log)', [5, 12],
+`SELECT q.* FROM (
+  SELECT 'Qualified'::text AS event_name, l.id AS lead_id, l.brand_id, l.ctwa_clid, l.qualified_at AS event_time, NULL::int AS quality_score
+    FROM public.leads l
+   WHERE l.brand_id IS NOT NULL AND l.qualified_at IS NOT NULL
+     AND l.qualified_at > $1::timestamptz - interval '${L12.QUALITY_SWEEP_LOOKBACK_H} hours' AND l.qualified_at <= $1::timestamptz
+     AND l.budget_band IN (${qBands})
+     AND l.opted_out_at IS NULL AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'opted_out')
+     AND (l.ctwa_clid IS NOT NULL OR l.consent_ads_at IS NOT NULL)
+     AND (NOT $2::boolean OR l.is_synthetic)
+     AND NOT EXISTS (SELECT 1 FROM public.capi_log g WHERE g.event_id = 'evt_' || l.id::text || '_qualified' AND g.event_name = 'Qualified')
+  UNION ALL
+  SELECT 'GoodFit'::text, o.lead_id, o.brand_id, NULL::text, o.marked_at, o.quality_score::int
+    FROM public.outcomes o
+    JOIN public.leads l ON l.id = o.lead_id
+   WHERE o.brand_id IS NOT NULL AND o.outcome = 'attended' AND o.dispute_status <> 'open'
+     AND o.disposition_code::text IN (${qCodes})
+     AND o.marked_at > $1::timestamptz - interval '${L12.QUALITY_SWEEP_LOOKBACK_H} hours' AND o.marked_at <= $1::timestamptz
+     AND l.opted_out_at IS NULL AND l.consent_ads_at IS NOT NULL
+     AND (NOT $2::boolean OR l.is_synthetic)
+     AND NOT EXISTS (SELECT 1 FROM public.capi_log g WHERE g.event_id = 'evt_' || o.lead_id::text || '_goodfit' AND g.event_name = 'GoodFit')
+) q
+ ORDER BY q.event_time
+ LIMIT 200;`,
+    "={{ (() => { const c = $('Classify + validate (w12.classifyOp)').first().json; return [c.now_iso, c.synthetic_only]; })() }}");
+  const qualFu = code('Quality events (w12.qualityEventItems)', [6, 12], IMPORT('w12') +
+`const now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);
+return L.qualityEventItems($input.all().map((it) => it.json), now).map((x) => ({ json: x }));`, 'runOnceForAllItems');
+  link(sw, qualQ, 0); link(qualQ, qualFu); link(qualFu, fuSw);
 
   return finish('smc-w12', 'W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)',
     'automation-engineer. W12 outcome, disposition & feedback, two-sided (4.6, 4.12a, Schedule C/D); logic automation/lib/w12.mjs; tests automation/tests/W12.test.mjs (GATE-TEST-W12). Generated by automation/build-w09-w12-w13.mjs.',

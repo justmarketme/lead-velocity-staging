@@ -16,6 +16,8 @@
 // transcription is a later step, switched on only when the provider is named in the privacy notice (P17, Q22).
 import { fill, LINES } from '../../conversation/lines.mjs';
 import { MIN, H, D, ms, iso, timeLabel, firstName, firstAndInitial, templateMessage, textMessage, listMessage, nowFrom, touchesLastContact } from './wa.mjs';
+import { QUAL_BUDGET } from './w01.mjs';
+import { GOOD_FIT } from './w29.mjs';
 export { MIN, H, D, iso, nowFrom, touchesLastContact };
 
 export const OUTCOME_CHECK_AFTER_END = 15 * MIN; // broker
@@ -287,6 +289,54 @@ export function voiceNoteRef(msg = {}) {
 
 /** Sub-call payloads. */
 export const capiAttended = (lead, brandId, eventTime) => ({ event_name: 'Attended', event_id: `evt_${lead.id}_attended`, action_source: 'system_generated', lead_id: lead.id, brand_id: brandId, ...(eventTime ? { event_time: eventTime } : {}) });
+
+// ---------------------------------------------------------------------------------------------------------------
+// CAPI quality events (19 Oct 2026): Qualified and GoodFit give Meta the lead-quality signal the media plan steers by
+// (campaign-spec 11.1: cost per qualified lead <= R250, cost per good-fit meeting <= R1,300). Both are read from the
+// database on the 5-min tick, not sent by each writer: qualified_at is written by W03 (taps, Instant Form band, web band),
+// W39 (/start/) and the capture Flow, and a disposition by W29 (WhatsApp) or the broker portal (outcomes, direct), so
+// one sweep covers every path. Dedupe is capi_log (unique event_id + event_name), the callee's own rule.
+// Qualified follows Lead / Schedule: a lead with a ctwa_clid sends the click reference only (business_messaging, Jono
+// 18 Oct; the callee names it QualifiedLead for Meta, the qualifying taps happen in the chat); any other lead is offline
+// (system_generated) behind the ads-consent gate inside the callee. GoodFit follows Attended: always offline. A meeting
+// outcome is not a chat event and Meta's business-messaging list has no name for it (lib/sub-capi-send.mjs).
+// ---------------------------------------------------------------------------------------------------------------
+/** Budget bands (DB codes) that make a lead Qualified for Meta: tiers A/B, the same set qualified_at follows on W39 / Instant Form. */
+export const CAPI_QUALIFIED_BANDS = [...QUAL_BUDGET];
+/** Good-fit dispositions (4.12a "Good fit" section; W29 GOOD_FIT). */
+export const CAPI_GOOD_FIT_CODES = [...GOOD_FIT];
+/** GoodFit carries the broker's 1-5 rating as value; on WhatsApp the rating comes after the disposition, so wait this long for it. */
+export const GOODFIT_VALUE_WAIT = 2 * H;
+/** The sweep looks back as far as a held Attended may wait (Meta's 7-day edge minus 12 h). */
+export const QUALITY_SWEEP_LOOKBACK_H = CAPI_HOLD_MAX / H;
+
+export const capiQualified = (row) => ({ event_name: 'Qualified', event_id: `evt_${row.lead_id}_qualified`,
+  ...(row.ctwa_clid ? { action_source: 'business_messaging', ctwa_clid: row.ctwa_clid } : { action_source: 'system_generated' }),
+  lead_id: row.lead_id, brand_id: row.brand_id, ...(row.event_time ? { event_time: row.event_time } : {}) });
+export const capiGoodFit = (row) => ({ event_name: 'GoodFit', event_id: `evt_${row.lead_id}_goodfit`, action_source: 'system_generated', lead_id: row.lead_id, brand_id: row.brand_id,
+  ...(Number.isInteger(row.quality_score) ? { value: row.quality_score } : {}), ...(row.event_time ? { event_time: row.event_time } : {}) });
+
+/**
+ * qualityEventItems(rows, now) -> Follow-up items { fu: 'capi', ...CAPI Send input }.
+ * rows = "Quality events due" SQL rows { event_name: 'Qualified'|'GoodFit', lead_id, brand_id, ctwa_clid, event_time, quality_score }.
+ * The SQL already applies the bands, codes, look-back, consent pre-filter and the capi_log dedupe; this guards the same
+ * edges again (so a hand-run query cannot send a stale or wrong event) and holds an unrated GoodFit for GOODFIT_VALUE_WAIT.
+ */
+export function qualityEventItems(rows = [], now) {
+  const out = [];
+  for (const r of rows) {
+    if (!r || !r.lead_id) continue;
+    const at = ms(r.event_time);
+    if (!Number.isFinite(at) || at > now || now - at >= CAPI_HOLD_MAX) continue;
+    if (r.event_name === 'Qualified') out.push({ fu: 'capi', ...capiQualified(r) });
+    else if (r.event_name === 'GoodFit') {
+      const q = r.quality_score == null ? null : Number(r.quality_score);
+      if (q === null && now - at < GOODFIT_VALUE_WAIT) continue; // rating may still come (W29 asks it after the disposition)
+      out.push({ fu: 'capi', ...capiGoodFit({ ...r, quality_score: q }) });
+    }
+  }
+  return out;
+}
 export const w13NoShow = (outcomeId, booking, leadId, confirmedAt) => ({ op: 'no_show', outcome_id: outcomeId, booking_id: booking.id, lead_id: leadId, confirmed_at: confirmedAt, idempotency_key: `w12:no_show:${booking.id}` });
 export const w10Rebook = (booking, lead, why) => ({ source: 'W12', outcome: 'rescheduled', reason: why, schedule_d: why === 'broker_no_show', booking: { id: booking.id }, lead: { id: lead.id } });
 

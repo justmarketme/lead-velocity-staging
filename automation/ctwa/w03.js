@@ -337,7 +337,8 @@ function step(thread, msg, ctx) {
       row.optin = optinRecord(row);
       actions.push({ kind: 'insert_lead', row });
       // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)
-      if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging' });
+      // lead_id + ctwa_clid travel with it: smc-capi-send rejects a business_messaging event without them (invalid_input)
+      if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging', lead_id: row.id, brand_id: row.brand_id, ctwa_clid: row.ctwa_clid });
       t.stage = 'q_age';
       t.lead_id = row.id;
       // Capture Flow v2 (2026-10-07): when the brand has switched to the Flow and the workflow supplied a minted

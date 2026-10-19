@@ -34,7 +34,7 @@ function run(fx, { brand = BRAND, brokerRow = MARK, existing = null } = {}) {
 }
 const sends = (acts) => acts.filter((a) => a.kind === 'send');
 
-test('L04 consent yes: named consent first, lead row at the tap (verified), Meta referral stored, CAPI Lead once', () => {
+test('L04 consent yes: named consent first, lead row at the tap (verified), Meta referral stored, CAPI Lead once', async () => {
   const fx = lead('L04');
   const { actions } = run(fx);
   const consentMsg = sends(actions)[0].message;
@@ -60,6 +60,12 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   assert.equal(row.phone, '+27600000104');
   const capi = actions.filter((a) => a.kind === 'capi');
   assert.deepEqual(capi.map((c) => [c.event_name, c.event_id, c.action_source]), [['Lead', e.capi_lead_event_id, 'business_messaging']]);
+  // 19 Oct 2026: the action carries what smc-capi-send needs; without lead_id + ctwa_clid its normalise() rejected it
+  // (invalid_input), so no CTWA Lead ever reached Meta.
+  assert.equal(capi[0].lead_id, row.id); assert.equal(capi[0].ctwa_clid, e.ctwa_clid); assert.equal(capi[0].brand_id, row.brand_id);
+  const { normalise } = await import('../lib/sub-capi-send.mjs');
+  const n = normalise(capi[0]);
+  assert.equal(n.valid, true, `missing: ${n.missing}`); assert.equal(n.action_source, 'business_messaging');
 });
 
 test('L04 qualifying is tap-only and ends in route + first touch at the method tap (W06 deadline 60 s)', () => {
