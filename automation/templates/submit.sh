@@ -72,7 +72,8 @@ REST=(
 # into REST after practitioner review (GATE-TEMPLATES / GATE-OPINION). breach_subject_notice: POPIA s22 subject notice, drill P14 G3.
 # broker_intro_slots_v3: the lead-ad intro card WITH the SortMyCover disclosure, for Jono with the Instant Form launch
 # (submitted through Twilio Content: templates/twilio/BROKER-INTRO-V3.md).
-HELD=(breach_subject_notice broker_intro_slots_v3)
+# start_here: Instant Form first touch (Twilio Content only: static header card via "banner", not a Meta upload; 19 Oct).
+HELD=(breach_subject_notice broker_intro_slots_v3 start_here)
 # HELD (Twilio Content only, not Meta files; Jono 2026-10-19 banners): submitted with
 #   node automation/templates/twilio/submit-twilio.mjs --submit --only <key>
 # and added to TWILIO_CONTENT_SIDS only once approved (CONTRACTS.md "Banners on lead-facing WhatsApp messages"):

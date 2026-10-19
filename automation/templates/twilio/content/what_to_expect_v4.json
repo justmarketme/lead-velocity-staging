@@ -1,0 +1,50 @@
+{
+  "_meta": {
+    "key": "what_to_expect_v4",
+    "source": "automation/templates/what_to_expect.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_what_to_expect_v4",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      }
+    ],
+    "core": false,
+    "base": "what_to_expect",
+    "header": "expect"
+  },
+  "content": {
+    "friendly_name": "smc_what_to_expect_v4",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark",
+      "3": "Microsoft Teams",
+      "4": "Mark"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, here's what to expect on your call with {{2}}:\n• About 30 minutes, by {{3}}.\n• {{4}} starts by telling you their firm, FSP number and how they are paid.\n• They ask about your household and explain how the different kinds of cover work.\n• Nothing is bought on the call. Any next step is your choice.\nIf you have a payslip or a current policy schedule nearby it helps, but it isn't needed. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-expect.png"
+        ]
+      }
+    }
+  }
+}

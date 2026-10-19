@@ -52,6 +52,8 @@ export const FLOW_TEMPLATES = [
   'ops_alert',
   // lead-ad intro card WITH the SortMyCover disclosure (2026-10-18): proposal, for Jono with the Instant Form launch (BROKER-INTRO-V3.md)
   'broker_intro_slots_v3',
+  // Start here for Instant Form leads (19 Oct 2026): the smc_start_cta text as an approved template (they never messaged us)
+  'start_here',
 ];
 export const CORE = FLOW_TEMPLATES.slice(0, 7);
 // Session Flow launches (inside the 24-h window, W10 flow_session): body {{1}}, flow_token {{2}}.

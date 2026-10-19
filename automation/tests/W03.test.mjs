@@ -642,3 +642,22 @@ test('lead-ad band tap: W03 records the band and asks W01 core to route (W01 the
   assert.ok(kinds.includes('route_and_first_touch'));
   assert.equal(kinds.filter((k) => k === 'send').length, 0, 'W03 itself sends nothing: the disclosure text is W01 core\'s first step');
 });
+
+test('start page ON: the Start here card never comes before the consent tap (Hi -> consent only, No -> no card, Yes -> card); the consent carries the welcome banner', async () => {
+  const { sessionBanner } = await import('../lib/wa-provider.mjs');
+  const base = { at: '2026-10-19T10:00:00+02:00', mobile: '+27600000105', profile_name: 'Thandi Nkosi', lead_id: 'lead_sp_9', broker: MARK, brand: SP_BRAND, existing_open_lead_id: null, suppressed: false, wamid: 'SMc0', is_synthetic: true, start_page: { token: SP_TOKEN } };
+  const hi = W3.step(null, { from: '27600000105', id: 'SMc0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, base);
+  assert.deepEqual(sends(hi.actions).map((a) => a.message.type), ['button'], 'consent question only');
+  assert.deepEqual(sends(hi.actions)[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no']);
+  assert.ok(!hi.actions.some((a) => a.kind === 'insert_lead'), 'nothing stored before consent');
+  const body = W3.toCloudApi('+27600000105', sends(hi.actions)[0].message);
+  assert.equal(sessionBanner(body, { WA_SESSION_BANNERS: 'on', WHATSAPP_PROVIDER: 'twilio' }).banner.image.link, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png');
+  const tap = (id) => ({ from: '27600000105', id: `SM${id}`, timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id } } });
+  const no = W3.step(hi.thread, tap('consent_no'), { ...base, wamid: 'SMc1' });
+  assert.ok(!sends(no.actions).some((a) => a.message.type === 'cta_url'), 'No -> no card');
+  assert.ok(!no.actions.some((a) => a.kind === 'insert_lead'));
+  const yes = W3.step(hi.thread, tap('consent_yes'), { ...base, wamid: 'SMc2' });
+  const cta = sends(yes.actions).map((a) => a.message);
+  assert.deepEqual(cta.map((m) => m.type), ['cta_url'], 'Yes -> the Start here card');
+  assert.equal(cta[0].header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png', 'the card keeps its own welcome header');
+});

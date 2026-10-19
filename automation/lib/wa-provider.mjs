@@ -123,6 +123,14 @@ export const TEMPLATE_VARIANTS = [
     derive: (b) => { const s = String(b[2] || ''); const m = /^Join here: https:\/\/\S+$/.test(s) && JOIN_ID.exec(s); return m ? { body: b.slice(0, 2), buttons: { 0: m[1] } } : null; } },
   { key: 'reminder_10m_v2', base: 'reminder_10m', header: 'reminder' },
   { key: 'prep_nudge_v2', base: 'prep_nudge', header: 'reminder' },
+  // what_to_expect in the v4 form (Jono, 19 Oct 2026: lindi-flow-copy.md 5e, incl. the payslip tip, so prep_nudge is
+  // covered too). Same W09 values (first, adviser, method label); derive() uses the adviser's first name twice. No
+  // "Add to calendar" (the invite is already in their calendar, as booking_confirmed v3).
+  { key: 'what_to_expect_v4', base: 'what_to_expect', header: 'expect',
+    body: "Hi {{1}}, here's what to expect on your call with {{2}}:\n• About 30 minutes, by {{3}}.\n• {{4}} starts by telling you their firm, FSP number and how they are paid.\n• They ask about your household and explain how the different kinds of cover work.\n• Nothing is bought on the call. Any next step is your choice.\nIf you have a payslip or a current policy schedule nearby it helps, but it isn't needed. " + STOP,
+    example: ['Lerato', 'Mark', 'Microsoft Teams', 'Mark'],
+    buttons: [],
+    derive: (b) => (b[0] && b[1] && b[2] ? { body: [b[0], firstOf(b[1]), b[2], firstOf(b[1])] } : null) },
   { key: 'what_to_expect_v2', base: 'what_to_expect', header: 'expect' },
   { key: 'reschedule_offer_v3', base: 'reschedule_offer', header: 'reschedule' }, // _v2 is the Flow template
   { key: 'intro_media_voice_v2', base: 'intro_media_voice', header: 'video' }, // "A voice note from {{1}}" text header -> banner

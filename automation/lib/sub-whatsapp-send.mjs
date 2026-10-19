@@ -89,7 +89,7 @@ export function templateShape(spec) {
   });
   return {
     counts: {
-      header: !h ? 0 : h.format === 'TEXT' ? vars(h.text) : 1,
+      header: !h || h.banner ? 0 : h.format === 'TEXT' ? vars(h.text) : 1, // banner = a static header card (no parameter)
       body: vars((spec.components.find((c) => c.type === 'BODY') || {}).text),
       quick_reply: dynamic.filter((d) => d.kind === 'quick_reply').length,
       url: dynamic.filter((d) => d.kind === 'url').length,

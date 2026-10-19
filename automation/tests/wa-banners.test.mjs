@@ -244,3 +244,29 @@ test('W07 wiring: every W10 hand-off passes the card check; the card goes throug
   const n = S.normalise(sub.json);
   assert.equal(S.decide(n, {}, { ...env, DRY_RUN_SENDS: 'true' }).action, 'dry');
 });
+
+test('what_to_expect_v4 (5e copy, expect banner, no calendar button) and the start_here template (Instant Form)', () => {
+  const defs = buildAll();
+  const w = defs['what_to_expect_v4.json'].content.types['twilio/card'];
+  assert.deepEqual(w.media, [H('expect')]); assert.equal(w.actions, undefined);
+  assert.match(w.title, /About 30 minutes, by \{\{3\}\}\.[\s\S]*firm, FSP number and how they are paid[\s\S]*Nothing is bought on the call\.[\s\S]*payslip or a current policy schedule nearby it helps, but it isn't needed\./);
+  assert.doesNotMatch(w.title, /\bfree\b/i);
+  const r = send(tpl('what_to_expect', ['Lerato', 'Mark Smith', 'Microsoft Teams'], [{ url: BK }]), sids({ what_to_expect: 'HXw1', what_to_expect_v2: 'HXw2', what_to_expect_v4: 'HXw4' }));
+  assert.deepEqual(r, { sid: 'HXw4', vars: { 1: 'Lerato', 2: 'Mark', 3: 'Microsoft Teams', 4: 'Mark' } });
+  // start_here: key exactly start_here, approval, welcome card, body {{1}} = first name, URL suffix {{2}} = the token
+  const s = defs['start_here.json'];
+  assert.equal(s._meta.key, 'start_here'); assert.equal(s._meta.approval.name, 'smc_start_here'); assert.equal(s._meta.approval.category, 'UTILITY');
+  const c = s.content.types['twilio/card'];
+  assert.deepEqual(c.media, [H('welcome')]);
+  assert.match(c.title, /^Hi \{\{1\}\}, I'm Lindi from SortMyCover\. Here's how it works:\n1\. Pick a time/);
+  assert.deepEqual(c.actions, [{ type: 'URL', title: 'Start here', url: 'https://sortmycover.co.za/start/#lt={{2}}' }]);
+  // the decided shape W01 sends through smc-whatsapp-send
+  const tok = 'lt1.lead_x.1792240000.' + 'A'.repeat(43);
+  const n = S.normalise({ to: '+27820000001', kind: 'template', template: 'start_here', variables: ['Lerato'], buttons: [{ url: tok }], lead_id: 'l1', correlation: 'W01:start_here:l1' });
+  const env = sids({ start_here: 'HXsh' });
+  const d = S.decide(n, {}, env);
+  assert.equal(d.action, 'send', JSON.stringify(d));
+  const f = Object.fromEntries(new URLSearchParams(S.twilioRequest(d, env).body));
+  assert.deepEqual({ sid: f.ContentSid, vars: JSON.parse(f.ContentVariables) }, { sid: 'HXsh', vars: { 1: 'Lerato', 2: tok } });
+  assert.equal(S.decide(n, {}, { ...env, DRY_RUN_SENDS: 'true' }).action, 'dry');
+});
