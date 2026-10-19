@@ -18,7 +18,7 @@ const BROWSER = {
   'W01.json': ['POST:lead', 'POST:lead/skip'], // SortMyCover /start/ step 0 + the landing pages
   'W04.json': ['GET:slots'], // /start/, landing pages, the broker portal tile
   'W05.json': ['POST:book'], // /start/ and the landing pages
-  'W39.json': ['GET:start', 'POST:start/answers'], // /start/
+  'W39.json': ['GET:start', 'POST:start/answers', 'POST:start/adviser', 'POST:start/contact', 'POST:start/move'], // /start/ (v4: adviser card, contact numbers, answers, move)
   'SUB-visit-beacon.json': ['POST:beacon'], // navigator.sendBeacon from the sites
   'W19.json': ['POST:billing-autorenew'], // broker portal
   'W23.json': ['POST:intro/upload-confirm', 'POST:intro/approve', 'GET:intro/status', 'POST:intro/interview', 'POST:intro/script-select', 'POST:intro/upload',
