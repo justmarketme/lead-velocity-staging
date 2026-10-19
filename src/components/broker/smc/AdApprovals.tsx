@@ -9,13 +9,13 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBrokerPreview } from "@/lib/brokerPreview";
-import { adConsentGranted, fmtDayTimeSast, splitAds, type AdRow } from "@/lib/adConsent";
+import { adConsentGranted, fmtDayTimeSast, splitAds, stableOrder, type AdRow } from "@/lib/adConsent";
 import { viewUrl } from "./PreparedIntroCard";
 import { adErrText } from "./AdConsentCard";
 import type { ReviewSkin } from "./LvReview";
 import ApprovalBand from "./ApprovalBand";
 import RequestChange from "./RequestChange";
-import ApprovalSwitch from "./ApprovalSwitch";
+import ApprovalSwitch, { APPROVE_NOTE } from "./ApprovalSwitch";
 
 type Changed = (r: { onboarding_progress: Record<string, unknown> }) => void;
 
@@ -141,6 +141,46 @@ function AdItem({ row, approved, consentOk, skin, onDone, broker, onChanged }: {
   );
 }
 
+
+/** "Approve all" with one confirmation: approves each waiting ad through the same audited RPC, one by one. */
+function ApproveAll({ ids, skin, onDone }: { ids: string[]; skin: ReviewSkin; onDone: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const light = skin === "portal";
+  async function run() {
+    setBusy(true); setErr(null); setDone(0);
+    for (const id of ids) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("broker_decide_ad", { p_media_id: id, p_approve: true, p_note: null });
+      if (error) { setErr(adErrText(error)); break; }
+      setDone((d) => d + 1);
+    }
+    setBusy(false); setAsking(false); onDone();
+  }
+  const btn = light ? "tap" : "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60";
+  const ghost = light ? "tap g" : "inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 px-4 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-60";
+  return (
+    <div style={light ? { margin: "12px 0" } : undefined} className={light ? "" : "space-y-2"}>
+      {!asking ? (
+        <button type="button" className={btn} onClick={() => setAsking(true)}>Approve all {ids.length} waiting ads</button>
+      ) : (
+        <div role="alertdialog" aria-label="Approve all waiting ads" className={light ? "alert" : "rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-3 space-y-2"}>
+          <p className="text-sm">Approve all {ids.length} ads below? {APPROVE_NOTE}</p>
+          <div className="flex flex-wrap gap-2" style={light ? { marginTop: 8 } : undefined}>
+            <button type="button" className={btn} disabled={busy} onClick={run}>
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}{busy ? `Approving ${done + 1} of ${ids.length}...` : `Yes, approve all ${ids.length}`}
+            </button>
+            <button type="button" className={ghost} disabled={busy} onClick={() => setAsking(false)}>Not yet</button>
+          </div>
+        </div>
+      )}
+      {err && <p role="alert" className={light ? "err" : "text-sm text-rose-300"}>{err}</p>}
+    </div>
+  );
+}
+
 export default function AdApprovals({ broker, onChanged, skin = "elite", className = "" }: {
   broker: { id?: string | null; onboarding_progress?: unknown } | null | undefined;
   /** Gets the updated onboarding_progress after a change request (patch the page or reload). */
@@ -149,6 +189,7 @@ export default function AdApprovals({ broker, onChanged, skin = "elite", classNa
 }) {
   const [rows, setRows] = useState<AdRow[] | null>(null);
   const [nonce, setNonce] = useState(0);
+  const preview = !!useBrokerPreview();
   const brokerId = broker?.id || null;
   const consentOk = adConsentGranted(broker?.onboarding_progress);
 
@@ -166,17 +207,24 @@ export default function AdApprovals({ broker, onChanged, skin = "elite", classNa
   const { waiting, approved } = splitAds(rows);
   if (waiting.length === 0 && approved.length === 0) return null;
   const refresh = () => setNonce((n) => n + 1);
-  const list = (items: AdRow[], isApproved: boolean) => items.map((r) => (
-    <AdItem key={r.id} row={r} approved={isApproved} consentOk={consentOk} skin={skin} onDone={refresh} broker={broker} onChanged={onChanged} />
+  // One list in a stable order (by version): an ad stays where it is when approved and shows "approved" in place,
+  // instead of jumping to a section below (Mark, 19 Oct: approving looked like it went back to unchecked).
+  const approvedIds = new Set(approved.map((r) => r.id));
+  const ordered = stableOrder([...waiting, ...approved]);
+  const items = ordered.map((r) => (
+    <AdItem key={r.id} row={r} approved={approvedIds.has(r.id)} consentOk={consentOk} skin={skin} onDone={refresh} broker={broker} onChanged={onChanged} />
   ));
+  const progress = `${approved.length} of ${ordered.length} approved`;
+  const bulk = waiting.length > 1 && consentOk && !preview
+    ? <ApproveAll ids={waiting.map((r) => r.id)} skin={skin} onDone={refresh} /> : null;
 
   if (skin === "portal") {
     return (
       <section className={`card ${className}`} aria-labelledby="ads-h">
         <h2 id="ads-h">{waiting.length ? "Ads featuring you: waiting for your approval" : "Ads featuring you"}</h2>
-        <p className="muted">We only run an ad with your face or name once you've approved it here.</p>
-        <ul style={{ padding: 0, margin: 0 }}>{list(waiting, false)}</ul>
-        {approved.length > 0 && <><h3 style={{ marginTop: 16 }}>Approved</h3><ul style={{ padding: 0, margin: 0 }}>{list(approved, true)}</ul></>}
+        <p className="muted">We only run an ad with your face or name once you've approved it here. {progress}.</p>
+        {bulk}
+        <ul style={{ padding: 0, margin: 0 }}>{items}</ul>
       </section>
     );
   }
@@ -184,15 +232,10 @@ export default function AdApprovals({ broker, onChanged, skin = "elite", classNa
     <section aria-labelledby="ads-h" className={`rounded-[28px] border border-white/10 bg-white/[0.02] p-5 sm:p-7 space-y-4 ${className}`}>
       <div>
         <h3 id="ads-h" className="text-base sm:text-lg font-bold text-white">{waiting.length ? "Ads featuring you: waiting for your approval" : "Ads featuring you"}</h3>
-        <p className="text-sm text-slate-400 mt-1">We only run an ad with your face or name once you've approved it here.</p>
+        <p className="text-sm text-slate-400 mt-1">We only run an ad with your face or name once you've approved it here. {progress}.</p>
       </div>
-      {waiting.length > 0 && <ul className="space-y-3">{list(waiting, false)}</ul>}
-      {approved.length > 0 && (
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-slate-300">Approved</h4>
-          <ul className="space-y-3">{list(approved, true)}</ul>
-        </div>
-      )}
+      {bulk}
+      <ul className="space-y-3">{items}</ul>
     </section>
   );
 }

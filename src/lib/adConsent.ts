@@ -63,6 +63,12 @@ export interface AdRow {
  *  approved = approved and current (he can still decline, which pulls it);
  *  declined ads are not listed (the audit trail keeps them).
  */
+/** Ads in a fixed order (version ascending, then created) so approving one never moves it on the page (Mark, 19 Oct). */
+export function stableOrder<T extends { version?: unknown; created_at?: unknown }>(rows: T[]): T[] {
+  const v = (r: T) => Number(r.version) || 0;
+  return [...rows].sort((a, b) => v(a) - v(b) || String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+}
+
 export function splitAds(rows: AdRow[] | null | undefined): { waiting: AdRow[]; approved: AdRow[] } {
   const waiting: AdRow[] = [];
   const approved: AdRow[] = [];

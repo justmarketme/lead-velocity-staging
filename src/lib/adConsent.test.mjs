@@ -61,3 +61,26 @@ test('wording and version are identical in the portal and the migration (what th
   assert.equal(lit('c_checkbox'), A.AD_CONSENT_CHECKBOX);
   assert.equal(A.AD_CONSENT_VERSION, 'ADS-LIKENESS-v3');
 });
+
+test('stableOrder: approving an ad never moves it (version order, Mark 19 Oct)', () => {
+  const rows = [
+    { id: 'c', version: '10', created_at: '2026-10-19T06:00:03Z', state: 'approved' },
+    { id: 'a', version: '9', created_at: '2026-10-19T06:00:01Z', state: 'ready' },
+    { id: 'b', version: '24', created_at: '2026-10-19T06:00:02Z', state: 'ready' },
+  ];
+  assert.deepEqual(A.stableOrder(rows).map((r) => r.id), ['a', 'c', 'b']);
+  // the same set in any input order gives the same page order
+  assert.deepEqual(A.stableOrder([...rows].reverse()).map((r) => r.id), ['a', 'c', 'b']);
+  assert.deepEqual(A.stableOrder([]), []);
+});
+
+test('AdApprovals: one stable list, progress line and Approve all (no separate Approved section)', () => {
+  const src = readFileSync(new URL('../components/broker/smc/AdApprovals.tsx', import.meta.url), 'utf8');
+  assert.match(src, /stableOrder\(\[\.\.\.waiting, \.\.\.approved\]\)/);
+  assert.match(src, /of \$\{ordered\.length\} approved/);
+  assert.match(src, /Approve all \{ids\.length\} waiting ads/);
+  assert.doesNotMatch(src, />Approved<\/h3>/);
+  const sw = readFileSync(new URL('../components/broker/smc/ApprovalSwitch.tsx', import.meta.url), 'utf8');
+  assert.match(sw, /aria-checked=\{on \? true : pending \? "mixed" : false\}/);
+  assert.match(sw, /scrollIntoView/);
+});
