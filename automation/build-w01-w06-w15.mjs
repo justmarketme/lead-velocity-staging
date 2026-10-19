@@ -290,11 +290,15 @@ return out;`));
                   WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,
        $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
-               l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
+               l.consent_text_version, l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed,
                -- lead-ad disclosure: the brokers this lead was already told about (W01 / W39 'adviser_disclosed')
                (SELECT COALESCE(jsonb_agg(DISTINCT a.payload->>'broker_id'), '[]'::jsonb) FROM public.lead_activities a
-                 WHERE a.lead_id = l.id AND a.activity_type = 'adviser_disclosed') AS disclosed
+                 WHERE a.lead_id = l.id AND a.activity_type = 'adviser_disclosed') AS disclosed,
+               -- the 24-h session (last inbound WhatsApp from the lead): closed -> a lead that must be told its adviser first is
+               -- held (held_disclosure_pending) instead of getting a session text that could not be delivered
+               EXISTS (SELECT 1 FROM public.communications cm WHERE cm.lead_id = l.id AND cm.channel = 'whatsapp' AND cm.direction = 'inbound'
+                          AND cm.sender_type = 'client' AND cm.created_at > now() - interval '24 hours') AS window_open
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     // first_touch: false = W39 (the /start/ page shows the slots itself): route the same way, no W06 first touch
     // W39 also passes expect_broker_id (route only the adviser the lead confirmed) or hold_only (record a hold, never route)
@@ -302,7 +306,8 @@ return out;`));
   n.push(code('Route (w01.routeExisting)', pos(3, 7), prelude('w01.mjs') +
 `const out = [];
 for (const it of $input.all()) {
-  // lead-ad leads: no hand-over before the SortMyCover disclosure (action 'disclose' -> the branch below), unless the v3 card carries it
+  // lead-ad and generic-consent leads: no hand-over before the adviser is named (action 'disclose' -> the branch below; window
+  // closed -> held_disclosure_pending). routeExisting enforces the generic rule itself; require_disclosure adds the lead-ad one.
   const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,
     expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env) });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
@@ -448,7 +453,10 @@ return $('Budget reminder (w01.budgetReminder)').all().filter((i) => marked.has(
 `-- Assigned = the admin portal wrote broker_id + routing_reason 'manual_low_budget' (the routing trigger reserved the place and
 -- recorded the accept in lead_offers); not introduced yet. Held = routing_reason 'held_low_budget', no broker, open.
 SELECT l.id, l.brand_id, l.origin, l.phone, l.first_name, l.broker_id, l.routing_reason, l.order_state, l.first_message_at, l.opted_out_at,
-       l.disqualified_reason, l.stage, l.conv_state, l.created_at
+       l.disqualified_reason, l.stage, l.conv_state, l.created_at, l.consent_mode, l.consent_text_version,
+       -- generic consent: the hand-off waits until the assigned adviser was named to the lead (adviser_disclosed)
+       (SELECT COALESCE(jsonb_agg(DISTINCT a.payload->>'broker_id'), '[]'::jsonb) FROM public.lead_activities a
+         WHERE a.lead_id = l.id AND a.activity_type = 'adviser_disclosed') AS disclosed
   FROM public.leads l
  WHERE l.brand_id IS NOT NULL AND l.budget_band = 'lt750' AND l.opted_out_at IS NULL
    AND ((l.routing_reason = 'manual_low_budget' AND l.broker_id IS NOT NULL AND l.first_message_at IS NULL AND l.order_state = 'attached')

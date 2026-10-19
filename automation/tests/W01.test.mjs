@@ -749,10 +749,13 @@ test('I-53l: page lead with no TURNSTILE_SECRET_KEY / test hook: Guard runs with
 const TC_AT = '2026-10-13T12:00:00+02:00';
 const TC_NOW = Date.parse(TC_AT);
 const tcBroker = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000b0c01', broker_id: '00000000-0000-4000-8000-0000000b0c01', brand_id: 'smc', status: 'active', routing_on: true,
-  practice_name: 'Synthetic Practice', fsp_number: 'TEST-00000', consent_mode: 'generic', methods_supported: ['phone'], order_capacity: 5, order_attached: 0, order_remaining: 5, ...over });
-const tcSub = (budget) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text', consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic',
+  practice_name: 'Synthetic Practice', fsp_number: 'TEST-00000', consent_mode: 'named', methods_supported: ['phone'], order_capacity: 5, order_attached: 0, order_remaining: 5, ...over });
+// 19 Oct 2026: these fixtures use NAMED consent (the practice every tcBroker has). A generic-consent lead is routed only after
+// adviser_disclosed for that broker (lib/w01.mjs isGenericConsent), pinned by the generic-consent tests at the end of this file.
+const TC_CONSENT = 'synthetic consent text naming Synthetic Practice (FSP TEST-00000)';
+const tcSub = (budget) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: TC_CONSENT, consent_version: 'CONSENT-NAMED-v1', consent_mode: 'named',
   age_band: '35_44', budget_band: budget, bond: 'yes', dependants: 'kids', work_cover: 'no', lang: 'en', started_at: TC_NOW - 60e3, request_id: 'req-tc-0001', context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000c1' } }, {});
-const tcCtx = (brokers) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000171', lead_id: '00000000-0000-4000-8000-0000000a0c01', brand_id: 'smc', brokers, consent_mode: 'generic' });
+const tcCtx = (brokers) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000171', lead_id: '00000000-0000-4000-8000-0000000a0c01', brand_id: 'smc', brokers, consent_mode: 'named' });
 
 test('tier C: the band map, tierOf, and the React quiz band 750_1499 (was unmapped, so wrongly out of band)', () => {
   assert.deepEqual(['lt750', '750_1250', '750_1499', '1250_1499', '1250plus', '1500_plus', null].map(W01.tierOf), ['C', 'B', 'B', 'B', 'B', 'A', null]);
@@ -785,7 +788,7 @@ test('tier C page lead, a broker with the standing yes and room: routed like any
 });
 
 test('tier C hand-over (W01 Lead core routeExisting): held -> held_low_budget + notice; standing yes -> routed + W06', () => {
-  const lead = { id: '00000000-0000-4000-8000-0000000a0c03', brand_id: 'smc', origin: 'ctwa', phone: '+27600000173', first_name: 'Thabo', budget_band: 'lt750', consent_mode: 'generic', consent_text: 'x' };
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c03', brand_id: 'smc', origin: 'ctwa', phone: '+27600000173', first_name: 'Thabo', budget_band: 'lt750', consent_mode: 'named', consent_text: TC_CONSENT };
   const h = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
   assert.deepEqual([h.action, h.update.routing_reason, h.notice.template], ['held', 'held_low_budget', 'lead_low_budget_held']);
   const r = W01.routeExisting(lead, { brokers: [tcBroker({ accepts_low_budget: true })], now: TC_NOW });
@@ -844,7 +847,7 @@ test('wills angles: product_interest wills, routed only to a handles_wills broke
   assert.equal(ok.row.broker_id, wills.broker_id, 'only the wills broker');
   const lifeLead = W01.decide(willsSub('new-bond'), tcCtx([life]));
   assert.deepEqual([lifeLead.row.product_interest, lifeLead.row.broker_id], ['life_cover', life.broker_id]);
-  const rt = W01.routeExisting({ id: 'x', brand_id: 'smc', product_interest: 'wills', consent_mode: 'generic', consent_text: 'x' }, { brokers: [life], now: TC_NOW });
+  const rt = W01.routeExisting({ id: 'x', brand_id: 'smc', product_interest: 'wills', consent_mode: 'named', consent_text: TC_CONSENT }, { brokers: [life], now: TC_NOW });
   assert.deepEqual([rt.action, rt.update.routing_reason], ['held', 'held_no_wills_broker']);
   assert.match(WF.nodes.find((n) => n.name === N.context).parameters.query, /'handles_wills', b\.handles_wills/);
   assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /product_interest/);
@@ -852,8 +855,8 @@ test('wills angles: product_interest wills, routed only to a handles_wills broke
 
 // lv-site fc89d5a (2026-10-11): /book/ asks cover vs will and estate (or ?for=) and sends product_interest in the /lead body
 test('page product_interest: whitelisted life_cover | wills is stored and routes; absent or unknown -> derived from the angle; a wills angle always wins', () => {
-  const sub = (angle, product_interest) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text',
-    consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3,
+  const sub = (angle, product_interest) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: TC_CONSENT,
+    consent_version: 'CONSENT-NAMED-v1', consent_mode: 'named', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3,
     request_id: 'req-pi-0001', angle, ...(product_interest === undefined ? {} : { product_interest }), context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000d1' } }, {});
   assert.equal(sub('cover', 'wills').product_interest, 'wills');
   assert.equal(sub('cover', ' WILLS ').product_interest, 'wills', 'trimmed, case-insensitive');
@@ -877,18 +880,22 @@ test('page product_interest: whitelisted life_cover | wills is stored and routes
 // Quiz v2 (lv-site a206f12, 2026-10-13): the landing page no longer asks the budget. /lead carries budget_pending: true
 // and help_with instead of budget_band. Spec: lv-site deliverables/website/quiz-v2-and-whatsapp-step.md section 2a.
 // ============================================================================================
-const v2Body = (over = {}) => {
+const v2Body = (over = {}, { tc = true } = {}) => {
   const fx = clone(lead('L01'));
   const s = fx.submission;
   if (s.quiz) delete s.quiz.budget_band;
   delete s.budget_band;
+  // named consent for the tcBroker practice (tcCtx is named since 19 Oct 2026; generic now needs adviser_disclosed first)
+  // (tc: false keeps the fixture's own named text for the seeded broker: the offline system routes to that broker)
+  if (tc) { if (s.consent && typeof s.consent === 'object') s.consent.text = TC_CONSENT; else s.consent_text = TC_CONSENT; }
   return { fx, sub: { ...s, budget_pending: true, help_with: 'review', product_interest: 'life_cover', ...over } };
 };
 
 test('quiz v2: a web lead with budget_pending is routed (not out of band), gets the lead_token, help_with kept in conv_state, and the band question goes out on WhatsApp', async () => {
-  const { fx, sub } = v2Body();
+  const { fx, sub: pageSub } = v2Body({}, { tc: false });
+  const { sub } = v2Body();
   const sys = offlineSystem();
-  const r = await sys.page(fx, { sub });
+  const r = await sys.page(fx, { sub: pageSub });
   assert.equal(r.body.status, 'accepted'); assert.ok(!r.body.out_of_band, 'no neutral exit');
   assert.ok(r.body.lead_token && LT.verifyLeadToken(r.body.lead_token, { secret: SECRET }).lead_id === r.body.lead_id, 'token minted: the booking widget opens');
   assert.deepEqual(r.body.methods_supported, broker().methods_supported);
@@ -930,7 +937,7 @@ test('quiz v2: a web lead with budget_pending is routed (not out of band), gets 
 });
 
 test('quiz v2: no-JS form strings ("true"), help_with whitelisted, product derived from help_with; no band and no flag is still out of band', () => {
-  const base = { first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text', consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic',
+  const base = { first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: TC_CONSENT, consent_version: 'CONSENT-NAMED-v1', consent_mode: 'named',
     age_band: '35_44', lang: 'en', started_at: TC_NOW - 60e3, request_id: 'req-v2-0001', context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000e1' } };
   const s = W01.normaliseSubmission({ ...base, budget_pending: 'true', help_with: 'wills' }, {});
   assert.deepEqual([s.budget_pending, s.help_with, s.product_interest], [true, 'wills', 'wills'], 'no-JS: wills derived from help_with');
@@ -1013,7 +1020,7 @@ test('quiz v2: the band arrives later on the qualify_budget template -> recorded
 });
 
 test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the same way with no W06 first touch; a held tier-C lead still gets its notice', async () => {
-  const lead = { id: '00000000-0000-4000-8000-0000000a0c38', brand_id: 'smc', origin: 'ctwa', phone: '+27600000178', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' };
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c38', brand_id: 'smc', origin: 'ctwa', phone: '+27600000178', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'named', consent_text: TC_CONSENT };
   const a = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
   const b = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW, first_touch: false });
   assert.deepEqual(b.update, a.update, 'same broker, same routing');
@@ -1037,7 +1044,7 @@ test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the
 });
 
 test('W39 disclosure before routing: expect_broker_id routes only the confirmed adviser; hold_only records a hold and never routes', async () => {
-  const lead = { id: '00000000-0000-4000-8000-0000000a0c39', brand_id: 'smc', origin: 'ctwa', phone: '+27600000179', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' };
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c39', brand_id: 'smc', origin: 'ctwa', phone: '+27600000179', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'named', consent_text: TC_CONSENT };
   const B = tcBroker();
   const ok = W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, expect_broker_id: B.id });
   assert.equal(ok.action, 'routed'); assert.equal(ok.update.broker_id, B.id);
@@ -1188,4 +1195,122 @@ test('W01.json lead-ad disclosure branch: Route -> disclosure text -> WhatsApp S
   assert.deepEqual(w06.map((i) => i.json), [{ op: 'routed', lead_id: lead.id, origin: 'ctwa' }]);
   const capi = await runCode(WF, 'CAPI Lead at hand-over (held -> routed)', { items: [{ lead_id: lead.id, broker_id: LD_BROKER.id }], refs: both });
   assert.equal(capi.length, 1);
+});
+
+// ============================================================================================
+// Generic consent (19 Oct 2026): the CTWA consent becomes GENERIC (CTWA-GENERIC-v4, names no adviser / firm). A lead's details
+// may go to a broker only AFTER that adviser was named to the lead (adviser_disclosed for THAT broker). Named consent: unchanged.
+// "No broker notice" = no routing write, no W06 first touch (the intro card / broker side), no CAPI Lead, no tier-C notice.
+// ============================================================================================
+const GEN_LEAD = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000a9e01', brand_id: 'smc', origin: 'ctwa', routing_reason: null, budget_band: '1500_plus',
+  consent_mode: 'generic', consent_text_version: 'CTWA-GENERIC-v4', consent_text: 'I agree that SortMyCover may share my details with an authorised adviser ...',
+  consent_ads_at: TC_AT, created_at: TC_AT, phone: '+27600000291', first_name: 'Ayanda', disclosed: [], window_open: true, ...over });
+const noNotice = (r, label) => {
+  assert.notEqual(r.action, 'routed', label);
+  assert.ok(!r.update || !r.update.broker_id, `${label}: no broker written`);
+  assert.ok(!r.first_touch, `${label}: no W06 first touch`);
+  assert.ok(!r.capi, `${label}: no CAPI Lead`);
+  assert.ok(!r.notice, `${label}: no notice`);
+};
+
+test('generic consent rule: which consents count; a named lead keeps today\'s behaviour', () => {
+  for (const l of [{ consent_mode: 'generic' }, { consent_text_version: 'CTWA-GENERIC-v4' }, { consent_text_version: 'ctwa-generic-v3' }, { consent_text_version: 'CONSENT-GENERIC-v5web' }])
+    assert.equal(W01.isGenericConsent(l), true, JSON.stringify(l));
+  for (const l of [{ consent_mode: 'named', consent_text_version: 'ctwa-named-v3' }, { consent_mode: 'named', consent_text_version: 'CONSENT-NAMED-v5web' }, null])
+    assert.equal(W01.isGenericConsent(l), false, JSON.stringify(l));
+  assert.equal(W01.disclosureRequired(GEN_LEAD(), V3_ENV), true, 'the v3 card comes after routing: never enough for a generic consent');
+  // named consent, CTWA: routed at once, exactly as before (no disclosure step)
+  const named = W01.routeExisting({ ...LD_LEAD(), origin: 'ctwa' }, { brokers: [LD_BROKER], now: TC_NOW });
+  assert.deepEqual([named.action, named.first_touch.workflow], ['routed', 'W06']);
+});
+
+test('(c) generic CTWA lead, old tap path (start_page off): band tap -> route_and_first_touch -> the session disclosure, THEN routing; never before', () => {
+  // the tap flow emits route_and_first_touch (W03); W01 core then decides
+  const lead = GEN_LEAD();
+  for (const require_disclosure of [false, true]) { // enforced by routeExisting itself, whatever the caller passes
+    const r = W01.routeExisting(lead, { brokers: [LD_BROKER], now: TC_NOW, require_disclosure });
+    assert.equal(r.action, 'disclose');
+    noNotice(r, `first pass, require_disclosure ${require_disclosure}`);
+    assert.equal(r.disclose.send.text, DISCLOSURE, 'adviser, practice, FSP + the SortMyCover disclosure');
+    assert.deepEqual([r.disclose.send.kind, r.disclose.activity.activity_type, r.disclose.activity.payload.disclosure_version, r.disclose.activity.broker_id],
+      ['text', 'adviser_disclosed', 'CHAT-DISCLOSE-v1', LD_BROKER.id]);
+  }
+  // after the send logged adviser_disclosed for him: routed, W06 first touch, CAPI once
+  const after = W01.routeAfterDisclosure(lead, { brokers: [LD_BROKER], now: TC_NOW }, LD_BROKER.id);
+  assert.deepEqual([after.action, after.update.broker_id, after.first_touch.workflow], ['routed', LD_BROKER.id, 'W06']);
+  // a failed send: held, nothing to the broker
+  noNotice(W01.routeAfterDisclosure(lead, { brokers: [LD_BROKER], now: TC_NOW }, null), 'send failed');
+  // disclosed for ANOTHER broker only: asks again for this one
+  assert.equal(W01.routeExisting({ ...lead, disclosed: ['00000000-0000-4000-8000-0000000b0fff'] }, { brokers: [LD_BROKER], now: TC_NOW }).action, 'disclose');
+  // no open session (the 24-h window closed): held visibly, no text, no routing
+  const shut = W01.routeExisting(GEN_LEAD({ window_open: false }), { brokers: [LD_BROKER], now: TC_NOW });
+  assert.deepEqual([shut.action, shut.update], ['held', { routing_reason: 'held_disclosure_pending' }]);
+  noNotice(shut, 'window closed');
+});
+
+test('(a) chat path: a start_here lead that replies instead of tapping Start here -> taps -> route_and_first_touch -> disclosure first', () => {
+  // W03: a message while the page is pending falls back to the tap questions; nothing is routed on that message
+  const row = { id: '00000000-0000-4000-8000-0000000a9e02', brand_id: 'smc', origin: 'lead_ad', phone: '+27600000292', first_name: 'Thandi',
+    routing_reason: 'start_page_pending', conv_state: { state: 'start_page', via: 'start_page' } };
+  const s = W3.step(null, { from: '27600000292', type: 'text', text: 'hi', payload: null }, { at: TC_AT, mobile: row.phone, lead_id: row.id, lead: row, existing_open_lead_id: row.id,
+    brand: { brand_id: 'smc', consent_mode: 'named' }, broker: null });
+  assert.ok(!s.actions.some((a) => a.kind === 'route_and_first_touch'), 'no routing on the reply');
+  // the band tap's route_and_first_touch: named lead-ad (interim rule) and a generic one both disclose first
+  for (const l of [LD_LEAD({ routing_reason: 'start_page_pending' }), GEN_LEAD({ origin: 'lead_ad', routing_reason: 'start_page_pending' })]) {
+    const r = W01.routeExisting(l, { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(l, {}) });
+    assert.equal(r.action, 'disclose', l.consent_mode);
+    noNotice(r, l.consent_mode);
+  }
+});
+
+test('(b) Instant Form -> start_here -> /start/: W39 logged adviser_disclosed before calling W01 core -> routed with no extra text; never before it', () => {
+  const l = GEN_LEAD({ origin: 'lead_ad', routing_reason: 'start_page_pending', window_open: false });
+  const opts = { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, expect_broker_id: LD_BROKER.id, require_disclosure: W01.disclosureRequired(l, {}) };
+  noNotice(W01.routeExisting(l, opts), 'before W39 disclosed');
+  const r = W01.routeExisting({ ...l, disclosed: [LD_BROKER.id] }, opts);
+  assert.deepEqual([r.action, r.update.broker_id, r.first_touch], ['routed', LD_BROKER.id, null]);
+  assert.equal(r.capi.event_name, 'Lead', 'the one CAPI Lead at the hand-over');
+});
+
+test('intake: a generic-consent page / form lead is never routed at intake (held_disclosure_pending); a named one is, as before', () => {
+  const genBroker = tcBroker({ consent_mode: 'generic' });
+  const sub = W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic generic consent', consent_version: 'CONSENT-GENERIC-v5web',
+    consent_mode: 'generic', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3 }, {});
+  const d = W01.decide(sub, { ...tcCtx([genBroker]), consent_mode: 'generic' });
+  assert.deepEqual([d.outcome, d.row.broker_id, d.row.routed_at, d.row.routing_reason, d.first_touch, d.capi], ['held', null, null, 'held_disclosure_pending', null, null]);
+  assert.equal(d.notice, null);
+  // quiz v2 (band pending): still held, the band question still goes out (its tap opens the session for the disclosure)
+  const v2 = W01.decide({ ...sub, budget_pending: true, quiz: { ...sub.quiz, budget_band: null } }, { ...tcCtx([genBroker]), consent_mode: 'generic' });
+  assert.deepEqual([v2.row.routing_reason, v2.budget_question, v2.first_touch], ['held_disclosure_pending', true, null]);
+  // named: routed at intake exactly as before
+  assert.equal(W01.decide(tcSub('1500_plus'), tcCtx([tcBroker()])).outcome, 'accepted');
+  // at the hand-over the held lead discloses first (CAPI then goes once, held_* rule)
+  const r = W01.routeExisting({ ...d.row, disclosed: [], window_open: true }, { brokers: [genBroker], now: TC_NOW });
+  assert.equal(r.action, 'disclose');
+});
+
+test('(d) admin assignment (tier C sweep): a generic lead an admin assigned is NOT handed off (W06) until its adviser was named', async () => {
+  const assigned = { id: '00000000-0000-4000-8000-0000000a9e03', brand_id: 'smc', origin: 'ctwa', broker_id: LD_BROKER.id, routing_reason: 'manual_low_budget',
+    order_state: 'attached', first_message_at: null, opted_out_at: null, conv_state: { state: 'unbooked' }, consent_mode: 'generic', consent_text_version: 'CTWA-GENERIC-v4', disclosed: [] };
+  assert.equal(W01.lowBudgetHandoff(assigned), null, 'undisclosed generic: no intro');
+  assert.equal(W01.lowBudgetHandoff({ ...assigned, disclosed: [LD_BROKER.id] }).op, 'routed');
+  assert.equal(W01.lowBudgetHandoff({ ...assigned, consent_mode: 'named', consent_text_version: 'ctwa-named-v3' }).op, 'routed', 'named: as before');
+  const out = await runCode(WF, 'Plan (w01.lowBudgetHandoff / lowBudgetClose)', { env: ENV, items: [assigned] });
+  assert.deepEqual(out, []);
+});
+
+test('W01.json: the core Load query gives routeExisting the consent version, the disclosed brokers and the 24-h window; the Route node holds / discloses a generic lead', async () => {
+  const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
+  assert.match(load, /l\.consent_text_version/);
+  assert.match(load, /cm\.direction = 'inbound'[\s\S]*interval '24 hours'\) AS window_open/);
+  const sweep = WF.nodes.find((n) => n.name === 'Tier-C leads: assigned (hand off) or held 7 days (close)').parameters.query;
+  assert.match(sweep, /l\.consent_mode, l\.consent_text_version/); assert.match(sweep, /AS disclosed/);
+  const [rt] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: GEN_LEAD(), brokers: [LD_BROKER], first_touch: true }] });
+  assert.equal(rt.json.r.action, 'disclose');
+  assert.equal(ifBranch(WF, 'Routed or held? (write it)', { json: rt.json }), false, 'no write, no W06, no CAPI');
+  assert.equal(ifBranch(WF, 'Disclose first? (lead ad, before routing)', { json: rt.json }), true, 'the session text goes first');
+  const [held] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: GEN_LEAD({ window_open: false }), brokers: [LD_BROKER], first_touch: true }] });
+  assert.deepEqual([held.json.r.action, held.json.update], ['held', { routing_reason: 'held_disclosure_pending' }]);
+  const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: GEN_LEAD().id, broker_id: null }], refs: { 'Route (w01.routeExisting)': held.json } });
+  assert.deepEqual(w06, [], 'a hold never reaches W06');
 });

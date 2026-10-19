@@ -169,7 +169,7 @@ test('any age, OUT_OF_BAND_AGE_BOOKS = true (Jono, 18 Oct: every age books and c
     assert.equal(W39.coverStep({ plan: p, lead: LEAD({ consent_mode: 'generic' }), brokers: [PICK] }).next, 'adviser');
   }
   assert.equal(decide({ intent: 'life', age_band: 'lt35', budget_band: 'lt750' }).set.qualified_at, undefined, 'tier C: band only, any age');
-  const r = W01.routeExisting({ id: LEAD_ID, brand_id: 'smc', origin: 'ctwa', age_band: 'lt35', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x' },
+  const r = W01.routeExisting({ id: LEAD_ID, brand_id: 'smc', origin: 'ctwa', age_band: 'lt35', budget_band: '1500_plus', consent_mode: 'generic', consent_text: 'x', disclosed: [BROKER_ID] }, // W39 logged adviser_disclosed first (generic consent, 19 Oct 2026)
     { brokers: [{ id: BROKER_ID, broker_id: BROKER_ID, brand_id: 'smc', status: 'active', routing_on: true, active: true, order_remaining: 5, order_capacity: 20, order_attached: 1 }], first_touch: false });
   assert.equal(r.action, 'routed'); assert.equal(r.first_touch, null);
 });

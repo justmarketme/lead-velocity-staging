@@ -662,7 +662,11 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
-  const r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
+  let r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
+  // Generic consent (19 Oct 2026): nobody was named to this lead yet and a page / form lead has no WhatsApp session, so it is
+  // held (held_disclosure_pending) and routed later only after the adviser is named (W39 /start/, or the session text on its
+  // first WhatsApp reply: W03 -> W01 core routeExisting). CAPI Lead then goes at that hand-over (held_* rule).
+  if (!r.held && isGenericConsent(row)) r = { held: DISCLOSURE_PENDING };
   if (r.held) {
     row.routing_reason = r.held;
     activities.push({ activity_type: 'routing_held', actor_type: 'system', occurred_at: at, idempotency_key: `w01:held:${ctx.lead_id}`, payload: { reason: r.held, lead_tier: tier } });
@@ -785,9 +789,13 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const b = r.broker;
   if (hold_only) return { action: 'skip', reason: 'not_disclosed' };
   if (expect_broker_id && String(brokerIdOf(b)) !== String(expect_broker_id)) return { action: 'skip', reason: 'broker_changed' };
-  // Lead-ad disclosure (18 Oct 2026): a form lead is handed over only after it was told who the adviser is and what SortMyCover
-  // is (adviser_disclosed on its timeline for THIS broker). Without it the route refuses and asks for the disclosure first.
-  if (require_disclosure && !(Array.isArray(lead.disclosed) && lead.disclosed.map(String).includes(String(brokerIdOf(b))))) {
+  // Disclosure before hand-over: a lead-ad lead (18 Oct 2026, require_disclosure from the caller) and EVERY generic-consent lead
+  // (19 Oct 2026, enforced here whatever the caller passes: the consent named no adviser, so the details may go to a broker only
+  // after that adviser was named to the lead) is routed only with adviser_disclosed on its timeline for THIS broker. Without it:
+  // 'disclose' (the session text, then route) when the 24-h window may be open, or a visible hold (held_disclosure_pending)
+  // when the caller knows it is closed (lead.window_open === false): never routed, nothing sent to the broker.
+  if ((require_disclosure || isGenericConsent(lead)) && !disclosedTo(lead, brokerIdOf(b))) {
+    if (lead.window_open === false) return { action: 'held', update: { routing_reason: DISCLOSURE_PENDING }, notice: null };
     return { action: 'disclose', broker_id: brokerIdOf(b), disclose: leadAdDisclosure(lead, b) };
   }
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
@@ -808,6 +816,17 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
 // applies only to leads still on the old path: intake before start_here was ready, or a lead that answers in chat instead
 // of opening the page (W03 startPageFallback -> taps -> finishLeadAd -> route_and_first_touch).
 export const LEAD_AD_DISCLOSURE_VERSION = 'LEADAD-DISCLOSE-v1';
+/** The same session text for a generic-consent chat lead (CTWA / web lead that answered on WhatsApp), 19 Oct 2026. */
+export const CHAT_DISCLOSURE_VERSION = 'CHAT-DISCLOSE-v1';
+/** leads.routing_reason of a lead that must be told its adviser first and has no open session to tell it in. No CHECK. */
+export const DISCLOSURE_PENDING = 'held_disclosure_pending';
+/**
+ * Generic consent (19 Oct 2026: the CTWA consent becomes generic, e.g. CTWA-GENERIC-v4; also ctwa-generic-v3, CONSENT-GENERIC-v3 /
+ * v5web): consent_mode 'generic' or a version naming GENERIC. Such a consent names no adviser, so the adviser is named first.
+ */
+export const isGenericConsent = (lead) => !!lead && (lead.consent_mode === 'generic' || /generic/i.test(String(lead.consent_text_version || '')));
+/** adviser_disclosed on the lead's timeline for this broker (W01 core reads them as lead.disclosed; W39 and W01 both write them). */
+export const disclosedTo = (lead, brokerId) => !!lead && Array.isArray(lead.disclosed) && lead.disclosed.map(String).includes(String(brokerId));
 export const INTRO_V3_KEY = 'broker_intro_slots_v3';
 export const SORTMYCOVER_DISCLOSURE = 'Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.';
 /** True when the v3 intro card can be sent (Twilio + its Content SID): the card itself then carries the disclosure. */
@@ -815,8 +834,11 @@ export function introV3Ready(env = {}) {
   if (String(env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase() !== 'twilio') return false;
   try { const s = JSON.parse(env.TWILIO_CONTENT_SIDS || '{}'); return !!(s && s[INTRO_V3_KEY]); } catch (_) { return false; }
 }
-/** Does this lead need the session disclosure before routing? Lead-ad leads only, and only while v3 is not configured. */
-export const disclosureRequired = (lead, env = {}) => !!lead && lead.origin === 'lead_ad' && !introV3Ready(env);
+/**
+ * Does this lead need the adviser named (adviser_disclosed) before routing? Every generic-consent lead, always (the v3 card is
+ * sent AFTER routing, too late for a consent that named nobody); a named-consent lead-ad lead while v3 is not configured.
+ */
+export const disclosureRequired = (lead, env = {}) => !!lead && (isGenericConsent(lead) || (lead.origin === 'lead_ad' && !introV3Ready(env)));
 /** The disclosure text + its timeline row for the broker routingFor picked (b = the W01 core broker list row). */
 export function leadAdDisclosure(lead, b) {
   const adviser = String(b.contact_person || b.adviser_name || '').trim() || 'your adviser';
@@ -826,7 +848,7 @@ export function leadAdDisclosure(lead, b) {
   return {
     send: lead.phone ? { to: lead.phone, kind: 'text', text, lead_id: lead.id, correlation: `w01:disclosure:${lead.id}:${brokerId}` } : null,
     activity: { activity_type: 'adviser_disclosed', idempotency_key: `w01:disclosed:${lead.id}:${brokerId}`, broker_id: brokerId,
-      payload: { broker_id: brokerId, fsp: b.fsp_number || null, firm: practice, adviser, disclosure_version: LEAD_AD_DISCLOSURE_VERSION, via: 'whatsapp_session' } },
+      payload: { broker_id: brokerId, fsp: b.fsp_number || null, firm: practice, adviser, disclosure_version: lead.origin === 'lead_ad' ? LEAD_AD_DISCLOSURE_VERSION : CHAT_DISCLOSURE_VERSION, via: 'whatsapp_session' } },
   };
 }
 /**
@@ -860,6 +882,8 @@ export function lowBudgetHandoff(lead) {
   if (!lead || !lead.id || !lead.broker_id || lead.routing_reason !== 'manual_low_budget') return null;
   if (lead.opted_out_at || lead.first_message_at || lead.disqualified_reason || lead.order_state !== 'attached') return null;
   if (QUALIFYING_STATES.has(lead.conv_state && lead.conv_state.state)) return null;
+  // generic consent: the admin's assignment alone never starts the hand-off; the adviser must have been named (lead.disclosed)
+  if (isGenericConsent(lead) && !disclosedTo(lead, lead.broker_id)) return null;
   return { op: 'routed', lead_id: lead.id, origin: lead.origin || 'ctwa', claim_key: `w01:low_budget_handoff:${lead.id}` };
 }
 

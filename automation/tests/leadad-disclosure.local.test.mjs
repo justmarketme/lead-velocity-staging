@@ -34,16 +34,28 @@ test('lead-ad disclosure on the real schema: no route without adviser_disclosed;
      VALUES ('${MARK}', '${user}', 'Synthetic Advisory', 'Mark Smith', 'synthetic-ld-mark@example.test', 'active', '${BRAND}', true, '12345', 'https://media.sortmycover.co.za/intro/synthetic/card.png', 'shared_fallback')`);
   q(`INSERT INTO public.lead_orders (id, broker_id, title, lead_count, status, paid_at, brand_id) VALUES ('${uuid()}', '${MARK}', 'synthetic SMC order', 20, 'paid', now(), '${BRAND}')`);
   const consent = W01.consentRegistry({ practice_name: 'Synthetic Advisory', fsp_number: '12345' })['CONSENT-NAMED-v5web'];
-  const newLead = (mobile) => {
+  const newLead = (mobile, { tap = true } = {}) => {
     const id = uuid();
     q(`INSERT INTO public.leads (id, brand_id, origin, source, first_name, phone, consent_text, consent_text_version, consent_mode, consent_at, consent_source, stage, routing_reason, budget_band, is_synthetic)
        VALUES ('${id}', '${BRAND}', 'lead_ad', 'Campaign Lead', 'Synthetic Thandi', '${mobile}', '${consent.replace(/'/g, "''")}', 'CONSENT-NAMED-v5web', 'named', now(), 'lead_ad', 'qualified', 'held_budget_pending', '1500_plus', true)`);
+    // the band tap W07 logged (19 Oct 2026: the core Load query reads the 24-h window from it; none -> held_disclosure_pending)
+    if (tap) q(`INSERT INTO public.communications (channel, direction, sender_type, recipient_type, recipient_contact, lead_id, brand_id, content, status, workflow)
+       VALUES ('whatsapp', 'inbound', 'client', 'admin', '${mobile}', '${id}', '${BRAND}', '[tap]', 'received', 'W07')`);
     return id;
   };
   const lead = (id) => j(q(`SELECT to_jsonb(l) FROM public.leads l WHERE l.id = '${id}'`)[0][0]);
   const acts = (id) => q(`SELECT activity_type FROM public.lead_activities WHERE lead_id = '${id}' ORDER BY occurred_at, activity_type`).map((r) => r[0]);
   const load = (id) => { const r = app(sqlOf('Load CTWA lead + brokers'), [id, 'true', '', 'false'])[0]; return { lead: j(r[0]), brokers: j(r[1]), first_touch: r[2] === 't', expect_broker_id: r[3] || null, hold_only: r[4] === 't' }; };
   const write = (rt) => app(sqlOf('Write routing (only if not routed yet) + timeline'), evalParam(WF, 'Write routing (only if not routed yet) + timeline', 'options.queryReplacement', { json: rt }));
+
+  // ---- 0: no inbound WhatsApp in 24 h: no text could reach the lead -> held_disclosure_pending, never routed
+  const Z = newLead('+27820000320', { tap: false });
+  const xz = load(Z);
+  assert.equal(xz.lead.window_open, false);
+  const [rz] = await runCode(WF, 'Route (w01.routeExisting)', { items: [xz] });
+  assert.deepEqual([rz.json.r.action, rz.json.update], ['held', { routing_reason: 'held_disclosure_pending' }]);
+  write(rz.json);
+  assert.deepEqual([lead(Z).broker_id, lead(Z).routing_reason], [null, 'held_disclosure_pending']);
 
   // ---- A: the send goes out (dry): disclosed, then routed
   const A = newLead('+27820000321');
