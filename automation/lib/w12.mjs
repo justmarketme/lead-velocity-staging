@@ -397,6 +397,54 @@ export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   return out;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Follow-up claim (19 Oct 2026). `w12:outcome:{booking_id}` (activity outcome_recorded) means "W12 ran the follow-ups
+// for this booking". The sweep's insert writes it with the outcomes row; every other writer of `outcomes` goes through
+// the claim below, so the follow-ups (thank-you, CAPI Attended gate, W29, W13, W10, alerts) run exactly once per booking
+// whoever wrote the row first.
+//  - Portal: the broker portal (src/pages/portal/Leads.tsx MarkOne.save) writes outcomes directly (marked_via 'portal')
+//    and only logs smc_portal_event 'outcome.marked', so the sweep (which skips a meeting with an outcomes row) never saw
+//    it. The tick reads those rows and resolves them with the same two-sided rules: the portal mark is the broker's mark.
+//  - auto_attended (W11's 24-h backstop row): claimed too, so a later portal confirmation of that row sends nothing twice.
+// ---------------------------------------------------------------------------------------------------------------
+export const PORTAL_MARKS = new Set(['attended', 'no_show', 'rescheduled']); // the portal's three buttons
+
+/**
+ * portalResolution(row, now) -> null | claim item. row = one "Portal-marked outcomes" SQL row (meeting, lead and
+ * broker columns + outcome_id, outcome, disposition_code, reach). null while the lead's side is still open (a No-show
+ * inside the reach window: the next tick looks again) or once the meeting is older than the sweep window.
+ * Lead "No" against any portal mark -> dispute (console, nothing to the lead), as for a WhatsApp tap (R6-03).
+ */
+export function portalResolution(row = {}, now) {
+  if (!row.outcome_id || !PORTAL_MARKS.has(row.outcome)) return null;
+  const end = ms(row.slot_end);
+  if (!Number.isFinite(end) || now < end || now >= end + STALE_AFTER_END) return null;
+  const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: row.outcome, reach: row.reach || null, disposition: row.disposition_code || null, optedOut: Boolean(row.opted_out_at), leadId: row.lead_id }, now);
+  if (r.outcome === 'pending') return null;
+  const o = outcomeRow(r, { now, via: 'portal' }); // null when disputed: the portal row stays, KG decides
+  return claimItem(r, { ...row, broker_mark: `${row.outcome} (portal)` }, row.outcome_id, 'portal', {
+    dispute_open: r.dispute_status === 'open',
+    appointment_status: o ? o.appointment_status : null,
+    // the portal asks the disposition with the mark (W29 sets 'dispositioned' for a WhatsApp disposition)
+    lead_stage: o ? (r.outcome === 'attended' && row.disposition_code ? 'dispositioned' : o.lead_stage) : null
+  });
+}
+
+/** autoAttendedResolution(row) -> claim item for W11's auto-attended row (op auto_attended: the attended path at 24 h). */
+export function autoAttendedResolution(row = {}) {
+  if (!row.outcome_id) return null;
+  const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: null, reach: row.reach === 'yes' ? 'yes' : null, optedOut: Boolean(row.opted_out_at), leadId: row.lead_id }, ms(row.slot_end) + AUTO_ATTEND_AFTER_END);
+  return claimItem(r, row, row.outcome_id, 'auto', { dispute_open: false, appointment_status: null, lead_stage: null });
+}
+
+const claimItem = (r, row, outcomeId, via, writes) => ({ fu: 'claim', via, r, row, outcome_id: outcomeId, ...writes });
+
+/** The claim query's parameters (one row per booking, `w12:outcome:{booking_id}`, ON CONFLICT DO NOTHING). */
+export const claimParams = (c) => [c.row.lead_id, c.row.brand_id, c.row.broker_id, c.row.booking_id, c.row.outcome || c.r.outcome, c.via, c.r.outcome, c.r.lead_reach_check || 'none', Boolean(c.dispute_open), c.appointment_status || null, c.lead_stage || null];
+
+/** After a won claim: the same follow-ups the sweep runs for a row it inserted. */
+export const claimedFollowUps = (c) => followUps(c.r, c.row, c.outcome_id);
+
 /**
  * I-50f: a broker mark (any of Attended / No-show / Rescheduled) that arrives after the Schedule D apology went out
  * (outcome broker_no_show, w12:apology claimed) is a conflict for KG: one escalation (same kind and table as the
