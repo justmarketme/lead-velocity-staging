@@ -943,6 +943,12 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
   const outlookInvite = invitedByOutlook(ctx, p, bk, ev); // Exchange sent the meeting request from the broker's mailbox
   const capi = capiSchedule(lead, p);
   const rebook = !!p.previous_booking_id;
+  // /start/ v4 (Jono, 2026-10-19): a start-page booking gets W05's booking_confirmed, never W06's broker_intro_booked (the
+  // adviser was disclosed on the page: W39 adviser_disclosed START-DISCLOSE-v1; broker_intro_booked has no Twilio SID and its
+  // SMS fallback no sender). W06's other duty for this lead, the first-touch stamp, moves to W05's send: leads.first_message_at
+  // (W08 clocks, W07's 72-h verified_at window, the "introduced" test in the routing trigger) + the one-card claim
+  // w06:first:<lead> so no later W06 event sends a card (start_touch). No W07 "which number" ask: the page took call_number.
+  const startPage = isStartPageLead(ctx.lead);
   // 17 Oct 2026: for SortMyCover bookings the adviser's email notice also goes out from SortMyCover through Resend
   // (smc-email-send), not howzit@ Graph: the howzit@ credential failing stopped the whole fan-out (no W06/W09 for the client).
   const broker = brokerNotice(ctx, p);
@@ -959,13 +965,14 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
     // W06 owns the first lead-facing confirmation (I-45f): W05 calls W06 op 'booking' for every first booking (page
     // inside the 45-s hold, page after it, chat, Flow); W06 sends broker_intro_booked if this booking wins its
     // first-touch claim, else booking_confirmed (lib/w06.mjs lateBookingConfirmed). A rebooking gets it from here.
-    w06: rebook ? null : { op: 'booking', event: 'booking', lead_id: lead.id, booking_id: booking.id, created_at: booking.booked_at || iso(ctx.now), start: p.start, method: p.method, booked_via: p.booked_via, idempotency_key: `w06:booking:${booking.id}` },
-    lead_wa: rebook ? bookingConfirmed(ctx, p, bk) : null,
+    w06: rebook || startPage ? null : { op: 'booking', event: 'booking', lead_id: lead.id, booking_id: booking.id, created_at: booking.booked_at || iso(ctx.now), start: p.start, method: p.method, booked_via: p.booked_via, idempotency_key: `w06:booking:${booking.id}` },
+    lead_wa: rebook || startPage ? bookingConfirmed(ctx, p, bk) : null,
+    start_touch: startPage && !rebook ? { lead_id: lead.id, booking_id: booking.id, idempotency_key: `w06:first:${lead.id}` } : null,
     // I-53k: a time-shifted synthetic booking (ctx.test_clock, set by Decide when x-test-now moved the clock) forwards the
     // same clock to W09 ({now, is_synthetic}, honoured by wa.nowFrom only with TEST_HOOKS_ENABLED), so T0 touches
     // (what_to_expect T0+10 min) are planned from the shifted booking time. Production never sets test_clock.
     w09: { op: rebook ? 'rebuild' : 'schedule', booking_id: booking.id, idempotency_key: `w09:${rebook ? 'rebuild' : 'schedule'}:${booking.id}`, ...(ctx.test_clock ? { now: iso(ctx.now), is_synthetic: true } : {}) },
-    w07: CALL_METHODS.has(p.method) ? { source: 'W05', booking: { id: booking.id, method: p.method }, broker: { contact_person: brokerConfig(ctx.broker).adviser_name }, lead: { id: lead.id, phone: lead.phone, brand_id: lead.brand_id || null, language: lead.language || 'en', conv_state: lead.conv_state || {} } } : null,
+    w07: CALL_METHODS.has(p.method) && !startPage ? { source: 'W05', booking: { id: booking.id, method: p.method }, broker: { contact_person: brokerConfig(ctx.broker).adviser_name }, lead: { id: lead.id, phone: lead.phone, brand_id: lead.brand_id || null, language: lead.language || 'en', conv_state: lead.conv_state || {} } } : null,
     ask_email: p.ask_email ? { op: 'ask_email', lead_id: lead.id, method: p.method, booking_id: booking.id, reason: 'book', delegate: ctx.req && ctx.req.delegate ? ctx.req.delegate : null } : null,
     capi,
     alert: ev.ok || p.route === 'none' ? null : { signal_key: ev.reason === 'shared_calendar_id_missing' ? 'shared_calendar_id_missing' : 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: ev.reason === 'shared_calendar_id_missing' ? 'Set brokers.calendar_status_detail.shared_calendar_id (or SMC_SHARED_CALENDAR_ID), then add the event by hand' : 'Add the event by hand or reconnect the calendar', source: 'W05' },

@@ -1145,3 +1145,36 @@ test('W05 /start/ v4 phone: a WhatsApp-proven lead books a phone call with no em
   const r = await sys.book({ lead_id: id, slot_start: '2026-10-14T10:30:00+02:00', method: 'phone', booked_via: 'page', request_id: 'req-ctwa-phone-1' }, '2026-10-12T11:40:00+02:00', { verify: false });
   assert.equal(r.http_status, 201, JSON.stringify(r.body)); assert.equal(r.body.booked, true); assert.equal(r.body.held, undefined);
 });
+
+test('W05 /start/ v4: a start-page booking gets booking_confirmed from W05 (no W06 card, no W07 number ask) and stamps the first touch; other bookings unchanged', () => {
+  const c = (lead) => ctx5({ broker: ownCal(), lead: smcLead(lead) });
+  const pPhone = { ...pTeams, method: 'phone', email: null };
+  for (const [name, lead] of [['web', { origin: 'page', routing_reason: 'start_page_pending', conv_state: { via: 'start_page' } }], ['whatsapp', { origin: 'ctwa', conv_state: { start: { via: 'start_page' } } }]]) {
+    for (const p of [pTeams, pPhone]) {
+      const f = W5.finish(c(lead), p, bkOf(`bk-sp-${name}-${p.method}`, p), { ok: true, graph_event_id: 'AAMk', join_url: p.method === 'teams' ? 'https://teams.microsoft.com/l/meetup-join/x' : null });
+      assert.equal(f.w06, null, `${name} ${p.method}: never W06 broker_intro_booked`);
+      assert.equal(f.lead_wa.template.name, 'booking_confirmed', `${name} ${p.method}: W05 sends booking_confirmed`);
+      assert.equal(f.w07, null, `${name} ${p.method}: no "which number" ask`);
+      assert.deepEqual(f.start_touch, { lead_id: 'lead_test_L02', booking_id: `bk-sp-${name}-${p.method}`, idempotency_key: 'w06:first:lead_test_L02' });
+      assert.ok(f.w09, 'reminders still scheduled');
+    }
+  }
+  // a start-page REBOOKING: booking_confirmed as for any rebooking, no first-touch stamp
+  const rb = W5.finish(c({ conv_state: { via: 'start_page' } }), { ...pTeams, previous_booking_id: 'bk-old' }, bkOf('bk-rb'), { ok: true });
+  assert.equal(rb.lead_wa.template.name, 'booking_confirmed'); assert.equal(rb.start_touch, null);
+  // non-start-page page / CTWA bookings: today's path (W06 booking event, W07 contact confirm for calls, no lead_wa)
+  for (const lead of [{ origin: 'page', conv_state: {} }, { origin: 'ctwa', conv_state: { state: 'unbooked' }, routing_reason: 'single_broker' }]) {
+    const t = W5.finish(c(lead), pTeams, bkOf('bk-n1'), { ok: true });
+    assert.equal(t.w06.op, 'booking'); assert.equal(t.lead_wa, null); assert.equal(t.start_touch, null);
+    const ph = W5.finish(c(lead), pPhone, bkOf('bk-n2', pPhone), { ok: true });
+    assert.equal(ph.w07.source, 'W05', 'call methods still get the W07 contact confirm');
+  }
+  // W05.json: the lead send carries start_touch; the touch statement stamps first_message_at + W06's one-card claim
+  const fan = WF5.nodes.find((x) => x.name === 'Fan out effects').parameters.jsCode;
+  assert.match(fan, /wa: f\.lead_wa, start_touch: !!f\.start_touch/);
+  const t = WF5.nodes.find((x) => x.name === 'Touch leads.last_contact_at (lead sends)');
+  assert.match(t.parameters.query, /first_message_at = CASE WHEN \$4 = 'true' AND l\.broker_id IS NOT NULL THEN COALESCE\(l\.first_message_at, now\(\)\)/);
+  assert.match(t.parameters.query, /'first_touch_claimed'[\s\S]*'w06:first:' \|\| l\.id::text[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  assert.match(t.parameters.options.queryReplacement, /\$\('Live send\?'\)\.item\.json\.start_touch \? 'true' : 'false'/);
+  assert.deepEqual(checkSql(workflowSql(WF5).filter((x) => x.node === 'Touch leads.last_contact_at (lead sends)')), []);
+});
