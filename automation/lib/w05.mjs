@@ -519,6 +519,10 @@ export function insertBlocked(rows = [], row, bufferMinutes = 15) {
  * Then the event carries the client as attendee and no howzit@ email is sent.
  */
 export function invitedByOutlook(ctx = {}, p = {}, booking = {}, ev = {}) {
+  // Jono, 19 Oct 2026: a SortMyCover client gets only the SortMyCover email (the .ics attached), never an Outlook invite from
+  // the adviser, whatever brokers.add_client_as_attendee says. The event still goes into the adviser's calendar (Teams link,
+  // no client attendee), so a move or cancel there never mails the client either.
+  if (isSmcLead(ctx.lead)) return false;
   const b = brokerConfig(ctx.broker || {});
   const prov = booking && booking.calendar_provider;
   const route = p.route || (prov ? (prov === 'shared_lv' ? 'shared' : 'graph') : calendarRoute(b));
