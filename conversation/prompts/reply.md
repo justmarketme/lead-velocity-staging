@@ -4,8 +4,8 @@
 |---|---|
 | Version | `reply-v1.0.2` (2026-10-02: I-35e - fallbacks are now keys in `conversation/lines.mjs` (en + af); slot/reschedule/cancel/method actions are executed by W04/W10 as ONE interactive message whose body is the fallback line, never a second generated message; `greet` and `booking_status` never reach the model. Prompt block unchanged.) |
 | Previous | `reply-v1.0.1` (examples follow faq-v1.0.1; assembly order adds the new fixed lines; FIRST_NAME is the sanitised value) |
-| Model | `claude-haiku-4-5-20251001`, temperature 0.4, max_tokens 220 |
-| Escalate to | `claude-sonnet-5-5` once, when the draft fails the output gate or the guardrail classifier and the turn had a non-advice part worth keeping (multi-intent). A second failure sends fixed lines only. |
+| Model | Lindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via `smc-lindi-chat` (`$env.LINDI_BRAIN_URL`, no fallback); there is no Anthropic API in this system. Temperature 0.4, max_tokens 220 (the relay ignores both). |
+| Escalate to | none. A draft that fails the output gate or the guardrail classifier sends fixed lines only. |
 | Input | the **decision** from `logic.mjs` (actions + the facts code looked up), the lead's message (redacted), language, register hints. |
 | Output | `{"text": "..."}`, the warm part only. Code adds the fixed lines (disclosure, deferral, note, ID warning, handoff, STOP) and the buttons. The model never writes those lines and never sees prices, cover amounts or other leads. |
 

@@ -8,7 +8,7 @@
 | Order of steps | Matches the approved design references (`docs/design/sortmycover-end-to-end.html`, `sortmycover-chat-replay.html`) where they are explicit. |
 
 **L1** = Layer 1, deterministic: buttons, lists, Flow screens, templates, fixed lines. Zero generated text. About 90% of turns.
-**L2** = Layer 2, LLM: the lead typed free text. Intent/slot (Haiku) → `decide()` → reply (Haiku) → `outputGate` → guardrail classifier → `toneCheck` → send. About 10% of turns.
+**L2** = Layer 2, LLM: the lead typed free text. Lindi labels + reply (one call, ElevenLabs via `smc-lindi-chat`) → `decide()` → `outputGate` → guardrail classifier → `toneCheck` → send. About 10% of turns.
 
 ## 1. Entry points
 

@@ -3,11 +3,11 @@
 | | |
 |---|---|
 | Version | `guardrail-v1.1.0` (2026-10-02: compliance-qa phase4-review-2 G-1…G-4: sees the lead's question; switching/replacement and claims named; out-of-lane money; personal attributes on public replies; "no obligation to buy") |
-| Model | `claude-haiku-4-5-20251001`, temperature 0, max_tokens 200 |
-| Escalate to | `claude-sonnet-5-5` only to re-check a `pass` with `confidence < 0.8`. A `block` is never appealed to a bigger model: it stands. |
+| Model | W07: Lindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via `smc-lindi-chat` (`$env.LINDI_BRAIN_URL`, no fallback); there is no Anthropic API in this system. W30/W31: the LLM relay (`$env.LLM_RELAY_URL`, model `relay-default`, no fallback; there is no Anthropic API in this system). Temperature 0, max_tokens 200. |
+| Re-check | a `pass` with `confidence < 0.8` is checked once more on the same relay (W07 node `Guardrail re-check (ElevenLabs)`); it must pass with `confidence >= 0.8` itself. A `block` is never appealed: it stands. |
 | Runs on | every generated draft that already passed `outputGate()` in `conversation/guardrail.mjs`. Also every public comment reply and DM reply (4.14: "the same FAIS classifier gate as WhatsApp"); W30 reads `fais_risk`. |
 | On `block` | the draft is discarded. The lead gets only fixed lines: `DEFER` (+ `DEFER_NOTED`) from `conversation/lines.mjs`, or the action's fixed fallback (see `reply.md`). The lead's question is logged for the pre-call brief (health and ID: only "has a health question for you"). A trip increments `guardrail_trips` (console KPI per 100 conversations). |
-| Fails closed | timeout, API error or invalid JSON = `block`. |
+| Fails closed | timeout, relay error, invalid JSON or no relay URL = `block`. |
 
 ## The order of the gate (every reply, no exceptions)
 

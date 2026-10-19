@@ -4,7 +4,7 @@
 |---|---|
 | Version | `lindi-turn-v1.0.0` (17 Oct 2026, Jono: "she responds like a chat bot"; option 1 = the ElevenLabs agent writes every reply, n8n keeps the actions) |
 | Replaces | `intent-slot.md` + `reply.md` + the guardrail classifier call on the W07 free-text path (three calls became one; ~3 s per call through `smc-lindi-chat`) |
-| Model | whatever `smc-lindi-chat` runs (the ElevenLabs Lindi agent). Anthropic `/v1/messages` body: `system` + `messages`. `max_tokens` is ignored there. |
+| Model | Lindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via `smc-lindi-chat` (`$env.LINDI_BRAIN_URL`, no fallback); there is no Anthropic API in this system. Request body `system` + `messages` (ElevenLabs relay, message shape kept for compatibility); `model` and `max_tokens` are ignored there. `LINDI_BRAIN_URL` unset = no call: the never-silent guard sends the holding line and alerts Jono. |
 | Input | the state block below: conversation state, booking, adviser, what is already known, approved FAQ answers, the last few turns, and the person's message after `redactForLLM()`. Never another lead's data. |
 | Output | one JSON object: the same labels as `intent-slot.md` plus `reply`. `logic.mjs` `decide()` still decides every action from the labels. The reply is only the words. |
 | After the call | `applyModelReply()` in `automation/lib/w07.mjs`: deterministic `outputGate` (no prices, insurers, advice, injection echo) + a tone check. A reply that fails, or a turn that must stay fixed (STOP, distress, a person taking over, consent, the qualifying taps), uses the fixed lines in `lines.mjs` exactly as before. |
