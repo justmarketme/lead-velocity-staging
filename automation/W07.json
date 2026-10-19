@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W07 Conversation agent. Owns POST /whatsapp (Cloud API webhook) for every inbound WhatsApp + status receipts.\nOrder (conversation/prompts/guardrail.md): verify X-Hub-Signature-256 -> 200 -> webhook_events idempotency (wamid) -> deterministic router (automation/lib/w07.mjs routeInbound: STOP->W15, CTWA/unknown->W03, taps->W04/W05/W08/W09/W10/W12/W28/W29/W35, broker numbers->W12/W29 (broker video, or audio while pre-live -> W23 sub-call, I-37d), ops numbers approve:/later: taps -> W32 decision sub-call (I-37e), handoff->paused; loop guard: a W03 hand-back (origin 'w03', via the sub-call trigger) is never routed to W03 again) -> store redacted inbound + verified_at (3.3) -> prefilter + redactForLLM -> intent-slot LLM (Haiku, prompts/intent-slot.md) -> decide() (logic.mjs) -> planActions (fixed lines, delegations, escalations incl. kind 'sensitive' stored as human_handoff/red per I-25, lead_activities 'lead_theme' rows per I-22) -> reply LLM only for actions that need words (prompts/reply.md) -> outputGate -> guardrail classifier on classifierInput() (I-27) -> toneCheck -> assemble -> send -> store outbound + conv_state.\nFails closed: classifier error/timeout = block -> fixed fallback (+ DEFER if the question was advice-shaped). Self-harm/bereavement: nothing automated is sent; Jonathan + KG alerted together, reminders paused.\nCode nodes import repo modules from $env.REPO_DIR (same pattern as W30/W31); needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url,fs. Env: META_APP_SECRET, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, ANTHROPIC_API_KEY, ANTHROPIC_MODEL_FAST, ANTHROPIC_MODEL_STRONG, TWILIO_*, OPS_WHATSAPP_JONATHAN, OPS_WHATSAPP_KG, DRY_RUN_SENDS. Synthetic tests: automation/tests/W07.test.mjs.\nw07-alignment (I-35e): W04/W10 delegations carry the turn's fixed lines (delegate.lead_lines / delegate.body, one message; W07 sends nothing itself); outputGate runs before the classifier (trip = no classifier call); a classifier pass < 0.8 = block; reply facts = approved FAQ answer + KNOWN + booking time; greet/booking_status -> BOOKING_STATUS or W04; disclosed set only when a disclosure went out; W35 pulse line -> W35."
+        "content": "W07 Conversation agent. Owns POST /whatsapp (Cloud API webhook) for every inbound WhatsApp + status receipts.\nOrder (conversation/prompts/guardrail.md): verify X-Hub-Signature-256 -> 200 -> webhook_events idempotency (wamid) -> deterministic router (automation/lib/w07.mjs routeInbound: STOP->W15, CTWA/unknown->W03, taps->W04/W05/W08/W09/W10/W12/W28/W29/W35, broker numbers->W12/W29 (broker video, or audio while pre-live -> W23 sub-call, I-37d), ops numbers approve:/later: taps -> W32 decision sub-call (I-37e), handoff->paused; loop guard: a W03 hand-back (origin 'w03', via the sub-call trigger) is never routed to W03 again) -> store redacted inbound + verified_at (3.3) -> prefilter + redactForLLM -> Lindi labels + reply (ElevenLabs via smc-lindi-chat, prompts/lindi-turn.md) -> decide() (logic.mjs) -> planActions (fixed lines, delegations, escalations incl. kind 'sensitive' stored as human_handoff/red per I-25, lead_activities 'lead_theme' rows per I-22) -> Lindi reply call only for actions that need words (prompts/reply.md) -> outputGate -> guardrail classifier on classifierInput() (I-27) -> toneCheck -> assemble -> send -> store outbound + conv_state.\nFails closed: LINDI_BRAIN_URL unset = no model call, the never-silent guard sends a holding line and alerts Jono; guardrail error/timeout = block -> fixed fallback (+ DEFER if the question was advice-shaped). Self-harm/bereavement: nothing automated is sent; Jonathan + KG alerted together, reminders paused.\nCode nodes import repo modules from $env.REPO_DIR (same pattern as W30/W31); needs NODE_FUNCTION_ALLOW_BUILTIN=crypto,url,fs. Env: META_APP_SECRET, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, LINDI_BRAIN_URL, LINDI_RELAY_TOKEN, TWILIO_*, OPS_WHATSAPP_JONATHAN, OPS_WHATSAPP_KG, DRY_RUN_SENDS. Synthetic tests: automation/tests/W07.test.mjs.\nw07-alignment (I-35e): W04/W10 delegations carry the turn's fixed lines (delegate.lead_lines / delegate.body, one message; W07 sends nothing itself); outputGate runs before the classifier (trip = no classifier call); a classifier pass < 0.8 = block; reply facts = approved FAQ answer + KNOWN + booking time; greet/booking_status -> BOOKING_STATUS or W04; disclosed set only when a disclosure went out; W35 pulse line -> W35.\nLindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via smc-lindi-chat ($env.LINDI_BRAIN_URL, x-api-key $env.LINDI_RELAY_TOKEN, no fallback); there is no Anthropic API in this system."
       }
     },
     {
@@ -1213,7 +1213,7 @@
     },
     {
       "id": "n34",
-      "name": "Build intent-slot request (Haiku)",
+      "name": "Build labels request (ElevenLabs)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -1222,12 +1222,12 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Lindi turn (17 Oct 2026): ONE call returns the labels AND the reply (conversation/prompts/lindi-turn.md).\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/lindi-turn.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $('Media only? (never sent to a model)').item.json;\nconst turns = $json && Array.isArray($json.turns) ? $json.turns : [];\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst t = L.turnRequest({ j, turns, faq, system, now_ms: Date.now(), model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001' });\nreturn { json: { ...j, state: t.state, t0: Date.now(), intent_body: t.request, turn_prompt: L.TURN_PROMPT } };"
+        "jsCode": "// Lindi turn (17 Oct 2026): ONE call returns the labels AND the reply (conversation/prompts/lindi-turn.md).\nconst REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/lindi-turn.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $('Media only? (never sent to a model)').item.json;\nconst turns = $json && Array.isArray($json.turns) ? $json.turns : [];\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst t = L.turnRequest({ j, turns, faq, system, now_ms: Date.now(), model: L.LINDI_MODEL });\n// fail closed (19 Oct 2026): no LINDI_BRAIN_URL = no model call; \"Lindi brain set?\" sends the turn to the never-silent guard\nconst brain_ok = L.brainSet($env.LINDI_BRAIN_URL);\nreturn { json: { ...j, ...(brain_ok ? {} : { route: L.BRAIN_UNSET_ROUTE }), brain_ok, state: t.state, t0: Date.now(), intent_body: t.request, turn_prompt: L.TURN_PROMPT } };"
       }
     },
     {
       "id": "n35",
-      "name": "Intent-slot LLM",
+      "name": "Lindi labels (ElevenLabs)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -1236,17 +1236,13 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LINDI_BRAIN_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -1282,7 +1278,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build intent-slot request (Haiku)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst turn = L.parseTurn(raw); // { nlu, reply }: one call (lindi-turn.md)\nconst nlu = turn.nlu;\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0, age_accepted: cs.age_accepted === true });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, broker: j.broker || null, unanswered: cs.unanswered || 0, text_store: j.text_store });\n// deterministic gates; STOP / distress / a person / consent / qualifying stay fixed; never a second model call\nconst model_reply = L.applyModelReply(plan, turn.reply, { question: (j.msg && j.msg.text) || '', disclosed: !!cs.disclosed, lead_used_emoji: !!(j.pre && j.pre.lead_used_emoji), topics: nlu.topics });\nreturn { json: { ...j, nlu, decision, plan, model_reply, latency_ms: Date.now() - j.t0 } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build labels request (ElevenLabs)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst turn = L.parseTurn(raw); // { nlu, reply }: one call (lindi-turn.md)\nconst nlu = turn.nlu;\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0, age_accepted: cs.age_accepted === true });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, broker: j.broker || null, unanswered: cs.unanswered || 0, text_store: j.text_store });\n// deterministic gates; STOP / distress / a person / consent / qualifying stay fixed; never a second model call\nconst model_reply = L.applyModelReply(plan, turn.reply, { question: (j.msg && j.msg.text) || '', disclosed: !!cs.disclosed, lead_used_emoji: !!(j.pre && j.pre.lead_used_emoji), topics: nlu.topics });\nreturn { json: { ...j, nlu, decision, plan, model_reply, latency_ms: Date.now() - j.t0 } };"
       }
     },
     {
@@ -1721,7 +1717,7 @@
     },
     {
       "id": "n49",
-      "name": "Build reply request (Haiku)",
+      "name": "Build Lindi request (ElevenLabs)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -1730,12 +1726,12 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/reply.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\n// w07-alignment #6: approved FAQ answer(s) in the lead's language, KNOWN slots, booking with day/date/time/method\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst facts = L.replyFacts({ plan: j.plan, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq, lead: j.lead || {} });\nconst user = 'DECISION: ' + JSON.stringify({ actions: j.plan.reply_actions, defer: j.plan.actions.includes('defer'), facts }) + '\\nKNOWN: ' + facts.known.join(', ') + '\\nFIRST_NAME: ' + (j.plan.vars.first_name || '') + '\\nLANGUAGE: ' + j.plan.lang + '\\nLEAD_USED_EMOJI: ' + j.pre.lead_used_emoji + '\\nTHEIR MESSAGE: \"\"\"' + j.text_llm.replace(/\"{3,}/g, '\"').slice(0, 1200) + '\"\"\"';\nreturn { json: { ...j, reply_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 220, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst md = fs.readFileSync(REPO + '/conversation/prompts/reply.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst j = $json;\n// w07-alignment #6: approved FAQ answer(s) in the lead's language, KNOWN slots, booking with day/date/time/method\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst facts = L.replyFacts({ plan: j.plan, adviser_first: j.adviser_first, booking: L.bookingView(j.booking, j.plan.lang), faq, lead: j.lead || {} });\nconst user = 'DECISION: ' + JSON.stringify({ actions: j.plan.reply_actions, defer: j.plan.actions.includes('defer'), facts }) + '\\nKNOWN: ' + facts.known.join(', ') + '\\nFIRST_NAME: ' + (j.plan.vars.first_name || '') + '\\nLANGUAGE: ' + j.plan.lang + '\\nLEAD_USED_EMOJI: ' + j.pre.lead_used_emoji + '\\nTHEIR MESSAGE: \"\"\"' + j.text_llm.replace(/\"{3,}/g, '\"').slice(0, 1200) + '\"\"\"';\nreturn { json: { ...j, reply_body: { model: L.LINDI_MODEL, max_tokens: 220, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } } };"
       }
     },
     {
       "id": "n50",
-      "name": "Reply LLM",
+      "name": "Lindi (ElevenLabs)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -1744,17 +1740,13 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LINDI_BRAIN_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -1790,12 +1782,12 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst j = $('Build reply request (Haiku)').item.json;\nconst draft = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst md = fs.readFileSync(REPO + '/conversation/prompts/guardrail.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst question = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #3: outputGate FIRST; a trip skips the paid classifier call (verdict = block, same result)\nconst g = L.preClassifierGate(j.plan, draft, question);\n// the classifier sees the lead's (redacted) question + the draft, surface whatsapp (G-1)\nconst user = L.classifierTurn(draft, question, j.plan.lang);\nreturn { json: { ...j, draft, gate_ok: g.pass, pre_verdict: g.verdict, classifier_body: { model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst fs = require('fs');\nconst j = $('Build Lindi request (ElevenLabs)').item.json;\nconst draft = (($json.content && $json.content[0] && $json.content[0].text) || '').trim();\nconst md = fs.readFileSync(REPO + '/conversation/prompts/guardrail.md', 'utf8');\nconst system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060\\u0060\\u0060')[0].trim();\nconst question = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #3: outputGate FIRST; a trip skips the paid classifier call (verdict = block, same result)\nconst g = L.preClassifierGate(j.plan, draft, question);\n// the classifier sees the lead's (redacted) question + the draft, surface whatsapp (G-1)\nconst user = L.classifierTurn(draft, question, j.plan.lang);\nreturn { json: { ...j, draft, gate_ok: g.pass, pre_verdict: g.verdict, classifier_body: { model: L.LINDI_MODEL, max_tokens: 200, temperature: 0, system, messages: [{ role: 'user', content: user }] } } };"
       }
     },
     {
       "id": "n52",
-      "name": "Guardrail classifier LLM (fails closed)",
+      "name": "Guardrail check (ElevenLabs, fails closed)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -1804,17 +1796,13 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LINDI_BRAIN_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -1850,7 +1838,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; if (j.pre_verdict) verdict = j.pre_verdict;\n  else {\n    const pv = $('Parse verdict + re-check needed? (I-39h)').item.json; // first (Haiku) verdict\n    verdict = pv.first_verdict;\n    if (pv.needs_recheck) { // I-39h: Sonnet re-check ran on this item; $json is its response (neverError: no text = block)\n      verdict = L.resolveRecheck(pv.first_verdict, ($json.content && $json.content[0] && $json.content[0].text) || '');\n    }\n  } }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, broker: j.broker || null, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? ($env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001') : null, handoff: j.plan.next_state === 'handoff' } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nlet j; let draft = ''; let verdict = null;\ntry { j = $('outputGate + classifierInput (I-27)').item.json; draft = j.draft; if (j.pre_verdict) verdict = j.pre_verdict;\n  else {\n    const pv = $('Parse verdict + re-check needed? (I-39h)').item.json; // first verdict\n    verdict = pv.first_verdict;\n    if (pv.needs_recheck) { // I-39h: the re-check ran on this item; $json is its response (neverError: no text = block)\n      verdict = L.resolveRecheck(pv.first_verdict, ($json.content && $json.content[0] && $json.content[0].text) || '');\n    }\n  } }\ncatch (e) { j = $json; }\nconst msgText = $('Route (deterministic) + prefilter').item.json.msg.text || '';\n// w07-alignment #7: real HH:MM and the approved FAQ map, so a blocked answer:FAQ-xx draft falls back to the verbatim answer\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst fb = (j.plan.reply_actions || []).map((a) => L.replyFallback(a, { lang: j.plan.lang, adviser_first: j.adviser_first, broker: j.broker || null, booking: L.bookingView(j.booking, j.plan.lang), faq })).filter(Boolean).join(' ');\nconst out = L.gateAndAssemble(j.plan, { draft, verdict, question: msgText, lead_used_emoji: j.pre.lead_used_emoji, fallback: fb });\nconst send = j.plan.send && !!out.text;\nconst disclosed_after = L.disclosedAfter(!!(j.lead && j.lead.conv_state && j.lead.conv_state.disclosed), j.plan, send); // #14\nreturn { json: { ...j, disclosed_after, text: out.text, trip: out.guardrail_trip, rule: out.guardrail_rule, used: out.used, send, wa: { messaging_product: 'whatsapp', to: j.msg.from, type: 'text', text: { body: out.text } }, intent: j.nlu.intent, model: out.used === 'llm' ? (L.LINDI_MODEL) : null, handoff: j.plan.next_state === 'handoff' } };"
       }
     },
     {
@@ -2374,7 +2362,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('outputGate + classifierInput (I-27)').item.json;\nconst first = L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || '');\n// I-39h: only a pass with confidence < 0.8 goes to Sonnet (ANTHROPIC_MODEL_STRONG); a block is never appealed\nconst recheck = L.needsRecheck(first);\nreturn { json: { first_verdict: first, needs_recheck: recheck, recheck_body: recheck ? L.recheckBody(j.classifier_body, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('outputGate + classifierInput (I-27)').item.json;\nconst first = L.parseVerdict(($json.content && $json.content[0] && $json.content[0].text) || '');\n// I-39h: only a pass with confidence < 0.8 is re-checked (same relay); a block is never appealed\nconst recheck = L.needsRecheck(first);\nreturn { json: { first_verdict: first, needs_recheck: recheck, recheck_body: recheck ? L.recheckBody(j.classifier_body, { model: L.LINDI_MODEL }) : null } };"
       }
     },
     {
@@ -2409,7 +2397,7 @@
     },
     {
       "id": "n483",
-      "name": "Guardrail re-check LLM (Sonnet, I-39h)",
+      "name": "Guardrail re-check (ElevenLabs)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -2418,17 +2406,13 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LINDI_BRAIN_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.LINDI_RELAY_TOKEN || $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LINDI_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -2809,31 +2793,6 @@
       ]
     },
     {
-      "id": "lt-turns",
-      "name": "Load recent turns (Lindi memory)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        20,
-        960
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "onError": "continueRegularOutput",
-      "notes": "Lindi turn (17 Oct 2026): the recent chat so the reply picks up where it left off. Inbound text is the stored (redacted) copy; lib/w07.mjs turnLines() redacts again for the model.",
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "-- The last turns of this WhatsApp chat (7 days), oldest first, as ONE row. Outbound rows logged as '[text]' or\n-- 'template:...' carry no words and are skipped by turnLines().\nSELECT coalesce(json_agg(json_build_object('direction', t.direction, 'content', t.content) ORDER BY t.created_at), '[]'::json) AS turns\n  FROM (SELECT direction, left(coalesce(content, ''), 300) AS content, created_at\n          FROM public.communications\n         WHERE channel = 'whatsapp' AND created_at > now() - interval '7 days'\n           AND ((nullif($1, '') IS NOT NULL AND lead_id = nullif($1, '')::uuid) OR recipient_contact = $2)\n         ORDER BY created_at DESC\n         LIMIT 12) t;",
-        "options": {
-          "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || \"\", ($json.msg && $json.msg.from) || \"\" ] }}"
-        }
-      }
-    },
-    {
       "id": "ty-gate",
       "name": "Show typing dots now? (Twilio)",
       "type": "n8n-nodes-base.if",
@@ -2892,6 +2851,31 @@
         "jsonBody": "={{ JSON.stringify({ channel: 'WHATSAPP', messageId: $json.msg.wamid }) }}",
         "options": {
           "timeout": 4000
+        }
+      }
+    },
+    {
+      "id": "lt-turns",
+      "name": "Load recent turns (Lindi memory)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        20,
+        960
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Lindi turn (17 Oct 2026): the recent chat so the reply picks up where it left off. Inbound text is the stored (redacted) copy; lib/w07.mjs turnLines() redacts again for the model.",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The last turns of this WhatsApp chat (7 days), oldest first, as ONE row. Outbound rows logged as '[text]' or\n-- 'template:...' carry no words and are skipped by turnLines().\nSELECT coalesce(json_agg(json_build_object('direction', t.direction, 'content', t.content) ORDER BY t.created_at), '[]'::json) AS turns\n  FROM (SELECT direction, left(coalesce(content, ''), 300) AS content, created_at\n          FROM public.communications\n         WHERE channel = 'whatsapp' AND created_at > now() - interval '7 days'\n           AND ((nullif($1, '') IS NOT NULL AND lead_id = nullif($1, '')::uuid) OR recipient_contact = $2)\n         ORDER BY created_at DESC\n         LIMIT 12) t;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || \"\", ($json.msg && $json.msg.from) || \"\" ] }}"
         }
       }
     },
@@ -3026,6 +3010,38 @@
         "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nVALUES (nullif($1, '')::uuid, 'needs_human', 'urgent', 'communications', nullif($2, ''), nullif($3, '')::uuid, now(), $4)\nRETURNING id;"
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ns-brain",
+      "name": "Lindi brain set? (LINDI_BRAIN_URL)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        330,
+        960
+      ],
+      "notes": "Fails closed: LINDI_BRAIN_URL unset -> no model call; false -> never-silent guard (holding line, escalation, owner alert).",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.brain_ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
     },
     {
       "id": "ns-alert-build",
@@ -3550,28 +3566,6 @@
         ]
       ]
     },
-    "Build intent-slot request (Haiku)": {
-      "main": [
-        [
-          {
-            "node": "Intent-slot LLM",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Intent-slot LLM": {
-      "main": [
-        [
-          {
-            "node": "Parse NLU -> decide() -> plan",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Parse NLU -> decide() -> plan": {
       "main": [
         [
@@ -3758,7 +3752,7 @@
       "main": [
         [
           {
-            "node": "Build reply request (Haiku)",
+            "node": "Build Lindi request (ElevenLabs)",
             "type": "main",
             "index": 0
           }
@@ -3772,44 +3766,11 @@
         ]
       ]
     },
-    "Build reply request (Haiku)": {
-      "main": [
-        [
-          {
-            "node": "Reply LLM",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Reply LLM": {
-      "main": [
-        [
-          {
-            "node": "outputGate + classifierInput (I-27)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "outputGate + classifierInput (I-27)": {
       "main": [
         [
           {
             "node": "outputGate passed?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Guardrail classifier LLM (fails closed)": {
-      "main": [
-        [
-          {
-            "node": "Parse verdict + re-check needed? (I-39h)",
             "type": "main",
             "index": 0
           }
@@ -3965,7 +3926,7 @@
       "main": [
         [
           {
-            "node": "Guardrail classifier LLM (fails closed)",
+            "node": "Guardrail check (ElevenLabs, fails closed)",
             "type": "main",
             "index": 0
           }
@@ -4045,22 +4006,11 @@
       "main": [
         [
           {
-            "node": "Guardrail re-check LLM (Sonnet, I-39h)",
+            "node": "Guardrail re-check (ElevenLabs)",
             "type": "main",
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Assemble (verdict + toneCheck + fallbacks)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Guardrail re-check LLM (Sonnet, I-39h)": {
-      "main": [
         [
           {
             "node": "Assemble (verdict + toneCheck + fallbacks)",
@@ -4248,17 +4198,6 @@
         ]
       ]
     },
-    "Load recent turns (Lindi memory)": {
-      "main": [
-        [
-          {
-            "node": "Build intent-slot request (Haiku)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Show typing dots now? (Twilio)": {
       "main": [
         [
@@ -4269,6 +4208,83 @@
           }
         ],
         []
+      ]
+    },
+    "Build labels request (ElevenLabs)": {
+      "main": [
+        [
+          {
+            "node": "Lindi brain set? (LINDI_BRAIN_URL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lindi labels (ElevenLabs)": {
+      "main": [
+        [
+          {
+            "node": "Parse NLU -> decide() -> plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Lindi request (ElevenLabs)": {
+      "main": [
+        [
+          {
+            "node": "Lindi (ElevenLabs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lindi (ElevenLabs)": {
+      "main": [
+        [
+          {
+            "node": "outputGate + classifierInput (I-27)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail check (ElevenLabs, fails closed)": {
+      "main": [
+        [
+          {
+            "node": "Parse verdict + re-check needed? (I-39h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrail re-check (ElevenLabs)": {
+      "main": [
+        [
+          {
+            "node": "Assemble (verdict + toneCheck + fallbacks)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load recent turns (Lindi memory)": {
+      "main": [
+        [
+          {
+            "node": "Build labels request (ElevenLabs)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Never silent: wait 25 s": {
@@ -4314,6 +4330,24 @@
         [
           {
             "node": "Never silent: send fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lindi brain set? (LINDI_BRAIN_URL)": {
+      "main": [
+        [
+          {
+            "node": "Lindi labels (ElevenLabs)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Never silent: wait 25 s",
             "type": "main",
             "index": 0
           }

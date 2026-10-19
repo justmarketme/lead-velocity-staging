@@ -55,13 +55,13 @@ test('egress detector: finds and gates synthetic ungated senders (WhatsApp, Twil
       mk('mail', 'n8n-nodes-base.httpRequest', { url: '=https://graph.microsoft.com/v1.0/users/x/sendMail' }),
       mk('ol', 'n8n-nodes-base.microsoftOutlook', { resource: 'message', operation: 'send' }),
       mk('wan', 'n8n-nodes-base.whatsApp', { operation: 'send' }),
-      mk('llm', 'n8n-nodes-base.httpRequest', { url: 'https://api.anthropic.com/v1/messages' }),
+      mk('llm', 'n8n-nodes-base.httpRequest', { url: '={{ $env.LINDI_BRAIN_URL }}' }),
       mk('after', 'n8n-nodes-base.code', {}),
     ],
     connections: { trig: { main: [['wa', 'tw', 'mail', 'ol', 'wan', 'llm'].map((node) => ({ node, type: 'main', index: 0 }))] }, wa: { main: [[{ node: 'after', type: 'main', index: 0 }]] } },
   };
   assert.deepEqual(findUngated(wf).map((x) => x.name).sort(), ['mail', 'ol', 'tw', 'wa', 'wan']);
-  assert.equal(senderKind(wf.nodes[6]), null, 'Anthropic /messages is not a send');
+  assert.equal(senderKind(wf.nodes[6]), null, "Lindi's brain (smc-lindi-chat) is not a send");
   gateSenders(wf);
   assert.deepEqual(findUngated(wf), []);
   gateSenders(wf); // idempotent

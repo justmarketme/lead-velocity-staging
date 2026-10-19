@@ -422,7 +422,14 @@ export function preClassifierGate(plan, draft, question = '') {
   const gate = outputGate(draft, { fixed_lines: fixedLines(plan.lang, plan.vars), question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
   return gate.pass ? { pass: true, verdict: null } : { pass: false, verdict: { verdict: 'block', confidence: 1, categories: gate.categories.map((c) => `outputGate:${c}`) } };
 }
-export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked on Sonnet (I-39h); unresolved = blocked
+export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked once more (I-39h); unresolved = blocked
+// Lindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via smc-lindi-chat ($env.LINDI_BRAIN_URL, no fallback).
+// There is no Anthropic API in this system. The relay ignores `model`; this label only marks Lindi's turns in the logs.
+export const LINDI_MODEL = 'elevenlabs:lindi-whatsapp';
+/** Fail closed: without LINDI_BRAIN_URL W07 makes NO model call; the turn goes to the never-silent guard instead
+    (holding line + escalation + owner alert), routed as BRAIN_UNSET_ROUTE. */
+export const BRAIN_UNSET_ROUTE = 'lindi_brain_unset';
+export const brainSet = (url) => !!String(url || '').trim();
 
 export function parseVerdict(raw) {
   try {
@@ -433,13 +440,13 @@ export function parseVerdict(raw) {
 }
 
 /**
- * I-39h: the Sonnet re-check (guardrail.md "Escalate to"). Only a `pass` with confidence < 0.8 is re-checked; a `block`
+ * I-39h: the guardrail re-check (guardrail.md "Re-check"). Only a `pass` with confidence < 0.8 is re-checked; a `block`
  * is never appealed. The re-check must itself say pass with confidence >= 0.8, otherwise the draft is blocked.
- * Timeout, API error or invalid JSON on the re-check = block (fails closed). Model routing: ANTHROPIC_MODEL_STRONG.
+ * Timeout, relay error or invalid JSON on the re-check = block (fails closed). Same relay (smc-lindi-chat) as the first check.
  */
 export const needsRecheck = (v) => !!v && v.verdict === 'pass' && !(Number(v.confidence) >= CLASSIFIER_MIN_CONFIDENCE);
 export function recheckBody(classifierBody, { model } = {}) {
-  return { ...classifierBody, model: model || 'claude-sonnet-5-5' };
+  return { ...classifierBody, model: model || LINDI_MODEL };
 }
 export function resolveRecheck(first, rawSecond) {
   if (!needsRecheck(first)) return first; // a block stands; a confident pass needs no second look
@@ -475,7 +482,7 @@ export function gateAndAssemble(plan, { draft = '', verdict = null, question = '
   else if (plan.reply_actions.length) {
     const gate = outputGate(draft, { fixed_lines: fixed, question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
     const v0 = verdict || { verdict: 'block', categories: ['not_run'] };
-    // #4: low-confidence pass is not a pass (the W07 Sonnet re-check node resolves it before this point; unresolved = fails closed); a block is never appealed
+    // #4: low-confidence pass is not a pass (the W07 guardrail re-check node resolves it before this point; unresolved = fails closed); a block is never appealed
     const v = v0.verdict === 'pass' && !(Number(v0.confidence) >= CLASSIFIER_MIN_CONFIDENCE) ? { verdict: 'block', categories: ['low_confidence_pass'] } : v0;
     const tone = toneCheck(draft, { fixed_lines: fixed, lead_used_emoji, lang: plan.lang });
     if (draft && gate.pass && v.verdict === 'pass' && tone.pass) { body = draft; used = 'llm'; }
@@ -634,7 +641,10 @@ export function neverSilentAlert(j = {}) {
   const lead = j.lead || {};
   const first = sanitiseField('first_name', lead.first_name || (j.msg && j.msg.profile_name) || '').value || 'A lead';
   const what = j.route === 'W04' || j.route === 'W04_list' ? 'open times' : j.route === 'W05' ? 'a booking' : j.route === 'W10' ? 'a reschedule' : 'the next step';
-  const message = `SortMyCover: ${first} is waiting on ${what}. The ${j.route || 'hand-off'} reply did not go out, so Lindi sent a holding line. Please follow up on WhatsApp.${lead.id ? ` Lead ${String(lead.id).slice(0, 8)}.` : ''}`;
+  const ref = lead.id ? ` Lead ${String(lead.id).slice(0, 8)}.` : '';
+  const message = j.route === BRAIN_UNSET_ROUTE
+    ? `SortMyCover: ${first} messaged and Lindi could not answer: LINDI_BRAIN_URL is not set on n8n, so no reply was written and Lindi sent a holding line. Please follow up on WhatsApp.${ref}`
+    : `SortMyCover: ${first} is waiting on ${what}. The ${j.route || 'hand-off'} reply did not go out, so Lindi sent a holding line. Please follow up on WhatsApp.${ref}`;
   return { message, source: 'smc-never-silent', title: 'SortMyCover: lead needs a person' };
 }
 /** The guard's send: one prebuilt text through smc-whatsapp-send (record:true, so it lands in communications). */
@@ -704,8 +714,8 @@ export function turnLines(rows = [], max = TURN_MAX_TURNS) {
   return list.slice(-max).map((r) => (r.direction === 'inbound' ? `them: ${redactForLLM(r.content).slice(0, 300)}` : `lindi: ${String(r.content).slice(0, 300)}`).replace(/\s+/gu, ' '));
 }
 
-/** The one /v1/messages request for this inbound (j = the W07 item: lead, booking, broker, adviser_first, pre, text_llm). */
-export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms = Date.now(), model = 'claude-haiku-4-5-20251001' } = {}) {
+/** The one relay request (smc-lindi-chat message shape) for this inbound (j = the W07 item: lead, booking, broker, adviser_first, pre, text_llm). */
+export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms = Date.now(), model = LINDI_MODEL } = {}) {
   const lead = j.lead || {};
   const cs = lead.conv_state || {};
   const state = cs.state || (j.booking ? 'booked' : 'unbooked');

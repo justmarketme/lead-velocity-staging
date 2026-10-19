@@ -1,9 +1,10 @@
 // automation/patch-w07-lindi-turn.mjs - Lindi's turn: ONE model call writes the labels AND the reply (17 Oct 2026).
 // Jono: "she responds like a chat bot ... not like she's connected to an LLM" -> option 1: the ElevenLabs agent
-// (smc-lindi-chat, behind ANTHROPIC_BASE_URL) writes every lead-facing reply; n8n keeps the actions.
+// (smc-lindi-chat, at $env.LINDI_BRAIN_URL) writes every lead-facing reply; n8n keeps the actions.
 // W07.json is maintained as JSON, so this script is the reproducible record of the change. Idempotent.
 // Logic: lib/w07.mjs turnRequest / parseTurn / applyModelReply; prompt: conversation/prompts/lindi-turn.md.
-// Run: node automation/patch-w07-lindi-turn.mjs && node automation/patch-w07-never-silent.mjs
+// Full W07 patch order (each idempotent): patch-w07-elevenlabs-only.mjs, patch-w07-lindi-turn.mjs, patch-w07-faq-fill.mjs,
+//   patch-w07-start-page.mjs, patch-w07-never-silent.mjs, patch-w07-never-silent-alert.mjs (node automation/<name>)
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const FILE = new URL('./W07.json', import.meta.url);
@@ -12,7 +13,7 @@ const node = (name) => { const n = wf.nodes.find((x) => x.name === name); if (!n
 
 const MEDIA = 'Media only? (never sent to a model)';
 const TURNS = 'Load recent turns (Lindi memory)';
-const BUILD = 'Build intent-slot request (Haiku)'; // name kept: other nodes read $('Build intent-slot request (Haiku)')
+const BUILD = 'Build labels request (ElevenLabs)'; // renamed by patch-w07-elevenlabs-only.mjs (19 Oct 2026); other nodes read $('Build labels request (ElevenLabs)')
 const PARSE = 'Parse NLU -> decide() -> plan';
 const NEEDS = 'Needs reply LLM?';
 
@@ -53,8 +54,10 @@ const system = (md.split('\\u0060\\u0060\\u0060prompt')[1] || '').split('\\u0060
 const j = $('${MEDIA}').item.json;
 const turns = $json && Array.isArray($json.turns) ? $json.turns : [];
 const faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));
-const t = L.turnRequest({ j, turns, faq, system, now_ms: Date.now(), model: $env.ANTHROPIC_MODEL_FAST || 'claude-haiku-4-5-20251001' });
-return { json: { ...j, state: t.state, t0: Date.now(), intent_body: t.request, turn_prompt: L.TURN_PROMPT } };`;
+const t = L.turnRequest({ j, turns, faq, system, now_ms: Date.now(), model: L.LINDI_MODEL });
+// fail closed (19 Oct 2026): no LINDI_BRAIN_URL = no model call; "Lindi brain set?" sends the turn to the never-silent guard
+const brain_ok = L.brainSet($env.LINDI_BRAIN_URL);
+return { json: { ...j, ...(brain_ok ? {} : { route: L.BRAIN_UNSET_ROUTE }), brain_ok, state: t.state, t0: Date.now(), intent_body: t.request, turn_prompt: L.TURN_PROMPT } };`;
 
 // 3. parse the one answer, decide as before, then put Lindi's words in place of the conversational fixed lines
 node(PARSE).parameters.jsCode = `const REPO = $env.REPO_DIR || '/home/node/repo';

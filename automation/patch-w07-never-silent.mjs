@@ -11,7 +11,8 @@ const wf = JSON.parse(readFileSync(FILE, 'utf8'));
 const P = 'Never silent: ';
 const WAIT = `${P}wait 25 s` /* node name kept; the amount comes from lib/w07.mjs */, CHECK = `${P}anything sent since the inbound?`, IFN = `${P}nothing went out?`;
 const BUILD = `${P}fallback (lib w07.neverSilentSend)`, SEND = `${P}send fallback`, ESC = `${P}escalation`;
-const OWN = [WAIT, CHECK, IFN, BUILD, SEND, ESC];
+const BRAIN = 'Lindi brain set? (LINDI_BRAIN_URL)';
+const OWN = [WAIT, CHECK, IFN, BUILD, SEND, ESC, BRAIN];
 
 // drop any earlier copy (idempotent)
 wf.nodes = wf.nodes.filter((n) => !OWN.includes(n.name));
@@ -80,5 +81,19 @@ for (const key of ['W03', 'W04_list', 'W05', 'W10']) link('Route', WAIT, outInde
 for (const key of ['W03', 'W04', 'W10']) link('Delegate to', WAIT, outIndex('Delegate to', key));
 link(WAIT, CHECK); link(CHECK, IFN); link(IFN, BUILD, 0); link(IFN, ESC, 0); link(BUILD, SEND);
 
+// Fail closed (19 Oct 2026, ElevenLabs only): the labels request sets brain_ok = lib w07.brainSet($env.LINDI_BRAIN_URL)
+// (patch-w07-lindi-turn.mjs). Unset -> no model call at all; the turn comes here (route lindi_brain_unset), so the lead gets
+// the holding line and Jono the alert. The labels call is the only way into the reply / guardrail calls.
+const LBUILD = 'Build labels request (ElevenLabs)', LABELS = 'Lindi labels (ElevenLabs)';
+const lb = wf.nodes.find((n) => n.name === LBUILD);
+if (!lb || !wf.nodes.some((n) => n.name === LABELS)) throw new Error('run patch-w07-elevenlabs-only.mjs and patch-w07-lindi-turn.mjs first');
+if (!lb.parameters.jsCode.includes('L.brainSet($env.LINDI_BRAIN_URL)')) throw new Error(`${LBUILD} sets no brain_ok: run patch-w07-lindi-turn.mjs first`);
+wf.nodes.push({ id: 'ns-brain', name: BRAIN, type: 'n8n-nodes-base.if', typeVersion: 2, position: [lb.position[0] + 110, lb.position[1] + 160],
+  notes: 'Fails closed: LINDI_BRAIN_URL unset -> no model call; false -> never-silent guard (holding line, escalation, owner alert).',
+  parameters: { conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and',
+    conditions: [{ id: 'c1', leftValue: '={{ String($json.brain_ok === true) }}', rightValue: 'true', operator: { type: 'string', operation: 'equals' } }] }, options: {} } });
+wf.connections[LBUILD] = { main: [[{ node: BRAIN, type: 'main', index: 0 }]] };
+link(BRAIN, LABELS, 0); link(BRAIN, WAIT, 1);
+
 writeFileSync(FILE, JSON.stringify(wf, null, 2) + '\n');
-console.log('W07.json: never-silent guard on Route W03/W04_list/W05/W10 and Delegate W03/W04/W10');
+console.log('W07.json: never-silent guard on Route W03/W04_list/W05/W10, Delegate W03/W04/W10 and an unset LINDI_BRAIN_URL');
