@@ -19,12 +19,12 @@ import { sourceTag, waHref } from "@/lib/whatsapp";
 import { attribution } from "@/lib/pixel";
 import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
-import { createStartApi, postLead, runBooking, type Adviser, type Booking, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
+import { createStartApi, postLead, runBooking, runMove, type Adviser, type Booking, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
 import {
   AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, TOKEN_KEY, TOPICS, WHY_WHATSAPP, afterAdviser, answersPayload, availableMethods, canFinishTopics,
-  bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
-  namedConsent, nextStep, onLoadFailure, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt, startIntroLine,
-  guestEmail, suggestEmail, toE164, toggleTopic, validEmail, validFirstName, waLink,
+  bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
+  namedConsent, nextStep, onLoadFailure, prettyLocal, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt, startIntroLine,
+  guestEmail, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, readMoveFromHash, suggestEmail, toE164, withinDays, toggleTopic, validEmail, validFirstName, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
 
@@ -36,7 +36,8 @@ type Screen =
   | { k: "neutral" }
   | { k: "step"; step: StepId }
   | { k: "booked" }
-  | { k: "allset" };
+  | { k: "allset" }
+  | { k: "moved" };
 
 const SHOW_ROWS = 8;
 const EMAIL_ERR = "That address doesn't look complete. Could you check it and send it again?";
@@ -121,8 +122,13 @@ function StartFlow() {
   const [guestErr, setGuestErr] = useState<string | null>(null);
   /** The guest the invite went to (Booked and All set say so). */
   const [guestSent, setGuestSent] = useState<string | null>(null);
+  /** Phone: the number the adviser will call, shown on the Booked screen. */
+  const [callOn, setCallOn] = useState<string | null>(null);
   // after booking
   const [booking, setBooking] = useState<Booking | null>(null);
+  /** #lt=...&move=1: the "Move your call" screen when GET /start has a live booking (the number step then moves instead of booking). */
+  const moveAsked = useRef(false);
+  const [moving, setMoving] = useState(false);
   const rid = useRef<{ key: string; id: string } | null>(null);
   const idFor = (key: string) => { if (rid.current?.key !== key) rid.current = { key, id: requestId() }; return rid.current.id; };
 
@@ -171,6 +177,14 @@ function StartFlow() {
     const av = availableMethods(d.methods);
     setMethods(av);
     setMethod(defaultMethod(d.methods));
+    if (moveAsked.current && isLiveBooking(d.booking, new Date())) {
+      const bm = availableMethods([d.booking.method])[0];
+      if (bm && av.includes(bm)) setMethod(bm);
+      setBooking(d.booking); setMoving(true);
+      setScreen({ k: "step", step: "move" });
+      return fetchMoveSlots();
+    }
+    setMoving(false); // no live booking: the normal flow
     const at = resumeAt(d.booking, d.answers);
     if (at !== "time") { setBooking(d.booking); return setScreen(at === "allset" ? { k: "allset" } : { k: "step", step: "age" }); }
     return requestAdviser(null, true);
@@ -179,6 +193,7 @@ function StartFlow() {
   useEffect(() => {
     (async () => {
       let tok = readTokenFromHash(location.hash);
+      moveAsked.current = readMoveFromHash(location.hash);
       if (tok) { try { sessionStorage.setItem(TOKEN_KEY, tok); } catch { /* storage blocked: the token still works for this page view */ } }
       if (/(^#|&)lt=/.test(location.hash)) history.replaceState(history.state, "", location.pathname + location.search);
       if (!tok) { try { tok = sessionStorage.getItem(TOKEN_KEY); storedOnly.current = !!tok; } catch { /* none */ } }
@@ -304,9 +319,9 @@ function StartFlow() {
       setNumErr({});
       contact = c.body;
     }
-    if (!validEmail(e)) { setEmailErr(EMAIL_ERR); document.getElementById("st-email")?.focus(); return; }
+    if (method === "teams" && !validEmail(e)) { setEmailErr(EMAIL_ERR); document.getElementById("st-email")?.focus(); return; }
     setEmailErr(null);
-    const g = guestEmail(guestOn, guest);
+    const g = guestEmail(method, guestOn, guest);
     if (!g.ok) { setGuestErr(EMAIL_ERR); document.getElementById("st-guest")?.focus(); return; }
     setGuestErr(null); setErr(null); setBusy(true);
     const r = await runBooking(api.current!, {
@@ -318,6 +333,7 @@ function StartFlow() {
       case "booked": case "held":
         setBooking({ start: r.info.start, end: r.info.end, method: r.info.method || method, held: r.kind === "held" });
         setGuestSent(g.guest_email || null);
+        setCallOn(method === "phone" ? (contact?.call_number ? prettyLocal(contact.call_number) : waNumber) : null);
         return setScreen({ k: "booked" });
       case "contact": setNumErr({ [r.field]: true }); return;
       case "taken":
@@ -327,6 +343,51 @@ function StartFlow() {
       case "email": return setEmailErr(EMAIL_ERR);
       case "expired": return setScreen({ k: "expired" });
       default: return setErr({ retry: book });
+    }
+  }
+
+  /* ---------- reschedule: Move your call ---------- */
+  /** Open times for the move: /slots?days=14, then only those up to 14 days from now (the lead is already routed). */
+  async function fetchMoveSlots() {
+    setSlotsState("loading");
+    const r = await api.current!.getSlots(14);
+    if (r.kind === "expired") return setScreen({ k: "expired" });
+    if (r.kind === "error") return setSlotsState("error");
+    setSlotsState("idle");
+    const list = withinDays(r.data.slots, new Date());
+    if (!list.length || r.data.fallback === "whatsapp") return setScreen({ k: "chat", noSlots: true });
+    setSlots(list);
+  }
+
+  /** "Move my call": a switch to a phone call with no confirmed number goes through the number step first, then POST /start/contact
+      and POST /start/move; otherwise POST /start/move straight away. */
+  async function move(fromNumber = false) {
+    if (!picked || !method || !booking) return;
+    let contact: { call_number: string | null; alt_number?: string } | null = null;
+    if (moveNeedsNumber(method, booking, data?.contact)) {
+      if (!fromNumber) return go("number");
+      const c = contactPayload({ use: data?.phone_pretty ? use : "other", other, alt });
+      if (!c.ok) { setNumErr({ [c.field]: true }); document.getElementById(c.field === "call_number" ? "st-other" : "st-alt")?.focus(); return; }
+      setNumErr({});
+      contact = c.body;
+    }
+    setErr(null); setBusy(true);
+    const r = await runMove(api.current!, {
+      contact, contactId: idFor("contact:" + JSON.stringify(contact)),
+      move: moveBody(picked, method, idFor(`move:${picked}|${method}|${JSON.stringify(contact)}`)),
+    });
+    setBusy(false);
+    switch (r.kind) {
+      case "moved":
+        setBooking({ ...r.booking, method: r.booking.method || method, held: booking.held });
+        return setScreen({ k: "moved" });
+      case "contact": setNumErr({ [r.field]: true }); return;
+      case "taken": case "invalid":
+        setPicked(null); setShowAll(false); setTaken(true);
+        if (r.kind === "taken" && r.slots && r.slots.length) { setSlots(withinDays(r.slots, new Date())); go("move"); } else { setSlots(null); go("move"); fetchMoveSlots(); }
+        return;
+      case "expired": return setScreen({ k: "expired" });
+      default: return setErr({ retry: () => move(fromNumber) });
     }
   }
 
@@ -350,13 +411,13 @@ function StartFlow() {
   }
 
   function back(step: StepId) {
-    const p = prevStep(step);
+    const p = step === "number" && moving ? "move" : prevStep(step);
     if (p) go(p);
   }
 
   /* ---------- render ---------- */
   const step = screen.k === "step" ? screen.step : null;
-  const prog = step ? progress(step, withDetails) : null;
+  const prog = step && !(moving && step === "number") ? progress(step, withDetails) : null;
   const n = prog?.n ?? null;
   const total = prog?.total ?? 0;
   const first = data?.first_name || typedName.current || null;
@@ -365,7 +426,8 @@ function StartFlow() {
   const Who = adviserFirst || "Your adviser";
 
   let body: ReactNode;
-  const backLink = step && prevStep(step) ? <button type="button" className="st-back" onClick={() => back(step)} disabled={busy}>‹ Back</button> : null;
+  const backTo = step === "number" && moving ? "move" : step ? prevStep(step) : null;
+  const backLink = step && backTo ? <button type="button" className="st-back" onClick={() => back(step)} disabled={busy}>‹ Back</button> : null;
   const errorBox = (
     <div className="st-live" aria-live="polite">
       {err && <div className="st-error"><p>Something went wrong.</p><button type="button" className="st-retry" onClick={err.retry} disabled={busy}>Try again</button></div>}
@@ -423,6 +485,41 @@ function StartFlow() {
     );
   };
   const guestLine = guestSent ? <p className="st-done-p">We've sent the invite to you and {guestSent}.</p> : null;
+  /** Switching to a phone call clears any guest (the guest field is on the Teams step only). */
+  const pickMethod = (m: Method) => { setMethod(m); if (m !== "teams") { setGuestOn(false); setGuest(""); setGuestErr(null); } };
+  const slotList = (retry: () => void) => {
+    const groups = slots ? groupSlots(slots, new Date()) : [];
+    const visibleGroups = showAll ? groups : limitGroups(groups, SHOW_ROWS);
+    const more = countRows(groups) > countRows(visibleGroups);
+    return (
+      <>
+        {slotsState === "loading" && <div className="st-skel" role="status"><span className="sr">Finding open times</span><i /><i /><i /></div>}
+        {slotsState === "error" && <div className="st-error" aria-live="polite"><p>Something went wrong.</p><button type="button" className="st-retry" onClick={retry}>Try again</button></div>}
+        {slotsState === "idle" && slots && (
+          <div className="st-slots" role="group" aria-label="Open times">
+            {visibleGroups.map((g) => (
+              <div key={g.label} className="st-slot-g">
+                <p className="st-slot-h">{g.label}</p>
+                {g.rows.map((s) => (
+                  <button key={s.start} type="button" className="st-slot" aria-pressed={picked === s.start} onClick={() => setPicked(s.start)}>
+                    <span>{s.day}</span><b>{s.time}</b>
+                  </button>
+                ))}
+              </div>
+            ))}
+            {more && <button type="button" className="st-more" onClick={() => setShowAll(true)}>More times</button>}
+          </div>
+        )}
+      </>
+    );
+  };
+  const moveFoot = (
+    <div className="st-foot st-sticky">
+      {errorBox}
+      <button type="submit" className="btn st-btn" disabled={busy || !picked}>{busy ? "Moving…" : "Move my call"}</button>
+      {backLink}
+    </div>
+  );
   const bookFoot = (
     <div className="st-foot st-sticky">
       {errorBox}
@@ -462,11 +559,27 @@ function StartFlow() {
             <strong>{formatWhen(b.start)}</strong>
             <span>{methodLabel(b.method)}{shown ? ` with ${shown.name}` : ""}, about 30 min</span>
           </div>
-          <p className="st-done-p">{b.held ? "Check your email and tap the link to confirm." : "Your calendar invite is on its way."}</p>
+          {b.method === "phone"
+            ? <p className="st-done-p">{Who} will call you{callOn ? ` on ${callOn}` : ""} at {formatTime(b.start)} on {formatDay(b.start)}. Your confirmation and reminders come on WhatsApp.</p>
+            : <p className="st-done-p">{b.held ? "Check your email and tap the link to confirm." : "Your calendar invite is on its way."}</p>}
           {guestLine}
           <p className="st-done-p"><strong>Just a few quick things so {who} is well prepared.</strong> It takes about 30 seconds.</p>
           <div className="st-foot">
             <button type="button" className="btn st-btn" onClick={() => go("age")}>Carry on</button>
+          </div>
+        </div>
+      );
+      break;
+    }
+    case "moved": {
+      const b = booking!;
+      body = (
+        <div className="st-done">
+          <span className="st-bigtick" aria-hidden="true"><TickSvg size={34} width={3.4} /></span>
+          <Q ref={headRef} className="st-done-h">Done, your call is moved to <em>{formatWhen(b.start)}.</em></Q>
+          <p className="st-done-p">{methodLabel(b.method)}{shown ? ` with ${shown.name}` : ""}, about 30 min. Your updated booking comes on WhatsApp too.</p>
+          <div className="st-foot">
+            <a className="btn st-btn" href={WA}>Back to WhatsApp</a>
           </div>
         </div>
       );
@@ -480,7 +593,7 @@ function StartFlow() {
           <Q ref={headRef} className="st-done-h">Great, that's <em>all set.</em></Q>
           <p className="st-done-p">{Who} has what they need{b ? ` for ${formatWhen(b.start)}` : " for your call"}. We'll be in touch on WhatsApp to remind you along the way.</p>
           {guestLine}
-          {b?.held && <p className="st-done-p">If you haven't yet, check your email and tap the link to confirm.</p>}
+          {b?.held && b.method !== "phone" && <p className="st-done-p">If you haven't yet, check your email and tap the link to confirm.</p>}
           <div className="st-foot">
             <a className="btn st-btn" href={WA}>Back to WhatsApp</a>
             <p className="st-fine">Nothing is bought on the call. Any next step is your choice.</p>
@@ -534,18 +647,38 @@ function StartFlow() {
             </form>
           );
           break;
+        case "move": {
+          const b = booking!;
+          body = (
+            <form className="st-form" noValidate onSubmit={(ev) => { ev.preventDefault(); move(); }}>
+              <Q ref={headRef}>Pick a <em>new time</em></Q>
+              <dl className="st-summary st-now" data-move-now>
+                <div><dt>Your call now</dt><dd>{formatWhen(b.start, ", ")}</dd></div>
+                {shown && <div><dt>With</dt><dd>{shown.name}</dd></div>}
+                <div><dt>How</dt><dd>{methodLabel(b.method)}</dd></div>
+              </dl>
+              {methods.length > 1 && (
+                <div className="st-seg" role="group" aria-label="Meeting type">
+                  {methods.map((m) => <button key={m} type="button" aria-pressed={method === m} onClick={() => pickMethod(m)}>{methodLabel(m)}</button>)}
+                </div>
+              )}
+              {taken && <p className="st-note" role="status">Sorry, that time was just taken. Here are the next open times.</p>}
+              {slotList(fetchMoveSlots)}
+              <p className="st-tz">{moveWindowLine(new Date())}</p>
+              {moveFoot}
+            </form>
+          );
+          break;
+        }
         case "time": {
           const adv = shown;
-          const groups = slots ? groupSlots(slots, new Date()) : [];
-          const visibleGroups = showAll ? groups : limitGroups(groups, SHOW_ROWS);
-          const more = countRows(groups) > countRows(visibleGroups);
           body = (
             <>
               <Q ref={headRef}>Pick a time for your <em>30-minute call</em></Q>
               {adv && <AdviserCard adviser={adv} />}
               {methods.length > 1 && (
                 <div className="st-seg" role="group" aria-label="Meeting type">
-                  {methods.map((m) => <button key={m} type="button" aria-pressed={method === m} onClick={() => setMethod(m)}>{methodLabel(m)}</button>)}
+                  {methods.map((m) => <button key={m} type="button" aria-pressed={method === m} onClick={() => pickMethod(m)}>{methodLabel(m)}</button>)}
                 </div>
               )}
               <p className="st-tz">30 minutes, South African time.</p>
@@ -555,23 +688,7 @@ function StartFlow() {
                   <button type="button" className="st-see-btn" onClick={() => requestAdviser(adviser.id)} disabled={busy}>{busy ? "One moment…" : `See ${adviser.first_name}'s times`}</button>
                 </div>
               )}
-              {isConfirmed && slotsState === "loading" && <div className="st-skel" role="status"><span className="sr">Finding open times</span><i /><i /><i /></div>}
-              {isConfirmed && slotsState === "error" && <div className="st-error" aria-live="polite"><p>Something went wrong.</p><button type="button" className="st-retry" onClick={fetchSlots}>Try again</button></div>}
-              {isConfirmed && slotsState === "idle" && slots && (
-                <div className="st-slots" role="group" aria-label="Open times">
-                  {visibleGroups.map((g) => (
-                    <div key={g.label} className="st-slot-g">
-                      <p className="st-slot-h">{g.label}</p>
-                      {g.rows.map((s) => (
-                        <button key={s.start} type="button" className="st-slot" aria-pressed={picked === s.start} onClick={() => setPicked(s.start)}>
-                          <span>{s.day}</span><b>{s.time}</b>
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                  {more && <button type="button" className="st-more" onClick={() => setShowAll(true)}>More times</button>}
-                </div>
-              )}
+              {isConfirmed && slotList(fetchSlots)}
               <div className="st-foot st-sticky">
                 {errorBox}
                 <button type="button" className="btn st-btn" disabled={!picked || !method} onClick={() => { setTaken(false); const nx = nextStep("time", method); if (nx === "email" || nx === "number") go(nx); }}>Book this time</button>
@@ -609,7 +726,7 @@ function StartFlow() {
             </button>
           );
           body = (
-            <form className="st-form" noValidate onSubmit={(ev) => { ev.preventDefault(); book(); }}>
+            <form className="st-form" noValidate onSubmit={(ev) => { ev.preventDefault(); if (moving) move(true); else book(); }}>
               <Q ref={headRef}>Which number should <em>{adviserFirst || "your adviser"} call?</em></Q>
               <div className="st-opts" role="radiogroup" aria-labelledby="st-q">
                 {hasWa && radio("whatsapp", <><strong>Call my WhatsApp number</strong><small>{waNumber}</small></>)}
@@ -629,10 +746,7 @@ function StartFlow() {
                   onChange={(e) => { setAlt(e.target.value); setNumErr((x) => ({ ...x, alt_number: false })); }} aria-invalid={!!numErr.alt_number} aria-describedby="st-alt-err" />
                 <p id="st-alt-err" className="st-field-err" aria-live="polite">{numErr.alt_number ? NUMBER_ERR : ""}</p>
               </div>
-              {emailField("Email for your confirmation")}
-              {emailHint}
-              {guestField("Add their email so they get the details too")}
-              {bookFoot}
+              {moving ? moveFoot : bookFoot}
             </form>
           );
           break;
@@ -679,12 +793,13 @@ function StartFlow() {
           <div className="st-top-row">
             <Wordmark plain />
             {n && <span className="st-pill"><span className="sr">Step </span>{n} of {total}</span>}
+            {!n && moving && step && <span className="st-pill">Move your call</span>}
           </div>
           {n && <div className="st-bars" style={{ ["--n" as string]: total }} aria-hidden="true">{Array.from({ length: total }, (_, i) => <i key={i} className={i < n ? "on" : undefined} />)}</div>}
         </div>
       </header>
       <main id="main" className="st-wrap st-main">
-        <div ref={bodyRef} className={"st-body" + (screen.k === "booked" || screen.k === "allset" ? " st-body-done" : "")}>{body}</div>
+        <div ref={bodyRef} className={"st-body" + (screen.k === "booked" || screen.k === "allset" || screen.k === "moved" ? " st-body-done" : "")}>{body}</div>
       </main>
     </div>
   );

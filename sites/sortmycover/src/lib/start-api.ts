@@ -17,7 +17,7 @@ export interface StartData {
   booking: Booking | null;
 }
 export interface SlotsData { slots: Slot[]; tz?: string; methods?: string[]; adviser_first_name?: string; fallback?: string }
-export interface BookBody { slot_start: string; method: string; email: string; email_confirmed: true; guest_email?: string; request_id: string; context: { source: "start_page" } }
+export interface BookBody { slot_start: string; method: string; email?: string; email_confirmed?: true; guest_email?: string; request_id: string; context: { source: "start_page" } }
 export interface BookedInfo { booking_id?: string; start: string; end: string; method: string; join_url?: string; ics_url?: string; verify?: string }
 
 type Fail = { kind: "expired" } | { kind: "error" };
@@ -25,6 +25,8 @@ export type StartResult = { kind: "ok"; data: StartData } | Fail;
 export type AdviserResult = ({ kind: "ok" } & AdviserReply) | Fail;
 export type ContactResult = { kind: "ok" } | { kind: "invalid"; field: "call_number" | "alt_number" } | Fail;
 export type AnswersResult = { kind: "ok" } | Fail;
+export type MoveResult = { kind: "moved"; booking: { start: string; end: string; method: string } } | { kind: "taken"; slots: Slot[] | null } | { kind: "invalid" } | Fail;
+export interface MoveBody { slot_start: string; method: string; request_id: string; context: { source: "start_page" } }
 export type SlotsResult = { kind: "ok"; data: SlotsData } | Fail;
 export type BookResult =
   | { kind: "booked"; info: BookedInfo }
@@ -40,6 +42,7 @@ export interface StartApi {
   postAnswers(body: object): Promise<AnswersResult>;
   getSlots(days: number): Promise<SlotsResult>;
   book(body: BookBody): Promise<BookResult>;
+  move(body: MoveBody): Promise<MoveResult>;
 }
 
 const TIMEOUT_MS = 10_000;
@@ -80,6 +83,32 @@ export function interpretAdviser(status: number, body: any): AdviserResult {
     return { kind: "ok", next: body.next, adviser: asAdviser(body.adviser) as AdviserInfo | null };
   }
   return { kind: "error" };
+}
+
+/** POST /start/move: { ok:true, booking:{start,end,method} }, 409 slot_taken (with the next open times when sent), 400 invalid. */
+export function interpretMove(status: number, body: any): MoveResult {
+  if (isAuth(status)) return { kind: "expired" };
+  if (status === 409 || body?.error === "slot_taken") {
+    const list = isSlotList(body?.slots) ? body.slots : isSlotList(body?.next) ? body.next : null;
+    return { kind: "taken", slots: list };
+  }
+  if (status === 400 || body?.error === "invalid") return { kind: "invalid" };
+  const b = body?.booking;
+  if (ok2xx(status) && body?.ok === true && b && typeof b.start === "string") return { kind: "moved", booking: { start: b.start, end: b.end, method: b.method } };
+  return { kind: "error" };
+}
+
+/** The move: a switch to a phone call whose number is not confirmed stores the numbers (POST /start/contact) first. */
+export async function runMove(
+  api: Pick<StartApi, "postContact" | "move">,
+  o: { contact: { call_number: string | null; alt_number?: string } | null; move: MoveBody; contactId: string },
+): Promise<MoveResult | { kind: "contact"; field: "call_number" | "alt_number" }> {
+  if (o.contact) {
+    const c = await api.postContact({ ...o.contact, request_id: o.contactId });
+    if (c.kind === "invalid") return { kind: "contact", field: c.field };
+    if (c.kind !== "ok") return c;
+  }
+  return api.move(o.move);
 }
 
 export function interpretContact(status: number, body: any): ContactResult {
@@ -172,6 +201,10 @@ export function createStartApi(token: string, base: string = API_BASE): StartApi
     async book(body) {
       const r = await call("POST", "/book", body);
       return interpretBook(r.status, r.data);
+    },
+    async move(body) {
+      const r = await call("POST", "/start/move", body);
+      return interpretMove(r.status, r.data);
     },
   };
 }

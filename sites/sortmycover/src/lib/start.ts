@@ -73,16 +73,17 @@ export function answersPayload(a: Answers, request_id: string) {
 /* ---------------- steps ---------------- */
 /** "details" is step 0, shown only on the no-token path (desktop CTAs link to /start/?ref=...): name, WhatsApp number, consent.
     "email" is the Teams invite step; "number" is the phone-call step (which number to call, an optional other number, the email). */
-export type StepId = "details" | "time" | "email" | "number" | "age" | "income" | "topics";
+export type StepId = "details" | "time" | "email" | "number" | "age" | "income" | "topics" | "move";
 /** Where a step leads: another step, "lead" (POST /lead, which returns the token every later call needs), "book" (the booking
     calls, then the Booked screen and "Carry on" to age) or "answers" (POST /start/answers, then All set). */
 export type Next = StepId | "lead" | "book" | "answers";
 
 export const TOTAL_STEPS = 5;
-const NUMBER: Record<StepId, number> = { details: 0, time: 1, email: 2, number: 2, age: 3, income: 4, topics: 5 };
+const NUMBER: Record<StepId, number> = { details: 0, time: 1, email: 2, number: 2, age: 3, income: 4, topics: 5, move: 0 };
 export const stepNumber = (s: StepId) => NUMBER[s];
 /** The pill and the bars: "n of 5" (time, invite, age, income, topics) on Lindi's link; "n of 6" when the visit started at step 0. */
-export function progress(s: StepId, withDetails: boolean): { n: number; total: number } {
+export function progress(s: StepId, withDetails: boolean): { n: number; total: number } | null {
+  if (s === "move") return null; // the reschedule screen shows "Move your call" instead of a count
   return withDetails ? { n: NUMBER[s] + 1, total: TOTAL_STEPS + 1 } : { n: NUMBER[s], total: TOTAL_STEPS };
 }
 
@@ -95,6 +96,7 @@ export function nextStep(step: StepId, method: Method | null): Next {
     case "age": return "income";
     case "income": return "topics";
     case "topics": return "answers";
+    case "move": return method === "phone" ? "number" : "book"; // "book" here = POST /start/move (the page asks the number only when needed)
   }
 }
 
@@ -347,6 +349,8 @@ export function toE164(v: string): string | null {
   else return null;
   return /^[678]\d{8}$/.test(d) ? "+27" + d : null;
 }
+/** "+27112345678" -> "011 234 5678" (how the number to call is shown back). */
+export const prettyLocal = (e: string) => e.replace(/^\+27(\d{2})(\d{3})(\d{4})$/, "0$1 $2 $3");
 export const prettyMobile = (e: string) => e.replace(/^\+27(\d{2})(\d{3})(\d{4})$/, "+27 $1 $2 $3");
 export const validFirstName = (s: string) => { const v = s.trim(); return v.length >= 1 && v.length <= 60 && /\p{L}/u.test(v); };
 
@@ -382,18 +386,44 @@ export function leadBody(i: LeadInput, cfg: { named: { text: string; version: st
 }
 
 /* ---------------- optional guest on the invite (Jono, 19 Oct 2026) ---------------- */
-/** "Someone else joining?": the guest's email for POST /book as guest_email. Unticked or blank sends nothing; a filled field must
-    be a complete address (same check as the main email). */
-export function guestEmail(on: boolean, v: string): { ok: true; guest_email?: string } | { ok: false } {
+/** "Someone else joining?" (Teams invite step only): the guest's email for POST /book as guest_email. A phone call, unticked or
+    blank sends nothing; a filled field must be a complete address (same check as the main email). */
+export function guestEmail(method: Method | null, on: boolean, v: string): { ok: true; guest_email?: string } | { ok: false } {
   const e = (v || "").trim();
-  if (!on || !e) return { ok: true };
+  if (method !== "teams" || !on || !e) return { ok: true };
   return validEmail(e) ? { ok: true, guest_email: e } : { ok: false };
 }
-/** The /book body, with guest_email only when there is one. */
-export function bookBody(o: { slot_start: string; method: string; email: string; guest_email?: string; request_id: string }) {
+/** The /book body. Teams: the email (and guest_email only when there is one). Phone: no email at all (the confirmation and
+    reminders come on WhatsApp; Jono, 19 Oct 2026). */
+export function bookBody(o: { slot_start: string; method: Method; email?: string; guest_email?: string; request_id: string }) {
+  const teams = o.method === "teams";
   return {
-    slot_start: o.slot_start, method: o.method, email: o.email.trim(), email_confirmed: true as const,
-    ...(o.guest_email ? { guest_email: o.guest_email } : {}),
+    slot_start: o.slot_start, method: o.method,
+    ...(teams ? { email: (o.email || "").trim(), email_confirmed: true as const } : {}),
+    ...(teams && o.guest_email ? { guest_email: o.guest_email } : {}),
     request_id: o.request_id, context: { source: "start_page" as const },
   };
 }
+
+/* ---------------- reschedule: "Move your call" (#lt=...&move=1; Jono, 19 Oct 2026, mockup frames 12 to 14) ---------------- */
+export const MOVE_DAYS = 14;
+const DAY_MS = 86400000;
+/** `move=1` in the fragment, read together with lt. */
+export function readMoveFromHash(hash: string): boolean {
+  try { return new URLSearchParams((hash || "").replace(/^#/, "")).get("move") === "1"; } catch { return false; }
+}
+/** A booking that can still be moved: it exists and has not started. Anything else falls back to the normal flow. */
+export const isLiveBooking = (b: BookingState | null | undefined, now: Date): b is BookingState => !!b && Date.parse(b.start) > now.getTime();
+/** Only times from now up to 14 days from today (the server is asked for days=14; this is the page's own cap). */
+export function withinDays(slots: readonly Slot[], now: Date, days = MOVE_DAYS): Slot[] {
+  const from = now.getTime(), to = from + days * DAY_MS;
+  return slots.filter((s) => { const t = Date.parse(s.start); return !isNaN(t) && t > from && t <= to; });
+}
+/** "Open times up to Sun 2 Nov (14 days from today)." */
+export const moveWindowLine = (now: Date, days = MOVE_DAYS) => `Open times up to ${formatDay(new Date(now.getTime() + days * DAY_MS).toISOString())} (${days} days from today).`;
+/** Moving to a phone call asks the number step first unless the number is already confirmed (the call was a phone call, or a
+    call number is stored). */
+export const moveNeedsNumber = (method: Method, booking: BookingState, contact: { call_number?: string | null } | null | undefined) =>
+  method === "phone" && booking.method !== "phone" && !contact?.call_number;
+/** Body for POST /start/move. */
+export const moveBody = (slot_start: string, method: Method, request_id: string) => ({ slot_start, method, request_id, context: { source: "start_page" as const } });

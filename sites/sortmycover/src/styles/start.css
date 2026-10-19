@@ -107,6 +107,8 @@
 .st-summary div { display: flex; justify-content: space-between; gap: 10px; }
 .st-summary dt { color: var(--sm-muted); }
 .st-summary dd { margin: 0; font-weight: 800; text-align: right; }
+/* Move your call: the call as it stands now, in a grey box */
+.st-now { background: var(--sm-off-white-2); border-color: var(--sm-off-white-2); }
 
 /* done */
 .st-done { flex: 1; display: flex; flex-direction: column; gap: 16px; }

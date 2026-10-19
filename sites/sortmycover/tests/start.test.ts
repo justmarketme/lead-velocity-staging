@@ -10,14 +10,14 @@ import { AdviserCard } from "../src/pages/Start";
 import { MOCK_ADVISER, createMockApi, mockPostLead, type MockLog } from "../src/lib/start-mock";
 import consentJson from "../config/consent.json";
 import {
-  AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, START_ADVISER, TOPICS, afterAdviser, answersComplete, answersPayload, availableMethods, bookBody, bookingCalls,
+  AGE_BANDS, INCOME_BANDS, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, prettyLocal, readMoveFromHash, withinDays, INTRO_DISCLOSURE, START_ADVISER, TOPICS, afterAdviser, answersComplete, answersPayload, availableMethods, bookBody, bookingCalls,
   canFinishTopics, cleanAnswers, contactPayload, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, guestEmail, initials,
   leadAttribution, leadBody, limitGroups, methodLabel, namedConsent, nextStep, onLoadFailure, prettyMobile, prevStep, progress, readTokenFromHash, resumeAt,
   startIntroLine, stepNumber, suggestEmail, toE164, toSaNumber, toggleTopic, validEmail, waLink, WHY_WHATSAPP,
   type AdviserInfo, type Method, type Next, type StepId,
 } from "../src/lib/start";
 import {
-  interpretAdviser, interpretAnswers, interpretBook, interpretContact, interpretLead, interpretStart, postLead, runBooking, type BookBody, type StartApi,
+  interpretAdviser, interpretMove, runMove, interpretAnswers, interpretBook, interpretContact, interpretLead, interpretStart, postLead, runBooking, type BookBody, type StartApi,
 } from "../src/lib/start-api";
 
 const PAGE = fs.readFileSync(path.resolve(__dirname, "../src/pages/Start.tsx"), "utf8");
@@ -203,7 +203,7 @@ describe("meeting type", () => {
 });
 
 describe("phone call: POST /start/contact, only on phone, before /book", () => {
-  const body: BookBody = { slot_start: "2026-10-21T10:30:00+02:00", method: "phone", email: "n@gmail.com", email_confirmed: true, request_id: "b1", context: { source: "start_page" } };
+  const body: BookBody = { slot_start: "2026-10-21T10:30:00+02:00", method: "phone", request_id: "b1", context: { source: "start_page" } };
   const fake = (contact: "ok" | "invalid" = "ok") => {
     const calls: string[] = [];
     const api: Pick<StartApi, "postContact" | "book"> = {
@@ -258,27 +258,134 @@ describe("phone call: POST /start/contact, only on phone, before /book", () => {
   });
 });
 
-describe("someone else joining (optional guest on the invite)", () => {
-  it("unticked or blank sends nothing; filled must be a complete address", () => {
-    expect(guestEmail(false, "thabo@gmail.com")).toEqual({ ok: true });
-    expect(guestEmail(true, "  ")).toEqual({ ok: true });
-    expect(guestEmail(true, " thabo@gmail.com ")).toEqual({ ok: true, guest_email: "thabo@gmail.com" });
-    expect(guestEmail(true, "thabo@gmail")).toEqual({ ok: false });
+describe("someone else joining (optional guest, Teams invite step only)", () => {
+  it("unticked, blank or a phone call sends nothing; filled must be a complete address", () => {
+    expect(guestEmail("teams", false, "thabo@gmail.com")).toEqual({ ok: true });
+    expect(guestEmail("teams", true, "  ")).toEqual({ ok: true });
+    expect(guestEmail("teams", true, " thabo@gmail.com ")).toEqual({ ok: true, guest_email: "thabo@gmail.com" });
+    expect(guestEmail("teams", true, "thabo@gmail")).toEqual({ ok: false });
+    expect(guestEmail("phone", true, "thabo@gmail.com")).toEqual({ ok: true });
+    expect(guestEmail("phone", true, "thabo@gmail")).toEqual({ ok: true });
   });
-  it("guest_email is in the /book body only when filled", () => {
-    const base = { slot_start: "s", method: "teams", email: "n@gmail.com", request_id: "r" };
+  it("guest_email is in the /book body only when filled, and only for Teams", () => {
+    const base = { slot_start: "s", method: "teams" as Method, email: "n@gmail.com", request_id: "r" };
     expect(bookBody(base)).not.toHaveProperty("guest_email");
     expect(bookBody({ ...base, guest_email: undefined })).not.toHaveProperty("guest_email");
     expect(bookBody({ ...base, guest_email: "thabo@gmail.com" })).toMatchObject({ guest_email: "thabo@gmail.com", email_confirmed: true, context: { source: "start_page" } });
+    expect(bookBody({ ...base, method: "phone", guest_email: "thabo@gmail.com" })).not.toHaveProperty("guest_email");
   });
-  it("the field shows only when ticked, with did-you-mean, on both invite steps; the done screens name the guest", () => {
+  it("the field shows only when ticked, with did-you-mean, on the Teams step only; switching to phone clears it", () => {
     expect(PAGE).toMatch(/\{guestOn && \(\s*<div className="st-field" id="st-guest-box">/);
     expect(PAGE).toMatch(/const sug = guestOn \? suggestEmail\(guest\) : null/);
+    expect(PAGE.match(/guestField\("/g)?.length).toBe(1);
     expect(PAGE).toContain('guestField("Add a partner or family member to the invite")');
-    expect(PAGE).toContain('guestField("Add their email so they get the details too")');
+    expect(PAGE).not.toContain("Add their email so they get the details too");
+    expect(PAGE).toMatch(/if \(m !== "teams"\) \{ setGuestOn\(false\); setGuest\(""\); setGuestErr\(null\); \}/);
     expect(PAGE).toContain("Someone else joining?");
     expect(PAGE).toContain("We've sent the invite to you and {guestSent}.");
     expect(PAGE.match(/\{guestLine\}/g)?.length).toBe(2);
+  });
+});
+
+describe("phone path: numbers only, no email (Jono, 19 Oct 2026)", () => {
+  it("the number step has no email or guest field; the Teams step has both", () => {
+    const num = PAGE.slice(PAGE.indexOf('case "number": {'), PAGE.indexOf('case "age":'));
+    expect(num).toContain("Which number should");
+    expect(num).not.toMatch(/emailField|guestField|st-email/);
+    const teams = PAGE.slice(PAGE.indexOf('case "email": {'), PAGE.indexOf('case "number": {'));
+    expect(teams).toContain('emailField("Email address")');
+    expect(teams).toContain("guestField(");
+  });
+  it("/book for phone carries no email; Teams carries the email", () => {
+    const p = bookBody({ slot_start: "s", method: "phone", email: "n@gmail.com", request_id: "r" });
+    expect(p).not.toHaveProperty("email");
+    expect(p).not.toHaveProperty("email_confirmed");
+    expect(p).toEqual({ slot_start: "s", method: "phone", request_id: "r", context: { source: "start_page" } });
+    expect(bookBody({ slot_start: "s", method: "teams", email: " n@gmail.com ", request_id: "r" })).toMatchObject({ email: "n@gmail.com", email_confirmed: true });
+  });
+  it("the mock refuses an email on a phone booking", async () => {
+    const api = createMockApi();
+    await api.postContact({ call_number: null, request_id: "c" });
+    await expect(api.book({ slot_start: "x", method: "phone", email: "n@gmail.com", email_confirmed: true, request_id: "b", context: { source: "start_page" } })).rejects.toThrow(/no email/);
+  }, 10000);
+  it("the phone booked screen says who calls which number, with confirmation on WhatsApp", () => {
+    expect(PAGE).toContain("Your confirmation and reminders come on WhatsApp.");
+    expect(PAGE).toMatch(/b\.method === "phone"\s*\? <p className="st-done-p">\{Who\} will call you/);
+    expect(prettyLocal("+27112345678")).toBe("011 234 5678");
+  });
+});
+
+describe("reschedule: Move your call (#lt=...&move=1)", () => {
+  const now = new Date("2026-10-19T12:00:00+02:00"); // Monday
+  const live = { start: "2026-10-21T10:30:00+02:00", end: "2026-10-21T11:00:00+02:00", method: "teams", held: false };
+  it("reads move=1 together with lt", () => {
+    expect(readMoveFromHash("#lt=abc&move=1")).toBe(true);
+    expect(readTokenFromHash("#lt=abc&move=1")).toBe("abc");
+    expect(readMoveFromHash("#lt=abc")).toBe(false);
+    expect(readMoveFromHash("#lt=abc&move=0")).toBe(false);
+  });
+  it("only a live booking opens the move screen; otherwise the normal flow", () => {
+    expect(isLiveBooking(live, now)).toBe(true);
+    expect(isLiveBooking(null, now)).toBe(false);
+    expect(isLiveBooking({ ...live, start: "2026-10-18T10:30:00+02:00" }, now)).toBe(false);
+    expect(PAGE).toMatch(/if \(moveAsked\.current && isLiveBooking\(d\.booking, new Date\(\)\)\)/);
+    expect(PAGE).toContain("setMoving(false); // no live booking: the normal flow");
+  });
+  it("shows the current booking in the summary box, the toggle and the 14-day line", () => {
+    const mv = PAGE.slice(PAGE.indexOf('case "move": {'), PAGE.indexOf('case "time": {'));
+    expect(mv).toContain("Pick a <em>new time</em>");
+    expect(mv).toMatch(/<dt>Your call now<\/dt><dd>\{formatWhen\(b\.start, ", "\)\}<\/dd>/);
+    expect(mv).toMatch(/<dt>With<\/dt><dd>\{shown\.name\}<\/dd>/);
+    expect(mv).toMatch(/<dt>How<\/dt><dd>\{methodLabel\(b\.method\)\}<\/dd>/);
+    expect(mv).toContain('aria-label="Meeting type"');
+    expect(mv).toContain("{moveWindowLine(new Date())}");
+    expect(PAGE).toContain("Move my call");
+    expect(PAGE).toContain("Done, your call is moved to");
+    expect(moveWindowLine(now)).toBe("Open times up to Mon 2 Nov (14 days from today).");
+  });
+  it("no slot past 14 days (or in the past)", () => {
+    const mk = (d: string) => ({ start: d, end: d });
+    const list = withinDays([mk("2026-10-19T11:00:00+02:00"), mk("2026-10-20T09:00:00+02:00"), mk("2026-11-02T12:00:00+02:00"), mk("2026-11-02T12:30:00+02:00"), mk("2026-11-10T09:00:00+02:00"), mk("bad")], now);
+    expect(list.map((s) => s.start)).toEqual(["2026-10-20T09:00:00+02:00", "2026-11-02T12:00:00+02:00"]);
+    expect(PAGE).toContain("api.current!.getSlots(14)");
+    expect(PAGE).toContain("withinDays(r.data.slots, new Date())");
+  });
+  it("the mock offers times past 14 days, which the cap removes", async () => {
+    const api = createMockApi({ booked: true });
+    const r = await api.getSlots(14);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    const n = new Date();
+    expect(r.data.slots.some((s) => Date.parse(s.start) > n.getTime() + 14 * 86400000)).toBe(true);
+    expect(withinDays(r.data.slots, n).every((s) => Date.parse(s.start) <= n.getTime() + 14 * 86400000)).toBe(true);
+  }, 10000);
+  it("the POST /start/move body", () => {
+    expect(moveBody("2026-10-24T14:00:00+02:00", "teams", "m1")).toEqual({ slot_start: "2026-10-24T14:00:00+02:00", method: "teams", request_id: "m1", context: { source: "start_page" } });
+  });
+  it("a switch to phone with no confirmed number asks the number step first, then contact, then move", async () => {
+    expect(moveNeedsNumber("phone", live, {})).toBe(true);
+    expect(moveNeedsNumber("phone", live, { call_number: "+27821234567" })).toBe(false);
+    expect(moveNeedsNumber("phone", { ...live, method: "phone" }, {})).toBe(false);
+    expect(moveNeedsNumber("teams", live, {})).toBe(false);
+    const log: MockLog = { calls: [] };
+    const api = createMockApi({ booked: true, log });
+    await expect(api.move(moveBody("2026-10-24T14:00:00+02:00", "phone", "m0"))).rejects.toThrow(/before \/start\/contact/);
+    const r = await runMove(api, { contact: { call_number: null }, move: moveBody("2026-10-24T14:00:00+02:00", "phone", "m1"), contactId: "c1" });
+    expect(r).toMatchObject({ kind: "moved", booking: { start: "2026-10-24T14:00:00+02:00", method: "phone" } });
+    expect(log.calls.slice(-2)).toEqual(["contact", "move"]);
+    const r2 = await runMove(api, { contact: null, move: moveBody("2026-10-27T09:00:00+02:00", "teams", "m2"), contactId: "c2" });
+    expect(r2).toMatchObject({ kind: "moved" });
+    expect(log.calls.slice(-1)).toEqual(["move"]);
+  }, 15000);
+  it("maps /start/move replies like /book", () => {
+    const b = { start: "2026-10-24T14:00:00+02:00", end: "2026-10-24T14:30:00+02:00", method: "teams" };
+    expect(interpretMove(200, { ok: true, booking: b })).toEqual({ kind: "moved", booking: b });
+    expect(interpretMove(409, { error: "slot_taken", slots: [b] })).toEqual({ kind: "taken", slots: [b] });
+    expect(interpretMove(409, { error: "slot_taken" })).toEqual({ kind: "taken", slots: null });
+    expect(interpretMove(400, { error: "invalid" })).toEqual({ kind: "invalid" });
+    expect(interpretMove(401, null)).toEqual({ kind: "expired" });
+    expect(interpretMove(200, { ok: true })).toEqual({ kind: "error" });
+    expect(interpretMove(0, null)).toEqual({ kind: "error" });
   });
 });
 
