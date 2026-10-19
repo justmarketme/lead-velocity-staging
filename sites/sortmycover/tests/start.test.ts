@@ -1,18 +1,360 @@
-/* /start/ pure helpers (src/lib/start.ts) and response mapping (src/lib/start-api.ts). */
+/* /start/ v4 (book first; Jono, 19 Oct 2026): pure helpers (src/lib/start.ts), response mapping and the booking sequence
+   (src/lib/start-api.ts), the dev mock (src/lib/start-mock.ts) and the page copy. */
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { BANNED } from "../src/build/wording";
-import { AdviserIntro } from "../src/pages/Start";
-import { createMockApi, mockPostLead } from "../src/lib/start-mock";
+import { AdviserCard } from "../src/pages/Start";
+import { MOCK_ADVISER, createMockApi, mockPostLead, type MockLog } from "../src/lib/start-mock";
 import consentJson from "../config/consent.json";
 import {
-  INTRO_DISCLOSURE, START_ADVISER, adviserDisclosure, afterAnswers, answersPayload, firstScreen, onLoadFailure, WHY_WHATSAPP, leadAttribution, leadBody, namedConsent, prettyMobile, progress, startIntroLine, toE164, availableMethods, defaultMethod, formatDay, formatTime, formatWhen, groupSlots, initials, limitGroups, methodLabel,
-  hasCoverNow, nextStep, prevStep, readTokenFromHash, resumeAt, setAnswer, stepNumber, suggestEmail, validEmail, waLink, type AdviserInfo, type Answers, type StepId,
+  AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, START_ADVISER, TOPICS, afterAdviser, answersComplete, answersPayload, availableMethods, bookBody, bookingCalls,
+  canFinishTopics, cleanAnswers, contactPayload, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, guestEmail, initials,
+  leadAttribution, leadBody, limitGroups, methodLabel, namedConsent, nextStep, onLoadFailure, prettyMobile, prevStep, progress, readTokenFromHash, resumeAt,
+  startIntroLine, stepNumber, suggestEmail, toE164, toSaNumber, toggleTopic, validEmail, waLink, WHY_WHATSAPP,
+  type AdviserInfo, type Method, type Next, type StepId,
 } from "../src/lib/start";
-import { interpretAnswers, interpretBook, interpretLead, postLead } from "../src/lib/start-api";
+import {
+  interpretAdviser, interpretAnswers, interpretBook, interpretContact, interpretLead, interpretStart, postLead, runBooking, type BookBody, type StartApi,
+} from "../src/lib/start-api";
+
+const PAGE = fs.readFileSync(path.resolve(__dirname, "../src/pages/Start.tsx"), "utf8");
+const MARK: AdviserInfo = { ...MOCK_ADVISER };
+
+/** Walks the step machine from the time step to the end, standing in for the API calls ("book" → Booked → Carry on → age). */
+function walk(method: Method, from: StepId = "time"): (StepId | Next | "booked")[] {
+  const out: (StepId | Next | "booked")[] = [from];
+  let s: StepId = from;
+  for (;;) {
+    const n = nextStep(s, method);
+    out.push(n);
+    if (n === "answers") return out;
+    if (n === "lead") { s = "time"; out.push("time"); continue; }
+    if (n === "book") { out.push("booked"); s = "age"; out.push("age"); continue; }
+    s = n;
+  }
+}
+
+describe("step order (v4: book first)", () => {
+  it("Teams: time, email, book, Booked, age, income, topics, answers", () => {
+    expect(walk("teams")).toEqual(["time", "email", "book", "booked", "age", "income", "topics", "answers"]);
+  });
+  it("phone: time, the number step (with the email), book, Booked, age, income, topics, answers", () => {
+    expect(walk("phone")).toEqual(["time", "number", "book", "booked", "age", "income", "topics", "answers"]);
+  });
+  it("no intent, has-cover, budget or want step any more", () => {
+    for (const m of ["teams", "phone"] as Method[]) for (const gone of ["intent", "cover", "budget", "want", "adviser"]) expect(walk(m)).not.toContain(gone);
+    for (const gone of ['"intent"', '"has_cover"', '"budget_band"', '"want"']) expect(PAGE).not.toContain(gone);
+  });
+  it("progress is n of 5 (time, invite, age, income, topics); 6 with step 0", () => {
+    expect((["time", "email", "age", "income", "topics"] as StepId[]).map((s) => progress(s, false))).toEqual([1, 2, 3, 4, 5].map((n) => ({ n, total: 5 })));
+    expect(progress("number", false)).toEqual({ n: 2, total: 5 });
+    expect(stepNumber("number")).toBe(stepNumber("email"));
+    expect(progress("details", true)).toEqual({ n: 1, total: 6 });
+    expect(progress("time", true)).toEqual({ n: 2, total: 6 });
+    expect(progress("topics", true)).toEqual({ n: 6, total: 6 });
+  });
+  it("back links: invite to time, income to age, topics to income; never back past the booking or to step 0", () => {
+    expect(prevStep("email")).toBe("time");
+    expect(prevStep("number")).toBe("time");
+    expect(prevStep("income")).toBe("age");
+    expect(prevStep("topics")).toBe("income");
+    expect(prevStep("age")).toBeNull();
+    expect(prevStep("time")).toBeNull();
+    expect(prevStep("details")).toBeNull();
+  });
+});
+
+describe("resume from GET /start", () => {
+  const b = { start: "2026-10-21T10:30:00+02:00", end: "2026-10-21T11:00:00+02:00", method: "teams", held: false };
+  const full = { age_band: "35_44", income_band: "40k_60k", topics: ["life"] } as const;
+  it("no booking: the time step (adviser card first)", () => {
+    expect(resumeAt(null, {})).toBe("time");
+    expect(resumeAt(null, { ...full, topics: ["life"] })).toBe("time");
+  });
+  it("booking not held and answers complete: All set", () => {
+    expect(resumeAt(b, { ...full, topics: ["life"] })).toBe("allset");
+  });
+  it("booking exists but answers missing: the age step (the booking is kept)", () => {
+    expect(resumeAt(b, {})).toBe("age");
+    expect(resumeAt({ ...b, held: true }, {})).toBe("age");
+    expect(resumeAt(b, { age_band: "lt35", income_band: "lt20k" })).toBe("age");
+    expect(resumeAt(b, { age_band: "lt35", income_band: "lt20k", topics: [] })).toBe("age");
+  });
+  it("old answers (intent, has_cover, budget_band, want) are ignored", () => {
+    expect(cleanAnswers({ intent: "life", has_cover: "yes", budget_band: "lt750", want: "family", age_band: "45_50", topics: ["will", "nope", "life"] })).toEqual({ age_band: "45_50", topics: ["life", "will"] });
+    expect(cleanAnswers(null)).toEqual({});
+  });
+  it("the mock resumes a booked lead at the age step, then All set once the answers are in", async () => {
+    const api = createMockApi({ booked: true });
+    const r = await api.getStart();
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.data.booking).toBeTruthy();
+    expect(resumeAt(r.data.booking, r.data.answers)).toBe("age");
+    expect(await api.postAnswers({ age_band: "35_44", income_band: "lt20k", topics: ["review"], request_id: "r1" })).toEqual({ kind: "ok" });
+    const r2 = await api.getStart();
+    expect(r2.kind === "ok" && resumeAt(r2.data.booking, r2.data.answers)).toBe("allset");
+  }, 10000);
+});
+
+describe("age, income and topics (POST /start/answers after booking)", () => {
+  it("age bands", () => {
+    expect(AGE_BANDS.map((o) => o.v)).toEqual(["lt35", "35_44", "45_50", "51plus"]);
+  });
+  it("income uses the six leads.income_band codes, with the approved labels", () => {
+    expect(INCOME_BANDS).toEqual([
+      { v: "lt20k", t: "Under R20,000" }, { v: "20k_40k", t: "R20,000 to R40,000" }, { v: "40k_60k", t: "R40,000 to R60,000" },
+      { v: "60k_100k", t: "R60,000 to R100,000" }, { v: "100kplus", t: "R100,000 or more" }, { v: "prefer_not", t: "Prefer not to say" },
+    ]);
+    expect(PAGE).toContain("Before tax. A band is enough.");
+  });
+  it("topics: six options, multi-select in page order, Done only once one is ticked", () => {
+    expect(TOPICS.map((o) => o.v)).toEqual(["life", "disability_income", "severe_illness", "review", "new_bond", "will"]);
+    expect(TOPICS.map((o) => o.t)).toEqual(["Life cover", "Disability or income protection", "Severe illness cover", "Review my cover", "I just got a new bond", "I need a will"]);
+    expect(canFinishTopics(undefined)).toBe(false);
+    expect(canFinishTopics([])).toBe(false);
+    let t = toggleTopic(undefined, "will");
+    t = toggleTopic(t, "life");
+    expect(t).toEqual(["life", "will"]);
+    expect(canFinishTopics(t)).toBe(true);
+    t = toggleTopic(toggleTopic(t, "life"), "will");
+    expect(t).toEqual([]);
+    expect(canFinishTopics(t)).toBe(false);
+    expect(PAGE).toMatch(/disabled=\{!ready \|\| busy\}/);
+    expect(PAGE).toContain("Pick as many as you like.");
+  });
+  it("the payload needs all three; no routing fields", () => {
+    expect(answersPayload({ age_band: "lt35", income_band: "lt20k" }, "r")).toBeNull();
+    expect(answersPayload({ age_band: "lt35", topics: ["life"] }, "r")).toBeNull();
+    expect(answersPayload({ age_band: "51plus", income_band: "prefer_not", topics: ["life", "new_bond"] }, "r")).toEqual({ age_band: "51plus", income_band: "prefer_not", topics: ["life", "new_bond"], request_id: "r" });
+    expect(answersComplete({ age_band: "51plus", income_band: "prefer_not", topics: ["will"] })).toBe(true);
+  });
+  it("the mock rejects incomplete answers", async () => {
+    const api = createMockApi();
+    expect((await api.postAnswers({ age_band: "lt35", income_band: "lt20k", topics: [], request_id: "r" })).kind).toBe("error");
+    expect((await api.postAnswers({ age_band: "lt35", income_band: "1500_plus", topics: ["life"], request_id: "r" })).kind).toBe("error");
+  }, 10000);
+});
+
+describe("adviser confirm gate (two-phase POST /start/adviser before any open time)", () => {
+  const other: AdviserInfo = { id: "b2", first_name: "Thandi", name: "Thandi Mokoena", firm: "Example Wealth", fsp: "12345", bio: null, photo_url: null };
+  it("the first POST names the adviser; the times open only on 'slots' to a POST confirming that same adviser", () => {
+    expect(afterAdviser({ next: "adviser", adviser: MARK }, null)).toEqual({ k: "adviser", adviser: MARK });
+    expect(afterAdviser({ next: "slots", adviser: MARK }, "mock-broker")).toEqual({ k: "slots" });
+    expect(afterAdviser({ next: "slots", adviser: null }, "mock-broker")).toEqual({ k: "slots" });
+    expect(afterAdviser({ next: "chat" }, null)).toEqual({ k: "chat" });
+  });
+  it("an unconfirmed 'slots' never opens the times; a different adviser must be confirmed again", () => {
+    expect(afterAdviser({ next: "slots", adviser: MARK }, null)).toEqual({ k: "adviser", adviser: MARK });
+    expect(afterAdviser({ next: "slots", adviser: null }, null)).toEqual({ k: "error" });
+    expect(afterAdviser({ next: "adviser", adviser: null }, null)).toEqual({ k: "error" });
+    expect(afterAdviser({ next: "slots", adviser: other }, "mock-broker")).toEqual({ k: "adviser", adviser: other });
+  });
+  it("no /slots before the confirm: the mock refuses, and the page guards fetchSlots on the confirmed id", async () => {
+    const log: MockLog = { calls: [] };
+    const api = createMockApi({ log });
+    await expect(api.getSlots(7)).rejects.toThrow(/before the adviser was confirmed/);
+    expect(await api.postAdviser({ request_id: "r1" })).toMatchObject({ kind: "ok", next: "adviser", adviser: { id: "mock-broker", bio: MOCK_ADVISER.bio, photo_url: null } });
+    await expect(api.getSlots(7)).rejects.toThrow(/before the adviser was confirmed/);
+    expect(await api.postAdviser({ confirm_adviser: "mock-broker", request_id: "r2" })).toMatchObject({ kind: "ok", next: "slots" });
+    const s = await api.getSlots(7);
+    expect(s.kind === "ok" && s.data.slots.length).toBeGreaterThan(5);
+    expect(log.calls.indexOf("adviser:confirm")).toBeLessThan(log.calls.lastIndexOf("slots"));
+    expect(PAGE).toMatch(/if \(!confirmed\.current\) return; \/\/ never ask for times/);
+    expect(PAGE).toMatch(/onClick=\{\(\) => requestAdviser\(adviser\.id\)\}/);
+  }, 15000);
+  it("the card: initials without a photo, name, firm, Authorised FSP n, and the bio in quotes", () => {
+    const html = renderToStaticMarkup(createElement(AdviserCard, { adviser: MARK })).replace(/&#x27;/g, "'");
+    expect(html).toContain(">MW<");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("<strong>Mark Weston</strong>");
+    expect(html).toContain("Oracle Private Wealth");
+    expect(html).toContain("Authorised FSP 28418");
+    expect(html).toContain("“With 26 years' experience, I help families protect the people they love and plan for retirement, before and at retirement.”");
+    expect(fspLine(12345)).toBe("Authorised FSP 12345");
+  });
+  it("the card: a photo when photo_url is set, and no bio line when bio is null", () => {
+    const html = renderToStaticMarkup(createElement(AdviserCard, { adviser: { ...other, photo_url: "https://example.com/t.jpg" } }));
+    expect(html).toMatch(/<img[^>]+src="https:\/\/example\.com\/t\.jpg"/);
+    expect(html).not.toContain("st-bio");
+    expect(html).not.toContain("“");
+  });
+  it("the required small print sits under Book this time, in the contract wording", () => {
+    expect(INTRO_DISCLOSURE).toBe("Introduced by SortMyCover, which gives no advice. Advisers pay SortMyCover a fee that doesn't depend on whether you buy anything.");
+    expect(PAGE.indexOf(">Book this time<")).toBeLessThan(PAGE.indexOf("{INTRO_DISCLOSURE}"));
+    expect(PAGE).toMatch(/data-disclosure>\{INTRO_DISCLOSURE\}/);
+  });
+});
+
+describe("meeting type", () => {
+  it("offers Teams and phone only, in a fixed order, defaulting to Teams, with the v4 labels", () => {
+    expect(availableMethods(["phone", "whatsapp_call", "teams", "zoom"])).toEqual(["teams", "phone"]);
+    expect(availableMethods(["whatsapp_call"])).toEqual([]);
+    expect(availableMethods(undefined)).toEqual([]);
+    expect(defaultMethod(["phone", "teams"])).toBe("teams");
+    expect(defaultMethod(["phone", "whatsapp_call"])).toBe("phone");
+    expect(defaultMethod([])).toBeNull();
+    expect(methodLabel("teams")).toBe("Microsoft Teams call");
+    expect(methodLabel("phone")).toBe("Phone call");
+  });
+});
+
+describe("phone call: POST /start/contact, only on phone, before /book", () => {
+  const body: BookBody = { slot_start: "2026-10-21T10:30:00+02:00", method: "phone", email: "n@gmail.com", email_confirmed: true, request_id: "b1", context: { source: "start_page" } };
+  const fake = (contact: "ok" | "invalid" = "ok") => {
+    const calls: string[] = [];
+    const api: Pick<StartApi, "postContact" | "book"> = {
+      async postContact(b) { calls.push("contact:" + JSON.stringify(b)); return contact === "ok" ? { kind: "ok" } : { kind: "invalid", field: "alt_number" }; },
+      async book(b) { calls.push("book:" + b.method); return { kind: "held", info: { start: b.slot_start, end: "", method: b.method } }; },
+    };
+    return { api, calls };
+  };
+  it("the booking calls in order", () => {
+    expect(bookingCalls("phone")).toEqual(["contact", "book"]);
+    expect(bookingCalls("teams")).toEqual(["book"]);
+  });
+  it("phone: contact first, then book", async () => {
+    const { api, calls } = fake();
+    const r = await runBooking(api, { method: "phone", contact: { call_number: null, alt_number: "+27112345678" }, book: body, contactId: "c1" });
+    expect(r.kind).toBe("held");
+    expect(calls).toEqual(['contact:{"call_number":null,"alt_number":"+27112345678","request_id":"c1"}', "book:phone"]);
+  });
+  it("Teams: no contact call", async () => {
+    const { api, calls } = fake();
+    await runBooking(api, { method: "teams", contact: null, book: { ...body, method: "teams" }, contactId: "c1" });
+    expect(calls).toEqual(["book:teams"]);
+  });
+  it("a rejected number stops before /book", async () => {
+    const { api, calls } = fake("invalid");
+    expect(await runBooking(api, { method: "phone", contact: { call_number: null, alt_number: "+27112345678" }, book: body, contactId: "c1" })).toEqual({ kind: "contact", field: "alt_number" });
+    expect(calls.some((c) => c.startsWith("book"))).toBe(false);
+  });
+  it("the mock refuses a phone booking without the contact call, and logs contact before book", async () => {
+    const log: MockLog = { calls: [] };
+    const api = createMockApi({ log });
+    await expect(api.book(body)).rejects.toThrow(/before \/start\/contact/);
+    expect(await runBooking(api, { method: "phone", contact: { call_number: null }, book: body, contactId: "c1" })).toMatchObject({ kind: "held" });
+    expect(log.calls.slice(-2)).toEqual(["contact", "book"]);
+  }, 15000);
+  it("numbers: the WhatsApp number by default (call_number null), a different one, an optional other number", () => {
+    expect(contactPayload({ use: "whatsapp", other: "", alt: "" })).toEqual({ ok: true, body: { call_number: null } });
+    expect(contactPayload({ use: "whatsapp", other: "garbage", alt: "" })).toEqual({ ok: true, body: { call_number: null } });
+    expect(contactPayload({ use: "other", other: "072 555 1234", alt: "011 234 5678" })).toEqual({ ok: true, body: { call_number: "+27725551234", alt_number: "+27112345678" } });
+    expect(contactPayload({ use: "other", other: "", alt: "" })).toEqual({ ok: false, field: "call_number" });
+    expect(contactPayload({ use: "whatsapp", other: "", alt: "12345" })).toEqual({ ok: false, field: "alt_number" });
+    expect(toSaNumber("+27 11 234 5678")).toBe("+27112345678");
+    expect(toSaNumber("0027 82 123 4567")).toBe("+27821234567");
+    for (const bad of ["", "+44 7700 900123", "0912345678", "011 234 567"]) expect(toSaNumber(bad), bad).toBeNull();
+  });
+  it("the number step: WhatsApp number prefilled and selected, a different number opens a field", () => {
+    expect(PAGE).toContain("Call my WhatsApp number");
+    expect(PAGE).toContain("Use a different number");
+    expect(PAGE).toMatch(/useState<"whatsapp" \| "other">\("whatsapp"\)/);
+    expect(PAGE).toMatch(/\{sel === "other" && \(/);
+    expect(PAGE).toContain("Another number, in case we can't reach you");
+  });
+});
+
+describe("someone else joining (optional guest on the invite)", () => {
+  it("unticked or blank sends nothing; filled must be a complete address", () => {
+    expect(guestEmail(false, "thabo@gmail.com")).toEqual({ ok: true });
+    expect(guestEmail(true, "  ")).toEqual({ ok: true });
+    expect(guestEmail(true, " thabo@gmail.com ")).toEqual({ ok: true, guest_email: "thabo@gmail.com" });
+    expect(guestEmail(true, "thabo@gmail")).toEqual({ ok: false });
+  });
+  it("guest_email is in the /book body only when filled", () => {
+    const base = { slot_start: "s", method: "teams", email: "n@gmail.com", request_id: "r" };
+    expect(bookBody(base)).not.toHaveProperty("guest_email");
+    expect(bookBody({ ...base, guest_email: undefined })).not.toHaveProperty("guest_email");
+    expect(bookBody({ ...base, guest_email: "thabo@gmail.com" })).toMatchObject({ guest_email: "thabo@gmail.com", email_confirmed: true, context: { source: "start_page" } });
+  });
+  it("the field shows only when ticked, with did-you-mean, on both invite steps; the done screens name the guest", () => {
+    expect(PAGE).toMatch(/\{guestOn && \(\s*<div className="st-field" id="st-guest-box">/);
+    expect(PAGE).toMatch(/const sug = guestOn \? suggestEmail\(guest\) : null/);
+    expect(PAGE).toContain('guestField("Add a partner or family member to the invite")');
+    expect(PAGE).toContain('guestField("Add their email so they get the details too")');
+    expect(PAGE).toContain("Someone else joining?");
+    expect(PAGE).toContain("We've sent the invite to you and {guestSent}.");
+    expect(PAGE.match(/\{guestLine\}/g)?.length).toBe(2);
+  });
+});
+
+describe("API response mapping", () => {
+  it("/start/adviser", () => {
+    const adv = { id: "b1", first_name: "Mark", name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418", bio: "Hi there", photo_url: "https://x.co/a.jpg" };
+    expect(interpretAdviser(200, { ok: true, next: "adviser", adviser: adv })).toEqual({ kind: "ok", next: "adviser", adviser: adv });
+    expect(interpretAdviser(200, { ok: true, next: "adviser", adviser: { ...adv, bio: "", photo_url: "javascript:alert(1)" } })).toMatchObject({ adviser: { bio: null, photo_url: null } });
+    expect(interpretAdviser(200, { ok: true, next: "adviser", adviser: { ...adv, photo_url: "http://x.co/a.jpg" } })).toMatchObject({ adviser: { photo_url: null } });
+    expect(interpretAdviser(200, { ok: true, next: "slots" })).toEqual({ kind: "ok", next: "slots", adviser: null });
+    expect(interpretAdviser(200, { ok: true, next: "chat" })).toEqual({ kind: "ok", next: "chat", adviser: null });
+    expect(interpretAdviser(200, { ok: true, next: "adviser", adviser: { name: "No id" } })).toEqual({ kind: "ok", next: "adviser", adviser: null });
+    expect(interpretAdviser(200, { ok: true, next: "somewhere" })).toEqual({ kind: "error" });
+    expect(interpretAdviser(401, null)).toEqual({ kind: "expired" });
+    expect(interpretAdviser(500, null)).toEqual({ kind: "error" });
+  });
+  it("/start/contact", () => {
+    expect(interpretContact(200, { ok: true })).toEqual({ kind: "ok" });
+    expect(interpretContact(400, { error: "invalid", field: "alt_number" })).toEqual({ kind: "invalid", field: "alt_number" });
+    expect(interpretContact(400, { error: "invalid", field: "call_number" })).toEqual({ kind: "invalid", field: "call_number" });
+    expect(interpretContact(403, null)).toEqual({ kind: "expired" });
+    expect(interpretContact(500, null)).toEqual({ kind: "error" });
+  });
+  it("/start/answers", () => {
+    expect(interpretAnswers(200, { ok: true, next: "done" })).toEqual({ kind: "ok" });
+    expect(interpretAnswers(200, { ok: true, next: "slots" })).toEqual({ kind: "error" });
+    expect(interpretAnswers(401, null)).toEqual({ kind: "expired" });
+    expect(interpretAnswers(400, { error: "bad" })).toEqual({ kind: "error" });
+  });
+  it("GET /start", () => {
+    const r = interpretStart(200, { first_name: "Naledi", phone_pretty: "082 123 4567", adviser: { first_name: "Mark", name: "Mark Weston", firm: "F", fsp: 1, bio: null }, methods: ["teams"], answers: { intent: "life", age_band: "lt35" }, contact: {}, booking: { start: "s", end: "e", method: "phone", held: true } });
+    expect(r).toEqual({ kind: "ok", data: { first_name: "Naledi", phone_pretty: "082 123 4567", adviser: { first_name: "Mark", name: "Mark Weston", firm: "F", fsp: 1, bio: null, photo_url: null }, methods: ["teams"], answers: { age_band: "lt35" }, contact: {}, booking: { start: "s", end: "e", method: "phone", held: true } } });
+    expect(interpretStart(200, { first_name: null, booking: null })).toMatchObject({ kind: "ok", data: { booking: null, phone_pretty: null, adviser: null } });
+    expect(interpretStart(401, null)).toEqual({ kind: "expired" });
+    expect(interpretStart(500, null)).toEqual({ kind: "error" });
+  });
+  it("/book (409 taken, 422 email)", () => {
+    const b = { start: "2026-10-21T10:30:00+02:00", end: "2026-10-21T11:00:00+02:00", method: "teams" };
+    expect(interpretBook(200, { booked: true, booking_id: "x", ...b }).kind).toBe("booked");
+    expect(interpretBook(201, { booked: false, held: true, verify: "email", booking_id: "x", ...b }).kind).toBe("held");
+    expect(interpretBook(409, { error: "slot_taken", slots: [b] })).toEqual({ kind: "taken", slots: [b] });
+    expect(interpretBook(409, { error: "slot_taken", next: [b] })).toEqual({ kind: "taken", slots: [b] });
+    expect(interpretBook(409, { error: "slot_taken" })).toEqual({ kind: "taken", slots: null });
+    expect(interpretBook(422, { error: "email_invalid" })).toEqual({ kind: "email" });
+    expect(interpretBook(403, null)).toEqual({ kind: "expired" });
+    expect(interpretBook(0, null)).toEqual({ kind: "error" });
+    expect(interpretBook(200, { booked: false })).toEqual({ kind: "error" });
+  });
+});
+
+describe("/start/ copy passes the site wording rules", () => {
+  const files = ["src/pages/Start.tsx", "src/lib/start.ts", "src/lib/start-api.ts", "src/lib/start-mock.ts"].map((f) => fs.readFileSync(path.resolve(__dirname, "..", f), "utf8"));
+  // client-visible copy: string literals that contain a space and a letter, and JSX text between tags (comments stripped)
+  const copy = files.flatMap((src) => {
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|\s)\/\/ .*$/gm, " ");
+    const lits = [...code.matchAll(/"([^"\\\n]*)"|`([^`\n]*)`/g)].map((m) => m[1] ?? m[2]);
+    const jsx = [...code.matchAll(/>([^<>{}();=&|\n]+)</g)].map((m) => m[1]);
+    // JSX text broken up by {expressions}: "Just a few quick things so {who} is well prepared."
+    const mixed = [...code.matchAll(/[>}]([^<>{}();=&|\n]+)[<{]/g)].map((m) => m[1]);
+    return [...lits, ...jsx, ...mixed].map((t) => t.trim()).filter((t) => /[A-Za-z]{2}/.test(t) && / /.test(t));
+  });
+  it("collects the page copy", () => {
+    expect(copy).toContain("Pick as many as you like.");
+    expect(copy.some((c) => c.includes("Lindi will carry on with you"))).toBe(true);
+    expect(copy.some((c) => c.includes("Just a few quick things so"))).toBe(true);
+    expect(copy.some((c) => c.includes("has what they need"))).toBe(true);
+  });
+  it("no banned word, no free / no cost, no AI or virtual assistant, no licensed, no Lead Velocity, no he/she for the adviser", () => {
+    const EXTRA: [RegExp, string][] = [
+      [/\bAI\b/, "AI"], [/\b(AI|virtual) assistant/i, "AI / virtual assistant"], [/licensed/i, "licensed"],
+      [/\bfree\b|costs? (you )?nothing|no cost|at no charge|pays? nothing/i, "price wording"], [/Lead Velocity/, "Lead Velocity"],
+      [/\b(he|she|his|her|him|hers)\b/i, "he/she"],
+    ];
+    for (const c of copy) for (const [re, label] of [...BANNED, ...EXTRA]) expect(c, `${label}: ${c}`).not.toMatch(re);
+  });
+});
 
 describe("token from the fragment", () => {
   it("reads lt from the hash only", () => {
@@ -27,74 +369,6 @@ describe("token from the fragment", () => {
     expect(readTokenFromHash("#other=1")).toBeNull();
     expect(readTokenFromHash("#lt=<script>")).toBeNull();
     expect(readTokenFromHash("#lt=" + "a".repeat(5000))).toBeNull();
-  });
-});
-
-describe("step machine", () => {
-  const walk = (a: Answers, from: StepId = "intent") => {
-    const path: string[] = [from];
-    let s: StepId = from;
-    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit") return path; s = n === "lead" ? "intent" : n; } // "lead": POST /lead returns the token, then step 1
-  };
-  it("a will and something else go straight back to the chat", () => {
-    expect(walk({ intent: "will" })).toEqual(["intent", "chat"]);
-    expect(walk({ intent: "other" })).toEqual(["intent", "chat"]);
-    expect(answersPayload({ intent: "will", age_band: "lt35" }, "r1")).toEqual({ intent: "will", request_id: "r1" });
-  });
-  it("yes path: intent, age, cover, pay band, then submit (no want question)", () => {
-    expect(walk({ intent: "life", has_cover: "yes" })).toEqual(["intent", "age", "cover", "budget", "submit"]);
-  });
-  it("no / not sure path adds the want question, still numbered 4 of 6", () => {
-    expect(walk({ intent: "income", has_cover: "no" })).toEqual(["intent", "age", "cover", "budget", "want", "submit"]);
-    expect(walk({ intent: "review", has_cover: "unsure" })).toContain("want");
-    expect(stepNumber("budget")).toBe(4);
-    expect(stepNumber("want")).toBe(4);
-    expect([stepNumber("intent"), stepNumber("age"), stepNumber("cover"), stepNumber("adviser"), stepNumber("time"), stepNumber("email")]).toEqual([1, 2, 3, 5, 5, 6]);
-  });
-  it("time and email follow the answers", () => {
-    expect(nextStep("time", {})).toBe("email");
-    expect(prevStep("email", {})).toBe("time");
-    expect(prevStep("time", { has_cover: "yes" })).toBe("adviser");
-    expect(prevStep("adviser", { has_cover: "yes" })).toBe("budget");
-    expect(prevStep("adviser", { has_cover: "no" })).toBe("want");
-    expect(nextStep("adviser", {})).toBe("submit");
-    expect(prevStep("intent", {})).toBeNull();
-  });
-  it("resumes at the first unanswered step", () => {
-    expect(resumeAt({})).toBe("intent");
-    expect(resumeAt({ intent: "will" })).toBe("chat");
-    expect(resumeAt({ intent: "life" })).toBe("age");
-    expect(resumeAt({ intent: "life", age_band: "lt35" })).toBe("cover");
-    expect(resumeAt({ intent: "life", age_band: "lt35", has_cover: "no", budget_band: "lt750" })).toBe("want");
-    // complete answers (even an already routed lead) resume at the adviser disclosure, never straight at the times
-    expect(resumeAt({ intent: "life", age_band: "51plus", has_cover: "yes", budget_band: "lt750" })).toBe("adviser");
-    expect(resumeAt({ intent: "life", age_band: "35_44", has_cover: "no", budget_band: "1500_plus", want: "family" })).toBe("adviser");
-  });
-  it("payload: want only on the no / not sure path; a changed cover answer clears the dependants", () => {
-    const yes = answersPayload({ intent: "life", age_band: "45_50", has_cover: "yes", budget_band: "750_1250", want: "family" }, "r");
-    expect(yes).toEqual({ intent: "life", age_band: "45_50", has_cover: "yes", budget_band: "750_1250", request_id: "r" });
-    const no = answersPayload({ intent: "life", age_band: "45_50", has_cover: "no", budget_band: "lt750", want: "bond" }, "r");
-    expect(no).toMatchObject({ has_cover: "no", want: "bond" });
-    expect(no).not.toHaveProperty("confirm_adviser");
-    expect(answersPayload({ intent: "life", age_band: "45_50", has_cover: "yes", budget_band: "lt750" }, "r", "mock-broker")).toMatchObject({ confirm_adviser: "mock-broker" });
-    expect(answersPayload({ intent: "will" }, "r", "mock-broker")).toEqual({ intent: "will", request_id: "r" });
-    const a = setAnswer({ intent: "life", has_cover: "no", budget_band: "lt750", want: "bond" }, "has_cover", "yes");
-    expect(a.budget_band).toBeUndefined();
-    expect(a.want).toBeUndefined();
-    expect(setAnswer({ has_cover: "no", budget_band: "lt750" }, "has_cover", "no").budget_band).toBe("lt750");
-  });
-});
-
-describe("meeting type", () => {
-  it("offers Teams and phone only, in a fixed order, defaulting to Teams", () => {
-    expect(availableMethods(["phone", "whatsapp_call", "teams", "zoom"])).toEqual(["teams", "phone"]);
-    expect(availableMethods(["whatsapp_call"])).toEqual([]);
-    expect(availableMethods(undefined)).toEqual([]);
-    expect(defaultMethod(["phone", "teams"])).toBe("teams");
-    expect(defaultMethod(["phone", "whatsapp_call"])).toBe("phone");
-    expect(defaultMethod([])).toBeNull();
-    expect(methodLabel("teams")).toBe("Teams call");
-    expect(methodLabel("phone")).toBe("Phone call");
   });
 });
 
@@ -172,110 +446,6 @@ describe("misc", () => {
   });
 });
 
-describe("API response mapping", () => {
-  it("/start/answers", () => {
-    const adv = { id: "b1", first_name: "Mark", name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" };
-    expect(interpretAnswers(200, { ok: true, next: "adviser", adviser: adv })).toEqual({ kind: "ok", next: "adviser", adviser: adv });
-    expect(interpretAnswers(200, { ok: true, next: "slots" })).toEqual({ kind: "ok", next: "slots", adviser: null });
-    expect(interpretAnswers(200, { ok: true, next: "chat" })).toEqual({ kind: "ok", next: "chat", adviser: null });
-    expect(interpretAnswers(200, { ok: true, next: "adviser", adviser: { name: "No id" } })).toEqual({ kind: "ok", next: "adviser", adviser: null });
-    expect(interpretAnswers(200, { ok: true, next: "somewhere" })).toEqual({ kind: "error" });
-    expect(interpretAnswers(401, null)).toEqual({ kind: "expired" });
-    expect(interpretAnswers(500, null)).toEqual({ kind: "error" });
-    expect(interpretAnswers(400, { error: "bad" })).toEqual({ kind: "error" });
-  });
-  it("/book", () => {
-    const b = { start: "2026-10-21T10:30:00+02:00", end: "2026-10-21T11:00:00+02:00", method: "teams" };
-    expect(interpretBook(200, { booked: true, booking_id: "x", ...b }).kind).toBe("booked");
-    expect(interpretBook(201, { booked: false, held: true, verify: "email", booking_id: "x", ...b }).kind).toBe("held");
-    expect(interpretBook(409, { error: "slot_taken", slots: [b] })).toEqual({ kind: "taken", slots: [b] });
-    expect(interpretBook(409, { error: "slot_taken", next: [b] })).toEqual({ kind: "taken", slots: [b] });
-    expect(interpretBook(409, { error: "slot_taken" })).toEqual({ kind: "taken", slots: null });
-    expect(interpretBook(422, { error: "email_invalid" })).toEqual({ kind: "email" });
-    expect(interpretBook(403, null)).toEqual({ kind: "expired" });
-    expect(interpretBook(0, null)).toEqual({ kind: "error" });
-    expect(interpretBook(200, { booked: false })).toEqual({ kind: "error" });
-  });
-});
-
-describe("adviser disclosure before routing (two-phase POST /start/answers)", () => {
-  const mark: AdviserInfo = { id: "mock-broker", first_name: "Mark", name: "Mark Weston", firm: "Oracle Private Wealth", fsp: "28418" };
-  const other: AdviserInfo = { id: "b2", first_name: "Thandi", name: "Thandi Mokoena", firm: "Example Wealth", fsp: "12345" };
-  it("the first POST names the adviser; the times open only on 'slots' to a POST confirming that same adviser", () => {
-    expect(afterAnswers({ next: "adviser", adviser: mark }, null)).toEqual({ k: "adviser", adviser: mark });
-    expect(afterAnswers({ next: "slots", adviser: mark }, "mock-broker")).toEqual({ k: "slots" });
-    expect(afterAnswers({ next: "slots", adviser: null }, "mock-broker")).toEqual({ k: "slots" });
-    expect(afterAnswers({ next: "chat" }, null)).toEqual({ k: "chat" });
-    expect(afterAnswers({ next: "chat" }, "mock-broker")).toEqual({ k: "chat" });
-  });
-  it("never reaches the times without passing the adviser step", () => {
-    // an unconfirmed 'slots' (backend out of step) shows the adviser if one came back, otherwise errors: never the times
-    expect(afterAnswers({ next: "slots", adviser: mark }, null)).toEqual({ k: "adviser", adviser: mark });
-    expect(afterAnswers({ next: "slots", adviser: null }, null)).toEqual({ k: "error" });
-    expect(afterAnswers({ next: "adviser", adviser: null }, null)).toEqual({ k: "error" });
-    // a full run: the questions, then phase 1, then phase 2
-    const a: Answers = { intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250" };
-    const seen: string[] = [];
-    let s: StepId = "intent";
-    for (;;) { const n = nextStep(s, a); if (n === "submit" || n === "chat" || n === "lead") break; seen.push(n); s = n; }
-    expect(seen).not.toContain("time");
-    const p1 = afterAnswers({ next: "adviser", adviser: mark }, null);
-    expect(p1.k).toBe("adviser");
-    const p2 = afterAnswers({ next: "slots", adviser: mark }, p1.k === "adviser" ? p1.adviser.id : null);
-    expect(p2.k).toBe("slots");
-  });
-  it("a different adviser coming back re-shows part A (and must be confirmed again)", () => {
-    expect(afterAnswers({ next: "adviser", adviser: other }, "mock-broker")).toEqual({ k: "adviser", adviser: other });
-    expect(afterAnswers({ next: "slots", adviser: other }, "mock-broker")).toEqual({ k: "adviser", adviser: other });
-  });
-  it("renders the full disclosure from the API values with the confirm button, assuming no gender", () => {
-    const [who, shared, intro] = adviserDisclosure(mark);
-    expect(who).toBe("Mark Weston, Oracle Private Wealth, an authorised financial services provider (FSP 28418). Mark will be the one on the call with you.");
-    expect(shared).toBe("SortMyCover shares your name, WhatsApp number and the answers you gave here with Mark to prepare for the call.");
-    expect(intro).toBe("Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.");
-    expect(intro).toBe(INTRO_DISCLOSURE);
-    const html = renderToStaticMarkup(createElement(AdviserIntro, { adviser: other, busy: false, onConfirm: () => {} })).replace(/&#x27;/g, "'");
-    for (const line of adviserDisclosure(other)) expect(html).toContain(line);
-    expect(html).toContain("Example Wealth · authorised FSP 12345");
-    expect(html).toContain("See Thandi's open times");
-    expect(html).toMatch(/<em>Thandi\.<\/em>/);
-    expect(html).toMatch(/class="st-adv-disclose" data-disclosure/);
-    expect(html).not.toMatch(/\bhe\b|\bshe\b|\bhis\b|\bher\b/i);
-  });
-  it("the dev mock follows the same contract: adviser first, times only after confirming mock-broker", async () => {
-    const api = createMockApi();
-    const body = { intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "lt750", request_id: "r1" };
-    await expect(api.getSlots(7)).rejects.toThrow(/before the adviser was confirmed/);
-    expect(await api.postAnswers(body)).toMatchObject({ kind: "ok", next: "adviser", adviser: { id: "mock-broker" } });
-    expect(await api.postAnswers({ ...body, confirm_adviser: "mock-broker", request_id: "r2" })).toMatchObject({ kind: "ok", next: "slots" });
-    const s = await api.getSlots(7);
-    expect(s.kind === "ok" && s.data.slots.length).toBeGreaterThan(5);
-  }, 10000);
-});
-
-describe("/start/ copy passes the site wording rules (automated assistant, authorised, no price wording)", () => {
-  const files = ["src/pages/Start.tsx", "src/lib/start.ts", "src/lib/start-api.ts", "src/lib/start-mock.ts"].map((f) => fs.readFileSync(path.resolve(__dirname, "..", f), "utf8"));
-  // client-visible copy: string literals that contain a space and a letter, and JSX text between tags (comments stripped)
-  const copy = files.flatMap((src) => {
-    const code = src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|\s)\/\/ .*$/gm, " ");
-    const lits = [...code.matchAll(/"([^"\\\n]*)"|`([^`\n]*)`/g)].map((m) => m[1] ?? m[2]);
-    const jsx = [...code.matchAll(/>([^<>{}();=&|\n]+)</g)].map((m) => m[1]);
-    return [...lits, ...jsx].map((t) => t.trim()).filter((t) => /[A-Za-z]{2}/.test(t) && / /.test(t));
-  });
-  it("collects the page copy", () => {
-    expect(copy).toContain("Pick the one closest.");
-    expect(copy.some((c) => c.includes("Lindi will carry on with you"))).toBe(true);
-    expect(copy.some((c) => c.includes("open times"))).toBe(true);
-  });
-  it("no banned word, no AI assistant, no licensed adviser, no price wording", () => {
-    const EXTRA: [RegExp, string][] = [
-      [/\bAI\b/, "AI"], [/licensed/i, "licensed"],
-      [/\bfree\b|costs? (you )?nothing|no cost|at no charge|pays? nothing/i, "price wording"], [/Lead Velocity/, "Lead Velocity"],
-    ];
-    for (const c of copy) for (const [re, label] of [...BANNED, ...EXTRA]) expect(c, `${label}: ${c}`).not.toMatch(re);
-  });
-});
-
 describe("step 0 (no token: desktop visits from a site CTA)", () => {
   it("explains why WhatsApp under the number, wired to the field", () => {
     expect(WHY_WHATSAPP).toMatch(/^Why WhatsApp\?/);
@@ -324,21 +494,12 @@ describe("step 0 (no token: desktop visits from a site CTA)", () => {
     expect(START_ADVISER).toEqual({ name: "Mark Weston", practice: "Oracle Private Wealth", fsp: "28418" });
     expect(startIntroLine()).toBe("You'll book a 30-minute call with Mark Weston, Oracle Private Wealth, an authorised financial services provider (FSP 28418).");
   });
-  it("step order with step 0: details, then POST /lead, then the six steps; the pill counts 1 of 7", () => {
-    const path: string[] = ["details"];
-    let s: StepId = "details";
-    const a: Answers = { intent: "life", has_cover: "no" };
-    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit") break; s = n === "lead" ? "intent" : n; }
-    expect(path).toEqual(["details", "lead", "age", "cover", "budget", "want", "submit"]);
-    expect(path.indexOf("lead")).toBeLessThan(path.indexOf("submit")); // no answers POST before the token from /lead exists
-    expect(prevStep("details", {})).toBeNull();
-    expect(prevStep("intent", {})).toBeNull();
-    expect(progress("details", true)).toEqual({ n: 1, total: 7 });
-    expect(progress("intent", true)).toEqual({ n: 2, total: 7 });
-    expect(progress("adviser", true)).toEqual({ n: 6, total: 7 });
-    expect(progress("email", true)).toEqual({ n: 7, total: 7 });
-    expect(progress("intent", false)).toEqual({ n: 1, total: 6 });
-    expect(progress("email", false)).toEqual({ n: 6, total: 6 });
+  it("step order with step 0: details, then POST /lead, then the time step; the pill counts 1 of 6", () => {
+    expect(nextStep("details", null)).toBe("lead");
+    expect(walk("teams", "details")).toEqual(["details", "lead", "time", "email", "book", "booked", "age", "income", "topics", "answers"]);
+    expect(prevStep("details")).toBeNull();
+    expect(prevStep("time")).toBeNull();
+    expect(progress("details", true)).toEqual({ n: 1, total: 6 });
   });
   it("builds the /lead body in the old quiz shape with the named consent, ref and via", () => {
     const b = leadBody({ first_name: " Naledi ", mobile: "+27821234567", ads: null, honeypot: "", origin: "https://sortmycover.co.za", search: "?ref=c03&via=home-hero&utm_campaign=x", started_at: "2026-10-18T10:00:00.000Z", request_id: "req-12345678", user_agent: "UA", now: 1_790_000_000_000 }, consentJson);
@@ -382,48 +543,4 @@ describe("step 0 (no token: desktop visits from a site CTA)", () => {
       expect(c).not.toMatch(/\bAI\b|licensed|costs? (you )?nothing|\bfree\b/i);
     }
   });
-});
-
-describe("step 3: four cover options (Jono, 18 Oct 2026), legacy yes still accepted", () => {
-  const walk = (a: Answers) => {
-    const path: string[] = ["intent"];
-    let s: StepId = "intent";
-    for (;;) { const n = nextStep(s, a); path.push(n); if (n === "chat" || n === "submit" || n === "lead") return path; s = n; }
-  };
-  it("yes through work and yes my own: the pay band, then submit", () => {
-    for (const v of ["yes_work", "yes_own"] as const) {
-      expect(walk({ intent: "life", has_cover: v }), v).toEqual(["intent", "age", "cover", "budget", "submit"]);
-      expect(hasCoverNow({ has_cover: v })).toBe(true);
-      expect(prevStep("adviser", { has_cover: v })).toBe("budget");
-    }
-  });
-  it("no and not sure: the could-put-towards band, then the want step", () => {
-    for (const v of ["no", "unsure"] as const) {
-      expect(walk({ intent: "life", has_cover: v }), v).toEqual(["intent", "age", "cover", "budget", "want", "submit"]);
-      expect(hasCoverNow({ has_cover: v })).toBe(false);
-      expect(prevStep("adviser", { has_cover: v })).toBe("want");
-    }
-  });
-  it("a legacy stored yes resumes on the yes path", () => {
-    expect(hasCoverNow({ has_cover: "yes" })).toBe(true);
-    expect(walk({ intent: "life", has_cover: "yes" })).toEqual(["intent", "age", "cover", "budget", "submit"]);
-    expect(resumeAt({ intent: "life", age_band: "35_44", has_cover: "yes" })).toBe("budget");
-    expect(resumeAt({ intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250" })).toBe("adviser"); // no want step
-    expect(answersPayload({ intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250", want: "family" }, "r")).toEqual({ intent: "life", age_band: "35_44", has_cover: "yes", budget_band: "750_1250", request_id: "r" });
-  });
-  it("switching within a path keeps the band; switching path clears it", () => {
-    expect(setAnswer({ has_cover: "yes_work", budget_band: "lt750" }, "has_cover", "yes_own").budget_band).toBe("lt750");
-    expect(setAnswer({ has_cover: "no", budget_band: "lt750", want: "bond" }, "has_cover", "unsure")).toMatchObject({ budget_band: "lt750", want: "bond" });
-    const a = setAnswer({ has_cover: "yes_own", budget_band: "lt750" }, "has_cover", "no");
-    expect(a.budget_band).toBeUndefined();
-  });
-  it("the page offers the four options and the mock accepts them (and the legacy yes), rejecting anything else", async () => {
-    const src = fs.readFileSync(path.resolve(__dirname, "../src/pages/Start.tsx"), "utf8");
-    for (const [v, t] of [["yes_work", "Yes, through work"], ["yes_own", "Yes, my own"], ["no", "No"], ["unsure", "Not sure"]]) expect(src).toContain(`{ v: "${v}", t: "${t}" }`);
-    expect(src).not.toMatch(/\{ v: "yes", t: "Yes" \}/);
-    const api = createMockApi();
-    const base = { intent: "life", age_band: "35_44", budget_band: "lt750", request_id: "r" };
-    for (const v of ["yes_work", "yes_own", "no", "unsure", "yes"]) expect((await api.postAnswers({ ...base, has_cover: v })).kind, v).toBe("ok");
-    expect((await api.postAnswers({ ...base, has_cover: "maybe" })).kind).toBe("error");
-  }, 15000);
 });

@@ -1,6 +1,7 @@
 /* /start/: the per-lead page Lindi links to from WhatsApp (sortmycover.co.za/start/#lt=<token>). Pure helpers only (unit tested in
-   tests/start.test.ts): token parsing, the step machine, slot grouping and formatting in South African time, meeting-type mapping,
-   the email check and did-you-mean. No DOM, no network. */
+   tests/start.test.ts): token parsing, the v4 step machine (book first, then age, income and topics), the adviser confirm gate,
+   slot grouping and formatting in South African time, meeting types, the contact numbers, the email check and did-you-mean.
+   No DOM, no network. Flow and API: start-page v4 contract (Jono, 19 Oct 2026, mockup v4.2). */
 
 /* ---------------- token ---------------- */
 export const TOKEN_KEY = "smc_lt";
@@ -18,37 +19,106 @@ export function readTokenFromHash(hash: string): string | null {
   return TOKEN_RE.test(v) ? v : null;
 }
 
-/* ---------------- answers and steps ---------------- */
-export type Intent = "life" | "income" | "illness" | "review" | "will" | "other";
+/* ---------------- answers (asked after the booking) ---------------- */
 export type AgeBand = "lt35" | "35_44" | "45_50" | "51plus";
-/** Step 3 (Jono, 18 Oct 2026): four options. "yes" is the legacy value (stored answers from before the change, still accepted by
-    W39) and takes the same path as yes_work / yes_own. */
-export type HasCover = "yes_work" | "yes_own" | "no" | "unsure" | "yes";
-export type BudgetBand = "lt750" | "750_1250" | "1250_1499" | "1500_plus";
-export type Want = "family" | "bond" | "income" | "illness" | "unsure";
+/** leads.income_band CHECK codes (no DDL). Monthly, before tax. */
+export type IncomeBand = "lt20k" | "20k_40k" | "40k_60k" | "60k_100k" | "100kplus" | "prefer_not";
+export type Topic = "life" | "disability_income" | "severe_illness" | "review" | "new_bond" | "will";
 
 export interface Answers {
-  intent?: Intent;
   age_band?: AgeBand;
-  has_cover?: HasCover;
-  budget_band?: BudgetBand;
-  want?: Want;
+  income_band?: IncomeBand;
+  topics?: Topic[];
 }
 
-/** "adviser" is step 5 part A: who the call is with, and what is shared with them, shown and confirmed before any open time is asked for. */
-/** "details" is step 0, shown only on the no-token path (desktop CTAs link to /start/?ref=...): name, WhatsApp number, consent. */
-export type StepId = "details" | "intent" | "age" | "cover" | "budget" | "want" | "adviser" | "time" | "email";
-/** Where a step leads: another step, the WhatsApp handoff, "lead" (POST /lead, which returns the token every later call needs) or
-    "submit" (POST the answers, then the server says adviser, slots or chat). */
-export type Next = StepId | "chat" | "submit" | "lead";
+export const AGE_BANDS: { v: AgeBand; t: string }[] = [{ v: "lt35", t: "Under 35" }, { v: "35_44", t: "35 to 44" }, { v: "45_50", t: "45 to 50" }, { v: "51plus", t: "Over 50" }];
+export const INCOME_BANDS: { v: IncomeBand; t: string }[] = [
+  { v: "lt20k", t: "Under R20,000" }, { v: "20k_40k", t: "R20,000 to R40,000" }, { v: "40k_60k", t: "R40,000 to R60,000" },
+  { v: "60k_100k", t: "R60,000 to R100,000" }, { v: "100kplus", t: "R100,000 or more" }, { v: "prefer_not", t: "Prefer not to say" },
+];
+export const TOPICS: { v: Topic; t: string }[] = [
+  { v: "life", t: "Life cover" }, { v: "disability_income", t: "Disability or income protection" }, { v: "severe_illness", t: "Severe illness cover" },
+  { v: "review", t: "Review my cover" }, { v: "new_bond", t: "I just got a new bond" }, { v: "will", t: "I need a will" },
+];
+const isIn = <T extends string>(list: { v: T }[], x: unknown): x is T => list.some((o) => o.v === x);
+export const isAgeBand = (x: unknown): x is AgeBand => isIn(AGE_BANDS, x);
+export const isIncomeBand = (x: unknown): x is IncomeBand => isIn(INCOME_BANDS, x);
+export const isTopic = (x: unknown): x is Topic => isIn(TOPICS, x);
 
-export const TOTAL_STEPS = 6;
-const NUMBER: Record<StepId, number> = { details: 0, intent: 1, age: 2, cover: 3, budget: 4, want: 4, adviser: 5, time: 5, email: 6 };
+/** Stored answers from GET /start, keeping only v4 values (older pages' intent / has_cover / budget_band / want are ignored). */
+export function cleanAnswers(x: any): Answers {
+  const out: Answers = {};
+  if (x && isAgeBand(x.age_band)) out.age_band = x.age_band;
+  if (x && isIncomeBand(x.income_band)) out.income_band = x.income_band;
+  if (x && Array.isArray(x.topics)) { const t = TOPICS.map((o) => o.v).filter((v) => x.topics.includes(v)); if (t.length) out.topics = t; }
+  return out;
+}
+
+/** Ticks or unticks a topic, keeping the page's order. */
+export function toggleTopic(list: readonly Topic[] | undefined, t: Topic): Topic[] {
+  const set = new Set(list || []);
+  if (set.has(t)) set.delete(t); else set.add(t);
+  return TOPICS.map((o) => o.v).filter((v) => set.has(v));
+}
+/** "Done" stays disabled until at least one topic is ticked. */
+export const canFinishTopics = (list: readonly Topic[] | undefined) => !!list && list.filter(isTopic).length > 0;
+export const answersComplete = (a: Answers) => !!a.age_band && !!a.income_band && canFinishTopics(a.topics);
+
+/** Body for POST /start/answers (after the booking; no routing). Null until every answer is in. */
+export function answersPayload(a: Answers, request_id: string) {
+  if (!answersComplete(a)) return null;
+  return { age_band: a.age_band!, income_band: a.income_band!, topics: a.topics!.filter(isTopic), request_id };
+}
+
+/* ---------------- steps ---------------- */
+/** "details" is step 0, shown only on the no-token path (desktop CTAs link to /start/?ref=...): name, WhatsApp number, consent.
+    "email" is the Teams invite step; "number" is the phone-call step (which number to call, an optional other number, the email). */
+export type StepId = "details" | "time" | "email" | "number" | "age" | "income" | "topics";
+/** Where a step leads: another step, "lead" (POST /lead, which returns the token every later call needs), "book" (the booking
+    calls, then the Booked screen and "Carry on" to age) or "answers" (POST /start/answers, then All set). */
+export type Next = StepId | "lead" | "book" | "answers";
+
+export const TOTAL_STEPS = 5;
+const NUMBER: Record<StepId, number> = { details: 0, time: 1, email: 2, number: 2, age: 3, income: 4, topics: 5 };
 export const stepNumber = (s: StepId) => NUMBER[s];
-/** The pill and the bars: "n of 6" on Lindi's token link; "n of 7" when the visit started at step 0 (it counts as step 1). */
+/** The pill and the bars: "n of 5" (time, invite, age, income, topics) on Lindi's link; "n of 6" when the visit started at step 0. */
 export function progress(s: StepId, withDetails: boolean): { n: number; total: number } {
   return withDetails ? { n: NUMBER[s] + 1, total: TOTAL_STEPS + 1 } : { n: NUMBER[s], total: TOTAL_STEPS };
 }
+
+export function nextStep(step: StepId, method: Method | null): Next {
+  switch (step) {
+    case "details": return "lead";
+    case "time": return method === "phone" ? "number" : "email";
+    case "email": return "book";
+    case "number": return "book";
+    case "age": return "income";
+    case "income": return "topics";
+    case "topics": return "answers";
+  }
+}
+
+/** Back links. Nothing goes back past the booking (it is kept) or to step 0 (the lead exists). */
+export function prevStep(step: StepId): StepId | null {
+  switch (step) {
+    case "email": case "number": return "time";
+    case "income": return "age";
+    case "topics": return "income";
+    default: return null;
+  }
+}
+
+/** The calls the booking makes, in order: a phone call stores the numbers first (W05 uses call_number || phone). */
+export const bookingCalls = (method: Method): ("contact" | "book")[] => (method === "phone" ? ["contact", "book"] : ["book"]);
+
+export interface BookingState { start: string; end: string; method: string; held: boolean }
+/** Where GET /start resumes: no booking → the time step (adviser first); a booking with every answer in → All set; a booking with
+    answers missing → the age step (the booking stays whatever happens after it). */
+export function resumeAt(booking: BookingState | null, a: Answers): "time" | "age" | "allset" {
+  if (!booking) return "time";
+  return answersComplete(a) ? "allset" : "age";
+}
+
 /** No token in the fragment or sessionStorage: start at step 0 (a desktop visit from a site CTA, or anyone without Lindi's link),
     except ?for=wills, which goes straight to the WhatsApp handoff (wills are a separate project, booked by Lindi on WhatsApp).
     "This link has expired" is kept for a token the API rejected. */
@@ -68,77 +138,14 @@ export function onLoadFailure(kind: "expired" | "error", storedOnly: boolean, se
     w-book-will and the like, or a theme B campaign code (b01 to b04). */
 export const isWillsRef = (ref: string | null | undefined) => !!ref && (/^w-(?:[a-z0-9]+-)*wills?(?:-|$)/i.test(ref) || /^b\d{2}$/i.test(ref));
 
-/** "A will" and "Something else" do not continue on the page: Lindi carries on in the chat. */
-export const isChatIntent = (i?: Intent) => i === "will" || i === "other";
-/** The "what would you want cover to do" follow-up is asked only when there is no cover now (or they are not sure). */
-export const asksWant = (a: Answers) => a.has_cover === "no" || a.has_cover === "unsure";
-/** Has cover now (through work, their own, or the legacy "yes"): the pay-band question, no "want" step. */
-export const hasCoverNow = (a: Answers) => a.has_cover === "yes_work" || a.has_cover === "yes_own" || a.has_cover === "yes";
+/* ---------------- adviser confirm gate (POST /start/adviser, before any open time) ---------------- */
+export interface AdviserInfo { id: string; first_name: string; name: string; firm: string; fsp: string | number; bio: string | null; photo_url: string | null }
+export interface AdviserReply { next: "adviser" | "slots" | "chat"; adviser?: AdviserInfo | null }
+export type AfterAdviser = { k: "chat" } | { k: "adviser"; adviser: AdviserInfo } | { k: "slots" } | { k: "error" };
 
-export function nextStep(step: StepId, a: Answers): Next {
-  switch (step) {
-    case "details": return "lead";
-    case "intent": return isChatIntent(a.intent) ? "chat" : "age";
-    case "age": return "cover";
-    case "cover": return "budget";
-    case "budget": return asksWant(a) ? "want" : "submit";
-    case "want": return "submit";
-    case "adviser": return "submit"; // POST again with confirm_adviser; only a confirmed 'slots' answer opens the times
-    case "time": return "email";
-    case "email": return "submit";
-  }
-}
-
-export function prevStep(step: StepId, a: Answers): StepId | null {
-  switch (step) {
-    case "details": return null;
-    case "intent": return null; // after step 0 the lead exists: there is no going back to re-send the details
-    case "age": return "intent";
-    case "cover": return "age";
-    case "budget": return "cover";
-    case "want": return "budget";
-    case "adviser": return asksWant(a) ? "want" : "budget";
-    case "time": return "adviser";
-    case "email": return "time";
-  }
-}
-
-/** Where to resume from prefilled answers: the first unanswered step, "chat" for a will / something else, or "adviser" when every
-    question is answered (every age band continues; Jono, 18 Oct 2026). Never "time": even a lead that is already routed sees and
-    confirms the adviser first. */
-export function resumeAt(a: Answers): StepId | "chat" {
-  if (!a.intent) return "intent";
-  if (isChatIntent(a.intent)) return "chat";
-  if (!a.age_band) return "age";
-  if (!a.has_cover) return "cover";
-  if (!a.budget_band) return "budget";
-  if (asksWant(a) && !a.want) return "want";
-  return "adviser";
-}
-
-/** Body for POST /start/answers. A will / something else sends the intent alone; `want` only on the no / not sure path;
-    `confirm_adviser` only once the person has seen the adviser disclosure and pressed the button. */
-export function answersPayload(a: Answers, request_id: string, confirm_adviser?: string | null) {
-  if (isChatIntent(a.intent)) return { intent: a.intent, request_id };
-  return {
-    intent: a.intent,
-    age_band: a.age_band,
-    has_cover: a.has_cover,
-    ...(a.budget_band ? { budget_band: a.budget_band } : {}),
-    ...(asksWant(a) && a.want ? { want: a.want } : {}),
-    ...(confirm_adviser ? { confirm_adviser } : {}),
-    request_id,
-  };
-}
-
-/* ---------------- adviser disclosure (before routing) ---------------- */
-export interface AdviserInfo { id: string; first_name: string; name: string; firm: string; fsp: string | number }
-export interface AnswersReply { next: "adviser" | "slots" | "chat"; adviser?: AdviserInfo | null }
-export type AfterAnswers = { k: "chat" } | { k: "adviser"; adviser: AdviserInfo } | { k: "slots" } | { k: "error" };
-
-/** What the page does with a POST /start/answers reply. `confirmed` is the adviser id sent as confirm_adviser (null on the first
-    POST). The times open ONLY on 'slots' to a confirming POST for that same adviser; any other adviser re-shows part A. */
-export function afterAnswers(r: AnswersReply, confirmed: string | null): AfterAnswers {
+/** What the page does with a POST /start/adviser reply. `confirmed` is the adviser id sent as confirm_adviser (null on the first
+    POST). The times open ONLY on 'slots' to a confirming POST for that same adviser; any other adviser re-shows the card. */
+export function afterAdviser(r: AdviserReply, confirmed: string | null): AfterAdviser {
   if (r.next === "chat") return { k: "chat" };
   const adv = r.adviser && r.adviser.id ? r.adviser : null;
   if (r.next === "adviser") return adv ? { k: "adviser", adviser: adv } : { k: "error" };
@@ -147,29 +154,15 @@ export function afterAnswers(r: AnswersReply, confirmed: string | null): AfterAn
   return adv ? { k: "adviser", adviser: adv } : { k: "error" };
 }
 
-/** The required disclosure on part A, built from the API values (always shown in full). Gender-neutral. */
-export function adviserDisclosure(a: Pick<AdviserInfo, "first_name" | "name" | "firm" | "fsp">): [string, string, string] {
-  return [
-    `${a.name}, ${a.firm}, an authorised financial services provider (FSP ${a.fsp}). ${a.first_name} will be the one on the call with you.`,
-    `SortMyCover shares your name, WhatsApp number and the answers you gave here with ${a.first_name} to prepare for the call.`,
-    INTRO_DISCLOSURE,
-  ];
-}
-export const INTRO_DISCLOSURE = "Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.";
-
-/** Changing an earlier answer drops the ones that depended on it (the band question and the follow-up differ by cover path). */
-export function setAnswer<K extends keyof Answers>(a: Answers, key: K, value: Answers[K]): Answers {
-  const out: Answers = { ...a, [key]: value };
-  // the band question differs by path (what you pay vs what you could put towards cover): clear it only when the path changes
-  if (key === "has_cover" && a.has_cover !== value && asksWant(a) !== asksWant(out)) { delete out.budget_band; delete out.want; }
-  return out;
-}
+/** The required small print under "Book this time": shown with the adviser card, before the confirm that routes the lead. */
+export const INTRO_DISCLOSURE = "Introduced by SortMyCover, which gives no advice. Advisers pay SortMyCover a fee that doesn't depend on whether you buy anything.";
+export const fspLine = (fsp: string | number) => `Authorised FSP ${fsp}`;
 
 /* ---------------- meeting type ---------------- */
 /** Two meeting types only (Jono, 18 Oct 2026): a Teams call or a phone call. "whatsapp_call" is ignored even when the API lists it. */
 export type Method = "teams" | "phone";
 export const METHOD_ORDER: Method[] = ["teams", "phone"];
-export const METHOD_LABEL: Record<Method, string> = { teams: "Teams call", phone: "Phone call" };
+export const METHOD_LABEL: Record<Method, string> = { teams: "Microsoft Teams call", phone: "Phone call" };
 
 /** Only the meeting types the server offers, in the page's fixed order (unknown values and WhatsApp call are ignored). */
 export function availableMethods(methods: readonly string[] | null | undefined): Method[] {
@@ -181,6 +174,31 @@ export function defaultMethod(methods: readonly string[] | null | undefined): Me
   return av.includes("teams") ? "teams" : av[0] ?? null;
 }
 export const methodLabel = (m: string) => METHOD_LABEL[m as Method] ?? "Call";
+
+/* ---------------- phone call: which number (POST /start/contact) ---------------- */
+/** Any South African number (mobile or landline: 011 234 5678, 082 123 4567, +27..., 0027...) to +27..., or null. */
+export function toSaNumber(v: string): string | null {
+  let d = String(v || "").replace(/[^\d+]/g, "");
+  if (d.indexOf("+") > 0) return null;
+  d = d.replace(/^\+/, "");
+  if (d.indexOf("0027") === 0) d = d.slice(4);
+  else if (d.indexOf("27") === 0 && d.length === 11) d = d.slice(2);
+  else if (d.charAt(0) === "0") d = d.slice(1);
+  else return null;
+  return /^[1-8]\d{8}$/.test(d) ? "+27" + d : null;
+}
+
+export interface ContactInput { use: "whatsapp" | "other"; other: string; alt: string }
+export type ContactPayload = { call_number: string | null; alt_number?: string };
+/** Body for POST /start/contact (without request_id), or the field to fix. call_number null = call the WhatsApp number. */
+export function contactPayload(c: ContactInput): { ok: true; body: ContactPayload } | { ok: false; field: "call_number" | "alt_number" } {
+  let call: string | null = null;
+  if (c.use === "other") { call = toSaNumber(c.other); if (!call) return { ok: false, field: "call_number" }; }
+  const altRaw = c.alt.trim();
+  let alt: string | undefined;
+  if (altRaw) { const a = toSaNumber(altRaw); if (!a) return { ok: false, field: "alt_number" }; alt = a; }
+  return { ok: true, body: alt ? { call_number: call, alt_number: alt } : { call_number: call } };
+}
 
 /* ---------------- slots (South African time) ---------------- */
 export const TZ = "Africa/Johannesburg";
@@ -360,5 +378,22 @@ export function leadBody(i: LeadInput, cfg: { named: { text: string; version: st
     angle: "generic", lang: "en", started_at: i.started_at, request_id: i.request_id, page_url: i.origin + "/start/",
     company_website: i.honeypot, honeypot: i.honeypot, turnstile_token: "", start_page: true as const,
     context: { event_id: i.request_id, event_name: "Lead", fbp: null, fbc: null, utm, fbclid: null, ref, page_url: i.origin + "/start/", user_agent: i.user_agent, ts: Math.floor(i.now / 1000) },
+  };
+}
+
+/* ---------------- optional guest on the invite (Jono, 19 Oct 2026) ---------------- */
+/** "Someone else joining?": the guest's email for POST /book as guest_email. Unticked or blank sends nothing; a filled field must
+    be a complete address (same check as the main email). */
+export function guestEmail(on: boolean, v: string): { ok: true; guest_email?: string } | { ok: false } {
+  const e = (v || "").trim();
+  if (!on || !e) return { ok: true };
+  return validEmail(e) ? { ok: true, guest_email: e } : { ok: false };
+}
+/** The /book body, with guest_email only when there is one. */
+export function bookBody(o: { slot_start: string; method: string; email: string; guest_email?: string; request_id: string }) {
+  return {
+    slot_start: o.slot_start, method: o.method, email: o.email.trim(), email_confirmed: true as const,
+    ...(o.guest_email ? { guest_email: o.guest_email } : {}),
+    request_id: o.request_id, context: { source: "start_page" as const },
   };
 }
