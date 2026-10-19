@@ -575,7 +575,7 @@ test('POST /start/move (v4.6): W10 moves the live booking (one implementation); 
   const BK = { id: 'bk-1', appointment_date: '2026-10-21T08:00:00Z', ends_at: '2026-10-21T08:30:00Z', method: 'phone', status: 'booked' };
   const req = P({ slot_start: '2026-10-22T10:00:00+02:00' });
   const m = W39.moveRequest({ lead: LEAD(), booking: BK, req });
-  assert.deepEqual(m.w10, { source: 'W39', lead_id: LEAD_ID, booking: { id: 'bk-1' }, msg: { list_id: 'slot_2026-10-22T10:00:00+02:00:resched:bk-1', wamid: `w39move:${RID4}` }, idempotency_key: `w39:move:${LEAD_ID}:${RID4}` });
+  assert.deepEqual(m.w10, { source: 'W39', lead_id: LEAD_ID, lead: { id: LEAD_ID }, booking: { id: 'bk-1' }, msg: { list_id: 'slot_2026-10-22T10:00:00+02:00:resched:bk-1', wamid: `w39move:${RID4}` }, idempotency_key: `w39:move:${LEAD_ID}:${RID4}` });
   const W10 = await import('../lib/w10.mjs');
   assert.equal(W10.classifyOp(m.w10), 'pick', "W10's own pick op"); assert.deepEqual(W10.parseSlotPayload(m.w10.msg.list_id), { start: '2026-10-22T10:00:00+02:00', booking_id: 'bk-1' });
   assert.equal(m.method, null);

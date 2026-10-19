@@ -366,8 +366,8 @@ export function moveRequest({ lead, booking, req, now = Date.now() } = {}) {
   if (!booking || !booking.id || !booking.appointment_date) return { kind: 'none', status: 409, body: { error: 'no_booking' } };
   const methodChange = req.method && req.method !== booking.method ? req.method : null;
   const key = moveKey(lead.id, req.request_id);
-  const w10 = { source: 'W39', lead_id: lead.id, booking: { id: String(booking.id) }, msg: { list_id: `slot_${req.slot_start}:resched:${booking.id}`, wamid: `w39move:${req.request_id}` }, idempotency_key: key };
-  const method = methodChange ? { source: 'W39', lead_id: lead.id, booking: { id: String(booking.id) }, delegate: { action: 'change_method', method: methodChange },
+  const w10 = { source: 'W39', lead_id: lead.id, lead: { id: lead.id }, booking: { id: String(booking.id) }, msg: { list_id: `slot_${req.slot_start}:resched:${booking.id}`, wamid: `w39move:${req.request_id}` }, idempotency_key: key };
+  const method = methodChange ? { source: 'W39', lead_id: lead.id, lead: { id: lead.id }, booking: { id: String(booking.id) }, delegate: { action: 'change_method', method: methodChange },
     msg: { payload: `change_method:${methodChange}:${booking.id}`, wamid: `w39method:${req.request_id}` }, idempotency_key: `${key}:method` } : null;
   if (ms(booking.appointment_date) === ms(req.slot_start)) return { kind: methodChange ? 'method_only' : 'same', w10: null, method };
   return { kind: 'move', w10, method, slot_start: req.slot_start };
