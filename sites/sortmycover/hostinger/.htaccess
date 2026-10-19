@@ -125,6 +125,10 @@ Header always set Referrer-Policy "no-referrer" env=REDIRECT_START_PAGE
 <FilesMatch "\.(js|css|woff2)$">
   Header set Cache-Control "public, max-age=31536000, immutable"
 </FilesMatch>
+# the site fonts are also used by the client emails (supabase/functions/_shared/smc_layout.ts), so mail clients may load them
+<FilesMatch "\.woff2$">
+  Header set Access-Control-Allow-Origin "*"
+</FilesMatch>
 <FilesMatch "\.(png|webp|avif|jpg|ico|svg|webmanifest)$">
   Header set Cache-Control "public, max-age=86400"
 </FilesMatch>
