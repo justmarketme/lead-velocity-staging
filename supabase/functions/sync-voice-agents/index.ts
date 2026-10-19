@@ -174,9 +174,9 @@ const SMC_TOOLS_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc
 const SMC_POST_CALL_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice/post-call";
 // THE ONE PLACE Lindi's voice id lives (the persona file, smc-voice and docs never set it). Every
 // POST ?agent=smc pushes it and then reads it back, failing loudly if ElevenLabs holds anything else.
-// "Linet - African & Friendly": ElevenLabs library, accent "south african", locale en-ZA, conversational,
-// mid-age female; chosen 14 Oct 2026 over Claire (gsm4lUH9bnZ3pjR1Pw7w, 13-14 Oct). Alternatives and the
-// reasoning are in docs/SMC-VOICE-RECEPTIONIST.md. (Ayanda uses "Thandi"; Lindi deliberately sounds different.)
+// Voice Design "Cape Town" (warm South African female), Jono's pick on 14 Oct 2026 ("give linde the design capetown voice").
+// Linet (7Ojkrcr68EynjSd90VK0) was rejected: tagged "African", not South African (Jono, 18 Oct). Do not switch back.
+// Ayanda uses "Thandi"; Lindi deliberately sounds different. History: docs/SMC-VOICE-RECEPTIONIST.md.
 const SMC_VOICE_ID = "TMGDvkby8aZjBVCmFLOK"; // Voice Design "Cape Town" (was Linet 7Ojkrcr68EynjSd90VK0)
 const SMC_LLM = "glm-52"; // ElevenLabs-hosted, same as Ayanda (no Gemini/OpenAI)
 // Speech model and delivery. ElevenLabs-only, per Jono: Eleven v4 Turbo with Expressive Mode (audio tags).
