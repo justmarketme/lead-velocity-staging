@@ -14,7 +14,10 @@
 // message just before it (the lib/wa-banner.cjs rule). A reason tap is stored once (lead_activities stop_reason) and gets
 // nothing back; "I changed my mind" cannot re-subscribe without DDL (n8n_app has no DELETE on suppression, smc_05, and
 // the row has no "lifted" column), so it is recorded with the inbound message as evidence, opens a console escalation,
-// and gets one reply saying a person will start again. CANCEL (keep mode) releases the kept booking, no lead message.
+// and gets one reply saying a person will start again.
+// STOP NEVER cancels a call (Jono, 19 Oct 2026): it stops every WhatsApp message (W09 jobs paused/cancelled, and W09
+// skips opted-out / suppressed leads at send time), the appointment and the Outlook event stay, and the broker gets a
+// short "still booked" note. Only a CANCEL after STOP cancels: the normal cancel effects plus ONE confirmation line.
 import { createHash } from 'node:crypto';
 import { prefilter } from '../../conversation/guardrail.mjs';
 import banners from './wa-banner.cjs';
@@ -43,8 +46,9 @@ export function isStop(text) {
   return EXTRA.test(text) || prefilter(text).stop === true;
 }
 
-/** Booking behaviour on STOP (NH-28 b): 'cancel' (acceptance test + compliance-qa, default) or 'keep' (conversation-designer). */
-export const bookingMode = (v) => (String(v || '').toLowerCase() === 'keep' ? 'keep' : 'cancel');
+/** Booking behaviour on STOP: always 'keep' (Jono, 19 Oct 2026, replaces NH-28 b / NH-52). W15_STOP_BOOKING_MODE is
+ *  ignored: there is no cancel-on-STOP mode any more; only a CANCEL after STOP cancels (planFollowUp). */
+export const bookingMode = () => 'keep';
 const LIVE = new Set(['booked', 'confirmed']);
 const firstName = (s) => String(s || '').trim().split(/\s+/)[0] || 'Your client';
 const brokerKey = (b) => b.id ?? b.broker_id;
@@ -66,12 +70,11 @@ export const STOP_REASONS = [
 export const STOP_UNDO = { id: 'stop_undo:changed_mind', title: 'I changed my mind' };
 export const LIST_BUTTON = 'Tell us why';
 
-/** The one leaving text. booking: null | { kept, adviser_first, date, time }. withAsk: the "tell us why" line (WhatsApp list only). */
+/** The one leaving text. booking: null | { date, time } (the live call, kept). withAsk: the "tell us why" line (WhatsApp list only). */
 export function leavingText(name, booking = null, { withAsk = true } = {}) {
   const f = realFirst(name);
   let t = f ? `Done, ${f}. You won't get any more messages from us.` : "Done. You won't get any more messages from us.";
-  if (booking) t += booking.kept ? ` Your call with ${booking.adviser_first} on ${booking.date} at ${booking.time} stays booked unless you reply CANCEL.`
-    : ` Your call with ${booking.adviser_first} on ${booking.date} at ${booking.time} is cancelled.`;
+  if (booking) t += ` Your call on ${booking.date} at ${booking.time} stays booked unless you reply CANCEL.`;
   t += withAsk ? ` If you have a moment, would you tell us why? It helps us do better. If something went wrong, you can also email ${HELLO_EMAIL}.`
     : ` If something went wrong, you can email ${HELLO_EMAIL}.`;
   return t;
@@ -89,32 +92,34 @@ export function leavingList(to, text) {
 export const leavingBanner = (to, env = {}) => (banners.bannersOn(env)
   ? { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(to).replace(/^\+/, ''), type: 'image', image: { link: LEAVING_HEADER } } : null);
 
-/** Broker WhatsApp + email notices for one lead (shared by STOP and a CANCEL after STOP). */
+/** Broker WhatsApp + email notices for one lead. mode 'keep' = STOP (call kept, or no call); 'cancel' = a CANCEL after STOP. */
 function brokerNotices(l, br, { mine, mode, now }) {
   const kept = mode === 'keep' ? mine[0] || null : null;
-  const text = brokerNoticeText(l, { bookingCancelled: mode === 'cancel' && mine.length > 0, keptBooking: kept });
+  const cancelled = mode === 'cancel' ? mine[0] || null : null;
+  const text = brokerNoticeText(l, { bookingCancelled: cancelled, keptBooking: kept });
   const inWindow = br.last_inbound_at && now - msOf(br.last_inbound_at) < 24 * H;
-  const cancelled = mode === 'cancel' ? mine[0] : null;
   // WhatsApp: a session text inside the broker's 24-h window; outside it the approved broker_booking_changed template
-  // when a booking was removed; otherwise (cancel mode, no booking) the broker_lead_opted_out template; keep mode is held and the email carries it.
+  // when a CANCEL removed the booking; the broker_lead_opted_out template when there was no call; a kept call outside the
+  // window has no fitting template, so it is held and the email carries the "still booked" note.
   const wa = inWindow ? { mode: 'session' }
     : cancelled ? { mode: 'template', template: 'broker_booking_changed',
-      vars: [firstName(br.contact_person || br.adviser_name || br.adviser_first_name), firstName(l.first_name), METHOD_LABEL[cancelled.method] || cancelled.method || 'call', `${dateLabel(cancelled.start)}, ${timeLabel(cancelled.start)}`, 'Cancelled: opted out, do not call'],
+      vars: [firstName(br.contact_person || br.adviser_name || br.adviser_first_name), firstName(l.first_name), METHOD_LABEL[cancelled.method] || cancelled.method || 'call', `${dateLabel(cancelled.start)}, ${timeLabel(cancelled.start)}`, 'Cancelled by the client'],
       url_suffix: `calendar?day=${isoSast(cancelled.start).slice(0, 10)}` }
-      : mode === 'cancel' ? { mode: 'template', template: 'broker_lead_opted_out', // I-55a / state-machine.md STOP step 1: no booking existed; 2 body vars (never the number) + URL suffix
+      : !kept ? { mode: 'template', template: 'broker_lead_opted_out', // I-55a / state-machine.md STOP step 1: no booking existed; 2 body vars (never the number) + URL suffix
         vars: [firstName(br.contact_person || br.adviser_name || br.adviser_first_name), firstName(l.first_name)], url_suffix: `leads?lead=${l.id}` }
-        : { mode: 'held_no_template' }; // keep mode: the call stands, the email carries the notice, nothing from this template
+        : { mode: 'held_no_template' }; // call kept, window closed: the email carries the note
   return [
     { broker_id: l.broker_id, lead_id: l.id, channel: 'whatsapp', to: br.adviser_whatsapp || br.whatsapp_number || null, text, ...wa },
-    { broker_id: l.broker_id, lead_id: l.id, channel: 'email', to: br.email || null, subject: `${firstName(l.first_name)} opted out: do not contact`, text, mode: 'email' },
+    { broker_id: l.broker_id, lead_id: l.id, channel: 'email', to: br.email || null, subject: kept ? `${firstName(l.first_name)} opted out of WhatsApp: call still booked` : cancelled ? `${firstName(l.first_name)} cancelled their call` : `${firstName(l.first_name)} opted out: do not contact`, text, mode: 'email' },
   ];
 }
 
 /** Broker notice wording: first name only, never the number (POPIA minimisation; test "first name only"). */
-export function brokerNoticeText(lead, { bookingCancelled = false, keptBooking = null } = {}) {
+export function brokerNoticeText(lead, { bookingCancelled = null, keptBooking = null } = {}) {
   const f = firstName(lead.first_name);
-  if (keptBooking) return `${f} has opted out of messages from SortMyCover. Their call on ${dateLabel(keptBooking.start)} at ${timeLabel(keptBooking.start)} stays booked unless they cancel. Do not message them on WhatsApp.`;
-  return `${f} has opted out of contact. Please do not call or message them.${bookingCancelled ? ' Their booking has been removed from your calendar.' : ''}`;
+  if (keptBooking) return `${f} opted out of WhatsApp messages. The call on ${dateLabel(keptBooking.start)} at ${timeLabel(keptBooking.start)} is still booked.`;
+  if (bookingCancelled) return `${f} cancelled the call on ${dateLabel(bookingCancelled.start)} at ${timeLabel(bookingCancelled.start)}. It has been removed from your calendar. They have opted out of messages, so please do not call or message them.`;
+  return `${f} has opted out of contact. Please do not call or message them.`;
 }
 
 /**
@@ -147,24 +152,18 @@ export function planOptOut(input = {}) {
     const mine = live.filter((b) => b.lead_id === l.id);
     for (const b of mine) {
       out.w09.push({ op: 'cancel_all', booking_id: b.id }); // CONTRACTS W09 cancel_all (idempotent)
-      if (mode === 'cancel') out.booking_cancels.push({ booking_id: b.id, lead_id: l.id, broker_id: b.broker_id, graph_event_id: b.graph_event_id || null, calendar_provider: b.calendar_provider || null, start: b.start, method: b.method });
     }
     out.activities.push({ lead_id: l.id, brand_id: l.brand_id ?? null, broker_id: l.broker_id ?? null, activity_type: 'opted_out', actor_type: 'lead', occurred_at: at,
-      payload: { channel: input.channel || 'whatsapp', forced: !!input.force, bookings_cancelled: mode === 'cancel' ? mine.map((b) => b.id) : [], booking_mode: mode },
+      payload: { channel: input.channel || 'whatsapp', forced: !!input.force, bookings_kept: mine.map((b) => b.id), booking_mode: mode },
       idempotency_key: `w15:optout:${l.id}` });
     if (!l.broker_id) continue; // not routed yet (mid-quiz): nobody to tell
-    out.broker_notices.push(...brokerNotices(l, brokers.get(String(l.broker_id)) || {}, { mine, mode, now }));
+    out.broker_notices.push(...brokerNotices(l, brokers.get(String(l.broker_id)) || {}, { mine: [...mine].sort((a, b) => msOf(a.start) - msOf(b.start)), mode, now }));
   }
   // Exactly one leaving message, on the channel the STOP came in on (a WhatsApp STOP opens the 24-h window).
   if (input.mobile && (input.channel === 'whatsapp' || input.channel === 'sms' || !input.channel)) {
-    const kept = mode === 'keep' ? live[0] : null;
-    const br = kept ? brokers.get(String(kept.broker_id)) || {} : {};
-    // keep mode -> "stays booked unless you reply CANCEL" (the STOP_ACK_BOOKED rule); cancel mode with a live booking ->
-    // the earliest cancelled one is named (R6-04 / I-49b); nothing live -> no booking line.
-    const cx = [...out.booking_cancels].filter((b) => b.start != null).sort((a, b) => msOf(a.start) - msOf(b.start))[0] || null;
-    const cbr = cx ? brokers.get(String(cx.broker_id)) || {} : {};
-    const bk = kept ? { kept: true, adviser_first: firstName(br.contact_person || br.adviser_name), date: dateLabel(kept.start), time: timeLabel(kept.start) }
-      : cx ? { kept: false, adviser_first: firstName(cbr.contact_person || cbr.adviser_name || cbr.adviser_first_name), date: dateLabel(cx.start), time: timeLabel(cx.start) } : null;
+    // the earliest live call is named: it stays booked unless they reply CANCEL
+    const kept = [...live].filter((b) => b.start != null).sort((a, b) => msOf(a.start) - msOf(b.start))[0] || null;
+    const bk = kept ? { date: dateLabel(kept.start), time: timeLabel(kept.start) } : null;
     const channel = input.channel || 'whatsapp';
     const first = leads.map((l) => l.first_name).find((x) => realFirst(x)) || '';
     const text = leavingText(first, bk, { withAsk: channel === 'whatsapp' });
@@ -219,6 +218,9 @@ export function followupOf(e = {}) {
   return null;
 }
 
+/** The one confirmation after a CANCEL that followed a STOP. */
+export const cancelText = (b) => `Your call on ${dateLabel(b.start)} at ${timeLabel(b.start)} is cancelled.`;
+
 /** The one reply to "I changed my mind" (no re-subscribe without DDL: a person starts again, see planFollowUp). */
 export const undoText = (name) => { const f = realFirst(name); return `${f ? `Thanks, ${f}.` : 'Thanks.'} We've let our team know, and someone will message you here to start again.`; };
 
@@ -228,8 +230,8 @@ export const undoText = (name) => { const f = realFirst(name); return `${f ? `Th
  *  why    -> lead_activities stop_reason (once per lead: key w15:stop_reason:<lead_id>), NO reply ("Something went wrong" too).
  *  undo   -> lead_activities stop_undo_requested (inbound message as evidence; key w15:stop_undo:<lead_id>) + a console
  *            escalation + ONE reply. Not a re-subscribe: suppression has no DELETE for n8n_app and no "lifted" column.
- *  cancel -> keep mode left a live booking: released like a cancel-mode STOP (booking cancelled, W09 cancel_all, Graph
- *            delete, broker told), no lead message.
+ *  cancel -> the call STOP kept: the normal cancel effects (booking cancelled, W09 cancel_all, Graph delete of the
+ *            adviser's event, his cancel notice) and ONE confirmation line (cancelText), nothing else.
  * Only for a lead that IS opted out; anything else -> { handled: false }.
  */
 export function planFollowUp(input = {}) {
@@ -259,8 +261,8 @@ export function planFollowUp(input = {}) {
     out.reply = { to: e.mobile || l.phone, channel: 'whatsapp', kind: 'stop_undo_reply', text: undoText(l.first_name), lead_id: l.id };
     return out;
   }
-  // cancel: only what keep mode left booked
-  const mine = (input.bookings || []).filter((b) => LIVE.has(b.status) && b.lead_id === l.id);
+  // cancel: the call(s) the STOP kept
+  const mine = (input.bookings || []).filter((b) => LIVE.has(b.status) && b.lead_id === l.id).sort((a, b) => msOf(a.start) - msOf(b.start));
   if (!mine.length) return { ...out, handled: true, noop: true };
   for (const b of mine) {
     out.w09.push({ op: 'cancel_all', booking_id: b.id });
@@ -271,6 +273,7 @@ export function planFollowUp(input = {}) {
     const brokers = new Map((input.brokers || []).map((b) => [String(brokerKey(b)), b]));
     out.broker_notices.push(...brokerNotices(l, brokers.get(String(l.broker_id)) || {}, { mine, mode: 'cancel', now }));
   }
+  out.reply = { to: e.mobile || l.phone, channel: 'whatsapp', kind: 'stop_cancel_confirmation', text: cancelText(mine[0]), lead_id: l.id };
   return out;
 }
 
@@ -304,6 +307,6 @@ export function fanOut(p = {}, env = {}, W05 = null) {
     out.push({ kind: 'confirm_wa', lead_id: cf.lead_id, comm_kind: cf.kind, wa: cf.wa || waText(cf.to, cf.text), text: cf.text, to: cf.to });
   }
   const rp = plan.reply;
-  if (rp) out.push({ kind: 'confirm_wa', part: 'undo', lead_id: rp.lead_id, comm_kind: rp.kind, wa: waText(rp.to, rp.text), text: rp.text, to: rp.to });
+  if (rp) out.push({ kind: 'confirm_wa', part: rp.kind === 'stop_cancel_confirmation' ? 'cancel' : 'undo', lead_id: rp.lead_id, comm_kind: rp.kind, wa: waText(rp.to, rp.text), text: rp.text, to: rp.to });
   return out;
 }

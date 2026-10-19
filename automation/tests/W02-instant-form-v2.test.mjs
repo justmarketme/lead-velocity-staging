@@ -1,6 +1,7 @@
 // Meta instant form v2 (18 Oct 2026, A/B arm vs click-to-WhatsApp): deliverables/media-buyer/instant-form-spec-v2.json.
 // The form mirrors /start/ (intent, age band, cover today, first name, WhatsApp number), every age is accepted
-// (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as W39), the budget stays the first WhatsApp (qualify_budget < 60 s), and the
+// (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as W39), the first WhatsApp is the start_here template to /start/ (19 Oct 2026; before
+// its SID is set: qualify_budget < 60 s, the older tests below), and the
 // required consent box is exactly the CONSENT-NAMED-v5web registry text for Mark's practice.
 // Offline, real code: the W02 Code nodes (signature + Graph fetch, Graph stubbed), meta-ads normalizeLead / qualifyLead,
 // the W01 "Lead ad -> submission" node, w01 normaliseLeadAd / withRegistryText / consentAudit / decide / budgetQuestion,
@@ -70,7 +71,8 @@ test('spec v2: exact strings, question order and keys, no banned words in anythi
   assert.equal(SPEC.form_settings.form_type.ui, 'Higher intent');
   assert.deepEqual([SPEC.privacy_policy.url, SPEC.privacy_policy.link_text], ['https://sortmycover.co.za/privacy/', 'Privacy notice']);
   assert.deepEqual([SPEC.thank_you.headline.text, SPEC.thank_you.description.text, SPEC.thank_you.button.text.text, SPEC.thank_you.button.url],
-    ['Check WhatsApp', 'Lindi will message you in a moment to pick a time. Quick answers, no call centre or waiting on hold.', 'Chat on WhatsApp', 'https://wa.me/27600156480']);
+    ['Check WhatsApp', 'Lindi will send you a Start here link on WhatsApp in a moment. Tap it to pick a time for your call.', 'Chat on WhatsApp', 'https://wa.me/27600156480']); // 19 Oct 2026: the next step is the start_here template
+  assert.equal(SPEC.intro.description_bullets[1].text, 'Lindi from SortMyCover sends you a Start here link on WhatsApp.');
   assert.ok(SPEC.sources.length >= 4 && SPEC.sources.every((s) => /^https:\/\//.test(s.url)));
 });
 
@@ -290,4 +292,123 @@ test('cover answer (4 options, 18 Oct 2026): /start/ (W39), the Instant Form (W0
   // chat: Lindi asks no cover question (W03 / W07 / conversation/*), so there is no third path to map
   const W39WF = JSON.parse(readFileSync(new URL('../W39.json', import.meta.url), 'utf8'));
   assert.match(W39WF.nodes.find((n) => n.name === 'Save answers + timeline + cancel stall (one statement)').parameters.query, /work_cover\s+= coalesce\(\(\$2::jsonb->>'work_cover'\)::boolean, l\.work_cover\)/);
+});
+
+// ------------------------------------------------------------------------------------------- the /start/ path (19 Oct 2026)
+// Jono: Instant Form leads take the SAME path as WhatsApp / web leads: the form's consent, then the start_here TEMPLATE
+// (lt1 token as its URL-button variable), then /start/ v4. Gate: w01.startHereReady (Twilio + start_here SID + secret).
+const LT = require('../security/lead-token.js');
+const SW = await import('../lib/sub-whatsapp-send.mjs');
+const TOKEN_SECRET = 'test-lead-token-secret-0123456789abcdef';
+const READY_ENV = { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: JSON.stringify({ start_here: 'HXstarthere0000000000000000000000' }), LEAD_TOKEN_SECRET: TOKEN_SECRET };
+
+test('start_here gate: Twilio + the start_here Content SID + LEAD_TOKEN_SECRET, anything missing -> false (the qualify_budget path)', () => {
+  assert.equal(W01.startHereReady(READY_ENV), true);
+  assert.equal(W01.startHereReady({ ...READY_ENV, TWILIO_CONTENT_SIDS: JSON.stringify({ smc_start_cta: 'HX1' }) }), false, 'no start_here SID');
+  assert.equal(W01.startHereReady({ ...READY_ENV, TWILIO_CONTENT_SIDS: 'not json' }), false);
+  assert.equal(W01.startHereReady({ ...READY_ENV, LEAD_TOKEN_SECRET: ' ' }), false, 'no secret');
+  assert.equal(W01.startHereReady({ ...READY_ENV, WHATSAPP_PROVIDER: 'meta' }), false, 'start_here is Twilio Content only (not submitted to Meta)');
+  assert.equal(W01.startHereReady({}), false);
+});
+
+test('start_here ready: lead ad -> stored UNROUTED like the desktop start-page lead, answers kept, first touch start_here, no qualify_budget, no CAPI, consent as before', () => {
+  const sub = W01.normaliseLeadAd(lead('keys_in_band'));
+  const old = decideOf(sub);
+  const d = decideOf(sub, ctx({ start_here: true }));
+  assert.deepEqual([d.kind, d.outcome, d.row.routing_reason, d.row.broker_id, d.row.routed_at, d.row.stage, d.row.disqualified_reason],
+    ['insert', 'start_page', 'start_page_pending', null, null, 'new', null]);
+  assert.equal(d.row.routing_reason, W01.START_PAGE_PENDING);
+  assert.deepEqual([d.row.conv_state.state, d.row.conv_state.via, d.row.conv_state.help_with], ['start_page', 'start_page', 'disability_income']);
+  assert.deepEqual(d.row.conv_state.start, old.row.conv_state.start, 'the form answers stay in conv_state.start exactly as before');
+  assert.ok(W01.QUALIFYING_STATES.has(d.row.conv_state.state), 'chat while the page is pending still goes W07 -> W03');
+  assert.deepEqual([d.first_touch.workflow, d.first_touch.op, d.first_touch.deadline_s, d.first_touch.lead_id], ['W01', 'start_here', 60, LEAD_ID]);
+  assert.equal(d.capi, null, 'no CAPI Lead at intake: routeExisting sends it once at the hand-over');
+  assert.equal(d.mint_token, false, 'a lead ad has no page response: the token is minted by the start_here send only');
+  assert.ok(!d.activities.some((a) => a.activity_type === 'budget_question_pending'));
+  assert.ok(d.activities.some((a) => a.activity_type === 'start_page_pending' && a.payload.first_touch === 'start_here'));
+  // consent recorded exactly as on the qualify_budget path (instant-form-spec-v2 mapping unchanged)
+  for (const k of ['consent_text', 'consent_text_version', 'consent_mode', 'consent_at', 'consent_source', 'consent_ads_at', 'consent_page_url', 'lead_event_id', 'age_band', 'work_cover'])
+    assert.deepEqual(d.row[k], old.row[k], k);
+  assert.equal(d.row.consent_text, SPEC.custom_disclaimer.checkboxes[0].text);
+  // every age: under 35 and over 50 take the same path
+  for (const [k, m] of [['under_35', '+27820000202'], ['hand_built_over_50', '+27600000204']]) {
+    const x = decideOf(W01.normaliseLeadAd(lead(k)), ctx({ mobile: m, start_here: true }));
+    assert.deepEqual([x.outcome, x.row.disqualified_reason, x.first_touch.op], ['start_page', null, 'start_here'], k);
+  }
+  // without the gate: the old path, unchanged
+  assert.deepEqual([old.outcome, old.row.routing_reason, old.row.conv_state.state, old.first_touch.workflow, old.first_touch.op], ['budget_pending', 'held_budget_pending', 'q_budget', 'W03', 'ask_budget']);
+  assert.deepEqual(decideOf(sub, ctx({ start_here: false })), old);
+  // a form that still carries a band (older form) is judged at intake as before: the gate changes nothing there
+  const banded = decideOf({ ...sub, quiz: { ...sub.quiz, budget_band: '1500_plus' } }, ctx({ start_here: true }));
+  assert.deepEqual([banded.outcome, banded.first_touch.workflow], ['accepted', 'W06']);
+});
+
+test('start_here send: decided shape, lt1 token minted for the lead and ONLY in the URL button; Twilio {1: first name, 2: token}, no Body; DRY_RUN_SENDS honoured', () => {
+  const d = decideOf(W01.normaliseLeadAd(lead('keys_in_band')), ctx({ start_here: true }));
+  const s = W01.startHere(d.row, TOKEN_SECRET, NOW);
+  assert.deepEqual([s.kind, s.template, s.to, s.variables, s.lead_id, s.correlation], ['template', 'start_here', '+27600000201', ['Thandi'], LEAD_ID, `w01:start_here:${LEAD_ID}`]);
+  const token = s.buttons[0].url;
+  const v = LT.verifyLeadToken(token, { secret: TOKEN_SECRET, nowMs: NOW });
+  assert.deepEqual([v.ok, v.lead_id], [true, LEAD_ID], 'a real lt1 lead token for this lead');
+  assert.ok(!s.variables.some((x) => String(x).includes(token)), 'never in a body variable');
+  assert.equal(W01.startHere(d.row, '', NOW), null);
+  assert.equal(W01.startHere({ ...d.row, first_name: null }, TOKEN_SECRET, NOW).variables[0], 'there');
+  // the real shared sender: the template matches the submitted spec, the URL button parameter = the token
+  const n = SW.normalise(s);
+  assert.equal(n.valid, true);
+  const env = { ...READY_ENV, TWILIO_WHATSAPP_FROM: '+27600156480', TWILIO_ACCOUNT_SID: 'ACtest', TWILIO_AUTH_TOKEN: 'secret' };
+  const live = SW.decide(n, { brand_id: 'smc', suppressed: false }, env, NOW);
+  assert.equal(live.action, 'send', JSON.stringify(live));
+  const urlBtn = live.payload.template.components.find((c) => c.type === 'button' && c.sub_type === 'url');
+  assert.deepEqual(urlBtn.parameters, [{ type: 'text', text: token }]);
+  const req = SW.twilioRequest(live, env);
+  const form = Object.fromEntries(new URLSearchParams(req.body));
+  assert.deepEqual([form.ContentSid, form.Body], ['HXstarthere0000000000000000000000', undefined], 'ContentSid, never a text Body');
+  assert.deepEqual(JSON.parse(form.ContentVariables), { 1: 'Thandi', 2: token });
+  assert.equal(SW.logContent(live), 'template:start_here', 'the communications row never carries the token');
+  const dry = SW.decide(n, { brand_id: 'smc', suppressed: false }, { ...env, DRY_RUN_SENDS: 'true' }, NOW);
+  assert.deepEqual([dry.action, dry.external_id, dry.payload], ['dry', `dry:w01:start_here:${LEAD_ID}`, undefined]);
+});
+
+test('W01.json: the start_here first touch goes through the real nodes to smc-whatsapp-send; never to W06 or the qualify_budget template', async () => {
+  const d = decideOf(W01.normaliseLeadAd(lead('keys_in_band')), ctx({ start_here: true }));
+  const it = { first_touch: d.first_touch, decision: d };
+  assert.equal(ifBranch(W01WF, 'First touch? (routed, not suppressed)', { json: it }), true);
+  assert.equal(ifBranch(W01WF, 'Start here first? (lead ad -> /start/ page)', { json: it }), true);
+  assert.equal(ifBranch(W01WF, 'Budget question first? (lead ad, no band in the form)', { json: it }), false);
+  assert.deepEqual(await runCode(W01WF, 'W06 input', { items: [it] }), [], 'no W06 first touch');
+  const out = await runCode(W01WF, 'Start here (w01.startHere: token in the URL button only)', { items: [it], env: { LEAD_TOKEN_SECRET: TOKEN_SECRET } });
+  assert.equal(out.length, 1);
+  assert.deepEqual([out[0].json.template, LT.verifyLeadToken(out[0].json.buttons[0].url, { secret: TOKEN_SECRET }).lead_id], ['start_here', LEAD_ID]);
+  assert.deepEqual(await runCode(W01WF, 'Start here (w01.startHere: token in the URL button only)', { items: [it], env: {} }), [], 'no secret: nothing sent');
+  const to = (name) => (W01WF.connections[name] ? W01WF.connections[name].main.flat().map((x) => x.node) : []);
+  assert.ok(to('First touch? (routed, not suppressed)').includes('Start here first? (lead ad -> /start/ page)'));
+  assert.deepEqual(to('Start here (w01.startHere: token in the URL button only)'), ['WhatsApp Send (start_here)']);
+  assert.equal(W01WF.nodes.find((x) => x.name === 'WhatsApp Send (start_here)').parameters.workflowId.value, 'smc-whatsapp-send');
+  assert.match(codeNode(W01WF, 'Decide (w01.decide) + lead_token').parameters.jsCode, /start_here: L\.startHereReady\(\$env\)/);
+  // the old path is still routed as before
+  const old = decideOf(W01.normaliseLeadAd(lead('keys_in_band')));
+  assert.equal(ifBranch(W01WF, 'Start here first? (lead ad -> /start/ page)', { json: { first_touch: old.first_touch } }), false);
+  assert.equal(ifBranch(W01WF, 'Budget question first? (lead ad, no band in the form)', { json: { first_touch: old.first_touch } }), true);
+});
+
+test('start_here lead at the W39 hand-over: routed after START-DISCLOSE-v1 (no LEADAD session text), ONE CAPI Lead, never a second', () => {
+  const d = decideOf(W01.normaliseLeadAd(lead('keys_in_band')), ctx({ start_here: true }));
+  assert.ok(d.row.consent_ads_at, 'the form ticked the ad-measurement box');
+  const capis = [d.capi].filter(Boolean);
+  // W39 POST /start/adviser logs adviser_disclosed for Mark, then calls W01 core (expect_broker_id, first_touch false)
+  const lead0 = { ...d.row, disclosed: [OPW.id] };
+  const opts = { brokers: [OPW], now: NOW + 600_000, first_touch: false, expect_broker_id: OPW.id, require_disclosure: W01.disclosureRequired(lead0, {}) };
+  assert.equal(opts.require_disclosure, true, 'the interim rule is still on for lead-ad leads; the W39 disclosure row satisfies it');
+  const r = W01.routeExisting(lead0, opts);
+  assert.deepEqual([r.action, r.update.broker_id, r.first_touch], ['routed', OPW.id, null]);
+  if (r.capi) capis.push(r.capi);
+  // a retry / second W39 call on the routed lead: no second Lead
+  const again = W01.routeExisting({ ...lead0, ...r.update }, opts);
+  assert.equal(again.action, 'already_routed');
+  if (again.capi) capis.push(again.capi);
+  assert.equal(capis.length, 1, 'exactly one CAPI Lead per Instant Form lead');
+  assert.deepEqual([capis[0].event_name, capis[0].event_id, capis[0].action_source], ['Lead', `evt_${LEAD_ID}_lead`, 'system_generated']);
+  // the old path (the lead answers in chat instead): without the row the route asks for the LEADAD-DISCLOSE-v1 session text first
+  assert.equal(W01.routeExisting({ ...d.row, disclosed: [] }, { ...opts, first_touch: true }).action, 'disclose');
 });

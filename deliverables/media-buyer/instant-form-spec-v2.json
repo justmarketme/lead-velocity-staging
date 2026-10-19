@@ -45,7 +45,7 @@
         "chars": 29
       },
       {
-        "text": "Lindi from SortMyCover messages you on WhatsApp to pick a time.",
+        "text": "Lindi from SortMyCover sends you a Start here link on WhatsApp.",
         "chars": 63
       },
       {
@@ -158,7 +158,7 @@
             "chars": 7
           }
         ],
-        "note": "Every answer is accepted. 35 to 50 can be qualified (after the band on WhatsApp); Under 35 / Over 50 book like anyone, are never marked qualified, and get a timeline note (OUT_OF_BAND_AGE_BOOKS)."
+        "note": "Every answer is accepted. 35 to 50 can be qualified (after the monthly amount, asked on the /start/ page, never in this form); Under 35 / Over 50 book like anyone, are never marked qualified, and get a timeline note (OUT_OF_BAND_AGE_BOOKS)."
       },
       {
         "n": 3,
@@ -214,7 +214,7 @@
       }
     ],
     "not_asked": [
-      "budget / monthly premium (asked on WhatsApp: the qualify_budget template, the first message, within 60 s)",
+      "budget / monthly premium / income (asked on the /start/ page the start_here WhatsApp template opens; before that template is approved: the qualify_budget template). The cover question asks about existing cover (incl. income protection), never earnings.",
       "email",
       "income, debt, health, ID number, policy details",
       "call preference (the method is chosen when booking)"
@@ -264,8 +264,8 @@
       "chars": 14
     },
     "description": {
-      "text": "Lindi will message you in a moment to pick a time. Quick answers, no call centre or waiting on hold.",
-      "chars": 100
+      "text": "Lindi will send you a Start here link on WhatsApp in a moment. Tap it to pick a time for your call.",
+      "chars": 99
     },
     "button": {
       "type_ui": "View website",
@@ -278,9 +278,10 @@
     }
   },
   "after_submit": [
-    "W02 webhook (leadgen) -> Graph fetch (field_data + custom_disclaimer_responses) -> W01 Lead core: stored unrouted (routing_reason held_budget_pending, conv_state q_budget + start { intent, intent_option, has_cover } + help_with).",
-    "First WhatsApp within 60 s: the approved utility template qualify_budget (the band question). No tap in 3 h: one reminder; still no tap: deleted 24 h after the reminder.",
-    "Band tapped -> W03 finishLeadAd -> W01 routes to Mark -> W06 broker intro card (broker_intro_slots) with practice, FSP number and adviser. qualified_at only for age 35-50 and a band of R750+."
+    "W02 webhook (leadgen) -> Graph fetch (field_data + custom_disclaimer_responses) -> W01 Lead core: consent recorded from the required box (+ the optional ad box) exactly as mapped here; stored UNROUTED like a /start/ lead (routing_reason start_page_pending, conv_state { state: start_page, via: start_page, start { intent, intent_option, has_cover, form_id, at, via: lead_ad }, help_with }).",
+    "First WhatsApp within 60 s: the start_here template (welcome banner, Hi {first name}, button Start here -> sortmycover.co.za/start/#lt=<lead token>), through smc-whatsapp-send. Gate: WHATSAPP_PROVIDER=twilio + TWILIO_CONTENT_SIDS.start_here + LEAD_TOKEN_SECRET (lib/w01.mjs startHereReady).",
+    "/start/ v4 (W39): pick a time, the adviser card with the SortMyCover disclosure (START-DISCLOSE-v1) before routing, then the monthly amount and the rest. Every age; an unknown band is provisional tier B. CAPI Lead once, at the hand-over (consent_ads only).",
+    "Before start_here is approved (gate off): the old path, unchanged: qualify_budget template first (one reminder after 3 h, deleted 24 h after it without a tap); band tapped -> W03 finishLeadAd -> the LEADAD-DISCLOSE-v1 session text -> W01 routes to Mark -> W06 broker intro card. A lead that writes in chat instead of opening /start/ also takes the taps (W03)."
   ],
   "w02_contract": {
     "reader": "automation/lib/w01.mjs normaliseLeadAd (a Graph lead, or the W02 ingest item) via leadAdAnswers / leadAdConsent; W02.json passes lead.answers and consent.responses through (automation/patch-w02-instant-form-v2.mjs).",
@@ -362,10 +363,12 @@
       "leads.product_interest": "life_cover",
       "leads.conv_state.help_with": "life | disability_income | severe_illness | review",
       "leads.conv_state.start": "{ intent, intent_option, has_cover, form_id, at, via: \"lead_ad\" }",
+      "leads.conv_state.state": "start_page (start_here path, via start_page) | q_budget (gate off)",
+      "leads.routing_reason": "start_page_pending (start_here path) | held_budget_pending (gate off)",
       "leads.conv_state.age_accepted": "true for lt35 / 51plus (and a missing age)",
       "leads.consent_text": "the registry text for Mark's practice",
       "leads.consent_ads_at": "only when consent_ads was ticked",
-      "lead_activities": "lead_ad_age_out_of_band (lt35 / 51plus), consent_audit, budget_question_pending"
+      "lead_activities": "lead_ad_age_out_of_band (lt35 / 51plus), consent_audit, start_page_pending (start_here path) | budget_question_pending (gate off)"
     },
     "tolerated_missing": [
       "smc_intent",

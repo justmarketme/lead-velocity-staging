@@ -73,7 +73,7 @@ function buildW01() {
     'Entry 2 POST /lead/skip (X-Lead-Token): the page\'s "I\'ll pick on WhatsApp" -> W06 op skip (slots card at once).\n' +
     'Entry 3 Execute Workflow "W01 Lead core": W02 { action: ingest, lead } (waits for { outcome, lead_id }) and W03 { kind: route_and_first_touch, lead_id } (routing written before W06 is called); W39 (the /start/ page) adds first_touch: false (same routing, no W06 first touch).\n' +
     'Email is stored only when the chosen method needs an invite (teams/zoom/meet), purpose meeting_invite. Consent text stored verbatim with its version; registry mismatch logged (consent_audit). Out-of-band: stored with retention_delete_after = +24 h (W34 purge), never routed, never messaged. Tier C (budget under R750, 2026-10-11) is NOT out of band: routed only to a broker with accepts_low_budget, else held (held_low_budget) with one honest WhatsApp; entry 5 hands an admin-assigned lead (manual_low_budget) to W06 and closes one nobody took in 7 days.\n' +
-    'Env: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation.', 400));
+    'Env: BRAND_ID, PUBLIC_ALLOWED_ORIGINS, TURNSTILE_SECRET_KEY, TURNSTILE_FAIL_MODE, RATE_LIMIT_PER_IP_PER_HOUR, RATE_LIMIT_PER_NUMBER_PER_DAY, RATE_LIMIT_IP_SALT, TWILIO_LOOKUP_ENABLED, TWILIO_ACCOUNT_SID, LEAD_TOKEN_SECRET(_PREVIOUS), WHATSAPP_PROVIDER + TWILIO_CONTENT_SIDS (start_here gate: lead ad -> /start/), TEST_HOOKS_ENABLED, TEST_HOOKS_TOKEN, CONSUMER_DOMAIN. Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation.', 400));
 
   // ---- entry 1: POST /lead
   n.push(node('POST /lead (landing page)', 'webhook', 2, pos(0, 0), { httpMethod: 'POST', path: 'lead', responseMode: 'responseNode', options: { allowedOrigins: ALLOWED_ORIGINS } }, { webhookId: 'w01-lead-post' }));
@@ -165,7 +165,8 @@ const brokers = s.ctx.brokers || [];
 const routable = brokers.find((b) => b.status === 'active' && b.routing_on !== false);
 const sub = L.withRegistryText(s.sub, routable); // lead-ad registry text gets the practice once the broker is known
 const decision = L.decide(sub, { mobile: s.mobile, line_type, prior: s.ctx.prior, suppressed: s.ctx.suppressed, brokers, brand_id: s.ctx.brand_uuid,
-  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check });
+  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check,
+  start_here: L.startHereReady($env) }); // lead ad -> /start/ (start_here template) once Twilio has its SID + LEAD_TOKEN_SECRET
 if (decision.row) decision.row.is_synthetic = !!s.sub.is_synthetic && s.test_hooks;
 const audit = L.consentAudit(sub, L.consentRegistry(routable || {}));
 if (decision.kind === 'insert') decision.activities.push({ activity_type: 'consent_audit', actor_type: 'system', occurred_at: decision.row.created_at, idempotency_key: 'w01:consent:' + decision.row.id, payload: audit });
@@ -232,10 +233,18 @@ return $input.all().map((i) => { const c = i.json.capi; return { json: { event_n
 const L = require('lv-automation').w01;
 return $input.all().map((i) => ({ json: L.budgetQuestion(i.json.decision.row) }));`));
   n.push(sub('WhatsApp Send (qualify_budget)', pos(20, 2), 'WhatsApp Send', false, 'Shared sender (SUB-whatsapp-send): suppression, DRY_RUN_SENDS, allow-list and the correlation idempotency key run inside.'));
+  // Instant Form -> /start/ (19 Oct 2026): first touch = the start_here template, the lt1 token only as its URL-button variable
+  n.push(ifTrue('Start here first? (lead ad -> /start/ page)', pos(18, 5), "$json.first_touch.op === 'start_here'"));
+  n.push(code('Start here (w01.startHere: token in the URL button only)', pos(19, 5),
+`// The token is minted here, right before the send, and travels only as the button's URL suffix (never a text body; the
+// sender logs the communications row as template:start_here). Without the secret startHere() returns nothing.
+const L = require('lv-automation').w01;
+return $input.all().map((i) => L.startHere(i.json.decision.row, $env.LEAD_TOKEN_SECRET)).filter(Boolean).map((s) => ({ json: s }));`));
+  n.push(sub('WhatsApp Send (start_here)', pos(20, 5), 'WhatsApp Send', false, 'Shared sender (SUB-whatsapp-send): suppression, DRY_RUN_SENDS, allow-list, correlation w01:start_here:<lead> (once). Twilio ContentSid TWILIO_CONTENT_SIDS.start_here, {1: first name, 2: token}.'));
   n.push(ifTrue('Low-budget held notice? (tier C, no broker with the standing yes and room)', pos(17, 3), '!!$json.notice'));
   n.push(code('Low-budget held notice (w01.lowBudgetHeld)', pos(18, 3), "return $input.all().filter((i) => i.json.notice).map((i) => ({ json: i.json.notice }));"));
   n.push(sub('WhatsApp Send (lead_low_budget_held)', pos(19, 3), 'WhatsApp Send', false, 'Tier C held: one honest message (we are checking which adviser can help at that budget; no promise of a call). Correlation w01:low_budget_held:<lead> (once per lead, whichever path holds it).'));
-  n.push(code('W06 input', pos(18, 1), "return $input.all().filter((i) => i.json.first_touch.workflow !== 'W03').map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"));
+  n.push(code('W06 input', pos(18, 1), "return $input.all().filter((i) => i.json.first_touch.workflow !== 'W03' && i.json.first_touch.workflow !== 'W01').map((i) => ({ json: { op: 'routed', lead_id: i.json.first_touch.lead_id, origin: i.json.first_touch.origin, not_before: i.json.first_touch.not_before } }));"));
   n.push(sub('W06 First touch (< 60 s)', pos(19, 1), 'W06 First touch', false, 'Called with { op: routed, lead_id, origin }. The lead row (broker_id, routed_at; attached to the open lead order by the database) is committed before this call. W06 holds page leads 45 s for the in-page booking.'));
 
   // ---- entry 2: POST /lead/skip
@@ -388,6 +397,9 @@ return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.c
   chain(c, 'W06 input', 'W06 First touch (< 60 s)');
   link(c, 'Budget question first? (lead ad, no band in the form)', 'Budget question (w01.budgetQuestion)', 0);
   chain(c, 'Budget question (w01.budgetQuestion)', 'WhatsApp Send (qualify_budget)');
+  link(c, 'First touch? (routed, not suppressed)', 'Start here first? (lead ad -> /start/ page)', 0);
+  link(c, 'Start here first? (lead ad -> /start/ page)', 'Start here (w01.startHere: token in the URL button only)', 0);
+  chain(c, 'Start here (w01.startHere: token in the URL button only)', 'WhatsApp Send (start_here)');
   chain(c, "POST /lead/skip (I'll pick on WhatsApp)", 'Verify X-Lead-Token', 'Respond 202 / 401', 'Token ok?');
   link(c, 'Token ok?', 'Lead still live + routed?', 0);
   chain(c, 'Lead still live + routed?', 'W06 skip input', 'W06 First touch (skip)');
@@ -750,9 +762,9 @@ function buildW15() {
   n.push(sticky(
     'W15 Opt-out ("STOP" anywhere) - DRAFT pending GATE-TEST-W15 (automation-engineer). Logic: automation/lib/w15.mjs (tested by automation/tests/W15.test.mjs, which also checks this file).\n' +
     'Entries: Execute Workflow from W07 (WhatsApp STOP in any state, or an opt-out intent), the console / W34 ({ op: opt_out, lead_id | mobile, channel }) and POST /sms-inbound (Twilio, signature checked) for STOP replies to the SMS fallback.\n' +
-    'Detection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + "stopall"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out; live bookings cancelled (W15_STOP_BOOKING_MODE=cancel, NH-28 b). Then: W09 pause (opt_out) + cancel_all per booking (CONTRACTS.md), Graph DELETE of the Outlook event (token from W04 graph_token), broker told by WhatsApp (session in window / broker_booking_changed template / held) and email from howzit@, first name only. Then ONE leaving message (Jono 19 Oct 2026, lib/w15.mjs leavingText): a session list "Tell us why" (6 reasons stop_why:<code> + "I changed my mind" stop_undo:changed_mind) carrying the text (booking line: kept -> stays booked unless you reply CANCEL; cancelled -> is cancelled); a list takes no image header, so with WA_SESSION_BANNERS=on the header-leaving card is an image message sent just before it. SMS: the text only. A second STOP is a no-op.\n' +
-    'After STOP (W07 hands an opted-out lead\'s message here as reason stop_followup): a reason -> lead_activities stop_reason once per lead, no reply; "I changed my mind" -> stop_undo_requested (inbound message as evidence) + console escalation + one reply (no automatic re-subscribe: n8n_app has no DELETE on suppression); CANCEL -> the booking keep mode left is released (broker told), no lead message.\n' +
-    'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, W15_STOP_BOOKING_MODE, WA_SESSION_BANNERS, DRY_RUN_SENDS.', 440));
+    'Detection: conversation/guardrail.mjs STOP_RX (same net W07 routes on) + "stopall"; never the booking Cancel button. One statement: suppression row (smc_hash_contact = digits-only SHA-256, source stop, brand_id NULL = Lead-Velocity-wide) is the idempotency claim; leads.opted_out_at + stage opted_out. STOP NEVER cancels a call (Jono 19 Oct 2026; W15_STOP_BOOKING_MODE is ignored): W09 pause (opt_out) + cancel_all per booking stop every WhatsApp message, the appointment and Outlook event stay, and the broker gets "{first} opted out of WhatsApp messages. The call on {date} at {time} is still booked." (session text in his window, else held + email; no call -> broker_lead_opted_out + email), first name only. Then ONE leaving message (Jono 19 Oct 2026, lib/w15.mjs leavingText): a session list "Tell us why" (6 reasons stop_why:<code> + "I changed my mind" stop_undo:changed_mind) carrying the text (a live call: "Your call on {date} at {time} stays booked unless you reply CANCEL."); a list takes no image header, so with WA_SESSION_BANNERS=on the header-leaving card is an image message sent just before it. SMS: the text only. A second STOP is a no-op.\n' +
+    'After STOP (W07 hands an opted-out lead\'s message here as reason stop_followup): a reason -> lead_activities stop_reason once per lead, no reply; "I changed my mind" -> stop_undo_requested (inbound message as evidence) + console escalation + one reply (no automatic re-subscribe: n8n_app has no DELETE on suppression); CANCEL -> the normal cancel (booking cancelled, W09 cancel_all, Graph DELETE, broker cancel notice) + ONE line "Your call on {date} at {time} is cancelled."; any other text: nothing.\n' +
+    'Env: META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TWILIO_ACCOUNT_SID, TWILIO_SMS_FROM, TWILIO_AUTH_TOKEN, WA_SESSION_BANNERS, DRY_RUN_SENDS.', 440));
   n.push(node('Called by W07 / console / W34 (STOP or opt-out)', 'executeWorkflowTrigger', 1.1, pos(0, 0), { inputSource: 'passthrough' }));
   n.push(node('POST /sms-inbound (Twilio)', 'webhook', 2, pos(0, 2), { httpMethod: 'POST', path: 'sms-inbound', responseMode: 'responseNode', options: { rawBody: true } }, { webhookId: 'w15-sms-inbound' }));
   n.push(code('Verify Twilio signature', pos(1, 2),
@@ -792,7 +804,7 @@ SELECT h.mh AS mobile_hash, h.mobile,
 const ctx = $input.first().json;
 const language = (ctx.leads || []).map((l) => l.language).find(Boolean) || e.language || 'en';
 const plan = L.planOptOut({ mobile: e.mobile || ctx.mobile, text: e.text, channel: e.channel, force: e.force, now: e.now, language,
-  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed, booking_mode: $env.W15_STOP_BOOKING_MODE });
+  leads: ctx.leads || [], bookings: ctx.bookings || [], brokers: ctx.brokers || [], already_suppressed: ctx.already_suppressed });
 return [{ json: { e, ctx, plan } }];`));
   n.push(ifTrue('First STOP for this number? (a repeat is a no-op)', pos(5, 0), '$json.plan.handled && !$json.plan.duplicate'));
   n.push(noop('Already opted out: nothing, no second confirmation', pos(6, 1)));

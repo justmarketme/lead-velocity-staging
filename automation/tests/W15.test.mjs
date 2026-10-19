@@ -246,7 +246,7 @@ test(`W15 [${MODE}] STOP keyword detection: short opt-outs in any case/punctuati
     assert.equal(isStop(no), false, String(no));
 });
 
-test(`W15 [${MODE}] L10 STOP mid-sequence: opted out, remaining reminders and post-call checks cancelled, booking released`, async () => {
+test(`W15 [${MODE}] L10 STOP mid-sequence: opted out, remaining reminders and post-call checks cancelled, the BOOKING KEPT (Jono 19 Oct 2026)`, async () => {
   const sys = fresh();
   const { fx, l } = await sys.seedL10();
   const e = fx.expected.W15;
@@ -254,22 +254,26 @@ test(`W15 [${MODE}] L10 STOP mid-sequence: opted out, remaining reminders and po
   await sys.inbound(l.mobile, fx.stop_message.text, fx.stop_message.at);
   const s = await sys.state(l.id);
   assert.equal(s.lead.opted_out_at, e.opted_out_at);
-  assert.deepEqual(s.jobs.filter((j) => j.status === 'cancelled').map((j) => j.touch), e.cancelled);
-  assert.equal(s.bookings[0].status, e.booking_status);
-  assert.ok(s.graph_deleted.includes(s.bookings[0].graph_event_id) === e.graph_event_deleted);
+  assert.deepEqual(s.jobs.filter((j) => j.status === 'cancelled').map((j) => j.touch), e.cancelled, 'every reminder job cancelled (messages stop)');
+  // STOP never cancels a call: the fixture's booking_status/graph_event_deleted predate the 19 Oct decision
+  assert.equal(s.bookings[0].status, 'booked');
+  assert.equal(s.graph_deleted.length, 0, "the adviser's calendar event is untouched");
 });
 
-test(`W15 [${MODE}] L10: broker told on WhatsApp + email, first name only, "do not call"`, async () => {
+test(`W15 [${MODE}] L10: the broker gets "opted out of WhatsApp messages, the call is still booked", first name only`, async () => {
   const sys = fresh();
   const { fx, l } = await sys.seedL10();
   await sys.inbound(l.mobile, fx.stop_message.text, fx.stop_message.at);
   const n = (await sys.state(l.id)).broker_notifications;
   assert.deepEqual(n.map((x) => x.channel).sort(), ['email', 'whatsapp']);
   for (const x of n) {
-    assert.ok(x.text.includes(fx.expected.W15.broker_notification_names_lead_as));
-    assert.ok(/do not call/i.test(x.text));
+    assert.ok(x.text.startsWith(`${fx.expected.W15.broker_notification_names_lead_as} opted out of WhatsApp messages. The call on `));
+    assert.match(x.text, / at \d\d:\d\d is still booked\.$/);
+    assert.doesNotMatch(x.text, /cancel|removed|do not call/i, 'no cancel notice');
     assert.ok(!x.text.includes(l.mobile), 'the number is not repeated in the notification');
   }
+  // his window is closed, and no template says "still booked": the WhatsApp leg is held, the email carries the note
+  assert.equal(n.find((x) => x.channel === 'whatsapp').mode, 'held_no_template');
 });
 
 test(`W15 [${MODE}] suppression row: digits-only hash of the number, source stop, Lead-Velocity-wide (brand_id null)`, async () => {
@@ -352,54 +356,57 @@ test(`W15 [${MODE}] a later form from the STOPped number is suppressed (the W01/
 // ============================================================================================
 // Code-node specifics (what n8n runs, through _n8ncode.mjs)
 // ============================================================================================
-test('W15 node "Plan opt-out": W15_STOP_BOOKING_MODE=keep keeps the booking and says so (NH-28 b); default cancels', async () => {
-  const st = newState();
-  const { fx, l } = seedL10(st);
-  const r = await handleInbound(st, l.mobile, fx.stop_message.text, ms(fx.stop_message.at), { W15_STOP_BOOKING_MODE: 'keep' });
-  assert.equal(r.plan.booking_mode, 'keep');
-  assert.equal(st.bookings[0].status, 'booked');
-  assert.equal(st.graphDeleted.length, 0);
-  assert.ok(st.brokerNotifications.every((n) => /stays booked/.test(n.text)));
-  assert.equal(W15.bookingMode(undefined), 'cancel', 'unset env -> cancel (.env.example default)');
+test('W15 node "Plan opt-out": W15_STOP_BOOKING_MODE is ignored, even "cancel" keeps the booking (Jono 19 Oct 2026)', async () => {
+  for (const m of ['cancel', 'keep', '']) {
+    const st = newState();
+    const { fx, l } = seedL10(st);
+    const r = await handleInbound(st, l.mobile, fx.stop_message.text, ms(fx.stop_message.at), { W15_STOP_BOOKING_MODE: m });
+    assert.equal(r.plan.booking_mode, 'keep', m);
+    assert.equal(r.plan.booking_cancels.length, 0);
+    assert.equal(st.bookings[0].status, 'booked');
+    assert.equal(st.graphDeleted.length, 0);
+    assert.ok(!st.fanout.some((f) => f.kind === 'graph_delete'));
+  }
+  assert.equal(W15.bookingMode('cancel'), 'keep');
 });
 
-test('W15 node "Plan opt-out": cancel mode + live booking -> the leaving text names the cancelled call (R6-04, I-49b)', async () => {
+test('W15 node "Plan opt-out": a live booking -> the leaving text names the call that stays booked (earliest first)', async () => {
   const st = newState();
   const { fx, l } = seedL10(st);
   const start = st.bookings[0].start;
   const r = await handleInbound(st, l.mobile, fx.stop_message.text, ms(fx.stop_message.at));
-  assert.equal(r.plan.booking_mode, 'cancel');
-  assert.equal(r.plan.booking_cancels.length, 1);
   const d = new Date(ms(start) + 2 * H);
   const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const want = W15.leavingText(l.first_name, { kept: false, adviser_first: String(B.contact_person || B.adviser_name).trim().split(/\s+/)[0],
-    date: `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]}`, time: d.toISOString().slice(11, 16) });
-  assert.equal(r.plan.confirmation.text, want);
-  assert.match(want, /is cancelled\./);
-  assert.doesNotMatch(want, /\{/, 'every placeholder filled');
-  // Earliest cancelled booking wins when there are several; nothing live -> no booking line.
+  const first = st.leads.get(l.id).first_name.split(' ')[0];
+  assert.equal(r.plan.confirmation.text, `Done, ${first}. You won't get any more messages from us. Your call on ${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} at ${d.toISOString().slice(11, 16)} stays booked unless you reply CANCEL. If you have a moment, would you tell us why? It helps us do better. If something went wrong, you can also email hello@sortmycover.co.za.`);
   const two = W15.planOptOut({ mobile: '+27820000001', text: 'STOP', now: Date.parse('2026-10-05T08:00:00Z'), leads: [{ id: 'L1', first_name: 'Lerato', phone: '+27820000001', broker_id: 'b1' }],
     bookings: [{ id: 'k2', lead_id: 'L1', broker_id: 'b1', status: 'booked', start: '2026-10-09T10:00:00Z' }, { id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'confirmed', start: '2026-10-07T07:30:00Z' }],
     brokers: [{ id: 'b1', contact_person: 'Mark Smith' }] });
-  assert.equal(two.confirmation.text, W15.leavingText('Lerato', { kept: false, adviser_first: 'Mark', date: 'Wed 7 Oct', time: '09:30' }));
+  assert.equal(two.confirmation.text, W15.leavingText('Lerato', { date: 'Wed 7 Oct', time: '09:30' }));
+  assert.match(two.confirmation.text, /Your call on Wed 7 Oct at 09:30 stays booked unless you reply CANCEL\./);
+  assert.equal(two.booking_cancels.length, 0);
   const none = W15.planOptOut({ mobile: '+27820000001', text: 'STOP', leads: [{ id: 'L1', first_name: 'Lerato', phone: '+27820000001' }], bookings: [] });
   assert.equal(none.confirmation.text, "Done, Lerato. You won't get any more messages from us. If you have a moment, would you tell us why? It helps us do better. If something went wrong, you can also email hello@sortmycover.co.za.");
   const noName = W15.planOptOut({ mobile: '+27820000002', text: 'STOP', leads: [], bookings: [] });
   assert.equal(noName.confirmation.text, "Done. You won't get any more messages from us. If you have a moment, would you tell us why? It helps us do better. If something went wrong, you can also email hello@sortmycover.co.za.");
 });
 
-test('W15 node "Fan out": loses a parallel-STOP race -> emits nothing; out-of-window broker with a cancelled booking -> broker_booking_changed', async () => {
+test('W15 node "Fan out": loses a parallel-STOP race -> emits nothing; a kept call -> W09 pause + cancel_all, no Graph delete, broker note held', async () => {
   const st = newState();
   const { fx, l } = seedL10(st);
   await handleInbound(st, l.mobile, fx.stop_message.text, ms(fx.stop_message.at));
-  const wa = st.fanout.find((f) => f.kind === 'broker_wa');
-  assert.equal(wa.wa.type, 'template');
-  assert.equal(wa.wa.template.name, 'broker_booking_changed');
-  assert.equal(wa.wa.to, B.adviser_whatsapp.replace('+', ''));
+  assert.ok(!st.fanout.some((f) => f.kind === 'graph_delete' || f.kind === 'broker_wa'));
+  assert.ok(st.fanout.some((f) => f.kind === 'broker_held') && st.fanout.some((f) => f.kind === 'broker_email'));
   assert.deepEqual(st.w09.map((w) => w.op), ['pause', 'cancel_all']);
   const confirm = st.fanout.find((f) => f.kind === 'confirm_wa');
   assert.equal(confirm.wa.type, 'interactive', 'the leaving message is a session list (the STOP opened the window)');
   assert.equal(confirm.wa.interactive.type, 'list');
+  // inside the broker's window the note is a session text
+  const inWin = W15.planOptOut({ mobile: '+27820000001', text: 'STOP', now: Date.parse('2026-10-05T08:00:00Z'), leads: [{ id: 'L1', first_name: 'Lerato', phone: '+27820000001', broker_id: 'b1' }],
+    bookings: [{ id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'booked', start: '2026-10-07T07:30:00Z' }],
+    brokers: [{ id: 'b1', contact_person: 'Mark Smith', adviser_whatsapp: '+27830000009', last_inbound_at: '2026-10-05T07:00:00Z' }] }).broker_notices.find((n) => n.channel === 'whatsapp');
+  assert.equal(inWin.mode, 'session');
+  assert.equal(inWin.text, 'Lerato opted out of WhatsApp messages. The call on Wed 7 Oct at 09:30 is still booked.');
   const plan = { plan: { w09: [{ op: 'pause', lead_id: 'x' }], booking_cancels: [], broker_notices: [], confirmation: null }, ctx: { brokers: [] } };
   assert.deepEqual(await runCode(RUN, N.fan, { json: { claimed: false }, refs: { [N.plan]: plan } }), []);
 });
@@ -453,10 +460,10 @@ function evalExpr(expr, json, refs) {
   return new Function('$json', '$', `return (${m[1]});`)(json, $);
 }
 
-test('I-55a broker_lead_opted_out: cancel mode, window closed, no booking -> template with {{1}} adviser first, {{2}} lead first, URL suffix leads?lead=<id>; never the number', () => {
+test('I-55a broker_lead_opted_out: no call booked, window closed -> template with {{1}} adviser first, {{2}} lead first, URL suffix leads?lead=<id>; never the number', () => {
   const base = { mobile: '+27820000001', text: 'STOP', now: Date.parse('2026-10-05T08:00:00Z'), leads: [{ id: 'L1', first_name: 'Lerato Mokoena', phone: '+27820000001', broker_id: 'b1' }], bookings: [] };
   const brokers = [{ id: 'b1', contact_person: 'Mark Smith', adviser_whatsapp: '+27830000009', email: 'm@example.test', last_inbound_at: '2026-10-03T08:00:00Z' }];
-  const r = W15.planOptOut({ ...base, brokers, booking_mode: 'cancel' });
+  const r = W15.planOptOut({ ...base, brokers });
   const wa = r.broker_notices.find((n) => n.channel === 'whatsapp');
   assert.equal(wa.mode, 'template');
   assert.equal(wa.template, 'broker_lead_opted_out');
@@ -468,12 +475,11 @@ test('I-55a broker_lead_opted_out: cancel mode, window closed, no booking -> tem
   assert.deepEqual(body.template.components[0].parameters.map((x) => x.text), ['Mark', 'Lerato']);
   assert.equal(body.template.components[1].parameters[0].text, 'leads?lead=L1');
   assert.ok(r.broker_notices.some((n) => n.channel === 'email'), 'the email leg is unchanged');
-  // inside the window: session text, no template; keep mode: held (the booking stands, nothing from this template); a cancelled booking still uses broker_booking_changed.
-  const inWin = W15.planOptOut({ ...base, now: Date.parse('2026-10-03T09:00:00Z'), brokers, booking_mode: 'cancel' });
+  const inWin = W15.planOptOut({ ...base, now: Date.parse('2026-10-03T09:00:00Z'), brokers });
   assert.equal(inWin.broker_notices.find((n) => n.channel === 'whatsapp').mode, 'session');
-  assert.equal(W15.planOptOut({ ...base, brokers, booking_mode: 'keep' }).broker_notices.find((n) => n.channel === 'whatsapp').mode, 'held_no_template');
-  const withBk = W15.planOptOut({ ...base, brokers, booking_mode: 'cancel', bookings: [{ id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'booked', start: '2026-10-07T07:30:00Z', method: 'phone' }] });
-  assert.equal(withBk.broker_notices.find((n) => n.channel === 'whatsapp').template, 'broker_booking_changed');
+  // a live call: held (no template fits "still booked"), never broker_booking_changed on STOP
+  const withBk = W15.planOptOut({ ...base, brokers, bookings: [{ id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'booked', start: '2026-10-07T07:30:00Z', method: 'phone' }] });
+  assert.equal(withBk.broker_notices.find((n) => n.channel === 'whatsapp').mode, 'held_no_template');
 });
 
 // ============================================================================================
@@ -528,12 +534,18 @@ test('W15 leaving message: every send is behind DRY_RUN_SENDS (Live send? false 
   assert.ok((WF.connections[N.fuIf].main[0] || []).some((e) => e.node === N.fuLoad));
 });
 
-test('W15 leaving message: keep mode -> the booking stays and the line says "unless you reply CANCEL"', async () => {
+test('W15 leaving message: STOP with a live booking -> booking kept, exactly ONE message to the lead, no reminder afterwards', async () => {
   const st = newState();
-  const { l } = await seedOptedOut(st, { W15_STOP_BOOKING_MODE: 'keep' });
+  const { fx, l, at } = await seedOptedOut(st);
   assert.equal(st.bookings[0].status, 'booked');
-  const txt = st.sent.find((m) => m.to === l.mobile).text;
-  assert.match(txt, /Your call with Mark on \w{3} \d{1,2} \w{3} at \d\d:\d\d stays booked unless you reply CANCEL\./);
+  const sent = st.sent.filter((m) => m.to === l.mobile && ms(m.at) >= at);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /Your call on \w{3} \d{1,2} \w{3} at \d\d:\d\d stays booked unless you reply CANCEL\./);
+  tick(st, ms(fx.booking_request.slot_start) + 3 * H);
+  assert.equal(st.sent.filter((m) => m.to === l.mobile && ms(m.at) >= at).length, 1, 'no reminders (W09 jobs cancelled; W09 also skips opted-out at send time)');
+  const W09 = await import('../lib/w09.mjs');
+  assert.deepEqual(W09.dueAction({ touch: 'reminder_2h' }, { booking: { status: 'booked' }, lead: { opted_out_at: 'x' } }, Date.now()), { action: 'skip', reason: 'opted_out' }, 'W09 send-time gate');
+  assert.deepEqual(W09.dueAction({ touch: 'reminder_2h' }, { booking: { status: 'booked' }, lead: {}, suppressed: true }, Date.now()), { action: 'skip', reason: 'opted_out' });
 });
 
 test('W15 after STOP: a reason tap is stored once (stop_reason) and gets NO reply; a second reason stores nothing', async () => {
@@ -591,26 +603,46 @@ test('W15 after STOP: "I changed my mind" -> no automatic re-subscribe (no DELET
   assert.match(adapter, /bypass_suppression: true/);
 });
 
-test('W15 after STOP: the booking stays unless they reply CANCEL (keep mode); CANCEL releases it, tells the broker, sends the lead nothing', async () => {
+test('W15 after STOP: CANCEL -> the normal cancel (booking, Graph event, broker cancel notice) + ONE confirmation line; other text -> nothing', async () => {
   const st = newState();
-  const { l, at } = await seedOptedOut(st, { W15_STOP_BOOKING_MODE: 'keep' });
+  const { l, at } = await seedOptedOut(st);
   assert.equal(st.bookings[0].status, 'booked');
   await handleFollowUp(st, l.mobile, { type: 'interactive', list_id: 'stop_why:other', text: 'Another reason' }, at + 30_000);
   assert.equal(st.bookings[0].status, 'booked', 'a reason does not touch the booking');
   const before = st.sent.length;
+  const silent = await handleFollowUp(st, l.mobile, { type: 'text', text: 'ok thanks, what time was it again?' }, at + 40_000);
+  assert.equal(silent.handled, false, 'random text after STOP: not a follow-up');
+  assert.equal(st.sent.length, before);
   const notices = st.brokerNotifications.length;
   await handleFollowUp(st, l.mobile, { type: 'text', text: 'CANCEL' }, at + 60_000);
   assert.equal(st.bookings[0].status, 'cancelled');
-  assert.ok(st.graphDeleted.includes('AAMkTEST_L10'));
+  assert.ok(st.graphDeleted.includes('AAMkTEST_L10'), "removed from the adviser's diary");
   assert.ok(st.w09.some((w) => w.op === 'cancel_all' && w.booking_id === 'bkg_L10'));
   assert.equal(st.brokerNotifications.length, notices + 2);
-  assert.ok(st.brokerNotifications.slice(notices).every((n) => /removed from your calendar/.test(n.text)));
-  assert.equal(st.sent.length, before, 'no lead message');
-  // cancel mode (default): nothing is left booked, so CANCEL is a no-op
-  const st2 = newState();
-  const s2 = await seedOptedOut(st2);
-  const r = await handleFollowUp(st2, s2.l.mobile, { type: 'text', text: 'cancel' }, s2.at + 60_000);
-  assert.equal(r.plan.noop, true);
+  assert.ok(st.brokerNotifications.slice(notices).every((n) => /cancelled the call on .* It has been removed from your calendar\./.test(n.text)));
+  assert.equal(st.fanout.filter((f) => f.kind === 'broker_wa').pop().wa.template.name, 'broker_booking_changed');
+  const after = st.sent.slice(before);
+  assert.equal(after.length, 1, 'only the confirmation');
+  assert.equal(after[0].kind, 'stop_cancel_confirmation');
+  assert.match(after[0].text, /^Your call on \w{3} \d{1,2} \w{3} at \d\d:\d\d is cancelled\.$/);
+  assert.equal(after[0].wa.type, 'text', 'no list, no rebooking offer');
+  // a second CANCEL: nothing live -> nothing at all
+  const again = await handleFollowUp(st, l.mobile, { type: 'text', text: 'cancel' }, at + 90_000);
+  assert.equal(again.plan.noop, true);
+  assert.equal(st.sent.length, before + 1);
   // a lead who never opted out: not a follow-up
   assert.equal(W15.planFollowUp({ e: { mobile: '+27820000001', followup: { type: 'why', code: 'other' } }, leads: [{ id: 'L1', phone: '+27820000001', opted_out_at: null }] }).handled, false);
+});
+
+test('W15 after STOP: every list row id is routed and stored under its own code', async () => {
+  for (const r of W15.STOP_REASONS) {
+    const st = newState();
+    const { l, at } = await seedOptedOut(st);
+    const n = st.sent.length;
+    await handleFollowUp(st, l.mobile, { type: 'interactive', list_id: `stop_why:${r.code}`, text: r.title }, at + 60_000);
+    assert.equal(st.activities.find((a) => a.activity_type === 'stop_reason').payload.code, r.code);
+    assert.equal(st.sent.length, n, `${r.code}: no reply`);
+  }
+  assert.deepEqual(W15.followupOf({ list_id: 'stop_undo:changed_mind' }), { type: 'undo' });
+  assert.equal(W15.followupOf({ list_id: 'stop_why:bogus' }), null);
 });

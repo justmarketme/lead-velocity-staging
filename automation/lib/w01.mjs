@@ -522,6 +522,7 @@ export function routingFor(consentText, consentMode, brokers, brandId, tier = nu
  * decide(sub, ctx) -> what the workflow writes and answers.
  * ctx = { mobile, line_type, prior (latest lead with the same hash in this brand: {id, brand_id, created_at, line_type,
  *         duplicate_of, broker_id, opted_out_at}), suppressed, brokers, brand_id, consent_mode, now, lead_id, bot_check }
+ *       start_here (19 Oct 2026): startHereReady($env); true sends a lead-ad lead without a band down the /start/ path
  * Returns { kind: 'reject' | 'duplicate' | 'insert', response:{http_status, body}, row?, activities[], first_touch?, capi?, mint_token }
  */
 export function decide(sub, ctx) {
@@ -635,6 +636,22 @@ export function decide(sub, ctx) {
       idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: 'page', help_with: sub.help_with ?? null } });
   }
 
+  if (budgetPending && ctx.start_here === true) {
+    // Instant Form -> the SAME path as WhatsApp / web leads (Jono, 19 Oct 2026): the form's consent, then the start_here
+    // TEMPLATE (welcome banner, "Start here" URL button = /start/#lt=<lt1 token>), then the /start/ v4 page. Income is asked
+    // on the page, never in Meta's form. Stored UNROUTED exactly like the desktop start-page lead: W39 routes after its own
+    // disclosure (START-DISCLOSE-v1, POST /start/adviser), every age, provisional tier B. No CAPI Lead now: routeExisting()
+    // sends it once at the hand-over (start_page_pending counts as held, I-49c). Gate: ctx.start_here = startHereReady($env)
+    // (Twilio + the start_here Content SID + LEAD_TOKEN_SECRET); without it the qualify_budget branch below, unchanged.
+    // The token is minted by startHere() in the send node, never here (it is not a page response) and never in a body or log.
+    Object.assign(row, { routing_reason: START_PAGE_PENDING, conv_state: { ...(row.conv_state || {}), state: 'start_page', via: 'start_page' } });
+    activities.push({ activity_type: 'start_page_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:start_page:${ctx.lead_id}`,
+      payload: { channel: 'lead_ad', consent_text_version: row.consent_text_version, first_touch: START_HERE_TEMPLATE } });
+    return { kind: 'insert', outcome: 'start_page', row, activities, capi: null, mint_token: false,
+      first_touch: { workflow: 'W01', op: 'start_here', lead_id: row.id, not_before: at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
+      response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
+  }
+
   if (budgetPending) {
     // Not routed, not handed over, no CAPI Lead yet: routeExisting() sends Lead at the hand-over (held_* rule, I-49c).
     // The first WhatsApp (< 60 s, HBR) is the budget question; W07 sends the tap to W03 because conv_state is q_budget.
@@ -683,6 +700,31 @@ export function budgetQuestion(row) {
     to: row.phone, kind: 'template', template: BUDGET_TEMPLATE, variables: [String(row.first_name || '').trim() || 'there'],
     buttons: BUDGET_TAP_IDS.map((id) => ({ quick_reply: id })), lead_id: row.id, correlation: `w01:ask_budget:${row.id}`,
   };
+}
+
+/**
+ * Instant Form first touch on the /start/ path (19 Oct 2026): the start_here template (automation/templates/start_here.json,
+ * Twilio Content only: static welcome banner, body {{1}} = first name, URL button "Start here" ->
+ * https://sortmycover.co.za/start/#lt={{1}}). Twilio numbers it {1: first name, 2: token} (wa-provider twilioVarPlan).
+ * Ready only under WHATSAPP_PROVIDER=twilio with TWILIO_CONTENT_SIDS.start_here and LEAD_TOKEN_SECRET set: the template is
+ * not submitted to Meta, so under the Meta provider it could never be sent and the lead would get nothing.
+ */
+export const START_HERE_TEMPLATE = 'start_here';
+export function startHereReady(env = {}) {
+  if (String(env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase() !== 'twilio') return false;
+  if (!String(env.LEAD_TOKEN_SECRET || '').trim()) return false;
+  try { const s = JSON.parse(env.TWILIO_CONTENT_SIDS || '{}'); return !!(s && s[START_HERE_TEMPLATE]); } catch (_) { return false; }
+}
+/**
+ * row (W01 decide row) -> the shared-sender input ("decided" shape, smc-whatsapp-send: suppression, allow-list, DRY_RUN_SENDS,
+ * correlation inside). The lt1 token travels ONLY as the URL-button variable: never in a text body, and the sender logs the
+ * communications row as template:start_here (no variables). null without a phone or a secret.
+ */
+export function startHere(row, secret, nowMs = Date.now()) {
+  if (!row || !row.id || !row.phone || !secret) return null;
+  const first = String(row.first_name || '').trim().split(/\s+/)[0] || 'there';
+  return { to: row.phone, kind: 'template', template: START_HERE_TEMPLATE, variables: [first], buttons: [{ url: mintToken(row.id, secret, nowMs) }],
+    lead_id: row.id, correlation: `w01:start_here:${row.id}` };
 }
 
 /**
@@ -761,6 +803,10 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
 // the disclosure, templates/twilio/BROKER-INTRO-V3.md) is approved and its SID is in TWILIO_CONTENT_SIDS, the lead's band tap
 // (its first reply: the 24-h session is open) gets the disclosure as a session text BEFORE routing, and routeExisting refuses to
 // hand a lead-ad lead over until 'adviser_disclosed' is on its timeline for the broker it would get.
+// 19 Oct 2026: with startHereReady() a NEW Instant Form lead goes to /start/ (start_here template) and W39 logs adviser_disclosed
+// (START-DISCLOSE-v1) before it calls W01 core, so this check passes there without a session text. The session text below
+// applies only to leads still on the old path: intake before start_here was ready, or a lead that answers in chat instead
+// of opening the page (W03 startPageFallback -> taps -> finishLeadAd -> route_and_first_touch).
 export const LEAD_AD_DISCLOSURE_VERSION = 'LEADAD-DISCLOSE-v1';
 export const INTRO_V3_KEY = 'broker_intro_slots_v3';
 export const SORTMYCOVER_DISCLOSURE = 'Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.';
