@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "key": "reach_check_v2",
+    "source": "automation/templates/reach_check.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_reach_check_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false,
+    "base": "reach_check",
+    "header": "adviser"
+  },
+  "content": {
+    "friendly_name": "smc_reach_check_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "yes_we_spoke:sample",
+      "4": "no_not_yet:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, did {{2}} reach you today for your call? Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Yes, we spoke",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "No, not yet",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

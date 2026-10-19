@@ -1,0 +1,106 @@
+{
+  "_meta": {
+    "key": "missed_you_v2",
+    "source": "automation/templates/missed_you.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_missed_you_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 8,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      },
+      {
+        "n": 9,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 3
+      }
+    ],
+    "core": false,
+    "base": "missed_you",
+    "header": "reminder",
+    "submitted": "HX54d757e00cfd516eccbe8c70432bf706"
+  },
+  "content": {
+    "friendly_name": "smc_missed_you_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Thu 9 Oct, 10:00",
+      "4": "Thu 9 Oct, 15:00",
+      "5": "Fri 10 Oct, 09:30",
+      "6": "time_1:sample",
+      "7": "time_2:sample",
+      "8": "time_3:sample",
+      "9": "other_times:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, sorry we missed you today. No stress, things happen. {{2}} can still do a 30-minute call. Here are 3 new times:\n1. {{3}}\n2. {{4}}\n3. {{5}}\nReply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Time 1",
+            "id": "{{6}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Time 2",
+            "id": "{{7}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Time 3",
+            "id": "{{8}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Other times",
+            "id": "{{9}}"
+          }
+        ]
+      }
+    }
+  }
+}

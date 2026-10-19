@@ -73,6 +73,14 @@ REST=(
 # broker_intro_slots_v3: the lead-ad intro card WITH the SortMyCover disclosure, for Jono with the Instant Form launch
 # (submitted through Twilio Content: templates/twilio/BROKER-INTRO-V3.md).
 HELD=(breach_subject_notice broker_intro_slots_v3)
+# HELD (Twilio Content only, not Meta files; Jono 2026-10-19 banners): submitted with
+#   node automation/templates/twilio/submit-twilio.mjs --submit --only <key>
+# and added to TWILIO_CONTENT_SIDS only once approved (CONTRACTS.md "Banners on lead-facing WhatsApp messages"):
+#   booking_confirmed_teams_v3 booking_confirmed_phone_v3 reminder_2h_teams_v3 reminder_10m_online_v3 reminder_10m_v2
+#   prep_nudge_v2 what_to_expect_v2 reschedule_offer_v3 intro_media_voice_v2 unbooked_nudge_2h_v2 unbooked_nudge_24h_text_v2
+#   unbooked_nudge_72h_v2 reach_check_v2 attended_thanks_v2 invite_email_bounced_v2 booking_held_verify_email_v2
+#   booking_hold_released_v2 booking_confirm_chat_v2 lead_low_budget_held_v2 lead_low_budget_closed_v2 reschedule_card
+#   smc_start_cta / smc_reschedule_cta (session only: create, no approval)
 
 case "$FILTER" in
   core) LIST=("${CORE[@]}") ;;

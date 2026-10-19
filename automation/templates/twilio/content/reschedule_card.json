@@ -1,0 +1,74 @@
+{
+  "_meta": {
+    "key": "reschedule_card",
+    "source": "lib/wa-provider.mjs rescheduleCardBody",
+    "approval": {
+      "name": "smc_reschedule_card",
+      "category": "UTILITY"
+    },
+    "core": false,
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ]
+  },
+  "content": {
+    "friendly_name": "smc_reschedule_card",
+    "language": "en",
+    "variables": {
+      "1": "Thandi",
+      "2": "Mark",
+      "3": "Wed 21 Oct",
+      "4": "10:00",
+      "5": "lt1.sample",
+      "6": "keep_it:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "No problem, {{1}}, life happens. Your call with {{2}} is booked for {{3}} at {{4}}. Tap below to pick a new time. You can choose any open time in the next 14 days. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reschedule.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Pick a new time",
+            "url": "https://sortmycover.co.za/start/#move=1&lt={{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Keep my time",
+            "id": "{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -8,14 +8,14 @@
     "friendly_name": "smc_start_cta",
     "language": "en",
     "variables": {
-      "1": "Thanks Thandi. Lovely to have you here. Tap below to answer a few quick questions and pick a time with Mark. It takes about a minute. Or just reply here if you'd rather chat.",
+      "1": "Hi Thandi, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.",
       "2": "lt1.sample"
     },
     "types": {
       "twilio/card": {
         "title": "{{1}}",
         "media": [
-          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png"
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png"
         ],
         "actions": [
           {

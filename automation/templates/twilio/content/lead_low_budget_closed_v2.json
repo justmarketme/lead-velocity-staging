@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "key": "lead_low_budget_closed_v2",
+    "source": "automation/templates/lead_low_budget_closed.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_lead_low_budget_closed_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      }
+    ],
+    "core": false,
+    "base": "lead_low_budget_closed",
+    "header": "intent"
+  },
+  "content": {
+    "friendly_name": "smc_lead_low_budget_closed_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, thank you for waiting. We checked with the authorised advisers we work with, and none of them can take on an enquiry at the monthly budget you chose right now, so we won't pass your details on. You're welcome to message us again at any time. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png"
+        ]
+      }
+    }
+  }
+}

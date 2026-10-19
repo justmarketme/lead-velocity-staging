@@ -20,7 +20,9 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { twilioVarPlan, defaultPayload, START_CTA_KEY, START_PAGE_LINK, START_CTA_HEADER, START_CTA_BUTTON } from '../../lib/wa-provider.mjs';
+import { twilioVarPlan, defaultPayload, START_CTA_KEY, START_PAGE_LINK, START_CTA_HEADER, START_CTA_BUTTON, TEMPLATE_VARIANTS, variantSpec,
+  RESCHEDULE_LINK, RESCHEDULE_CTA_KEY, RESCHEDULE_TEMPLATE, RESCHEDULE_BUTTON, KEEP_BUTTON, rescheduleCardBody, headerUrl } from '../../lib/wa-provider.mjs';
+import { START_PAGE_STEPS } from '../../ctwa/w03.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = join(HERE, '..');
@@ -106,6 +108,9 @@ export function convert(spec) {
     } };
   } else if (hMedia) {
     types = { 'twilio/card': { title: text, ...(footer(spec) ? { subtitle: footer(spec) } : {}), media: [`${MEDIA}/{{${hMedia.n}}}`], ...(actions.length ? { actions } : {}) } };
+  } else if (h && h.banner) {
+    // banner variant (lib/wa-provider.mjs TEMPLATE_VARIANTS): the static header card, no variable
+    types = { 'twilio/card': { title: text, ...(footer(spec) ? { subtitle: footer(spec) } : {}), media: [h.banner], ...(actions.length ? { actions } : {}) } };
   } else if (actions.length || (h && h.format === 'TEXT') || footer(spec)) {
     types = { 'whatsapp/card': {
       body: text,
@@ -116,7 +121,7 @@ export function convert(spec) {
   } else types = { 'twilio/text': { body: text } };
   return {
     _meta: { key: spec.name, source: `automation/templates/${spec.name}.json`, approval: { name: `smc_${spec.name}`, category: spec.category || 'UTILITY' },
-      var_plan: plan.map((s) => ({ n: s.n, kind: s.kind, ...(s.type ? { type: s.type, index: s.index } : {}) })), core: CORE.includes(spec.name) },
+      var_plan: plan.map((s) => ({ n: s.n, kind: s.kind, ...(s.type ? { type: s.type, index: s.index } : {}), ...(s.src != null && s.src !== s.index ? { v1_index: s.src } : {}) })), core: CORE.includes(spec.name) },
     content: { friendly_name: `smc_${spec.name}`, language: spec.language || 'en', variables: vars, types },
   };
 }
@@ -146,7 +151,7 @@ export function sessionFlow(f) {
 }
 
 /**
- * The /start/ page link (W03, brand flag start_page, 18 Oct 2026): one session twilio/card, static header image, body {{1}},
+ * The /start/ page link (W03, brand flag start_page, 18 Oct 2026; copy + header-welcome 19 Oct): one session twilio/card, static header image, body {{1}},
  * one URL button whose URL ends in the token {{2}} after a STATIC '#lt=' (the token rides in the fragment, CONTRACTS.md
  * lead_token; Twilio substitutes only a URL suffix and documents no '#' encoding). Session only: no WhatsApp approval
  * (an unapproved card in session may carry one URL button). Created once by Jonathan: submit-twilio.mjs --only smc_start_cta --submit.
@@ -154,8 +159,42 @@ export function sessionFlow(f) {
 export function startCta() {
   return { _meta: { key: START_CTA_KEY, approval: null, session_only: true },
     content: { friendly_name: START_CTA_KEY, language: 'en',
-      variables: { 1: "Thanks Thandi. Lovely to have you here. Tap below to answer a few quick questions and pick a time with Mark. It takes about a minute. Or just reply here if you'd rather chat.", 2: 'lt1.sample' },
+      variables: { 1: `Hi Thandi, I'm Lindi from SortMyCover. ${START_PAGE_STEPS}`, 2: 'lt1.sample' },
       types: { 'twilio/card': { title: '{{1}}', media: [START_CTA_HEADER], actions: [{ type: 'URL', title: START_CTA_BUTTON, url: `${START_PAGE_LINK}{{2}}` }] } } } };
+}
+
+/**
+ * Banner variant (Jono, 19 Oct 2026) of a lead-facing template: same body / variables / buttons / category as v1, the
+ * static header card instead of a text header. Its own key (TWILIO_CONTENT_SIDS) and approval name smc_<key>; the
+ * sender switches to it only once that key has a SID. `_meta.submitted` = the SID of a variant already created.
+ */
+export function convertVariant(spec, v) {
+  const d = convert(variantSpec(spec, v));
+  d._meta = { ...d._meta, key: v.key, base: v.base, header: v.header, source: `automation/templates/${v.base}.json + lib/wa-provider.mjs TEMPLATE_VARIANTS`, core: false,
+    ...(v.sid ? { submitted: v.sid } : {}) };
+  return d;
+}
+
+/**
+ * The reschedule card (Jono, 19 Oct 2026; lib/wa-provider.mjs rescheduleCardPlan, sent by W07 instead of W10's slot list).
+ * Template reschedule_card: approved twilio/card (banner + body + URL "Pick a new time" + quick reply "Keep my time"), so
+ * it works inside AND outside the 24-h window; numbering = body {{1}}-{{4}}, URL token {{5}}, keep id {{6}} (no spec file:
+ * the sender numbers body then buttons in payload order). Session smc_reschedule_cta: the same banner and text with ONE
+ * URL button (an unapproved session card cannot mix a URL and a quick reply).
+ */
+const RESCHEDULE_SAMPLE = { first: 'Thandi', adviser: 'Mark', date: 'Wed 21 Oct', time: '10:00' };
+export function rescheduleCard() {
+  const title = `${rescheduleCardBody({ first: '{{1}}', adviser: '{{2}}', date: '{{3}}', time: '{{4}}' })} Reply STOP to opt out.`;
+  return { _meta: { key: RESCHEDULE_TEMPLATE, source: 'lib/wa-provider.mjs rescheduleCardBody', approval: { name: `smc_${RESCHEDULE_TEMPLATE}`, category: 'UTILITY' }, core: false,
+    var_plan: [1, 2, 3, 4].map((n) => ({ n, kind: 'body' })).concat([{ n: 5, kind: 'button', type: 'url', index: 0 }, { n: 6, kind: 'button', type: 'quick_reply', index: 1 }]) },
+    content: { friendly_name: `smc_${RESCHEDULE_TEMPLATE}`, language: 'en', variables: { 1: 'Thandi', 2: 'Mark', 3: 'Wed 21 Oct', 4: '10:00', 5: 'lt1.sample', 6: 'keep_it:sample' },
+      types: { 'twilio/card': { title, subtitle: 'SortMyCover', media: [headerUrl('reschedule')], actions: [
+        { type: 'URL', title: RESCHEDULE_BUTTON, url: `${RESCHEDULE_LINK}{{5}}` }, { type: 'QUICK_REPLY', title: KEEP_BUTTON, id: '{{6}}' }] } } } };
+}
+export function rescheduleCta() {
+  return { _meta: { key: RESCHEDULE_CTA_KEY, approval: null, session_only: true },
+    content: { friendly_name: RESCHEDULE_CTA_KEY, language: 'en', variables: { 1: rescheduleCardBody(RESCHEDULE_SAMPLE), 2: 'lt1.sample' },
+      types: { 'twilio/card': { title: '{{1}}', media: [headerUrl('reschedule')], actions: [{ type: 'URL', title: RESCHEDULE_BUTTON, url: `${RESCHEDULE_LINK}{{2}}` }] } } } };
 }
 
 export function buildAll() {
@@ -164,10 +203,16 @@ export function buildAll() {
     const spec = JSON.parse(readFileSync(join(TEMPLATES, `${name}.json`), 'utf8'));
     out[`${name}.json`] = convert(spec);
   }
+  for (const v of TEMPLATE_VARIANTS) {
+    const spec = JSON.parse(readFileSync(join(TEMPLATES, `${v.base}.json`), 'utf8'));
+    out[`${v.key}.json`] = convertVariant(spec, v);
+  }
   for (let n = 1; n <= 3; n++) out[`smc_session_buttons_${n}.json`] = sessionButtons(n);
   for (let n = 1; n <= 10; n++) out[`smc_session_list_${n}.json`] = sessionList(n);
   for (const f of SESSION_FLOWS) out[`${f.name}.json`] = sessionFlow(f);
   out[`${START_CTA_KEY}.json`] = startCta();
+  out[`${RESCHEDULE_TEMPLATE}.json`] = rescheduleCard();
+  out[`${RESCHEDULE_CTA_KEY}.json`] = rescheduleCta();
   return out;
 }
 

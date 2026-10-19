@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "key": "reminder_24h_v2",
+    "source": "automation/templates/reminder_24h.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_reminder_24h_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false,
+    "base": "reminder_24h",
+    "header": "reminder",
+    "submitted": "HX553796498a577ed87d7660bb79188da3"
+  },
+  "content": {
+    "friendly_name": "smc_reminder_24h_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Microsoft Teams",
+      "3": "Mark Smith",
+      "4": "10:00",
+      "5": "confirm:sample",
+      "6": "reschedule:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, a quick reminder: your {{2}} call with *{{3}}* is tomorrow at *{{4}}*. Most people find 30 minutes is all it takes. Tap Confirm to let us know you can make it. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Confirm",
+            "id": "{{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -330,7 +330,9 @@ test('I-48b/I-48k: W03 sends behind the shared reply claim + DRY_RUN_SENDS gate 
   assert.equal(c['Build Cloud API body'].main[0][0].node, 'Reply claim (w07:reply:{wamid})');
   assert.equal(c['Reply claim (w07:reply:{wamid})'].main[0][0].node, 'Live send? (W03)');
   // 2026-10-11: the send goes through smc-whatsapp-send (lib/wa-route.cjs): Live send? -> SUB input -> the waiting sub-call
-  assert.equal(c['Live send? (W03)'].main[0][0].node, 'SUB input (WhatsApp send (session))');
+  // 19 Oct 2026: a banner check sits between the gate and the reply (no banner -> straight to the reply)
+  assert.equal(c['Live send? (W03)'].main[0][0].node, 'Banner first? (W03)');
+  assert.equal(c['Banner first? (W03)'].main[1][0].node, 'SUB input (WhatsApp send (session))');
   assert.equal(c['SUB input (WhatsApp send (session))'].main[0][0].node, 'WhatsApp send (session)');
   assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp send (session)').parameters.workflowId.value, 'smc-whatsapp-send');
   assert.equal(c['Live send? (W03)'].main[1][0].node, 'Store outbound (W03)');
@@ -554,8 +556,8 @@ test('start page ON: one call-to-action (header image, body, "Start here", link 
   assert.equal(m.type, 'cta_url');
   assert.equal(m.url, `https://sortmycover.co.za/start/#lt=${SP_TOKEN}`, 'token in the fragment, never a query or path (CONTRACTS lead_token)');
   assert.equal(m.button, 'Start here'); assert.ok(m.button.length <= 20);
-  assert.equal(m.header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png');
-  assert.equal(m.body, "Thanks Thandi. Lovely to have you here. Tap below to answer a few quick questions and pick a time with Mark. It takes about a minute. Or just reply here if you'd rather chat.");
+  assert.equal(m.header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png', 'Jono 19 Oct: the welcome banner');
+  assert.equal(m.body, "Hi Thandi, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
   assert.ok(m.body.length <= 1024);
   assert.doesNotMatch(m.body, /\bfree\b|\bAI\b|Lead Velocity/i);
   assert.equal(r.thread.stage, 'start_page');
@@ -565,7 +567,8 @@ test('start page ON: one call-to-action (header image, body, "Start here", link 
   const body = W3.toCloudApi('+27600000104', m);
   assert.deepEqual(body.interactive, { type: 'cta_url', header: { type: 'image', image: { link: m.header_image } }, body: { text: m.body }, action: { name: 'cta_url', parameters: { display_text: 'Start here', url: m.url } } });
   // no name, no adviser: still a complete sentence
-  assert.equal(W3.startPageBody('', ''), "Thanks. Lovely to have you here. Tap below to answer a few quick questions and pick a time with an adviser. It takes about a minute. Or just reply here if you'd rather chat.");
+  assert.equal(W3.startPageBody('', ''), "Hi there, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.doesNotMatch(W3.startPageBody('', ''), /\bfree\b|\blicensed\b|\bAI\b|virtual assistant/i);
 });
 
 test('start page ON: a website opener greets, then the call-to-action (wills openers still go to a person)', () => {
@@ -575,7 +578,7 @@ test('start page ON: a website opener greets, then the call-to-action (wills ope
   const s = sends(r.actions);
   assert.equal(s.length, 1);
   assert.equal(s[0].message.type, 'cta_url');
-  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for my family. If it's something else, just tell me.\n\nTap below to answer a few quick questions and pick a time with Mark. It takes about a minute. Or just reply here if you'd rather chat.");
+  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for my family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
   assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'start_page', topic: 'cover for my family', ref: 'a06' });
   assert.equal(r.thread.stage, 'start_page');
   const w = W3.step(null, msg(OPENER('a will', 'Capital Legacy', 'b02')), ctx);

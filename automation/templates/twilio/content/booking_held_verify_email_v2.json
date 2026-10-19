@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "key": "booking_held_verify_email_v2",
+    "source": "automation/templates/booking_held_verify_email.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_booking_held_verify_email_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      }
+    ],
+    "core": false,
+    "base": "booking_held_verify_email",
+    "header": "invite"
+  },
+  "content": {
+    "friendly_name": "smc_booking_held_verify_email_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Thu 15 Oct",
+      "3": "10:00",
+      "4": "Mark",
+      "5": "Wed 14 Oct at 09:10"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm the booking, please tap the confirmation link we sent to your email address. If it isn't confirmed by {{5}}, we'll release the time. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png"
+        ]
+      }
+    }
+  }
+}

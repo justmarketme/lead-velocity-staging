@@ -212,15 +212,25 @@ function threadFromLead(lead) {
 // with the flag off, or without a token from the workflow, nothing changes. Anything typed or tapped in chat while the
 // page is pending falls back to the tap path (q_age) exactly as before, so the chat still works on its own.
 const START_PAGE_LINK = 'https://sortmycover.co.za/start/#lt=';
-const START_PAGE_HEADER = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png';
+// Jono 19 Oct 2026: the Start here card carries the welcome banner (header-welcome), every lead-facing message its own banner.
+const START_PAGE_HEADER = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png';
 const START_PAGE_BUTTON = 'Start here';
 const firstWord = (s) => String(s || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
-/** The CTA body (no "free", no "AI", no operator name). `greeted`: the opener greeting already said hello and thanks. */
-function startPageBody(profileName, adviserFirst, greeted = false) {
+/** How the page works, one step per line (Jono, 19 Oct 2026, words fixed). No "free", no "AI", no operator name. */
+const START_PAGE_STEPS = "Here's how it works:\n" +
+  '1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n' +
+  '2. Tell us where to send your invite.\n' +
+  '3. Meet your adviser and answer two quick questions so they come prepared.\n' +
+  "4. You're back here on WhatsApp.\n" +
+  "I'll be here to guide you all the way.";
+/**
+ * The CTA body. `greeted`: the opener greeting already said "Hi {name}, I'm Lindi from SortMyCover", so only the steps follow.
+ * No first name -> "Hi there,". `adviserFirst` is kept for callers; the copy no longer names the adviser.
+ */
+function startPageBody(profileName, adviserFirst, greeted = false) { // eslint-disable-line no-unused-vars
   const first = firstWord(profileName);
-  const who = firstWord(adviserFirst) || 'an adviser';
-  const lead = greeted ? '' : `Thanks${first ? ` ${first}` : ''}. Lovely to have you here. `;
-  return `${lead}Tap below to answer a few quick questions and pick a time with ${who}. It takes about a minute. Or just reply here if you'd rather chat.`;
+  if (greeted) return START_PAGE_STEPS;
+  return `Hi ${first || 'there'}, I'm Lindi from SortMyCover. ${START_PAGE_STEPS}`;
 }
 /** ctx -> the token to put in the link, or null (flag off, or the workflow could not mint / send it). */
 const startPageToken = (ctx) => (ctx.brand && ctx.brand.start_page === true && ctx.start_page && typeof ctx.start_page.token === 'string' && ctx.start_page.token ? ctx.start_page.token : null);
@@ -558,4 +568,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { startPageBody, startPageMessage, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

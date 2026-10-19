@@ -1,0 +1,54 @@
+{
+  "_meta": {
+    "key": "reminder_10m_online_v3",
+    "source": "automation/templates/reminder_10m.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_reminder_10m_online_v3",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false,
+    "base": "reminder_10m",
+    "header": "reminder"
+  },
+  "content": {
+    "friendly_name": "smc_reminder_10m_online_v3",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "bk_8f3a2c"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, your call with {{2}} starts in 10 minutes. You can join straight from the button below. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Join your call",
+            "url": "https://sortmycover.co.za/j/{{3}}"
+          }
+        ]
+      }
+    }
+  }
+}

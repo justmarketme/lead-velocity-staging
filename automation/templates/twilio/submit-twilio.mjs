@@ -69,6 +69,7 @@ async function post(url, body) {
 }
 
 const sids = { ...existing };
+const pending = {}; // banner variants: add to TWILIO_CONTENT_SIDS only after approval
 let failed = 0;
 console.log(`${SUBMIT ? 'SUBMIT' : 'DRY RUN (nothing is sent)'}: ${list.length} definition(s), media base ${MEDIA_BASE}`);
 for (const d0 of list) {
@@ -78,6 +79,10 @@ for (const d0 of list) {
   const d = r.def; const key = d._meta.key;
   if (sids[key]) { console.log(`HAVE   ${key} = ${sids[key]} (already in TWILIO_CONTENT_SIDS)`); continue; }
   const approval = d._meta.approval;
+  // Banner variants (lib/wa-provider.mjs TEMPLATE_VARIANTS): the sender switches to a variant as soon as its key has a SID,
+  // so a new variant SID is printed separately and must only be added to TWILIO_CONTENT_SIDS once it shows approved.
+  const variant = !!d._meta.base;
+  if (variant && d._meta.submitted) { console.log(`SUBMITTED ${key} = ${d._meta.submitted} (17 Oct; add "${key}" to TWILIO_CONTENT_SIDS once approved)`); continue; }
   if (!SUBMIT) {
     console.log(`WOULD  POST /v1/Content ${key} (${Object.keys(d.content.types).join(', ')})${approval ? ` + ApprovalRequests/whatsapp ${approval.name} ${approval.category}` : ' (session only, no approval)'}`);
     if (ONLY) console.log(JSON.stringify(d.content, null, 2));
@@ -85,7 +90,7 @@ for (const d0 of list) {
   }
   try {
     const c = await post('https://content.twilio.com/v1/Content', d.content);
-    sids[key] = c.sid;
+    if (variant) pending[key] = c.sid; else sids[key] = c.sid;
     console.log(`MADE   ${key} = ${c.sid}`);
     if (approval) {
       const a = await post(`https://content.twilio.com/v1/Content/${c.sid}/ApprovalRequests/whatsapp`, approval);
@@ -94,4 +99,5 @@ for (const d0 of list) {
   } catch (e) { failed++; console.error(`FAIL   ${key}: ${e.message}`); }
 }
 console.log(`\nTWILIO_CONTENT_SIDS=${JSON.stringify(sids)}`);
+if (Object.keys(pending).length) console.log(`AFTER APPROVAL add to TWILIO_CONTENT_SIDS: ${JSON.stringify(pending)}`);
 process.exit(failed ? 1 : 0);

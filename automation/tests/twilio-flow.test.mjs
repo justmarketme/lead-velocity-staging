@@ -162,7 +162,7 @@ test('session interactive: buttons and lists use the generic Content templates (
   assert.equal(cta._meta.approval, null); assert.equal(cta._meta.session_only, true);
   const card = cta.content.types['twilio/card'];
   assert.deepEqual(card.actions, [{ type: 'URL', title: 'Start here', url: 'https://sortmycover.co.za/start/#lt={{2}}' }]);
-  assert.deepEqual(card.media, ['https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png']);
+  assert.deepEqual(card.media, ['https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png']);
   assert.equal(card.title, '{{1}}');
   assert.ok(card.actions[0].title.length <= 20);
   assert.doesNotMatch(cta.content.variables['1'], /\bfree\b|\bAI\b|Lead Velocity/i);
@@ -311,6 +311,7 @@ test('booking_confirmed carries the Teams join link; GET /j/{id} redirects only 
   const bk = '71000000-0000-4000-8000-000000000001';
   assert.equal(confirmDetail('teams', bk), `Microsoft Teams (join link: https://sortmycover.co.za/j/${bk})`);
   assert.equal(confirmDetail('phone', bk), 'phone call');
+  assert.equal(confirmDetail('phone', bk, undefined, '+27820000399'), 'phone call on 082 000 0399', '19 Oct 2026: the number he will call (booking_confirmed_phone_v3 reads it)');
   const wa = bookingConfirmed({ lead: { first_name: 'Lerato', phone: LEAD }, broker: { adviser_name: 'Mark Smith' } }, { start: '2026-10-14T10:00:00+02:00', method: 'teams' }, { id: bk });
   assert.match(wa.template.components.find((c) => c.type === 'body').parameters[4].text, /\/j\/71000000/);
   const live = { id: bk, method: 'teams', status: 'confirmed', join_url: 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_x' };

@@ -44,6 +44,7 @@ const link = (conn, from, to, out = 0) => {
 const VW = inlineModule('VW', 'verify-webhooks.js');
 const LT = inlineModule('LT', 'lead-token.js');
 const W3 = inlineModule('W3', '../ctwa/w03.js');
+const WB = inlineModule('WB', '../lib/wa-banner.cjs'); // session banners (19 Oct 2026, WA_SESSION_BANNERS)
 const FC = inlineModule('FC', '../flows/flow-crypto.js');
 const W28 = inlineModule('EP', '../flows/w28-endpoint.js');
 
@@ -167,7 +168,10 @@ RETURNING stage;`,
   // (communications_lead_id_fkey stopped the run, insert_lead never ran). The send branch now sits below the lead writes
   // (insert / update / suppress) and above routing and the W07 hand-back, so the lead exists first and Lindi's reply still
   // arrives before the adviser card; Store outbound below never fails the run.
-  n.push(code('Build Cloud API body', [2240, 490], W3 + "return $input.all().map((it) => ({ json: { pnid: it.json._pnid, body: W3.toCloudApi(it.json._mobile, it.json.message), brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }));"));
+  // Session banner (Jono, 19 Oct 2026; lib/wa-banner.cjs): with WA_SESSION_BANNERS=on a reply that cannot carry an image header
+  // (a list; Twilio reply buttons) gets its header card as an image message first. Off (default): banner null, nothing changes.
+  n.push(code('Build Cloud API body', [2240, 490], W3 + WB + "const BENV = { WA_SESSION_BANNERS: $env.WA_SESSION_BANNERS, WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER };\n" +
+    "return $input.all().map((it) => { const sb = WB.sessionBanner(W3.toCloudApi(it.json._mobile, it.json.message), BENV); return { json: { pnid: it.json._pnid, body: sb.wa, banner: sb.banner, brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }; });"));
   n.push(pg('Reply claim (w07:reply:{wamid})', [2460, -120],
 `-- I-48b: one inbound message -> at most one lead-facing reply (W03 and W07 share the key). Second claim -> 0 rows -> nothing sent.
 WITH c AS (
@@ -183,6 +187,15 @@ SELECT c.id AS reply_claim_id, $3::jsonb AS out FROM c;`,
     authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.out.body) }}',
     options: { timeout: 10000, retry: { maxTries: 3, waitBetweenTries: 1000 } },
   }, { credentials: WA, retryOnFail: true, maxTries: 3, waitBetweenTries: 2000 }));
+  // Banner branch: the image goes out first through the same sender (behind the same reply claim, so a re-run of the
+  // inbound sends neither twice), its failure never stops the reply (onError continue), then the interactive message.
+  n.push(ifTrue('Banner first? (W03)', [2790, -260], '={{ !!($json.out && $json.out.banner) }}'));
+  n.push(node('WhatsApp send (banner)', 'httpRequest', 4.2, [2900, -380], {
+    method: 'POST', url: "={{ 'https://graph.facebook.com/' + $env.META_GRAPH_VERSION + '/' + $json.out.pnid + '/messages' }}",
+    authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.out.banner) }}',
+    options: { timeout: 10000 },
+  }, { credentials: WA }));
+  n.push(code('Banner done: the message (W03)', [3010, -300], "return { json: $('Banner first? (W03)').item.json };", 'runOnceForEachItem'));
   n.push({ ...pg('Store outbound (W03)', [3120, -120],
 `-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}.
 INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)
@@ -329,7 +342,11 @@ RETURNING id;`,
   link(c, 'Hop limit ok? (I-48b)', 'Log hop limit (W03)', 1);
   link(c, 'Build Cloud API body', 'Reply claim (w07:reply:{wamid})');
   link(c, 'Reply claim (w07:reply:{wamid})', 'Live send? (W03)');
-  link(c, 'Live send? (W03)', 'WhatsApp send (session)', 0);
+  link(c, 'Live send? (W03)', 'Banner first? (W03)', 0);
+  link(c, 'Banner first? (W03)', 'WhatsApp send (banner)', 0);
+  link(c, 'WhatsApp send (banner)', 'Banner done: the message (W03)');
+  link(c, 'Banner done: the message (W03)', 'WhatsApp send (session)');
+  link(c, 'Banner first? (W03)', 'WhatsApp send (session)', 1);
   link(c, 'Live send? (W03)', 'Store outbound (W03)', 1);
   link(c, 'WhatsApp send (session)', 'Store outbound (W03)');
   link(c, 'Insert lead (consent at the tap)', 'Mint lead_token');
@@ -509,8 +526,10 @@ function EP_SAFE() { return W28; }
 // GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
 const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
 // 2026-10-11: every WhatsApp send goes through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER switches it.
-const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false } } }; // Store outbound (W03) logs it
+const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false }, 'WhatsApp send (banner)': { record: false } } }; // Store outbound (W03) logs the reply
+/** The banner send never stops the reply: routing rebuilt the node, so its error mode is set after routing. */
+const bannerNeverBlocks = (wf) => { for (const x of wf.nodes) if (x.name === 'WhatsApp send (banner)') x.onError = 'continueRegularOutput'; return wf; };
 const W28_ROUTE = { caller: 'W28', nodes: { 'WhatsApp send list': { record: true }, 'WhatsApp send ask_email': { record: true } } };
-writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(routeWaSends(gateSenders(buildW03()), W03_ROUTE), null, 1) + '\n');
+writeFileSync(join(OUT_DIR, 'W03.json'), JSON.stringify(bannerNeverBlocks(routeWaSends(gateSenders(buildW03()), W03_ROUTE)), null, 1) + '\n');
 writeFileSync(join(OUT_DIR, 'W28.json'), JSON.stringify(routeWaSends(gateSenders(buildW28()), W28_ROUTE), null, 1) + '\n');
 console.log(`wrote ${OUT_DIR === HERE ? 'automation' : OUT_DIR}/W03.json, W28.json`);

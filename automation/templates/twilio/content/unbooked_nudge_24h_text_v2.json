@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "key": "unbooked_nudge_24h_text_v2",
+    "source": "automation/templates/unbooked_nudge_24h_text.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_unbooked_nudge_24h_text_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false,
+    "base": "unbooked_nudge_24h_text",
+    "header": "adviser"
+  },
+  "content": {
+    "friendly_name": "smc_unbooked_nudge_24h_text_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark has helped families in Cape Town and across South Africa for 12 years and speaks English and Afrikaans.",
+      "3": "see_open_times:sample",
+      "4": "not_now:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, a little about the adviser for your enquiry: {{2}} Tap below to see open times. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "See open times",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not now",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}
