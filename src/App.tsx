@@ -118,11 +118,10 @@ const App = () => {
             <Route path="/admin/preview/broker/:brokerId" element={<AdminBrokerPreview />} />
             {SMC_ENABLED && (
               <>
-                <Route path="/console" element={smc(<SmcToday />)} />
-                <Route path="/console/ads" element={smc(<SmcAds />)} />
-                <Route path="/console/ask" element={smc(<SmcAsk />)} />
-                <Route path="/console/payments" element={smc(<SmcPayments />)} />
-                <Route path="/console/settings/brands" element={smc(<SmcBrands />)} />
+                {/* Ops console parked (Jono, 19 Oct 2026): its back end (smc_console_* RPCs, ops/facts layers) was dropped when
+                    SortMyCover moved into the CRM, so every /console page sends admins to the admin home until it is rebuilt.
+                    Restore the five routes (SmcToday, SmcAds, SmcAsk, SmcPayments, SmcBrands) when that work is done. */}
+                <Route path="/console/*" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/broker/start" element={smc(<PortalStart />)} />
                 <Route path="/broker/intro-card" element={smc(<PortalIntroCard />)} />
                 <Route path="/broker/intro-media" element={smc(<PortalIntroMedia />)} />
