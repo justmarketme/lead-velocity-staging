@@ -531,6 +531,8 @@ test('POST /start/answers v4 { age_band, income_band, topics[] }: stored, help_w
     assert.deepEqual([P(bad).status, P(bad).body], [400, { error: 'invalid' }], JSON.stringify(bad));
   }
   for (const b of W39.INCOME_BANDS) assert.ok(['lt20k', '20k_40k', '40k_60k', '60k_100k', '100kplus', 'prefer_not'].includes(b), `${b}: leads_capture_v2_checks income_band`);
+  assert.equal(W39.INCOME_DRAFT_BANDS_ON, false, "Jono's 15k/30k/50k/80k draft is DDL-gated: off until a migration widens the CHECK");
+  assert.deepEqual(W39.INCOME_BANDS, W39.INCOME_BANDS_DB);
   assert.equal(P({ intent: 'life', age_band: '35_44', budget_band: '1500_plus' }).v, undefined, 'the v3 body keeps its own parser');
   assert.equal(P({ intent: 'life', age_band: '35_44', budget_band: '1500_plus' }).ok, true);
   const dv = (topics, over = {}) => W39.decideAnswers({ lead: LEAD({ broker_id: BROKER_ID, stage: 'booked', ...over }), answers: { age_band: '35_44', income_band: '20k_40k', topics }, request_id: RID4, now: NOW });

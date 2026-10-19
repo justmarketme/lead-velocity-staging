@@ -54,7 +54,15 @@ export const REASONS_OF = { life: ['life_cover'], income: ['disability'], other:
 /** Meeting types the page offers (Jono, 18 Oct 2026): Teams and phone only, and only those the broker supports. */
 export const PAGE_METHODS = ['teams', 'phone'];
 // ---- v4 (19 Oct 2026): the income bracket (leads.income_band CHECK, no DDL) and the multi-select topics
-export const INCOME_BANDS = ['lt20k', '20k_40k', '40k_60k', '60k_100k', '100kplus', 'prefer_not'];
+export const INCOME_BANDS_DB = ['lt20k', '20k_40k', '40k_60k', '60k_100k', '100kplus', 'prefer_not'];
+/**
+ * Jono's draft brackets (R15k / R30k / R50k / R80k). DDL-GATED: leads_capture_v2_checks only allows INCOME_BANDS_DB, so these
+ * codes would be refused by the database. Leave INCOME_DRAFT_BANDS_ON false until a migration widens the CHECK (and the page
+ * shows the same brackets); then flip it here, in one place.
+ */
+export const INCOME_DRAFT_BANDS = ['lt15k', '15k_30k', '30k_50k', '50k_80k', '80kplus', 'prefer_not'];
+export const INCOME_DRAFT_BANDS_ON = false;
+export const INCOME_BANDS = INCOME_DRAFT_BANDS_ON ? INCOME_DRAFT_BANDS : INCOME_BANDS_DB;
 export const TOPICS = ['life', 'disability_income', 'severe_illness', 'review', 'new_bond', 'will'];
 /** topic -> lib/w01.mjs HELP_WITH (conv_state.help_with). A new bond is life cover for the bond. */
 export const TOPIC_HELP_WITH = { life: 'life', disability_income: 'disability_income', severe_illness: 'severe_illness', review: 'review', new_bond: 'life', will: 'wills' };
