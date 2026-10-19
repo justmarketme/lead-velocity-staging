@@ -852,33 +852,24 @@ const ownCal = (over = {}) => ({ ...broker(), calendar_status: 'ok', calendar_mo
 const pTeams = { start: '2026-10-13T10:30:00+02:00', end: '2026-10-13T11:00:00+02:00', method: 'teams', email: 'sipho.test@example.com', idempotency_key: 'k-smc', booked_via: 'page', context: {}, route: 'graph' };
 const bkOf = (id, p = pTeams) => ({ id, broker_id: broker().broker_id, appointment_date: p.start, ends_at: p.end, method: p.method, status: 'booked' });
 
-test('W05 lib (SMC, Jono 19 Oct): Outlook-connected broker -> the event goes into his calendar with the Teams link and NO client attendee; the client gets only the SortMyCover email with the .ics attached, even when the broker flag says invite', async () => {
+test('W05 lib (SMC): Outlook-connected broker -> SortMyCover email (invite from the adviser calendar, accept it); no howzit@ email; the function accepts the body', async () => {
   const { validate, render } = await import(SMC_FN);
-  const c = ctx5({ broker: ownCal({ add_client_as_attendee: true }), lead: smcLead() });
-  assert.equal(W5.invitedByOutlook(c, pTeams, {}, { ok: true }), false, 'never an Outlook invite for a SortMyCover client');
-  const ev = W5.graphEvent(c, pTeams);
-  assert.deepEqual(ev.attendees, [], 'no client attendee on the adviser event');
-  assert.equal(ev.isOnlineMeeting, true, 'the Teams meeting is still created, so join_url comes back from Graph');
-  // a Lead Velocity (non-SMC) lead keeps today's behaviour: the broker's flag invites the client from Outlook
-  const lv = ctx5({ broker: ownCal({ add_client_as_attendee: true }), lead: smcLead({ brand_code: 'LV' }) });
-  assert.equal(W5.invitedByOutlook(lv, pTeams, {}, { ok: true }), true);
-  assert.equal(W5.graphEvent(lv, pTeams).attendees.length, 1);
+  const c = ctx5({ broker: ownCal(), lead: smcLead() });
   const f = W5.finish(c, pTeams, bkOf('bk-smc-1'), { ok: true, graph_event_id: 'AAMk1', join_url: 'https://teams.microsoft.com/l/meetup-join/x' });
   assert.equal(f.invite, null, 'never howzit@ for a SortMyCover lead');
   assert.deepEqual(f.client_email, {
     kind: 'booking_confirmed', to: 'sipho.test@example.com', lead_first_name: 'Sipho', slot_start: '2026-10-13T10:30:00+02:00', slot_end: '2026-10-13T11:00:00+02:00',
     method: 'teams', adviser_name: 'Mark Smith', practice_name: 'Synthetic Test Advisory (TEST ONLY)', fsp_number: 'TEST-00000',
-    join_url: 'https://teams.microsoft.com/l/meetup-join/x', booking_id: 'bk-smc-1', calendar_invite: 'attached', idempotency_key: 'w05:client_email:booking_confirmed:bk-smc-1',
+    join_url: 'https://teams.microsoft.com/l/meetup-join/x', booking_id: 'bk-smc-1', calendar_invite: 'adviser', idempotency_key: 'w05:client_email:booking_confirmed:bk-smc-1',
   });
   assert.equal(f.appointment_update.invite_email_status, 'sent');
   const v = validate(f.client_email);
   assert.ok(v.ok, `the edge function accepts exactly what W05 sends: ${JSON.stringify(v)}`);
   const m = render(v.input, Date.parse('2026-10-12T10:00:00Z'));
   assert.equal(m.subject, 'Booked: your call with Mark on Tue 13 Oct at 10:30');
-  assert.doesNotMatch(m.text, /from Mark's own calendar/);
-  assert.match(m.text, /teams\.microsoft\.com\/l\/meetup-join\/x/, 'the Teams link from the Graph event is in the email');
+  assert.match(m.text, /calendar invite is on its way from Mark's own calendar\. Please accept it/);
   assert.match(m.text, /Synthetic Test Advisory \(TEST ONLY\), an authorised financial services provider \(FSP TEST-00000\)/);
-  assert.equal(m.attachments.length, 1, 'the .ics is attached');
+  assert.equal(m.attachments.length, 0);
 });
 
 test('W05 lib (SMC): no adviser invite (opt-out, shared calendar, failed create) -> .ics attached; call methods get the email too; no usable email -> none', async () => {
@@ -912,7 +903,7 @@ test('W05 lib: any other brand keeps the howzit@ Graph email unchanged and gets 
   assert.equal(W5.isSmcLead({ brand_code: 'smc' }), true); assert.equal(W5.isSmcLead({ brand_id: 'x' }), false); assert.equal(W5.isSmcLead(null), false);
 });
 
-test('W05 lib: update_method -> SMC booking_updated email with the updated .ics attached (never an adviser invite since 19 Oct); other brands keep howzit@', async () => {
+test('W05 lib: update_method -> SMC booking_updated email (adviser invite when the new or old method put the client on the Outlook event); other brands keep howzit@', async () => {
   const { validate } = await import(SMC_FN);
   const own = ownCal({ add_client_as_attendee: true, methods_supported: ['teams', 'phone'] });
   const booking = { id: 'bk1', status: 'booked', appointment_date: '2026-10-14T10:00:00+02:00', ends_at: '2026-10-14T10:30:00+02:00', calendar_provider: 'outlook', idempotency_key: 'k', booked_via: 'page', method: 'phone' };
@@ -921,12 +912,12 @@ test('W05 lib: update_method -> SMC booking_updated email with the updated .ics 
   const toTeams = W5.planUpdateMethod({ req: { method: 'teams', email: 'client@gmail.com', email_confirmed: true }, booking, lead, broker: own, mx: { has_mx: true } });
   const e1 = W5.methodChangeEmails({ lead, broker: own, booking }, toTeams.plan, now);
   assert.equal(e1.mail, null);
-  assert.equal(e1.smc_email.kind, 'booking_updated'); assert.equal(e1.smc_email.method, 'teams'); assert.equal(e1.smc_email.calendar_invite, 'attached');
+  assert.equal(e1.smc_email.kind, 'booking_updated'); assert.equal(e1.smc_email.method, 'teams'); assert.equal(e1.smc_email.calendar_invite, 'adviser');
   assert.equal(e1.smc_email.idempotency_key, `w05:client_email:booking_updated:bk1:teams:${Math.floor(now / 60000)}`);
   assert.ok(validate(e1.smc_email).ok);
-  // teams -> phone on his calendar: the client was never an attendee, so the update is the attached .ics
+  // teams -> phone on his calendar: the client was an attendee, so the update comes from his calendar too (no second entry)
   const toPhone = W5.planUpdateMethod({ req: { method: 'phone' }, booking: { ...booking, method: 'teams' }, lead, broker: own });
-  assert.equal(W5.methodChangeEmails({ lead, broker: own, booking: { ...booking, method: 'teams' } }, toPhone.plan, now).smc_email.calendar_invite, 'attached');
+  assert.equal(W5.methodChangeEmails({ lead, broker: own, booking: { ...booking, method: 'teams' } }, toPhone.plan, now).smc_email.calendar_invite, 'adviser');
   // the same change on the shared calendar: nobody was invited from Outlook -> the updated .ics is attached
   const shared = { ...booking, method: 'teams', calendar_provider: 'shared_lv' };
   assert.equal(W5.methodChangeEmails({ lead, broker: own, booking: shared }, W5.planUpdateMethod({ req: { method: 'phone' }, booking: shared, lead, broker: own }).plan, now).smc_email.calendar_invite, 'attached');

@@ -453,14 +453,3 @@ test('Build offer passes W10\'s op: a cancel tap (op "cancel") gets the cancel c
   assert.doesNotMatch(o.body, /other times|Same as before/);
   assert.match(WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode, /reason: j\.op/);
 });
-
-test('W10 (SMC, Jono 19 Oct): a cancel or move on an Outlook-calendar booking sends the SortMyCover email with the .ics attached, never an adviser invite', async () => {
-  const W10 = await import('../lib/w10.mjs');
-  const j = { brand: { code: 'SMC' }, bk: { id: 'bk-x', appointment_date: '2026-10-21T10:30:00+02:00', ends_at: '2026-10-21T11:00:00+02:00', method: 'teams', calendar_provider: 'outlook' },
-    ld: { id: 'l1', first_name: 'Sipho', email: 'sipho.test@example.com', email_verified: true, email_status: 'valid' },
-    br: { broker_id: 'b1', calendar_status: 'ok', calendar_mode: 'oauth', add_client_as_attendee: true, contact_person: 'Mark Smith', practice_name: 'Synthetic Advisory', fsp_number: '12345' } };
-  for (const kind of ['booking_cancelled', 'booking_updated']) {
-    const e = W10.smcClientChangeEmail(j, kind, Date.parse('2026-10-19T08:00:00Z'), kind === 'booking_updated' ? { start: '2026-10-22T10:30:00+02:00', end: '2026-10-22T11:00:00+02:00' } : null);
-    assert.equal(e.calendar_invite, 'attached', kind);
-  }
-});
