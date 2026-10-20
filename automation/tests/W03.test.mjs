@@ -586,27 +586,50 @@ test('start page ON: a website opener greets, then the call-to-action (wills ope
   assert.equal(w.actions.filter((a) => a.kind === 'escalate').length, 1);
 });
 
-test('start page pending: anything typed or tapped in chat falls back to q_age and the taps go on exactly as today', () => {
+test('start page pending (v4b12): chat never falls back to the age taps; the lead goes back to W07 (Lindi, then the link again)', () => {
   const r = consentThenYes({ brand: SP_BRAND, start_page: { token: SP_TOKEN } });
   const lead = { id: 'lead_sp_1', conv_state: { state: 'start_page' }, broker_id: null, origin: 'ctwa' };
   const ctx = { at: '2026-10-18T10:05:00+02:00', mobile: '+27600000104', profile_name: 'Thandi Nkosi', lead_id: 'unused', broker: MARK, brand: SP_BRAND, existing_open_lead_id: 'lead_sp_1', lead, suppressed: false, wamid: 'SMsp2', is_synthetic: true, start_page: { token: SP_TOKEN } };
   for (const m of [{ type: 'text', text: { body: 'Is this legit?' } }, { type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'whatever' } } }]) {
     for (const th of [r.thread, null]) {
       const f = W3.step(th, { from: '27600000104', id: 'SMsp2', timestamp: '1792310300', ...m }, ctx);
-      assert.deepEqual(sends(f.actions).map((a) => a.message.body), ['Which age group are you in?']);
-      assert.deepEqual(f.actions.find((a) => a.kind === 'update_lead'), { kind: 'update_lead', id: 'lead_sp_1', set: { conv_state_state: 'q_age' } });
-      assert.equal(f.actions.find((a) => a.kind === 'schedule_stall').stage, 'q_age');
-      assert.equal(f.thread.stage, 'q_age'); assert.equal(f.thread.lead_id, 'lead_sp_1');
-      assert.equal(f.actions.some((a) => a.kind === 'insert_lead'), false, 'no second lead');
-      // the next tap is an ordinary q_age answer
-      const age = W3.step(f.thread, { from: '27600000104', id: 'SMsp3', timestamp: '1792310400', type: 'interactive', interactive: { type: 'list_reply', list_reply: { id: 'age_35_44' } } }, { ...ctx, lead: { ...lead, conv_state: { state: 'q_age' } }, wamid: 'SMsp3' });
-      assert.deepEqual(age.actions.find((a) => a.kind === 'update_lead').set, { age_band: '35_44', conv_state_state: 'q_budget' });
+      assert.equal(sends(f.actions).length, 0, 'no age question');
+      assert.deepEqual(f.actions.filter((a) => a.kind !== 'cancel_stall'), [{ kind: 'forward_w07', lead_id: 'lead_sp_1', reason: 'start_page_pending' }]);
+      assert.equal(f.actions.some((a) => a.kind === 'update_lead' || a.kind === 'insert_lead'), false, 'nothing written; the page stays the way to answer');
     }
   }
   // the page was answered (W39 moved the lead to unbooked): the old thread no longer triggers the fallback
   const done = W3.step(r.thread, { from: '27600000104', id: 'SMsp9', timestamp: '1792310900', type: 'text', text: { body: 'thanks' } }, { ...ctx, lead: { ...lead, conv_state: { state: 'unbooked' } } });
   assert.equal(sends(done.actions).length, 0);
   assert.equal(done.actions[0].kind, 'forward_w07');
+});
+
+test('v4 CTWA consent (ctwa-generic-v4): new number -> consent with the welcome banner; Yes, I agree stores it, then the card; No thanks closes', async () => {
+  const { sessionBanner } = await import('../lib/wa-provider.mjs');
+  const base = { at: '2026-10-19T10:00:00+02:00', mobile: '+27600000106', profile_name: 'Thandi Nkosi', lead_id: 'lead_v4c', broker: null, brand: { ...SP_BRAND, consent_mode: 'named' }, existing_open_lead_id: null, suppressed: false, wamid: 'SMv0', is_synthetic: true, start_page: { token: SP_TOKEN } };
+  const hi = W3.step(null, { from: '27600000106', id: 'SMv0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, base);
+  const q = sends(hi.actions)[0].message;
+  assert.equal(sends(hi.actions).length, 1);
+  assert.equal(q.body, "Thanks, Thandi. Before we book your call, we need your consent (POPIA):\n\nDo you agree that SortMyCover may message you on WhatsApp to book and remind you about your call, and share your details with an authorised financial adviser who will contact you about it?\n\nSortMyCover (Lead Velocity (Pty) Ltd) is responsible for your details. You can opt out any time by replying STOP. Privacy: sortmycover.co.za/privacy");
+  assert.ok(q.body.length <= 1024);
+  assert.deepEqual(q.buttons, [{ id: 'consent_yes', title: 'Yes, I agree' }, { id: 'consent_no', title: 'No thanks' }]);
+  assert.equal(hi.thread.consent.version, 'ctwa-generic-v4'); assert.equal(hi.thread.consent.mode, 'generic', 'no broker needed before the prompt');
+  assert.equal(sessionBanner(W3.toCloudApi('+27600000106', q), { WA_SESSION_BANNERS: 'on', WHATSAPP_PROVIDER: 'twilio' }).banner.image.link, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png');
+  assert.ok(!hi.actions.some((a) => a.kind === 'insert_lead'));
+  assert.ok(W3.consentV4('').text.startsWith('Thanks. Before we book your call'), 'no name');
+  const tap = (id, w) => ({ from: '27600000106', id: w, timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id } } });
+  const yes = W3.step(hi.thread, tap('consent_yes', 'SMv1'), { ...base, wamid: 'SMv1' });
+  const row = yes.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.consent_text_version, 'ctwa-generic-v4'); assert.equal(row.consent_text, q.body, 'stored exactly as sent'); assert.equal(row.consent_mode, 'generic');
+  assert.deepEqual(sends(yes.actions).map((a) => a.message.type), ['cta_url'], 'then the Start here card');
+  const no = W3.step(hi.thread, tap('consent_no', 'SMv2'), { ...base, wamid: 'SMv2' });
+  assert.ok(!no.actions.some((a) => a.kind === 'insert_lead'));
+  assert.deepEqual(no.actions.filter((a) => a.kind === 'suppress').map((a) => a.source), ['no_consent_ctwa'], 'only the hash');
+  assert.ok(!sends(no.actions).some((a) => a.message.type === 'cta_url'));
+  // brand without the v4 path: the registered named consent, unchanged
+  const old = W3.step(null, { from: '27600000107', id: 'SMo0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, { ...base, brand: BRAND, broker: MARK, start_page: null });
+  assert.equal(old.thread.consent.version, 'ctwa-named-v3');
+  assert.equal(sends(old.actions)[0].message.buttons[0].title, 'Yes, continue');
 });
 
 test('W03.json: Load context reads brands.start_page column-agnostically; "W03 step" mints a token only when the flag is on and the transport can carry the link', async () => {

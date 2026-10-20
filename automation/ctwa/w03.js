@@ -54,6 +54,18 @@ const CONSENT_GENERIC_VERSION = 'ctwa-generic-v3';
 const CONSENT_NAMED_VERSION = 'ctwa-named-v3';
 const CONSENT_NAMED_FOOTER = 'Lead Velocity (Pty) Ltd runs SortMyCover and is responsible for your details. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy';
 const WA_BUTTON_BODY_MAX = 1024; // Cloud API interactive body limit
+// v4 CTWA consent (Jono, 19 Oct 2026, mockup frame 0 v4.17): generic mode, no broker needed before the prompt, used when
+// the brand runs the v4 /start/ path (brands.start_page on). Stored exactly as sent (it carries the first name) with
+// version ctwa-generic-v4; ctwa-generic-v3 / ctwa-named-v3 stay valid for existing leads and the tap path.
+const CONSENT_V4_VERSION = 'ctwa-generic-v4';
+const CONSENT_V4_FOOTER = 'SortMyCover (Lead Velocity (Pty) Ltd) is responsible for your details. You can opt out any time by replying STOP. Privacy: sortmycover.co.za/privacy';
+const CONSENT_YES = 'Yes, continue';
+const CONSENT_V4_YES = 'Yes, I agree';
+function consentV4(profileName) {
+  const f = String(profileName || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
+  return { version: CONSENT_V4_VERSION, mode: 'generic', yes: CONSENT_V4_YES,
+    text: `${f ? `Thanks, ${f}.` : 'Thanks.'} Before we book your call, we need your consent (POPIA):\n\nDo you agree that SortMyCover may message you on WhatsApp to book and remind you about your call, and share your details with an authorised financial adviser who will contact you about it?\n\n${CONSENT_V4_FOOTER}` };
+}
 function consentFor(mode, broker) {
   if (mode === 'generic') return { version: CONSENT_GENERIC_VERSION, mode: 'generic', text: CONSENT_GENERIC_TEXT };
   if (!broker || !broker.practice_name || !broker.fsp_number) return null; // named mode needs a named broker
@@ -240,13 +252,11 @@ function startPageMessage(token, ctx, greet = null) {
 }
 /** A message while the page is pending: back to the tap path, first question, exactly as without the page. */
 function startPageFallback(t, ctx, actions) {
+  // 19 Oct 2026 (v4b12): no fallback to the age taps any more. The lead goes back to W07 (Lindi answers, then the Start here
+  // link again with a fresh token); nothing is written here and the page stays the way to answer.
   const lead = ctx.lead && ctx.lead.id === ctx.existing_open_lead_id ? ctx.lead : null;
-  const base = t && t.stage === 'start_page' ? t : { lead_id: (lead && lead.id) || ctx.existing_open_lead_id, answers: {}, from_lead: true, broker_id: (lead && lead.broker_id) || null, origin: (lead && lead.origin) || null };
-  const thread = { ...base, stage: 'q_age', answers: { ...(base.answers || {}) } };
-  actions.push({ kind: 'update_lead', id: thread.lead_id, set: { conv_state_state: 'q_age' } });
-  actions.push({ kind: 'send', message: question('q_age') });
-  actions.push({ kind: 'schedule_stall', stage: 'q_age', hours: STALL_HOURS, from: ctx.at, replaces: true });
-  return { thread, actions };
+  const leadId = (t && t.stage === 'start_page' && t.lead_id) || (lead && lead.id) || ctx.existing_open_lead_id;
+  return { thread: t, actions: actions.concat([{ kind: 'forward_w07', lead_id: leadId, reason: 'start_page_pending' }]) };
 }
 
 const list = (body, button, rows) => ({ type: 'list', body, button, rows: rows.map(([id, title]) => ({ id, title })) });
@@ -314,12 +324,12 @@ function step(thread, msg, ctx) {
     const firstText = origin.text_without_ref;
     delete origin.text_without_ref; // the thread is stored (wa_threads.state, "no PII in state"): the message text stays on the inbound row
     if (op) return openerIntake(op, origin, { ...ctx, referral: msg.referral || null, text: firstText }, actions);
-    const consent = consentFor(ctx.brand.consent_mode, ctx.broker);
+    const consent = ctx.brand.start_page === true ? consentV4(ctx.profile_name) : consentFor(ctx.brand.consent_mode, ctx.broker);
     if (!consent) {
       send({ type: 'text', body: "Thanks for getting in touch. We can't take new enquiries right now. Please try again in a few days." });
       return { thread: { stage: 'closed', origin, closed_reason: 'no_named_broker', at: ctx.at }, actions: actions.concat([{ kind: 'alert', signal_key: 'ctwa_no_broker' }]) };
     }
-    send(buttons(consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']]));
+    send(buttons(consent.text, [['consent_yes', consent.yes || CONSENT_YES], ['consent_no', 'No thanks']]));
     return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null,
       first_wamid: ctx.wamid || null, first_referral: msg.referral || null }, actions }; // no free text in thread state: the SID points at the stored inbound
   }
@@ -376,7 +386,7 @@ function step(thread, msg, ctx) {
       stall('q_age');
       return { thread: t, actions };
     }
-    send(buttons(t.consent.text, [['consent_yes', 'Yes, continue'], ['consent_no', 'No thanks']])); // free text before consent: ask again
+    send(buttons(t.consent.text, [['consent_yes', t.consent.yes || CONSENT_YES], ['consent_no', 'No thanks']])); // free text before consent: ask again
     return { thread: t, actions };
   }
 
@@ -568,4 +578,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

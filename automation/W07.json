@@ -3365,6 +3365,90 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// unchanged W10 input (the plan fields removed)\nconst j = { ...$json }; delete j.reschedule_card; delete j.reschedule_card_skip; return { json: j };"
       }
+    },
+    {
+      "id": "w07-again-plan",
+      "name": "Start here again plan (W07)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// v4b12 (patch-w07-start-again.mjs): Start here again after Lindi's reply while the /start/ page is pending.\nconst A = require('lv-automation'); const P = A.waProvider;\nconst s = $('Anything to send?').item.json;\nconst lead = s.lead || {};\nconst pending = ((lead.conv_state || {}).state) === 'start_page';\nlet token = null;\nif (pending && lead.id) { try { token = A.leadToken.mintLeadToken(lead.id, { secret: $env.LEAD_TOKEN_SECRET }).token; } catch (e) { token = null; } }\nconst plan = P.startAgainPlan({ lead, adviser_first: s.adviser_first || (s.broker && s.broker.contact_person) || '', handoff: !!s.handoff, token,\n  env: { WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER, TWILIO_CONTENT_SIDS: $env.TWILIO_CONTENT_SIDS } });\nreturn { json: { start_again: plan.send || null, start_again_skip: plan.skip || null, lead_id: lead.id || null, wamid: (s.msg && (s.msg.wamid || s.msg.id)) || null } };"
+      }
+    },
+    {
+      "id": "w07-again-if",
+      "name": "Start here again? (W07)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        580,
+        1600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ !!$json.start_again }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w07-again-in",
+      "name": "SUB input (Send Start here again (W07))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1540
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The link through smc-whatsapp-send; record:true = the sub writes the communications row.\nreturn { json: { kind: 'prebuilt', wa: $json.start_again, to: $json.start_again.to, record: true, caller: 'W07', bypass_suppression: false, phone_number_id: null,\n  lead_id: $json.lead_id, broker_id: null, correlation: 'W07:start_again:' + ($json.wamid || ($json.lead_id + ':' + Date.now())) } };"
+      }
+    },
+    {
+      "id": "w07-again-send",
+      "name": "Send Start here again (W07)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        1540
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
     }
   ],
   "connections": {
@@ -4063,6 +4147,11 @@
             "node": "Store outbound",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Start here again plan (W07)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -4735,6 +4824,40 @@
         [
           {
             "node": "-> W10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start here again plan (W07)": {
+      "main": [
+        [
+          {
+            "node": "Start here again? (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start here again? (W07)": {
+      "main": [
+        [
+          {
+            "node": "SUB input (Send Start here again (W07))",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "SUB input (Send Start here again (W07))": {
+      "main": [
+        [
+          {
+            "node": "Send Start here again (W07)",
             "type": "main",
             "index": 0
           }

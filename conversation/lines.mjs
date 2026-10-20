@@ -51,7 +51,7 @@ export const LINES = {
     HANDOFF_IN_HOURS: "Sure, I've asked a person from our team to message you here shortly.",
     HANDOFF_OUT_OF_HOURS: "Our team is offline right now, so a person will message you here by 09:00 {open_time_word}.",
     HANDOFF_FRUSTRATED: "I'm sorry this has been frustrating. I've asked a person from our team to message you here shortly.",
-    HANDOFF_COMPLAINT: "I'm sorry to hear that. A person from our team will reply within 48 hours, and you can also email howzit@leadvelocity.co.za.",
+    HANDOFF_COMPLAINT: "I'm sorry to hear that. A person from our team will reply within 48 hours, and you can also email hello@sortmycover.co.za.",
     // After a confirm tap at T-24 h (approved chat replay, 12:47) - Layer 1, session message.
     CONFIRM_THANKS: "Thanks, {first_name}, you're confirmed. If you have a payslip or your current policy schedule handy tomorrow, it helps, but it isn't needed.",
     // Reschedule memory (4.11): never ask twice.
@@ -133,7 +133,7 @@ export const LINES = {
     HANDOFF_IN_HOURS: "Seker, ek het iemand van ons span gevra om jou binnekort hier te boodskap.",
     HANDOFF_OUT_OF_HOURS: "Ons span is nou nie aanlyn nie, so iemand sal jou {open_time_word} teen 09:00 hier boodskap.",
     HANDOFF_FRUSTRATED: "Jammer dat dit frustrerend was. Ek het iemand van ons span gevra om jou binnekort hier te boodskap.",
-    HANDOFF_COMPLAINT: "Jammer om dit te hoor. Iemand van ons span sal binne 48 uur antwoord, en jy kan ook na howzit@leadvelocity.co.za e-pos.",
+    HANDOFF_COMPLAINT: "Jammer om dit te hoor. Iemand van ons span sal binne 48 uur antwoord, en jy kan ook na hello@sortmycover.co.za e-pos.",
     CONFIRM_THANKS: "Dankie, {first_name}, jy is bevestig. As jy môre 'n salarisstrokie of jou huidige polisskedule byderhand het, help dit, maar dit is nie nodig nie.",
     SAME_METHOD: "Dieselfde as voorheen, per {method}?",
     SLOTS_INTRO: "Hier is die volgende oop tye met {adviser_first}.",
