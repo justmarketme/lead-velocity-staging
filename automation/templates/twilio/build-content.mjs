@@ -206,13 +206,19 @@ export function rescheduleCta() {
  * (Not now; No thanks on the last). Words = lib/w08.mjs startWords (the same text the session card sends).
  */
 export const START_NUDGES = Object.keys(START_BANNER);
-export function startNudge(key) {
-  const reply = key === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
-  return { _meta: { key, source: 'lib/w08.mjs startWords (W08 start track, 19 Oct 2026)', approval: { name: `smc_${key}`, category: 'UTILITY' }, core: false,
-    banner: `header-${START_BANNER[key]}.png`,
+// The 19 Oct submissions ended on the STOP line; their files stay exactly as submitted. *_v2 (20 Oct 2026) = the same card
+// without it (only the W03 consent keeps "Reply STOP to opt out."), its own key and approval; the sender prefers it once its
+// SID is set (lib/wa-provider.mjs START_NUDGE_KEYS).
+export const START_NUDGE_V1_TAIL = ' Reply STOP to opt out.';
+export function startNudge(base, { v2 = false } = {}) {
+  const key = v2 ? `${base}_v2` : base;
+  const reply = base === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
+  return { _meta: { key, ...(v2 ? { base } : {}), source: v2 ? 'lib/w08.mjs startWords (W08 start track, v2 20 Oct 2026: no STOP line)' : 'lib/w08.mjs startWords (W08 start track, 19 Oct 2026)',
+    approval: { name: `smc_${key}`, category: 'UTILITY' }, core: false,
+    banner: `header-${START_BANNER[base]}.png`,
     var_plan: [{ n: 1, kind: 'body' }, { n: 2, kind: 'body' }, { n: 3, kind: 'button', type: 'url', index: 0 }, { n: 4, kind: 'button', type: 'quick_reply', index: 1 }] },
     content: { friendly_name: `smc_${key}`, language: 'en', variables: { 1: 'Naledi', 2: 'Mark', 3: 'lt1.sample', 4: `${reply[0]}:sample` },
-      types: { 'twilio/card': { title: startWords(key, ['{{1}}', '{{2}}']), subtitle: 'SortMyCover', media: [`${HEADER_BASE}header-${START_BANNER[key]}.png`],
+      types: { 'twilio/card': { title: startWords(base, ['{{1}}', '{{2}}']) + (v2 ? '' : START_NUDGE_V1_TAIL), subtitle: 'SortMyCover', media: [`${HEADER_BASE}header-${START_BANNER[base]}.png`],
         actions: [{ type: 'URL', title: 'Pick a time', url: `${START_LINK}{{3}}` }, { type: 'QUICK_REPLY', title: reply[1], id: '{{4}}' }] } } } };
 }
 
@@ -232,7 +238,7 @@ export function buildAll() {
   out[`${START_CTA_KEY}.json`] = startCta();
   out[`${RESCHEDULE_TEMPLATE}.json`] = rescheduleCard();
   out[`${RESCHEDULE_CTA_KEY}.json`] = rescheduleCta();
-  for (const k of START_NUDGES) out[`${k}.json`] = startNudge(k);
+  for (const k of START_NUDGES) { out[`${k}.json`] = startNudge(k); out[`${k}_v2.json`] = startNudge(k, { v2: true }); }
   return out;
 }
 

@@ -170,12 +170,15 @@ const START_EN = {
   start_nudge_24h: (v) => `Hi ${v[0]}, ${v[1]} still has open times this week for your 30-minute call. There's no obligation to buy anything, and any next step is your choice. Tap below to pick a time.`,
   start_nudge_final: (v) => `Hi ${v[0]}, this is our last message about your call with ${v[1]}. If you'd still like to talk it through, tap below to pick a time. If not, no problem, we won't message again.`
 };
-export const startWords = (touch, vars) => (START_EN[touch] ? START_EN[touch](vars) + ' ' + LINES.en.STOP_HINT : '');
+// 20 Oct 2026 (Jono's final rule: only the W03 consent says "Reply STOP to opt out."): no STOP line, in session and in the
+// *_v2 templates. The 19 Oct start_nudge_* Content keeps it as submitted (templates/twilio/build-content.mjs START_NUDGE_V1_TAIL).
+export const startWords = (touch, vars) => (START_EN[touch] ? START_EN[touch](vars) : '');
 /**
  * One Start here nudge. channel 'session' inside the 24-h window (a cta_url card: welcome banner, "Start here" URL button,
  * which lib/wa-provider.mjs maps to the smc_start_cta Content under Twilio), else the start_nudge_* template: banner image
  * header, body {{1}} first name {{2}} adviser, URL button "Pick a time" -> /start/#lt={{3}}, quick reply {{4}}
- * (Not now; No thanks on the last). needs_token: W08.json mints a fresh lt1 lead token at send time (startPayload).
+ * (Not now; No thanks on the last). The template name is the base key; under Twilio lib/wa-provider.mjs START_NUDGE_KEYS
+ * sends the *_v2 Content once its SID is set. needs_token: W08.json mints a fresh lt1 lead token at send time (startPayload).
  */
 export function startMessage(lead, ctx, touch, now_ms) {
   const b = ctx.broker || {};

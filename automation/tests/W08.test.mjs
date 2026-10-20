@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 import { lead, broker, ms, iso, H, renderBody } from './_harness.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as N from '../lib/w08.mjs';
+import * as P from '../lib/wa-provider.mjs';
+import * as S from '../lib/sub-whatsapp-send.mjs';
 
 const WF = JSON.parse(readFileSync(new URL('../W08.json', import.meta.url), 'utf8'));
 const B = broker();
@@ -215,12 +217,13 @@ test('start nudge messages: banner per touch, adviser named or "an adviser", tem
   assert.deepEqual(d.buttons, [['not_now', 'Not now']]);
   const s = N.due(startLead({ broker_id: 'b1' }), ctx({ broker: { contact_person: 'Mark Weston' }, last_inbound_ms: at - N.H }), at);
   assert.equal(s.channel, 'session'); assert.deepEqual(s.vars, ['Naledi', 'Mark']);
-  assert.match(s.session.body, /^Hi Naledi, your 30-minute call with Mark is one tap away\..*Reply STOP to opt out\.$/);
+  assert.match(s.session.body, /^Hi Naledi, your 30-minute call with Mark is one tap away\..*It takes about a minute\.$/);
+  assert.doesNotMatch(s.session.body, /STOP/, 'only the W03 consent carries the STOP line (20 Oct 2026)');
   const m24 = N.startMessage(startLead(), ctx({ broker: { contact_person: 'Mark Weston' } }), 'start_nudge_24h', at);
   assert.equal(m24.banner, 'video');
   const fin = N.startMessage(startLead(), ctx({ broker: { contact_person: 'Mark Weston' } }), 'start_nudge_final', at);
   assert.equal(fin.banner, 'adviser'); assert.deepEqual(fin.buttons, [['no_thanks', 'No thanks']]);
-  assert.match(N.startWords('start_nudge_final', ['Naledi', 'Mark']), /we won't message again\. Reply STOP to opt out\.$/);
+  assert.match(N.startWords('start_nudge_final', ['Naledi', 'Mark']), /we won't message again\.$/);
   for (const t of ['start_nudge_2h', 'start_nudge_24h', 'start_nudge_final']) assert.doesNotMatch(N.startWords(t, ['A', 'Mark']), /\bfree\b|\bAI\b|Lead Velocity|licensed/i, 'client wording rules');
 });
 
@@ -257,6 +260,28 @@ test('start nudge Twilio Content files: sender numbering (body 1-2, URL 3, quick
     assert.match(card.media[0], new RegExp(`header-${banner}\\.png$`));
     assert.equal(card.actions[0].type, 'URL'); assert.equal(card.actions[0].url, 'https://sortmycover.co.za/start/#lt={{3}}');
     assert.equal(card.actions[1].type, 'QUICK_REPLY'); assert.equal(card.actions[1].title, reply); assert.equal(card.actions[1].id, '{{4}}');
-    assert.equal(card.title, N.startWords(t, ['{{1}}', '{{2}}']), 'template body = the session words');
+    assert.equal(card.title, N.startWords(t, ['{{1}}', '{{2}}']) + ' Reply STOP to opt out.', 'the 19 Oct submission, unchanged');
+    // v2 (20 Oct 2026): own key + approval, same banner and buttons, no STOP line, body = the session words, ends on fixed text
+    const v2 = JSON.parse(readFileSync(new URL(`../templates/twilio/content/${t}_v2.json`, import.meta.url), 'utf8'));
+    const c2 = v2.content.types['twilio/card'];
+    assert.deepEqual([v2._meta.key, v2._meta.base, v2._meta.approval.name, v2._meta.approval.category], [`${t}_v2`, t, `smc_${t}_v2`, 'UTILITY']);
+    assert.deepEqual(c2.media, card.media); assert.deepEqual(c2.actions, card.actions); assert.deepEqual(v2._meta.var_plan, c._meta.var_plan);
+    assert.equal(c2.title, N.startWords(t, ['{{1}}', '{{2}}']), 'v2 body = the session words');
+    assert.doesNotMatch(c2.title, /\bSTOP\b|\bfree\b|\blicensed\b|\bAI\b/i);
+    assert.doesNotMatch(c2.title.replace(/[\s.]+$/, ''), /\{\{\d+\}\}$/, 'body does not end on a variable');
   }
+});
+
+test('start nudge under Twilio: v2 Content wins once its SID is set, v1 until then; banner is static (body 1-2, token 3, quick reply 4)', () => {
+  const env = (o) => ({ WHATSAPP_PROVIDER: 'twilio', TWILIO_WHATSAPP_FROM: '+27600000000', TWILIO_ACCOUNT_SID: 'ACtest', TWILIO_AUTH_TOKEN: 'tok', TWILIO_CONTENT_SIDS: JSON.stringify(o) });
+  const d = { ...N.startMessage(startLead(), ctx({ broker: { contact_person: 'Mark Weston' } }), 'start_nudge_24h', Date.parse('2026-10-21T08:01:00+02:00')), phone: '+27 82 123 4567' };
+  const tok = 'lt1.abcdefghijklmnop.qrstuvwxyz0123';
+  const p = N.startPayload(d, tok);
+  const send = (o) => { const r = S.twilioRequest({ payload: p }, env(o)); if (r.twilio_skip) return { skip: r.twilio_skip }; const f = Object.fromEntries(new URLSearchParams(r.body)); return { sid: f.ContentSid, vars: JSON.parse(f.ContentVariables) }; };
+  const vars = { 1: 'Naledi', 2: 'Mark', 3: tok, 4: 'not_now:lead_start' };
+  assert.deepEqual(send({ start_nudge_24h: 'HXv1' }), { sid: 'HXv1', vars });
+  assert.deepEqual(send({ start_nudge_24h: 'HXv1', start_nudge_24h_v2: 'HXv2' }), { sid: 'HXv2', vars });
+  assert.deepEqual(send({ start_nudge_24h_v2: 'HXv2' }), { sid: 'HXv2', vars });
+  assert.equal(send({}).skip, 'twilio_content_sid_missing');
+  assert.deepEqual(P.START_NUDGE_KEYS.start_nudge_final, ['start_nudge_final_v2', 'start_nudge_final']);
 });
