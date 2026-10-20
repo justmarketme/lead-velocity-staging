@@ -245,3 +245,34 @@ export function transcriptText(transcript: Turn[]): string {
     .map((t) => `${t.role === "agent" ? "Lindi" : "Caller"}: ${String(t.message).trim()}`)
     .join("\n");
 }
+
+// ---------------------------------------------------------------------------- lead timeline + contact stamp
+
+/**
+ * The lead_activities row for an automatic callback that ended without a conversation (no answer) or was
+ * cancelled. Null when the callback has no lead (an unknown caller): lead_activities needs a lead or a broker.
+ * One row per callback: the key is per callback id and the insert ignores duplicates.
+ */
+export function callbackClosedActivity(
+  callbackId: string,
+  leadId: string | null | undefined,
+  result: "no_answer" | "cancelled",
+  detail: string | null,
+): { type: string; key: string; notes: string; payload: Record<string, unknown> } | null {
+  if (!leadId || !callbackId) return null;
+  const why = detail ? ` (${detail})` : "";
+  return result === "no_answer"
+    ? { type: "voice_callback_no_answer", key: `smcvoice:cbna:${callbackId}`, notes: `Automatic callback was not answered${why}.`,
+      payload: { callback_id: callbackId, result: detail } }
+    : { type: "voice_callback_cancelled", key: `smcvoice:cbcancel:${callbackId}`, notes: `Automatic callback cancelled${why}.`,
+      payload: { callback_id: callbackId, reason: detail } };
+}
+
+/**
+ * leads.last_contact_at for a finished call: the call's end time (so a retried webhook writes the same value),
+ * or now when ElevenLabs gave no start time. The caller updates only when this is later than what is stored.
+ */
+export function callContactAt(startedMs: number, durationSecs: number, nowMs = Date.now()): string {
+  const end = startedMs > 0 ? startedMs + Math.max(0, durationSecs) * 1000 : nowMs;
+  return new Date(Math.min(end, nowMs)).toISOString();
+}

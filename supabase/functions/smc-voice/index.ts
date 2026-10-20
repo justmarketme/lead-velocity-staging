@@ -20,7 +20,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { localZaFormat, normalizeEmail, normalizeZaPhone } from "../_shared/spoken.ts";
 import { SMC_WHATSAPP_CONSENT_ASK, smcCallbackFirstMessage, smcConsentRecord } from "../_shared/smc_receptionist_persona.ts";
 import {
-  ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, IN_CRITERIA,
+  ageBand, budgetBand, callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, IN_CRITERIA,
   dialedWithin24h, leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
   transcriptText, twilioSignature, twilioSignatureOk, userTurns,
 } from "../_shared/smc_voice_lib.ts";
@@ -93,12 +93,18 @@ async function leadForConversation(db: SupabaseClient, conversationId: string): 
   return data?.lead_id ?? null;
 }
 
-async function activity(db: SupabaseClient, leadId: string, type: string, notes: string, payload: Record<string, unknown>, key: string) {
+async function activity(db: SupabaseClient, leadId: string, type: string, notes: string, payload: Record<string, unknown>, key: string, ignoreDuplicates = false) {
   const { error } = await db.from("lead_activities").upsert({
     lead_id: leadId, brand_id: SMC_BRAND_ID, actor_type: "system", activity_type: type, notes,
     payload: { brand: "sortmycover", source: "voice", ...payload }, occurred_at: new Date().toISOString(), idempotency_key: key,
-  }, { onConflict: "idempotency_key" });
+  }, { onConflict: "idempotency_key", ignoreDuplicates });
   if (error) console.error(`lead_activities ${type}:`, error.message);
+}
+
+/** Timeline row for a callback that was not answered or was cancelled (ON CONFLICT DO NOTHING; skipped without a lead). */
+async function callbackClosed(db: SupabaseClient, callbackId: string, leadId: string | null | undefined, result: "no_answer" | "cancelled", detail: string | null) {
+  const a = callbackClosedActivity(callbackId, leadId, result, detail);
+  if (a && leadId) await activity(db, leadId, a.type, a.notes, a.payload, a.key, true);
 }
 
 /** The single communications row for a call, keyed by CallSid (or conversation id when there is none). */
@@ -154,10 +160,12 @@ async function scheduleCallback(db: SupabaseClient, caller: string | null, misse
 }
 
 async function cancelCallbacksFor(db: SupabaseClient, missedCallKey: string, why: string) {
-  const { data } = await db.from("communications").select("id, metadata").eq("channel", "call").eq("workflow", WORKFLOW)
+  const { data } = await db.from("communications").select("id, metadata, lead_id").eq("channel", "call").eq("workflow", WORKFLOW)
     .eq("status", "pending").contains("metadata", { kind: "smc_voice_callback", for_call: missedCallKey });
   for (const r of data ?? []) {
-    await db.from("communications").update({ status: "failed", failed_reason: why, metadata: { ...r.metadata, state: "cancelled" } }).eq("id", r.id);
+    const { error } = await db.from("communications").update({ status: "failed", failed_reason: why, metadata: { ...r.metadata, state: "cancelled" } }).eq("id", r.id);
+    if (error) console.error("cancel callback:", error.message);
+    else await callbackClosed(db, r.id, r.lead_id, "cancelled", why);
   }
 }
 
@@ -185,26 +193,22 @@ async function tick(db: SupabaseClient, dry: boolean) {
     const { data: origin } = await db.from("communications").select("metadata").eq("channel", "call").eq("workflow", WORKFLOW)
       .eq("external_id", m.for_call).maybeSingle();
     const reached = (later ?? []).some((c: { metadata?: { user_turns?: number } | null }) => (c.metadata?.user_turns ?? 0) > 0) || (origin?.metadata?.user_turns ?? 0) > 1;
-    if (lead?.opted_out_at || reached) {
-      if (!dry) await db.from("communications").update({ status: "failed", failed_reason: reached ? "caller_reached_us" : "opted_out", metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
-      report.push({ id: r.id, action: "cancelled", why: reached ? "caller_reached_us" : "opted_out" });
-      continue;
-    }
+    const cancel = async (why: string) => {
+      if (!dry) {
+        const { error } = await db.from("communications").update({ status: "failed", failed_reason: why, metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
+        if (error) console.error("cancel callback:", error.message);
+        else await callbackClosed(db, r.id, r.lead_id, "cancelled", why);
+      }
+      report.push({ id: r.id, action: "cancelled", why });
+    };
+    if (lead?.opted_out_at || reached) { await cancel(reached ? "caller_reached_us" : "opted_out"); continue; }
     if (dry || m.synthetic) { report.push({ id: r.id, action: "would_dial", to: r.recipient_contact, dry: true }); continue; }
     // Callbacks off: cancel rather than queue, so switching them on later never dials a backlog of old missed calls.
-    if (env("SMC_CALLBACKS_ENABLED") !== "true") {
-      await db.from("communications").update({ status: "failed", failed_reason: "callbacks_disabled", metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
-      report.push({ id: r.id, action: "cancelled", why: "callbacks_disabled" });
-      continue;
-    }
+    if (env("SMC_CALLBACKS_ENABLED") !== "true") { await cancel("callbacks_disabled"); continue; }
     const { data: dialed } = await db.from("communications").select("id, metadata").eq("channel", "call").eq("workflow", WORKFLOW)
       .eq("recipient_contact", r.recipient_contact).gte("created_at", new Date(now - 30 * 24 * 3600_000).toISOString())
       .contains("metadata", { kind: "smc_voice_callback" });
-    if (dialedWithin24h(dialed ?? [], r.id, now)) {
-      await db.from("communications").update({ status: "failed", failed_reason: "callback_cap_24h", metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
-      report.push({ id: r.id, action: "cancelled", why: "callback_cap_24h" });
-      continue;
-    }
+    if (dialedWithin24h(dialed ?? [], r.id, now)) { await cancel("callback_cap_24h"); continue; }
     // Claim first (a crash after this never re-dials: max 1 automatic callback). The state filter makes the claim
     // atomic: a second tick racing on the same row re-checks it after the first commits and claims nothing.
     const { data: claimed } = await db.from("communications").update({ metadata: { ...m, state: "dialing", attempts: (m.attempts ?? 0) + 1, dialed_at: new Date().toISOString() } })
@@ -288,7 +292,7 @@ async function status(req: Request, db: SupabaseClient) {
   const duration = Number(p.CallDuration ?? 0);
   if (cbId) {
     // Our callback leg finished. no-answer / busy / failed / voicemail -> no_answer; otherwise the post-call webhook adds the transcript.
-    const { data } = await db.from("communications").select("metadata, status").eq("id", cbId).maybeSingle();
+    const { data } = await db.from("communications").select("metadata, status, lead_id").eq("id", cbId).maybeSingle();
     const answered = p.CallStatus === "completed" && !/machine|fax/.test(p.AnsweredBy ?? "");
     const outcome = answered ? "answered" : "no_answer";
     await db.from("communications").update({
@@ -296,6 +300,7 @@ async function status(req: Request, db: SupabaseClient) {
       metadata: { ...(data?.metadata ?? {}), state: "done", outcome, call_status: p.CallStatus, answered_by: p.AnsweredBy ?? null, ended_at: new Date().toISOString() },
     }).eq("id", cbId);
     if (!answered) {
+      await callbackClosed(db, cbId, data?.lead_id, "no_answer", `${p.CallStatus}${p.AnsweredBy ? `, ${p.AnsweredBy}` : ""}`);
       const phone = normalizeZaPhone(p.To);
       await upsertCallRecord(db, p.CallSid, {
         direction: "outbound", sender_type: "system", recipient_type: "client", author: "bot", recipient_contact: phone ?? p.To,
@@ -628,6 +633,12 @@ async function postCall(req: Request, db: SupabaseClient) {
     await activity(db, leadId, "voice_call", summary || `Voice call (${outcome}).`,
       { conversation_id: conv, call_sid: pc.call_sid ?? null, outcome, call_type: callType, duration_secs: duration, call_notes: notes },
       `smcvoice:call:${conv}`);
+    // Contact stamp only. leads.stage is left alone: voice outcomes don't map onto the WhatsApp/booking stages
+    // (W04 sets booked; attended/no_show come from the adviser). Monotonic, so a retried webhook changes nothing.
+    const contactAt = callContactAt(startedMs, duration);
+    const { error } = await db.from("leads").update({ last_contact_at: contactAt })
+      .eq("id", leadId).or(`last_contact_at.is.null,last_contact_at.lt."${contactAt}"`);
+    if (error) console.error("lead last_contact_at:", error.message);
   }
   if (outcome === "missed" && inbound) await scheduleCallback(db, phone, key, "hung_up_before_talking");
   else await cancelCallbacksFor(db, key, "caller_spoke"); // the status callback may have scheduled one before this arrived
