@@ -42,7 +42,7 @@ import { CallRecordingPlayer } from "./CallRecordingPlayer";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { Bot, Sparkles } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { smcVoiceView } from "@/lib/smcVoiceCall";
+import { smcVoiceView, type SmcCallDetails as SmcCallDetailsData } from "@/lib/smcVoiceCall";
 
 /** Shape of `communications.metadata` for AI-call rows (Einstein proposals). */
 interface ProposedChanges {
@@ -91,15 +91,45 @@ interface Attachment {
 
 /**
  * SortMyCover voice rows (Lindi, smc-voice edge function): outcome, summary, notes and the full transcript on demand;
- * automatic callbacks show their status. The recording is not stored here: it plays from ElevenLabs (smc-voice /recording).
+ * automatic callbacks show their status, plus the call itself once answered. The recording is not stored here: it
+ * plays from ElevenLabs (smc-voice /recording).
  */
+function SmcCallDetails({ call }: { call: SmcCallDetailsData }) {
+  return (
+    <div className="space-y-1.5">
+      {call.outcomeLabel && (
+        <Badge variant={call.outcome === 'booked' ? 'default' : call.outcome === 'missed' || call.outcome === 'no_answer' ? 'destructive' : 'secondary'}>
+          {call.outcomeLabel}
+        </Badge>
+      )}
+      {call.summary && <p className="text-sm">{call.summary}</p>}
+      {call.callNotes && (
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+          <span className="font-medium">Notes: </span>{call.callNotes}
+        </p>
+      )}
+      {call.transcript && call.transcript !== '(no speech)' && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="link" size="sm" className="h-auto p-0 text-xs">Show / hide transcript</Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{call.transcript}</p>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
 function SmcVoiceDetails({ comm }: { comm: Communication }) {
   const view = smcVoiceView(comm);
   if (!view) return null;
-  if (view.kind === 'callback') {
-    return (
+  if (view.kind === 'call') return <SmcCallDetails call={view} />;
+  return (
+    <div className="space-y-1.5">
       <div className="flex items-center gap-2 flex-wrap text-xs">
-        {comm.content && <span className="text-sm text-muted-foreground">{comm.content}</span>}
+        {!view.call && comm.content && <span className="text-sm text-muted-foreground">{comm.content}</span>}
         <Badge variant={view.status === 'answered' ? 'default' : view.status === 'pending' ? 'outline' : 'secondary'}>
           Callback: {view.statusLabel}
         </Badge>
@@ -107,31 +137,7 @@ function SmcVoiceDetails({ comm }: { comm: Communication }) {
           <span className="text-muted-foreground">Due {format(new Date(view.dueSast), 'MMM d, h:mm a')}</span>
         )}
       </div>
-    );
-  }
-  return (
-    <div className="space-y-1.5">
-      {view.outcomeLabel && (
-        <Badge variant={view.outcome === 'booked' ? 'default' : view.outcome === 'missed' || view.outcome === 'no_answer' ? 'destructive' : 'secondary'}>
-          {view.outcomeLabel}
-        </Badge>
-      )}
-      {view.summary && <p className="text-sm">{view.summary}</p>}
-      {view.callNotes && (
-        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-          <span className="font-medium">Notes: </span>{view.callNotes}
-        </p>
-      )}
-      {view.transcript && view.transcript !== '(no speech)' && (
-        <Collapsible>
-          <CollapsibleTrigger asChild>
-            <Button variant="link" size="sm" className="h-auto p-0 text-xs">Show / hide transcript</Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{view.transcript}</p>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      {view.call && <SmcCallDetails call={view.call} />}
     </div>
   );
 }

@@ -111,7 +111,10 @@ async function callbackClosed(db: SupabaseClient, callbackId: string, leadId: st
 async function upsertCallRecord(db: SupabaseClient, key: string, row: Record<string, unknown>, meta: Record<string, unknown>) {
   const { data: existing } = await db.from("communications").select("id, metadata, lead_id")
     .eq("channel", "call").eq("workflow", WORKFLOW).eq("external_id", key).maybeSingle();
-  const metadata = { ...(existing?.metadata ?? {}), ...meta, kind: "smc_voice_call" };
+  // A dialled callback's own row carries the call's SID, so the call lands on it: it stays a callback, or the
+  // 24 h caps (which count kind smc_voice_callback) would stop seeing it and the person could be called again.
+  const kind = existing?.metadata?.kind === "smc_voice_callback" ? "smc_voice_callback" : "smc_voice_call";
+  const metadata = { ...(existing?.metadata ?? {}), ...meta, kind };
   if (existing) {
     const { error } = await db.from("communications").update({ ...row, lead_id: row.lead_id ?? existing.lead_id, metadata }).eq("id", existing.id);
     if (error) console.error("call record update:", error.message);
@@ -211,7 +214,8 @@ async function tick(db: SupabaseClient, dry: boolean) {
     if (dialedWithin24h(dialed ?? [], r.id, now)) { await cancel("callback_cap_24h"); continue; }
     // Claim first (a crash after this never re-dials: max 1 automatic callback). The state filter makes the claim
     // atomic: a second tick racing on the same row re-checks it after the first commits and claims nothing.
-    const { data: claimed } = await db.from("communications").update({ metadata: { ...m, state: "dialing", attempts: (m.attempts ?? 0) + 1, dialed_at: new Date().toISOString() } })
+    const dialedAt = new Date().toISOString(); // kept on every later write: the dial-time cap reads it
+    const { data: claimed } = await db.from("communications").update({ metadata: { ...m, state: "dialing", attempts: (m.attempts ?? 0) + 1, dialed_at: dialedAt } })
       .eq("id", r.id).eq("status", "pending").contains("metadata", { state: "scheduled" }).select("id");
     if (!claimed?.length) continue;
     const sid = env("SMC_TWILIO_ACCOUNT_SID");
@@ -220,13 +224,16 @@ async function tick(db: SupabaseClient, dry: boolean) {
       headers: { Authorization: twilioAuth(), "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         To: r.recipient_contact, From: SMC_NUMBER, Url: `${BASE}/twiml?cb=${r.id}`, Method: "POST",
-        StatusCallback: `${BASE}/status?cb=${r.id}`, StatusCallbackMethod: "POST", Timeout: "25", MachineDetection: "Enable",
+        StatusCallback: `${BASE}/status?cb=${r.id}`, StatusCallbackMethod: "POST", Timeout: "25",
+        // Background voicemail detection: the answered call goes straight to Lindi instead of sitting silent while
+        // Twilio decides human vs machine after the "hello"; /amd hangs up if it was voicemail or a fax.
+        MachineDetection: "Enable", AsyncAmd: "true", AsyncAmdStatusCallback: `${BASE}/amd?cb=${r.id}`, AsyncAmdStatusCallbackMethod: "POST",
       }),
     });
     const body = await res.json().catch(() => ({}));
     await db.from("communications").update({
       status: res.ok ? "sent" : "failed", external_id: body.sid ?? null, failed_reason: res.ok ? null : String(body.message ?? res.status).slice(0, 300),
-      metadata: { ...m, state: res.ok ? "dialed" : "dial_failed", attempts: (m.attempts ?? 0) + 1, call_sid: body.sid ?? null, first_name: lead?.first_name ?? null },
+      metadata: { ...m, state: res.ok ? "dialed" : "dial_failed", attempts: (m.attempts ?? 0) + 1, dialed_at: dialedAt, call_sid: body.sid ?? null, first_name: lead?.first_name ?? null },
     }).eq("id", r.id);
     report.push({ id: r.id, action: res.ok ? "dialed" : "dial_failed", call_sid: body.sid ?? null });
   }
@@ -285,6 +292,28 @@ async function twiml(req: Request, db: SupabaseClient) {
   }
 }
 
+/** Async AMD verdict for a callback leg: voicemail or fax -> hang up (never leave Lindi on a machine). */
+async function amd(req: Request, db: SupabaseClient) {
+  const p = await twilioForm(req, "amd");
+  if (!p) return new Response("forbidden", { status: 403 });
+  const cbId = new URL(req.url).searchParams.get("cb");
+  const answeredBy = p.AnsweredBy ?? "";
+  // Store the verdict before any hangup, so the status callback that the hangup triggers reads it.
+  if (cbId) {
+    const { data } = await db.from("communications").select("metadata").eq("id", cbId).maybeSingle();
+    if (data) await db.from("communications").update({ metadata: { ...data.metadata, answered_by: answeredBy, amd_ms: Number(p.MachineDetectionDuration ?? 0) || null } }).eq("id", cbId);
+  }
+  if (/machine|fax/.test(answeredBy) && p.CallSid) {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env("SMC_TWILIO_ACCOUNT_SID")}/Calls/${p.CallSid}.json`, {
+      method: "POST", headers: { Authorization: twilioAuth(), "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ Status: "completed" }),
+    });
+    if (!res.ok) console.error("smc-voice amd hangup:", res.status, (await res.text()).slice(0, 200));
+    else await res.body?.cancel();
+  }
+  return new Response("", { status: 204 });
+}
+
 async function status(req: Request, db: SupabaseClient) {
   const p = await twilioForm(req, "status");
   if (!p) return new Response("forbidden", { status: 403 });
@@ -293,14 +322,16 @@ async function status(req: Request, db: SupabaseClient) {
   if (cbId) {
     // Our callback leg finished. no-answer / busy / failed / voicemail -> no_answer; otherwise the post-call webhook adds the transcript.
     const { data } = await db.from("communications").select("metadata, status, lead_id").eq("id", cbId).maybeSingle();
-    const answered = p.CallStatus === "completed" && !/machine|fax/.test(p.AnsweredBy ?? "");
+    // Async AMD posts its verdict to /amd, which stores it; the status callback may not carry AnsweredBy.
+    const answeredBy = p.AnsweredBy || data?.metadata?.answered_by || "";
+    const answered = p.CallStatus === "completed" && !/machine|fax/.test(answeredBy);
     const outcome = answered ? "answered" : "no_answer";
     await db.from("communications").update({
-      status: answered ? "delivered" : "failed", call_duration: duration, failed_reason: answered ? null : `${p.CallStatus}${p.AnsweredBy ? ` (${p.AnsweredBy})` : ""}`,
-      metadata: { ...(data?.metadata ?? {}), state: "done", outcome, call_status: p.CallStatus, answered_by: p.AnsweredBy ?? null, ended_at: new Date().toISOString() },
+      status: answered ? "delivered" : "failed", call_duration: duration, failed_reason: answered ? null : `${p.CallStatus}${answeredBy ? ` (${answeredBy})` : ""}`,
+      metadata: { ...(data?.metadata ?? {}), state: "done", outcome, call_status: p.CallStatus, answered_by: answeredBy || null, ended_at: new Date().toISOString() },
     }).eq("id", cbId);
     if (!answered) {
-      await callbackClosed(db, cbId, data?.lead_id, "no_answer", `${p.CallStatus}${p.AnsweredBy ? `, ${p.AnsweredBy}` : ""}`);
+      await callbackClosed(db, cbId, data?.lead_id, "no_answer", `${p.CallStatus}${answeredBy ? `, ${answeredBy}` : ""}`);
       const phone = normalizeZaPhone(p.To);
       await upsertCallRecord(db, p.CallSid, {
         direction: "outbound", sender_type: "system", recipient_type: "client", author: "bot", recipient_contact: phone ?? p.To,
@@ -658,6 +689,7 @@ Deno.serve(async (req) => {
       case "recording": return await recording(req);
       case "twiml": return await twiml(req, db);
       case "status": return await status(req, db);
+      case "amd": return await amd(req, db);
       case "post-call": return await postCall(req, db);
       case "tick": {
         const test = await testMode(req);

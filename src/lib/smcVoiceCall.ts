@@ -25,21 +25,34 @@ export const SMC_CALLBACK_STATUS_LABELS: Record<SmcCallbackStatus, string> = {
   dial_failed: "Dial failed",
 };
 
+export type SmcCallDetails = { outcome: SmcVoiceOutcome | null; outcomeLabel: string | null; summary: string; callNotes: string; transcript: string };
+
+/** An answered callback keeps its row (kind smc_voice_callback) and gains the call details, so it carries both. */
 export type SmcVoiceView =
-  | { kind: "call"; outcome: SmcVoiceOutcome | null; outcomeLabel: string | null; summary: string; callNotes: string; transcript: string }
-  | { kind: "callback"; status: SmcCallbackStatus; statusLabel: string; dueSast: string | null; reason: string | null };
+  | ({ kind: "call" } & SmcCallDetails)
+  | { kind: "callback"; status: SmcCallbackStatus; statusLabel: string; dueSast: string | null; reason: string | null; call: SmcCallDetails | null };
 
 type Row = { channel?: string | null; workflow?: string | null; content?: string | null; metadata?: unknown };
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
-/** Callback lifecycle from smc-voice: scheduled -> dialing -> dialed -> done (outcome) | cancelled | dial_failed. */
+/**
+ * Callback lifecycle from smc-voice: scheduled -> dialing -> dialed -> done | cancelled | dial_failed. At "done" the
+ * status callback writes outcome answered / no_answer, and the post-call webhook may then replace it with the call
+ * outcome (e.g. info_only), which still means it was answered.
+ */
 export function callbackStatus(meta: Record<string, unknown>): SmcCallbackStatus {
   if (meta.state === "cancelled") return "cancelled";
-  if (meta.outcome === "answered") return "answered";
   if (meta.outcome === "no_answer") return "no_answer";
+  if (meta.outcome === "answered" || meta.state === "done") return "answered";
   if (meta.state === "dial_failed") return "dial_failed";
   return "pending";
+}
+
+function callDetails(meta: Record<string, unknown>, content: unknown): SmcCallDetails {
+  const raw = str(meta.outcome);
+  const outcome = Object.prototype.hasOwnProperty.call(SMC_VOICE_OUTCOME_LABELS, raw) ? (raw as SmcVoiceOutcome) : null;
+  return { outcome, outcomeLabel: outcome ? SMC_VOICE_OUTCOME_LABELS[outcome] : null, summary: str(meta.summary), callNotes: str(meta.call_notes), transcript: str(content) };
 }
 
 /** Null for anything that is not an SMC voice call or callback. */
@@ -47,18 +60,13 @@ export function smcVoiceView(row: Row): SmcVoiceView | null {
   const meta = (row.metadata && typeof row.metadata === "object" ? row.metadata : {}) as Record<string, unknown>;
   if (meta.kind === "smc_voice_callback") {
     const s = callbackStatus(meta);
-    return { kind: "callback", status: s, statusLabel: SMC_CALLBACK_STATUS_LABELS[s], dueSast: str(meta.scheduled_for_sast) || null, reason: str(meta.reason) || null };
+    const call = callDetails(meta, meta.conversation_id ? row.content : "");
+    return {
+      kind: "callback", status: s, statusLabel: SMC_CALLBACK_STATUS_LABELS[s], dueSast: str(meta.scheduled_for_sast) || null, reason: str(meta.reason) || null,
+      call: call.summary || call.transcript ? call : null,
+    };
   }
   // smc-voice also writes WhatsApp handoff rows (workflow 'smc-voice', channel 'whatsapp'): calls only here.
   if (meta.kind !== "smc_voice_call" && !(row.workflow === "smc-voice" && row.channel === "call")) return null;
-  const raw = str(meta.outcome);
-  const outcome = Object.prototype.hasOwnProperty.call(SMC_VOICE_OUTCOME_LABELS, raw) ? (raw as SmcVoiceOutcome) : null;
-  return {
-    kind: "call",
-    outcome,
-    outcomeLabel: outcome ? SMC_VOICE_OUTCOME_LABELS[outcome] : null,
-    summary: str(meta.summary),
-    callNotes: str(meta.call_notes),
-    transcript: str(row.content),
-  };
+  return { kind: "call", ...callDetails(meta, row.content) };
 }

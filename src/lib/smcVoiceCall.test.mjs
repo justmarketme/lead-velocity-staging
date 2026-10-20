@@ -41,7 +41,20 @@ test('callback status follows the smc-voice lifecycle', () => {
   assert.equal(callbackStatus({ state: 'done', outcome: 'no_answer' }), 'no_answer');
   assert.equal(callbackStatus({ state: 'cancelled' }), 'cancelled');
   assert.equal(callbackStatus({ state: 'dial_failed' }), 'dial_failed');
-  const v = smcVoiceView(call({ kind: 'smc_voice_callback', state: 'scheduled', scheduled_for_sast: '2026-10-20T10:05:00+02:00', reason: 'hung_up_early' }));
-  assert.deepEqual(v, { kind: 'callback', status: 'pending', statusLabel: 'Pending', dueSast: '2026-10-20T10:05:00+02:00', reason: 'hung_up_early' });
+  const v = smcVoiceView({ ...call({ kind: 'smc_voice_callback', state: 'scheduled', scheduled_for_sast: '2026-10-20T10:05:00+02:00', reason: 'hung_up_early' }), content: 'Automatic callback for a missed call (hung_up_early).' });
+  assert.deepEqual(v, { kind: 'callback', status: 'pending', statusLabel: 'Pending', dueSast: '2026-10-20T10:05:00+02:00', reason: 'hung_up_early', call: null });
   assert.equal(smcVoiceView(call({ kind: 'smc_voice_callback', state: 'done', outcome: 'no_answer' })).statusLabel, 'No answer');
+});
+
+test('answered callback (20 Oct test call): the post-call outcome replaces "answered", it still reads Answered with the call', () => {
+  const v = smcVoiceView(call({ kind: 'smc_voice_callback', state: 'done', outcome: 'info_only', answered_by: 'human', conversation_id: 'conv_1', summary: 'Asked about cover.' }));
+  assert.equal(v.kind, 'callback');
+  assert.equal(v.statusLabel, 'Answered');
+  assert.deepEqual(v.call, { outcome: 'info_only', outcomeLabel: 'Questions only', summary: 'Asked about cover.', callNotes: '', transcript: 'Lindi: Hi\nCaller: Hello' });
+});
+
+test('dialled callback with no call yet: the scheduling text is not shown as a transcript', () => {
+  const v = smcVoiceView({ ...call({ kind: 'smc_voice_callback', state: 'dialed' }), content: 'Automatic callback for a missed call (no-answer).' });
+  assert.equal(v.status, 'pending');
+  assert.equal(v.call, null);
 });
