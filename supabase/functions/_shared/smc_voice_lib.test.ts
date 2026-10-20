@@ -1,7 +1,7 @@
 // deno test supabase/functions/_shared/smc_voice_lib.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
-  ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
+  ageBand, budgetBand, callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
   mintLeadToken, nextCallWindow, sastIso, twilioSignature, twilioSignatureOk,
 } from "./smc_voice_lib.ts";
 
@@ -104,4 +104,24 @@ Deno.test("why WhatsApp (Jono, 18 Oct 2026): one spoken sentence in the consent 
   assert(SMC_WHATSAPP_CONSENT_ASK.endsWith("Do I have your permission to contact you on WhatsApp on this number?"));
   assert(!/\bfree\b|\bcosts?\b|\bprice\b|\bR\d/i.test(SMC_WHATSAPP_CONSENT_ASK));
   assert(!/\bAI\b/.test(SMC_WHATSAPP_CONSENT_ASK));
+});
+
+Deno.test("callback timeline rows: one per callback, only with a lead", () => {
+  assertEquals(callbackClosedActivity("cb1", null, "no_answer", "no-answer"), null);
+  assertEquals(callbackClosedActivity("cb1", undefined, "cancelled", "caller_spoke"), null);
+  const na = callbackClosedActivity("cb1", "lead1", "no_answer", "completed, machine_start");
+  assertEquals(na?.type, "voice_callback_no_answer");
+  assertEquals(na?.key, "smcvoice:cbna:cb1");
+  assertEquals(na?.payload, { callback_id: "cb1", result: "completed, machine_start" });
+  const c = callbackClosedActivity("cb1", "lead1", "cancelled", "caller_reached_us");
+  assertEquals(c?.type, "voice_callback_cancelled");
+  assertEquals(c?.key, "smcvoice:cbcancel:cb1");
+  assertEquals(c?.notes, "Automatic callback cancelled (caller_reached_us).");
+});
+
+Deno.test("last_contact_at = call end (stable across webhook retries), never in the future", () => {
+  const now = Date.parse("2026-10-20T10:00:00Z");
+  assertEquals(callContactAt(Date.parse("2026-10-20T09:50:00Z"), 120, now), "2026-10-20T09:52:00.000Z");
+  assertEquals(callContactAt(0, 120, now), "2026-10-20T10:00:00.000Z");
+  assertEquals(callContactAt(Date.parse("2026-10-20T09:59:00Z"), 600, now), "2026-10-20T10:00:00.000Z");
 });
