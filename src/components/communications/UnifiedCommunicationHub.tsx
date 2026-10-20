@@ -41,6 +41,8 @@ import { format } from "date-fns";
 import { CallRecordingPlayer } from "./CallRecordingPlayer";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { Bot, Sparkles } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { smcVoiceView } from "@/lib/smcVoiceCall";
 
 /** Shape of `communications.metadata` for AI-call rows (Einstein proposals). */
 interface ProposedChanges {
@@ -66,6 +68,7 @@ interface Communication {
   recipient_contact: string;
   call_duration: number | null;
   call_recording_url: string | null;
+  workflow?: string | null;
   lead_id: string | null;
   broker_id: string | null;
   metadata: unknown;
@@ -84,6 +87,53 @@ interface Attachment {
   filename: string;
   content: string; // base64
   type: string;
+}
+
+/**
+ * SortMyCover voice rows (Lindi, smc-voice edge function): outcome, summary, notes and the full transcript on demand;
+ * automatic callbacks show their status. The recording is not stored here: it plays from ElevenLabs (smc-voice /recording).
+ */
+function SmcVoiceDetails({ comm }: { comm: Communication }) {
+  const view = smcVoiceView(comm);
+  if (!view) return null;
+  if (view.kind === 'callback') {
+    return (
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        {comm.content && <span className="text-sm text-muted-foreground">{comm.content}</span>}
+        <Badge variant={view.status === 'answered' ? 'default' : view.status === 'pending' ? 'outline' : 'secondary'}>
+          Callback: {view.statusLabel}
+        </Badge>
+        {view.status === 'pending' && view.dueSast && (
+          <span className="text-muted-foreground">Due {format(new Date(view.dueSast), 'MMM d, h:mm a')}</span>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      {view.outcomeLabel && (
+        <Badge variant={view.outcome === 'booked' ? 'default' : view.outcome === 'missed' || view.outcome === 'no_answer' ? 'destructive' : 'secondary'}>
+          {view.outcomeLabel}
+        </Badge>
+      )}
+      {view.summary && <p className="text-sm">{view.summary}</p>}
+      {view.callNotes && (
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+          <span className="font-medium">Notes: </span>{view.callNotes}
+        </p>
+      )}
+      {view.transcript && view.transcript !== '(no speech)' && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="link" size="sm" className="h-auto p-0 text-xs">Show / hide transcript</Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{view.transcript}</p>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
 }
 
 interface UnifiedCommunicationHubProps {
@@ -910,7 +960,11 @@ export function UnifiedCommunicationHub({
                       </span>
                     </div>
                     {comm.subject && <p className="text-sm font-medium">{comm.subject}</p>}
-                    <p className="text-sm text-muted-foreground line-clamp-2">{comm.content || 'No content'}</p>
+                    {smcVoiceView(comm) ? (
+                      <SmcVoiceDetails comm={comm} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground line-clamp-2">{comm.content || 'No content'}</p>
+                    )}
 
                     {/* Proposed Changes / Suggested Actions */}
                     {typeof comm.metadata === 'object' && comm.metadata !== null && 'proposed_changes' in comm.metadata && comm.metadata.proposed_changes && (
