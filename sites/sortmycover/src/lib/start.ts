@@ -333,7 +333,7 @@ export function requestId(): string {
 export const webNextWhatsApp = (number: string | null) =>
   `Next, look out for a WhatsApp from SortMyCover${number ? ` on ${number}` : ""} in the next minute. It has your booking details, and it's where your reminders come and where you can move or cancel your call with one tap. There's no app to download and nothing to log in to.`;
 export const webSaveNumber = (smcNumber: string) => `Our WhatsApp number is ${smcNumber}. Save it as SortMyCover so you know it's us.`;
-export const WEB_CHAT_NEXT = "Say hi to Lindi, SortMyCover's automated assistant, on WhatsApp. Lindi will help you find a time that suits you.";
+export const WEB_CHAT_NEXT = "Lindi, SortMyCover's automated assistant, will help you pick a time on WhatsApp. Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold, and your booking confirmation, reminders and one-tap rescheduling all come to the same chat. There's no app to download and nothing to log in to. Tap below and say hi.";
 
 /** Under the WhatsApp number on step 0 (Jono, 18 Oct 2026): why WhatsApp, and what arrives there next. */
 export const WHY_WHATSAPP = "Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold. Your booking confirmation and reminders come here too.";
