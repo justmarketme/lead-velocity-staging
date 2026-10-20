@@ -743,10 +743,11 @@
           "cachedResultName": "W05 Book"
         },
         "options": {
-          "waitForSubWorkflow": false
+          "waitForSubWorkflow": true
         }
       },
-      "notes": "Called with { previous_booking_id, lead_id, slot_start, method, booked_via: 'chat', idempotency_key }. W05 re-checks free/busy, creates the event, sends booking_confirmed, fires CAPI Schedule."
+      "notes": "Called with { previous_booking_id, lead_id, slot_start, method, booked_via: 'chat', idempotency_key }. W05 re-checks free/busy, creates the event, sends booking_confirmed, fires CAPI Schedule.",
+      "onError": "continueErrorOutput"
     },
     {
       "id": "n20",
@@ -786,7 +787,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', brand: j.brand, bk_id: j.bk.id, email_kind: 'moved', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nif (j.d.action !== 'move') return []; // after-meeting rebooking: W05 sent booking_confirmed + broker_new_booking\nconst label = L.slotLabel(j.new_start);\nconst lead = { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body: 'Done. Your call with ' + String(j.br.contact_person).split(' ')[0] + ' is now ' + label + '.' } };\nconst notice = L.brokerNotice(j.d.broker_notice, j.ld);\nconst who = (String(j.ld.first_name || '').trim() + ' ' + (j.ld.last_name ? String(j.ld.last_name).trim().slice(0, 1) + '.' : '')).trim();\nconst dayOf = (iso) => new Date(Date.parse(iso) + 7200000).toISOString().slice(0, 10);\n// Outside the broker's 24-h window: approved utility template broker_booking_changed (I-35a); the howzit@ email still goes as the written record.\nconst tpl = (oldIso, nowText, dayIso) => ({ messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'template', template: { name: 'broker_booking_changed', language: { code: 'en' }, components: [{ type: 'body', parameters: [String(j.br.contact_person || '').split(' ')[0] || 'there', who, L.METHOD_LABEL[j.bk.method] || String(j.bk.method || 'call'), L.slotLabel(oldIso), nowText].map((t) => ({ type: 'text', text: String(t) })) }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'calendar?day=' + dayOf(dayIso) }] }] } });\nconst brokerWindow = Number.isFinite(j.br.last_inbound_ms) && Date.now() - j.br.last_inbound_ms < 86400000;\nreturn [{ json: { to: 'lead', wa: lead } }, { json: { to: 'broker', brand: j.brand, bk_id: j.bk.id, email_kind: 'moved', channel: brokerWindow ? 'whatsapp' : 'email', wa: brokerWindow ? { messaging_product: 'whatsapp', to: j.br.whatsapp_number, type: 'text', text: { body: notice } } : (j.br.whatsapp_number ? tpl(j.bk.appointment_date, label, j.new_start) : null), email: { to: j.br.email, subject: 'SortMyCover booking moved', body: notice } } }];"
       }
     },
     {
@@ -2372,6 +2373,244 @@
           "queryReplacement": "={{ [$json.ld.id] }}"
         }
       }
+    },
+    {
+      "id": "w10-rebook-req",
+      "name": "W05 rebook request (w10.rebookRequest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        560
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W05 documented book (CONTRACTS \"Sub-workflow interfaces\"), checked with W05's own parseSub before it is sent.\nconst L = require('lv-automation').w10;\nconst r = L.rebookRequest($('Decide move (w10.applyReschedule)').item.json);\nreturn { json: { ...(r.req || {}), _ok: r.ok, _reason: r.reason || null } };"
+      }
+    },
+    {
+      "id": "w10-rebook-ok",
+      "name": "Rebook request ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        330,
+        560
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json._ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w10-rebook-read",
+      "name": "Rebooking stored? (re-read by idempotency key)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        560
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- What W05 actually stored (its reply to a waiting caller is its last node, not a contract): the row for this key.\nSELECT (SELECT to_jsonb(k) FROM (SELECT a.id, a.status FROM public.appointments a WHERE a.idempotency_key = $1 LIMIT 1) k) AS booking;",
+        "options": {
+          "queryReplacement": "={{ [$('W05 rebook request (w10.rebookRequest)').item.json.idempotency_key || ''] }}"
+        }
+      }
+    },
+    {
+      "id": "w10-rebook-booked",
+      "name": "Rebooked? (booked / confirmed)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        560
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(['booked', 'confirmed'].includes(($json.booking || {}).status)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w10-rebook-fail-wa",
+      "name": "Rebook failed: holding line (w07.neverSilentText)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// The rebooking could not be made: keep the old booking, ONE warm holding line (never a failure word), and a person follows up.\nconst W7 = require('lv-automation').w07;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nconst body = W7.neverSilentText('W10', { first_name: j.ld.first_name || '', lang: j.ld.language === 'af' ? 'af' : 'en' });\nreturn { json: { to: 'lead', ld: j.ld, wa: { messaging_product: 'whatsapp', to: j.ld.phone, type: 'text', text: { body } } } };"
+      }
+    },
+    {
+      "id": "w10-rebook-fail-al",
+      "name": "Rebook failed: owner alert (w07.neverSilentAlert)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        880
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const W7 = require('lv-automation').w07;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nreturn { json: { request: W7.neverSilentAlert({ route: 'W10', lead: { id: j.ld.id, first_name: j.ld.first_name } }) } };"
+      }
+    },
+    {
+      "id": "w10-rebook-live-al",
+      "name": "Live alert? (rebook failed)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        880
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "w10-rebook-notify",
+      "name": "Notify Jono (EMMA /api/notify, rebook failed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        880
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://emmadoesit.cloud/api/notify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-emma-secret",
+              "value": "={{ $env.EMMA_SHARED_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 10000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "w10-w09-rebuild-req",
+      "name": "W09 request (rebuild, move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -110,
+        280
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nreturn { json: L.w09Rebuild(j.bk, j.new_start) };"
+      }
+    },
+    {
+      "id": "w10-w09-cancel-req",
+      "name": "W09 request (cancel_all, cancel)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        550,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w10;\nreturn { json: L.w09CancelAll($('Decide cancel (w10.applyCancel)').item.json.bk) };"
+      }
+    },
+    {
+      "id": "w10-w05-method-req",
+      "name": "W05 request (update_method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        990,
+        680
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w10;\nconst j = $('Decide method change').first().json;\nconst r = L.w05UpdateMethod(j.bk, j.method);\nreturn r.ok ? [{ json: r.req }] : [];"
+      }
     }
   ],
   "connections": {
@@ -2575,7 +2814,7 @@
         ],
         [
           {
-            "node": "-> W05 new booking (after the meeting)",
+            "node": "W05 rebook request (w10.rebookRequest)",
             "type": "main",
             "index": 0
           }
@@ -2641,7 +2880,7 @@
       "main": [
         [
           {
-            "node": "W09 rebuild reminders",
+            "node": "W09 request (rebuild, move)",
             "type": "main",
             "index": 0
           }
@@ -2695,7 +2934,19 @@
       "main": [
         [
           {
-            "node": "Old booking -> rescheduled",
+            "node": "Rebooking stored? (re-read by idempotency key)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rebook failed: holding line (w07.neverSilentText)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Rebook failed: owner alert (w07.neverSilentAlert)",
             "type": "main",
             "index": 0
           }
@@ -2772,7 +3023,7 @@
       "main": [
         [
           {
-            "node": "W09 cancel all reminders",
+            "node": "W09 request (cancel_all, cancel)",
             "type": "main",
             "index": 0
           }
@@ -2912,7 +3163,7 @@
       "main": [
         [
           {
-            "node": "W05 update event method (Teams link / body)",
+            "node": "W05 request (update_method)",
             "type": "main",
             "index": 0
           }
@@ -3093,7 +3344,7 @@
         ],
         [
           {
-            "node": "W09 rebuild reminders",
+            "node": "W09 request (rebuild, move)",
             "type": "main",
             "index": 0
           }
@@ -3104,7 +3355,7 @@
       "main": [
         [
           {
-            "node": "W09 rebuild reminders",
+            "node": "W09 request (rebuild, move)",
             "type": "main",
             "index": 0
           }
@@ -3140,7 +3391,7 @@
         ],
         [
           {
-            "node": "W09 cancel all reminders",
+            "node": "W09 request (cancel_all, cancel)",
             "type": "main",
             "index": 0
           }
@@ -3151,7 +3402,7 @@
       "main": [
         [
           {
-            "node": "W09 cancel all reminders",
+            "node": "W09 request (cancel_all, cancel)",
             "type": "main",
             "index": 0
           }
@@ -3386,6 +3637,130 @@
         [
           {
             "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W05 rebook request (w10.rebookRequest)": {
+      "main": [
+        [
+          {
+            "node": "Rebook request ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rebook request ok?": {
+      "main": [
+        [
+          {
+            "node": "-> W05 new booking (after the meeting)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rebook failed: holding line (w07.neverSilentText)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Rebook failed: owner alert (w07.neverSilentAlert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rebooking stored? (re-read by idempotency key)": {
+      "main": [
+        [
+          {
+            "node": "Rebooked? (booked / confirmed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rebooked? (booked / confirmed)": {
+      "main": [
+        [
+          {
+            "node": "Old booking -> rescheduled",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Rebook failed: holding line (w07.neverSilentText)": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp payload + live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rebook failed: owner alert (w07.neverSilentAlert)": {
+      "main": [
+        [
+          {
+            "node": "Live alert? (rebook failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live alert? (rebook failed)": {
+      "main": [
+        [
+          {
+            "node": "Notify Jono (EMMA /api/notify, rebook failed)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "W09 request (rebuild, move)": {
+      "main": [
+        [
+          {
+            "node": "W09 rebuild reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W09 request (cancel_all, cancel)": {
+      "main": [
+        [
+          {
+            "node": "W09 cancel all reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W05 request (update_method)": {
+      "main": [
+        [
+          {
+            "node": "W05 update event method (Teams link / body)",
             "type": "main",
             "index": 0
           }

@@ -16,7 +16,7 @@
 //    otherwise the 10-slot list in-window, or the reschedule_offer template (3 slots) outside the 24-h window.
 import { createRequire } from 'node:module';
 import { LINES, fill } from '../../conversation/lines.mjs';
-import { isSmcLead, smcClientEmail, smcRelayEmail } from './w05.mjs';
+import { isSmcLead, smcClientEmail, smcRelayEmail, parseSub as parseW05Sub } from './w05.mjs';
 import { rescheduleCardPlan } from './wa-provider.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
@@ -491,4 +491,33 @@ export function toWa(to, m) {
   if (!m) return null;
   if (m.type === 'text') return { messaging_product: 'whatsapp', to, type: 'text', text: { body: m.body } };
   return { messaging_product: 'whatsapp', to, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map(([id, title]) => ({ type: 'reply', reply: { id, title } })) } } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Sub-workflow requests (v4b21, 20 Oct 2026 live bug): W10 handed W05 / W09 its own item (or a Graph response), which they
+// reject (W05 parseSub: "missing slot_start, method, idempotency_key"). Each call now gets the documented shape
+// (CONTRACTS "Sub-workflow interfaces"), built here and checked against the callee's own parser where it is importable.
+// ---------------------------------------------------------------------------------------------------------------
+/**
+ * After-meeting rebooking (applyReschedule action new_booking) -> W05 documented book. j = the "Decide move" item.
+ * -> { ok:true, req } | { ok:false, reason, req } (reason = W05 parseSub's own rejection, so W10 never sends what W05 rejects).
+ */
+export function rebookRequest(j = {}) {
+  const d = j.d || {}; const ins = d.insert || {};
+  if (d.action !== 'new_booking' || !j.bk || !j.ld || !j.ld.id) return { ok: false, reason: 'not a new_booking', req: null };
+  const slot = ins.appointment_date || j.new_start;
+  const req = { op: 'book', lead_id: String(j.ld.id), slot_start: slot, method: ins.method || j.bk.method, booked_via: 'chat',
+    previous_booking_id: ins.previous_booking_id || j.bk.id, idempotency_key: `w10:rebook:${j.bk.id}:${slot}` };
+  const chk = parseW05Sub(req);
+  return chk.op === 'book' ? { ok: true, req } : { ok: false, reason: chk.reason || chk.op, req };
+}
+/** W09 rebuild after a move in place (same row, new time): the W09 keys follow the new start. */
+export const w09Rebuild = (bk = {}, newStart = '') => ({ op: 'rebuild', booking_id: String(bk.id), idempotency_key: `w09:rebuild:${bk.id}:${newStart}` });
+/** W09 cancel_all after a cancel. */
+export const w09CancelAll = (bk = {}) => ({ op: 'cancel_all', booking_id: String(bk.id), idempotency_key: `w09:cancel_all:${bk.id}` });
+/** W05 update_method after a method change (W05 PATCHes the Outlook event, Teams link, client email). */
+export function w05UpdateMethod(bk = {}, method = null) {
+  const req = { op: 'update_method', booking_id: String(bk.id), method };
+  const chk = parseW05Sub(req);
+  return chk.op === 'update_method' ? { ok: true, req } : { ok: false, reason: chk.reason, req };
 }

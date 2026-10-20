@@ -632,3 +632,85 @@ test('reschedule_card: out of the 24-h window a start-page brand lead with a liv
   assert.match(b, /else if \(o\.kind === 'prebuilt'\) wa = o\.wa;/);
   assert.match(b, /TWILIO_CONTENT_SIDS: \$env\.TWILIO_CONTENT_SIDS/);
 });
+
+// v4b21 (20 Oct 2026 live bug): W10's sub-calls get the callee's documented request
+test('v4b21: after-meeting rebooking -> W05 documented book, accepted by W05 parseSub AND decide() (not subcall_rejected)', async () => {
+  const W5 = await import('../lib/w05.mjs');
+  const old = bk({ id: '11111111-1111-4111-8111-111111111111', status: 'no_show', method: 'phone' });
+  const newStart = '2026-10-21T10:00:00+02:00';
+  const d = R.applyReschedule(old, { start: newStart, end: '2026-10-21T10:30:00+02:00' }, { now_ms: RESCHED_TAP, free: true, after_meeting: true, idempotency_key: 'k', seen_keys: new Set() });
+  assert.equal(d.action, 'new_booking');
+  const j = { d, bk: old, ld: ld({ id: L03.lead_id }), new_start: newStart };
+  const r = R.rebookRequest(j);
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.req, { op: 'book', lead_id: L03.lead_id, slot_start: newStart, method: 'phone', booked_via: 'chat', previous_booking_id: old.id, idempotency_key: `w10:rebook:${old.id}:${newStart}` });
+  const p = W5.parseSub(r.req, {}, RESCHED_TAP);
+  assert.equal(p.op, 'book', JSON.stringify(p)); assert.equal(p.previous_booking_id, old.id); assert.equal(p.booked_via, 'chat');
+  assert.equal(Date.parse(p.slot_start), Date.parse(newStart));
+  // W05's decide() takes it to the re-check (a verified lead, a call method): the booking is made, a rebooking (booking_confirmed)
+  const lead = { id: L03.lead_id, broker_id: broker().broker_id, first_name: 'Anele', phone: '+27600000003', email: 'anele@gmail.com', email_verified: true, budget_band: '1500_plus' };
+  const dec = W5.decide({ lane: 'sub', req: p, lead, broker: broker(), live: null, now: RESCHED_TAP });
+  assert.equal(dec.action, 'check'); assert.equal(dec.plan.previous_booking_id, old.id); assert.equal(dec.plan.hold, false);
+  // the item W10 used to send is what W05 rejected
+  assert.equal(W5.parseSub({ ...j, op: 'pick' }, {}, RESCHED_TAP).op, 'reject');
+  // anything W05 would reject is caught before the call
+  assert.equal(R.rebookRequest({ ...j, d: { ...d, insert: { ...d.insert, method: 'fax' } } }).ok, false);
+  assert.equal(R.rebookRequest({ ...j, d: { action: 'move' } }).ok, false);
+  // the W10.json request node runs and hands W05 exactly that request
+  const { runCode } = await import('./_n8ncode.mjs');
+  const out = await runCode(WF, 'W05 rebook request (w10.rebookRequest)', { items: [{}], refs: { 'Decide move (w10.applyReschedule)': j } });
+  const item = Array.isArray(out) ? (out[0].json || out[0]) : (out.json || out);
+  assert.equal(item._ok, true); assert.equal(item.idempotency_key, r.req.idempotency_key); assert.equal(W5.parseSub(item, {}, RESCHED_TAP).op, 'book');
+});
+
+test('v4b21 W10.json: W05 waits; old booking -> rescheduled and messages only after the row is booked; failure -> holding line + owner alert, old booking kept', () => {
+  const C = WF.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const mr = WF.nodes.find((x) => x.name === 'Move result'); const ix = mr.parameters.rules.values.findIndex((r) => r.outputKey === 'new_booking');
+  assert.deepEqual(outs('Move result', ix), ['W05 rebook request (w10.rebookRequest)']);
+  assert.deepEqual(outs('W05 rebook request (w10.rebookRequest)'), ['Rebook request ok?']);
+  assert.deepEqual(outs('Rebook request ok?', 0), ['-> W05 new booking (after the meeting)']);
+  assert.deepEqual(outs('Rebook request ok?', 1), ['Rebook failed: holding line (w07.neverSilentText)', 'Rebook failed: owner alert (w07.neverSilentAlert)']);
+  const w5 = WF.nodes.find((x) => x.name === '-> W05 new booking (after the meeting)');
+  assert.equal(w5.parameters.options.waitForSubWorkflow, true); assert.equal(w5.onError, 'continueErrorOutput');
+  assert.deepEqual(outs('-> W05 new booking (after the meeting)', 0), ['Rebooking stored? (re-read by idempotency key)']);
+  assert.deepEqual(outs('-> W05 new booking (after the meeting)', 1), ['Rebook failed: holding line (w07.neverSilentText)', 'Rebook failed: owner alert (w07.neverSilentAlert)']);
+  assert.match(WF.nodes.find((x) => x.name === 'Rebooking stored? (re-read by idempotency key)').parameters.query, /WHERE a\.idempotency_key = \$1/);
+  assert.deepEqual(outs('Rebooking stored? (re-read by idempotency key)'), ['Rebooked? (booked / confirmed)']);
+  assert.deepEqual(outs('Rebooked? (booked / confirmed)', 0), ['Old booking -> rescheduled'], 'the old booking moves only once the new one exists');
+  assert.deepEqual(outs('Rebooked? (booked / confirmed)', 1), [], 'not booked: W05 answered the lead itself (held / slot taken); W07 never-silent guards the rest');
+  assert.deepEqual(outs('Rebook failed: holding line (w07.neverSilentText)'), ['Has WhatsApp payload + live?']);
+  assert.deepEqual(outs('Rebook failed: owner alert (w07.neverSilentAlert)'), ['Live alert? (rebook failed)']);
+  assert.match(WF.nodes.find((x) => x.name === 'Live alert? (rebook failed)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.deepEqual(outs('Live alert? (rebook failed)', 0), ['Notify Jono (EMMA /api/notify, rebook failed)']);
+  assert.match(WF.nodes.find((x) => x.name === 'Lead + broker messages (moved)').parameters.jsCode, /if \(j\.d\.action !== 'move'\) return \[\];/);
+  // nothing reaches "Old booking -> rescheduled" except the booked branch
+  const into = Object.entries(C).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === 'Old booking -> rescheduled'))).map(([k]) => k);
+  assert.deepEqual(into, ['Rebooked? (booked / confirmed)']);
+});
+
+test('v4b21: the holding line + owner alert come from W07\'s never-silent lib (warm, no failure words, no number)', async () => {
+  const W7 = await import('../lib/w07.mjs');
+  const t = W7.neverSilentText('W10', { first_name: 'Anele' });
+  assert.match(t, /^Thanks, Anele! I'm Lindi from SortMyCover\./); assert.doesNotMatch(t, /error|fail|calendar|system/i);
+  const a = W7.neverSilentAlert({ route: 'W10', lead: { id: L03.lead_id, first_name: 'Anele' } });
+  assert.match(a.message, /Anele is waiting on a reschedule/); assert.doesNotMatch(a.message, /\+27/);
+});
+
+test('v4b21: W09 rebuild / cancel_all and W05 update_method get their documented requests (were a Graph response / a Save row)', async () => {
+  const W9 = await import('../lib/w09.mjs'); const W5 = await import('../lib/w05.mjs');
+  const b = bk({ id: '22222222-2222-4222-8222-222222222222' });
+  const rb = R.w09Rebuild(b, '2026-10-21T10:00:00+02:00');
+  assert.deepEqual(rb, { op: 'rebuild', booking_id: b.id, idempotency_key: `w09:rebuild:${b.id}:2026-10-21T10:00:00+02:00` });
+  assert.equal(W9.classifyOp(rb), 'rebuild'); assert.deepEqual(W9.validateInput('rebuild', rb).missing || [], []);
+  const ca = R.w09CancelAll(b);
+  assert.equal(W9.classifyOp(ca), 'cancel_all'); assert.deepEqual(W9.validateInput('cancel_all', ca).missing || [], []);
+  const um = R.w05UpdateMethod(b, 'teams');
+  assert.equal(um.ok, true); assert.equal(W5.parseSub(um.req).op, 'update_method');
+  assert.equal(R.w05UpdateMethod(b, 'fax').ok, false);
+  const C = WF.connections; const outs = (n) => ((C[n] && C[n].main[0]) || []).map((t) => t.node);
+  for (const [req, target] of [['W09 request (rebuild, move)', 'W09 rebuild reminders'], ['W09 request (cancel_all, cancel)', 'W09 cancel all reminders'], ['W05 request (update_method)', 'W05 update event method (Teams link / body)']]) {
+    assert.deepEqual(outs(req), [target], req);
+    const into = Object.entries(C).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === target))).map(([k]) => k);
+    assert.deepEqual(into, [req], `${target} is fed only by its request node`);
+  }
+});
