@@ -12,6 +12,7 @@ const check = process.argv.includes('--check');
 let bad = 0;
 for (const f of ['W14', 'W22', 'W23', 'W30', 'W31']) {
   const p = path.join(here, f + '.json');
+  if (!fs.existsSync(p)) { console.log(`${f}: retired (no file)`); continue; } // W14 / W30 / W31 dropped (D5, 20 Oct 2026)
   const raw = fs.readFileSync(p, 'utf8');
   const wf = JSON.parse(raw);
   const todo = findUngated(wf);
