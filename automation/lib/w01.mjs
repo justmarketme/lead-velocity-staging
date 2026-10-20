@@ -550,7 +550,10 @@ export function decide(sub, ctx) {
 
   const q = sub.quiz || {};
   const method = sub.preferred_method ?? null;
-  const consentMode = ctx.consent_mode || sub.consent.mode || 'named';
+  // A generic consent (e.g. the /start/ step 0 CONSENT-GENERIC-v5web, 20 Oct 2026) names no practice: it is recorded as generic
+  // whatever the brand default, or routing reads "named consent that names nobody" and holds it (held_consent_names_other_practice).
+  const consentMode = isGenericConsent({ consent_mode: sub.consent.mode, consent_text_version: sub.consent.version })
+    ? 'generic' : (ctx.consent_mode || sub.consent.mode || 'named');
   const row = {
     id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: LEAD_SOURCE, is_synthetic: !!sub.is_synthetic, created_at: at,
     first_name: sub.first_name, phone: ctx.mobile, line_type: lt, language: sub.language ?? null,

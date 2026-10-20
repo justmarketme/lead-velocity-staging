@@ -1289,6 +1289,18 @@ test('intake: a generic-consent page / form lead is never routed at intake (held
   assert.equal(r.action, 'disclose');
 });
 
+test('/start/ step 0 generic consent on a named-mode brand is stored as generic, so W39 can route after the adviser card (20 Oct 2026)', () => {
+  // KG's desktop test, 20 Oct 2026: the brand default (named) overrode the page's generic consent and W39 held the lead
+  // (held_consent_names_other_practice), so no times were shown.
+  const sub = W01.normaliseSubmission({ first_name: 'Test', mobile: '0600000172', consent: true, consent_text: 'synthetic generic consent', consent_version: 'CONSENT-GENERIC-v5web',
+    consent_mode: 'generic', start_page: true, lang: 'en', started_at: TC_NOW - 60e3 }, { channel: 'page' });
+  const d = W01.decide({ ...sub, channel: 'page', start_page: true }, { ...tcCtx([tcBroker()]), consent_mode: 'named' });
+  assert.equal(d.row.consent_mode, 'generic');
+  assert.ok(!W01.routingFor(d.row.consent_text, d.row.consent_mode, [tcBroker()], d.row.brand_id, 'B').held, 'a generic lead is routable (the page discloses first)');
+  // a named page consent on the same brand stays named
+  assert.equal(W01.decide(tcSub('1500_plus'), { ...tcCtx([tcBroker()]), consent_mode: 'named' }).row.consent_mode, 'named');
+});
+
 test('(d) admin assignment (tier C sweep): a generic lead an admin assigned is NOT handed off (W06) until its adviser was named', async () => {
   const assigned = { id: '00000000-0000-4000-8000-0000000a9e03', brand_id: 'smc', origin: 'ctwa', broker_id: LD_BROKER.id, routing_reason: 'manual_low_budget',
     order_state: 'attached', first_message_at: null, opted_out_at: null, conv_state: { state: 'unbooked' }, consent_mode: 'generic', consent_text_version: 'CTWA-GENERIC-v4', disclosed: [] };
