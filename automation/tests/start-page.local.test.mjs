@@ -156,8 +156,9 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   // =========================================================================================== 1. W03: the CTA link
   const MOBILE = '+27820000301';
   const first = await w03(MOBILE, { type: 'text', text: 'Hi', referral: { source_id: '120200000000000001', source_type: 'ad', ctwa_clid: 'clid_sp_1' } });
-  assert.deepEqual(first.sends.map((m) => m.type), ['button'], 'consent first (named: Synthetic Advisory, FSP 12345)');
-  assert.match(first.sends[0].body, /Synthetic Advisory \(FSP 12345\)/);
+  assert.deepEqual(first.sends.map((m) => m.type), ['button'], 'consent first (generic v4: SortMyCover only, no adviser named)');
+  assert.match(first.sends[0].body, /^Thanks, Synthetic\. Before we book your call, we need your consent \(POPIA\):/);
+  assert.doesNotMatch(first.sends[0].body, /Synthetic Advisory|FSP 12345/, 'the adviser is named on /start/, before routing');
   assert.equal(first.ctxRow.start_page, true, 'W03 Load context reads brands.start_page');
   const yes = await w03(MOBILE, { type: 'button', payload: 'consent_yes', text: 'Yes, continue' });
   assert.equal(yes.sends.length, 1);
@@ -169,6 +170,8 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   const LEAD_ID = LT.verifyLeadToken(TOKEN, { secret: SECRET }).lead_id;
   const l0 = lead(LEAD_ID);
   assert.deepEqual([l0.origin, l0.stage, l0.conv_state.state, l0.broker_id], ['ctwa', 'verified', 'start_page', null], 'CTWA lead stored at the tap, not routed yet');
+  assert.deepEqual([l0.consent_mode, /generic-v4/i.test(l0.consent_text_version)], ['generic', true], 'the new generic consent version is stored');
+  assert.match(l0.consent_text, /share your details with an authorised financial adviser/);
   assert.ok(thread(MOBILE).stall_due_at, 'a stall like q_age');
   assert.equal(thread(MOBILE).stage, 'start_page');
   // the outbound row W03 stores is the body only
