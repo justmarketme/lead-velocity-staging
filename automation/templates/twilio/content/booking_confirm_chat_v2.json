@@ -41,7 +41,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, your SortMyCover call with {{2}} is booked for {{3}}. Can we just confirm a few things before the call? Reply STOP to opt out.",
+        "title": "Hi {{1}}, your SortMyCover call with {{2}} is booked for {{3}}. Can we just confirm a few things before the call?",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-booked.png"

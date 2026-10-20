@@ -41,7 +41,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, we couldn't confirm your email in time, so we've released the time we were holding for you ({{2}} at {{3}}). Tap below to pick a new time. Reply STOP to opt out.",
+        "title": "Hi {{1}}, we couldn't confirm your email in time, so we've released the time we were holding for you ({{2}} at {{3}}). Tap below to pick a new time.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png"

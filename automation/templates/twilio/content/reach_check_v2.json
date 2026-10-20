@@ -30,7 +30,7 @@
     ],
     "core": false,
     "base": "reach_check",
-    "header": "adviser"
+    "header": "aftercall"
   },
   "content": {
     "friendly_name": "smc_reach_check_v2",
@@ -43,10 +43,10 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, did {{2}} reach you today for your call? Reply STOP to opt out.",
+        "title": "Hi {{1}}, did {{2}} reach you today for your call?",
         "subtitle": "SortMyCover",
         "media": [
-          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-aftercall.png"
         ],
         "actions": [
           {

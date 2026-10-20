@@ -34,7 +34,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}} Reply STOP to opt out.",
+        "title": "Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}}",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"

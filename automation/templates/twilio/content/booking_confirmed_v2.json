@@ -55,6 +55,7 @@
     "core": false,
     "base": "booking_confirmed",
     "header": "booked",
+    "superseded_by": "booking_confirmed_teams_v3 / _phone_v3 / _v4",
     "submitted": "HXff2e2c298cc23411336ccd907ca1f5f4"
   },
   "content": {

@@ -52,7 +52,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, you are booked. {{2}} will call you on {{3}} at *{{4}}* on *{{5}}*. Life happens. If you ever need to move your call, just come back to this chat and ask to reschedule. Reply STOP to opt out.",
+        "title": "Hi {{1}}, you are booked. {{2}} will call you on {{3}} at *{{4}}* on *{{5}}*. Life happens. If you ever need to move your call, just come back to this chat and ask to reschedule.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-booked.png"

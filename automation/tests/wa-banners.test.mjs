@@ -35,35 +35,88 @@ const confirmed = (detail) => tpl('booking_confirmed', ['Lerato', 'Mark Smith', 
 const TEAMS = `Microsoft Teams (join link: https://sortmycover.co.za/j/${BK})`;
 
 // ------------------------------------------------------------------ generated Content
-test('every banner variant: static header card, twilio/card, own approval name; v1-body variants keep body, buttons and category', () => {
+test('every banner variant: header card, twilio/card, own approval name; no STOP line and no Add to calendar unless it mirrors a 17 Oct submission', () => {
   const defs = buildAll();
+  const STOPLESS = (t) => String(t || '').replace(/\s*Reply STOP to opt out\.\s*$/, '');
   for (const v of P.TEMPLATE_VARIANTS) {
     const d = defs[`${v.key}.json`]; const v1 = defs[`${v.base}.json`];
     assert.ok(d, v.key);
     const card = d.content.types['twilio/card'];
-    assert.deepEqual(card.media, [H(v.header)], v.key);
+    if (v.keep_header) assert.deepEqual(card.media, v1.content.types['twilio/card'].media, `${v.key}: v1 media header kept`);
+    else assert.deepEqual(card.media, [H(v.header)], v.key);
     assert.equal(d._meta.approval.name, `smc_${v.key}`); assert.equal(d._meta.approval.category, v1._meta.approval.category);
     assert.equal(d.content.friendly_name, `smc_${v.key}`);
-    assert.match(card.title, /Reply STOP to opt out\.$/, v.key);
-    assert.doesNotMatch(card.title, /\bfree\b|\blicensed\b|\bAI\b|virtual assistant/i);
-    if (!v.body) {
+    if (v.sid) {
+      assert.match(card.title, /Reply STOP to opt out\.$/, `${v.key}: mirrors what was submitted`);
+      assert.ok(v.superseded_by, `${v.key}: names its replacement`);
+    } else {
+      assert.doesNotMatch(card.title, /\bSTOP\b/, v.key);
+      assert.ok(!(card.actions || []).some((x) => /calendar/i.test(x.title) || /\/c\//.test(x.url || '')), `${v.key}: no Add to calendar`);
+    }
+    assert.doesNotMatch(card.title, /\bfree\b|\blicensed\b|virtual assistant/i);
+    if (v.key !== 'broker_intro_booked_v2') assert.doesNotMatch(card.title, /\bAI\b/, v.key);
+    if (!v.body && !v.buttons && !v.derive) {
       const t1 = v1.content.types; const b1 = (t1['whatsapp/card'] || t1['twilio/card'] || t1['twilio/text']);
-      assert.equal(card.title, b1.body || b1.title, `${v.key}: same body`);
-      assert.deepEqual((card.actions || []).map((a) => [a.type, a.title]), (b1.actions || []).map((a) => [a.type, a.title]), `${v.key}: same buttons`);
+      assert.equal(card.title, v.sid ? (b1.body || b1.title) : STOPLESS(b1.body || b1.title), `${v.key}: same body`);
+      assert.deepEqual((card.actions || []).map((x) => [x.type, x.title]), (b1.actions || []).map((x) => [x.type, x.title]), `${v.key}: same buttons`);
     }
   }
-  // the 17 Oct submissions are recorded, not re-created
+  // the 17 Oct submissions are recorded, not re-created, and each has a STOP-free successor
   assert.equal(defs['booking_confirmed_v2.json']._meta.submitted, 'HXff2e2c298cc23411336ccd907ca1f5f4');
   assert.equal(defs['qualify_budget_v2.json']._meta.submitted, 'HXf52cd6d5e4631e1a3b51906d463f0178');
-  // media-header templates keep their own video / intro card
-  for (const k of ['intro_media', 'unbooked_nudge_24h', 'broker_intro_booked', 'broker_intro_slots']) assert.ok(!P.TEMPLATE_VARIANTS.some((v) => v.base === k), k);
+  for (const k of ['reminder_24h_v3', 'reminder_2h_v3', 'missed_you_v3', 'booking_confirmed_v4']) assert.ok(defs[`${k}.json`], k);
+  assert.deepEqual(defs['missed_you_v3.json'].content.types['twilio/card'].media, [H('reschedule')]);
+  assert.deepEqual(defs['prep_nudge_v2.json'].content.types['twilio/card'].media, [H('expect')]);
+  for (const k of ['reach_check_v2', 'attended_thanks_v2']) assert.deepEqual(defs[`${k}.json`].content.types['twilio/card'].media, [H('aftercall')]);
+  // the newer row wins when both SIDs are set (first listed)
+  const keys = P.TEMPLATE_VARIANTS.map((v) => v.key);
+  assert.ok(keys.indexOf('missed_you_v3') < keys.indexOf('missed_you_v2'));
+  // video templates keep their own video (no variant); the intro cards keep their card
+  for (const k of ['intro_media', 'unbooked_nudge_24h', 'broker_intro_slots']) assert.ok(!P.TEMPLATE_VARIANTS.some((v) => v.base === k), k);
+  // the reschedule card carries no STOP line either
+  assert.doesNotMatch(defs['reschedule_card.json'].content.types['twilio/card'].title, /\bSTOP\b/);
+});
+
+test('Add to calendar replaced: what_to_expect_v2 sends reschedule:<booking> from the v1 URL value', () => {
+  const env = sids({ what_to_expect: 'HXw1', what_to_expect_v2: 'HXw2' });
+  const r = send(tpl('what_to_expect', ['Lerato', 'Mark Smith', 'Microsoft Teams'], [{ url: BK }]), env);
+  assert.deepEqual(r, { sid: 'HXw2', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: 'Microsoft Teams', 4: `reschedule:${BK}` } });
+  // unused on the v4 path, so no variant: broker_intro_booked (/start/ bookings never get it), qualify_budget (start_here)
+  for (const k of ['broker_intro_booked_v2', 'qualify_budget_v3']) assert.ok(!P.TEMPLATE_VARIANTS.some((v) => v.key === k), k);
+});
+
+test('v4b13: every TEMPLATE_VARIANTS entry has a committed content file (and it is current)', () => {
+  const defs = buildAll();
+  for (const v of P.TEMPLATE_VARIANTS) {
+    const f = new URL(`../templates/twilio/content/${v.key}.json`, import.meta.url);
+    let txt = null; try { txt = readFileSync(f, 'utf8'); } catch (_) { /* missing */ }
+    assert.ok(txt, `${v.key}: no content file`);
+    assert.equal(txt, JSON.stringify(defs[`${v.key}.json`], null, 2) + '\n', `${v.key}: stale`);
+  }
+});
+
+test('v4b5 reminders: "Yes, confirmed" (confirm:<booking>) + Reschedule; 2h Teams adds Join Teams call', () => {
+  const defs = buildAll();
+  const a24 = defs['reminder_24h_v3.json'].content.types['twilio/card'];
+  assert.deepEqual(a24.media, [H('reminder')]);
+  assert.deepEqual(a24.actions.map((x) => x.title), ['Yes, confirmed', 'Reschedule']);
+  assert.doesNotMatch(a24.title, /STOP|Tap Confirm/);
+  const env = sids({ reminder_24h: 'HX24', reminder_24h_v3: 'HX24c', reminder_2h: 'HX2', reminder_2h_v3: 'HX2c', reminder_2h_teams_v3: 'HX2t' });
+  assert.deepEqual(send(tpl('reminder_24h', ['Lerato', 'Microsoft Teams', 'Mark Smith', '10:00'], [{ qr: `confirm:${BK}` }, { qr: `reschedule:${BK}` }]), env),
+    { sid: 'HX24c', vars: { 1: 'Lerato', 2: 'Microsoft Teams', 3: 'Mark Smith', 4: '10:00', 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
+  assert.deepEqual(defs['reminder_2h_v3.json'].content.types['twilio/card'].actions.map((x) => x.title), ['Yes, confirmed', 'Reschedule']);
+  assert.deepEqual(send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', 'Mark will call you on 082 123 4567.'], [{ qr: `reschedule:${BK}` }]), env),
+    { sid: 'HX2c', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: '10:00', 4: 'Mark will call you on 082 123 4567.', 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
+  assert.deepEqual(defs['reminder_2h_teams_v3.json'].content.types['twilio/card'].actions.map((x) => x.title), ['Join Teams call', 'Yes, confirmed', 'Reschedule']);
+  assert.deepEqual(send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', `Join on Teams: https://sortmycover.co.za/j/${BK}`], [{ qr: `reschedule:${BK}` }]), env),
+    { sid: 'HX2t', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: '10:00', 4: BK, 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
 });
 
 test('booking_confirmed v3 (Teams / phone): header-booked, the "Life happens" line, no Add to calendar / Confirm / Cancel', () => {
   const defs = buildAll();
   const teams = defs['booking_confirmed_teams_v3.json'].content.types['twilio/card'];
   assert.deepEqual(teams.media, [H('booked')]);
-  assert.match(teams.title, /by Microsoft Teams\. The invite is in your email, and you can join straight from the button below\. Life happens\. If you ever need to move your call, just come back to this chat and ask to reschedule\. Reply STOP to opt out\.$/);
+  assert.match(teams.title, /by Microsoft Teams\. The invite is in your email, and you can join straight from the button below\. Life happens\. If you ever need to move your call, just come back to this chat and ask to reschedule\.$/);
   assert.deepEqual(teams.actions, [{ type: 'URL', title: 'Join Teams call', url: 'https://sortmycover.co.za/j/{{5}}' }, { type: 'QUICK_REPLY', title: 'Reschedule', id: '{{6}}' }]);
   const phone = defs['booking_confirmed_phone_v3.json'].content.types['twilio/card'];
   assert.match(phone.title, /^Hi \{\{1\}\}, you are booked\. \{\{2\}\} will call you on \{\{3\}\} at \*\{\{4\}\}\* on \*\{\{5\}\}\*\. Life happens\./);
@@ -91,7 +144,7 @@ test('booking_confirmed: v1 until a variant SID exists; Teams -> teams_v3 (join 
 test('reminders: 2h Teams -> join button variant; 10m online -> "Join your call"; phone keeps v1 / v2', () => {
   const all = sids({ reminder_2h: 'HX2', reminder_2h_v2: 'HX2b', reminder_2h_teams_v3: 'HX2t', reminder_10m: 'HX10', reminder_10m_online_v3: 'HX10o' });
   const r2 = send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', `Join on Teams: https://sortmycover.co.za/j/${BK}`], [{ qr: `reschedule:${BK}` }]), all);
-  assert.deepEqual(r2, { sid: 'HX2t', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: '10:00', 4: BK, 5: `reschedule:${BK}` } });
+  assert.deepEqual(r2, { sid: 'HX2t', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: '10:00', 4: BK, 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
   const r2p = send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', 'Mark will call you on 082 123 4567.'], [{ qr: `reschedule:${BK}` }]), all);
   assert.equal(r2p.sid, 'HX2b');
   const r10 = send(tpl('reminder_10m', ['Lerato', 'Mark Smith', `Join here: https://sortmycover.co.za/j/${BK}`]), all);
@@ -248,11 +301,12 @@ test('W07 wiring: every W10 hand-off passes the card check; the card goes throug
 test('what_to_expect_v4 (5e copy, expect banner, no calendar button) and the start_here template (Instant Form)', () => {
   const defs = buildAll();
   const w = defs['what_to_expect_v4.json'].content.types['twilio/card'];
-  assert.deepEqual(w.media, [H('expect')]); assert.equal(w.actions, undefined);
+  assert.deepEqual(w.media, [H('expect')]); assert.deepEqual(w.actions, [{ type: 'QUICK_REPLY', title: 'Reschedule', id: '{{5}}' }]);
   assert.match(w.title, /About 30 minutes, by \{\{3\}\}\.[\s\S]*firm, FSP number and how they are paid[\s\S]*Nothing is bought on the call\.[\s\S]*payslip or a current policy schedule nearby it helps, but it isn't needed\./);
   assert.doesNotMatch(w.title, /\bfree\b/i);
   const r = send(tpl('what_to_expect', ['Lerato', 'Mark Smith', 'Microsoft Teams'], [{ url: BK }]), sids({ what_to_expect: 'HXw1', what_to_expect_v2: 'HXw2', what_to_expect_v4: 'HXw4' }));
-  assert.deepEqual(r, { sid: 'HXw4', vars: { 1: 'Lerato', 2: 'Mark', 3: 'Microsoft Teams', 4: 'Mark' } });
+  assert.deepEqual(r, { sid: 'HXw4', vars: { 1: 'Lerato', 2: 'Mark', 3: 'Microsoft Teams', 4: 'Mark', 5: `reschedule:${BK}` } });
+  assert.doesNotMatch(defs['start_here.json'].content.types['twilio/card'].title, /\bSTOP\b/);
   // start_here: key exactly start_here, approval, welcome card, body {{1}} = first name, URL suffix {{2}} = the token
   const s = defs['start_here.json'];
   assert.equal(s._meta.key, 'start_here'); assert.equal(s._meta.approval.name, 'smc_start_here'); assert.equal(s._meta.approval.category, 'UTILITY');
@@ -269,4 +323,28 @@ test('what_to_expect_v4 (5e copy, expect banner, no calendar button) and the sta
   const f = Object.fromEntries(new URLSearchParams(S.twilioRequest(d, env).body));
   assert.deepEqual({ sid: f.ContentSid, vars: JSON.parse(f.ContentVariables) }, { sid: 'HXsh', vars: { 1: 'Lerato', 2: tok } });
   assert.equal(S.decide(n, {}, { ...env, DRY_RUN_SENDS: 'true' }).action, 'dry');
+});
+
+test("v4b12: after Lindi's reply while /start/ is pending, W07 sends the Start here link again with a fresh token (never on a handoff)", async () => {
+  assert.ok(W07.connections['Send WhatsApp (session, in 24-h window)'].main[0].some((t) => t.node === 'Start here again plan (W07)'));
+  assert.equal(W07.nodes.find((n) => n.name === 'Send Start here again (W07)').parameters.workflowId.value, 'smc-whatsapp-send');
+  const env = { ...sids({ smc_start_cta: 'HXcta' }), LEAD_TOKEN_SECRET: SECRET };
+  const s = { msg: { wamid: 'SMa1', from: '+27820000001' }, adviser_first: 'Mark', handoff: false,
+    lead: { id: '11111111-2222-4333-8444-555555555555', phone: '+27820000001', conv_state: { state: 'start_page' } } };
+  const run = (x) => runCode(W07, 'Start here again plan (W07)', { json: {}, env, refs: { 'Anything to send?': x } });
+  const a = await run(s);
+  const i = a.json.start_again.interactive;
+  assert.equal(i.type, 'cta_url'); assert.equal(i.body.text, 'Tap below to pick your time with Mark.');
+  assert.deepEqual(i.header, { type: 'image', image: { link: H('welcome') } });
+  assert.match(i.action.parameters.url, /^https:\/\/sortmycover\.co\.za\/start\/#lt=lt1\./);
+  assert.equal(ifBranch(W07, 'Start here again? (W07)', { json: a.json }), true);
+  // Twilio: the smc_start_cta Content with the fresh token as {{2}}, never a text body
+  const f = Object.fromEntries(new URLSearchParams(S.twilioRequest({ payload: a.json.start_again }, env).body));
+  assert.equal(f.ContentSid, 'HXcta'); assert.equal(f.Body, undefined);
+  for (const x of [{ ...s, handoff: true }, { ...s, lead: { ...s.lead, conv_state: { state: 'unbooked' } } }]) {
+    const b = await run(x); assert.equal(b.json.start_again, null); assert.equal(ifBranch(W07, 'Start here again? (W07)', { json: b.json }), false);
+  }
+  const sub = await runCode(W07, 'SUB input (Send Start here again (W07))', { json: a.json });
+  assert.equal(sub.json.record, true); assert.equal(sub.json.correlation, 'W07:start_again:SMa1');
+  assert.equal(S.decide(S.normalise(sub.json), {}, { ...env, DRY_RUN_SENDS: 'true' }).action, 'dry');
 });

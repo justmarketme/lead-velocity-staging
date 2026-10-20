@@ -43,7 +43,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, a little about the adviser for your enquiry: {{2}} Tap below to see open times. Reply STOP to opt out.",
+        "title": "Hi {{1}}, a little about the adviser for your enquiry: {{2}} Tap below to see open times.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"

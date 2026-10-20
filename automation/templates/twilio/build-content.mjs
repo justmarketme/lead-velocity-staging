@@ -172,7 +172,7 @@ export function startCta() {
  */
 export function convertVariant(spec, v) {
   const d = convert(variantSpec(spec, v));
-  d._meta = { ...d._meta, key: v.key, base: v.base, header: v.header, source: `automation/templates/${v.base}.json + lib/wa-provider.mjs TEMPLATE_VARIANTS`, core: false,
+  d._meta = { ...d._meta, key: v.key, base: v.base, header: v.keep_header ? 'v1 media header (kept)' : v.header, ...(v.superseded_by ? { superseded_by: v.superseded_by } : {}), source: `automation/templates/${v.base}.json + lib/wa-provider.mjs TEMPLATE_VARIANTS`, core: false,
     ...(v.sid ? { submitted: v.sid } : {}) };
   return d;
 }
@@ -186,7 +186,7 @@ export function convertVariant(spec, v) {
  */
 const RESCHEDULE_SAMPLE = { first: 'Thandi', adviser: 'Mark', date: 'Wed 21 Oct', time: '10:00' };
 export function rescheduleCard() {
-  const title = `${rescheduleCardBody({ first: '{{1}}', adviser: '{{2}}', date: '{{3}}', time: '{{4}}' })} Reply STOP to opt out.`;
+  const title = rescheduleCardBody({ first: '{{1}}', adviser: '{{2}}', date: '{{3}}', time: '{{4}}' }); // no STOP line (Jono 19 Oct: consent only)
   return { _meta: { key: RESCHEDULE_TEMPLATE, source: 'lib/wa-provider.mjs rescheduleCardBody', approval: { name: `smc_${RESCHEDULE_TEMPLATE}`, category: 'UTILITY' }, core: false,
     var_plan: [1, 2, 3, 4].map((n) => ({ n, kind: 'body' })).concat([{ n: 5, kind: 'button', type: 'url', index: 0 }, { n: 6, kind: 'button', type: 'quick_reply', index: 1 }]) },
     content: { friendly_name: `smc_${RESCHEDULE_TEMPLATE}`, language: 'en', variables: { 1: 'Thandi', 2: 'Mark', 3: 'Wed 21 Oct', 4: '10:00', 5: 'lt1.sample', 6: 'keep_it:sample' },

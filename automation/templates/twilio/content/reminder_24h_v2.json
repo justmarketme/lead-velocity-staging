@@ -39,6 +39,7 @@
     "core": false,
     "base": "reminder_24h",
     "header": "reminder",
+    "superseded_by": "reminder_24h_v3",
     "submitted": "HX553796498a577ed87d7660bb79188da3"
   },
   "content": {

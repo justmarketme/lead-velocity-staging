@@ -18,7 +18,7 @@
     ],
     "core": false,
     "base": "prep_nudge",
-    "header": "reminder"
+    "header": "expect"
   },
   "content": {
     "friendly_name": "smc_prep_nudge_v2",
@@ -29,10 +29,10 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, one optional tip for your call with {{2}}: some people like to have a recent payslip or any existing policy schedule nearby. It helps, but it is not needed. Reply STOP to opt out.",
+        "title": "Hi {{1}}, one optional tip for your call with {{2}}: some people like to have a recent payslip or any existing policy schedule nearby. It helps, but it is not needed.",
         "subtitle": "SortMyCover",
         "media": [
-          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-expect.png"
         ]
       }
     }

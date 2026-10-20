@@ -1,0 +1,96 @@
+{
+  "_meta": {
+    "key": "booking_confirmed_v4",
+    "source": "automation/templates/booking_confirmed.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_booking_confirmed_v4",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "body"
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0,
+        "v1_index": 1
+      },
+      {
+        "n": 7,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1,
+        "v1_index": 2
+      },
+      {
+        "n": 8,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2,
+        "v1_index": 3
+      }
+    ],
+    "core": false,
+    "base": "booking_confirmed",
+    "header": "booked"
+  },
+  "content": {
+    "friendly_name": "smc_booking_confirmed_v4",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Tue 7 Oct",
+      "4": "10:00",
+      "5": "phone call",
+      "6": "confirm:sample",
+      "7": "reschedule:sample",
+      "8": "cancel:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, you are booked. *{{2}}* will meet you on *{{3}} at {{4}}* by {{5}}. Please reply with the day and time so we know it is in your diary.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-booked.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Confirm",
+            "id": "{{6}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{7}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Cancel",
+            "id": "{{8}}"
+          }
+        ]
+      }
+    }
+  }
+}

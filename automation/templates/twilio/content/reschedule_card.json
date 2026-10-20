@@ -51,7 +51,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "No problem, {{1}}, life happens. Your call with {{2}} is booked for {{3}} at {{4}}. Tap below to pick a new time. You can choose any open time in the next 14 days. Reply STOP to opt out.",
+        "title": "No problem, {{1}}, life happens. Your call with {{2}} is booked for {{3}} at {{4}}. Tap below to pick a new time. You can choose any open time in the next 14 days.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reschedule.png"

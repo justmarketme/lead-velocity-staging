@@ -11,9 +11,9 @@
 const HEADER_BASE = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/';
 /**
  * The existing cards. 19 Oct additions (upload each png to /srv/smc-media/whatsapp/headers/ before use): 'reschedule'
- * (W07 reschedule card), 'cancel' (W10 cancel card), 'leaving' (W15 STOP card).
+ * (W07 reschedule card), 'cancel' (W10 cancel card), 'leaving' (W15 STOP card), 'aftercall' (reach_check / attended_thanks).
  */
-const HEADERS = ['welcome', 'intent', 'adviser', 'booked', 'expect', 'invite', 'reminder', 'video', 'reschedule', 'cancel', 'leaving'];
+const HEADERS = ['welcome', 'intent', 'adviser', 'booked', 'expect', 'invite', 'reminder', 'video', 'reschedule', 'cancel', 'leaving', 'aftercall'];
 const headerUrl = (name) => {
   if (!HEADERS.includes(name)) throw new Error(`wa-banner: unknown header ${name}`);
   return `${HEADER_BASE}header-${name}.png`;

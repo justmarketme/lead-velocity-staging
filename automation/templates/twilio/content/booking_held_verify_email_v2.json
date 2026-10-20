@@ -44,7 +44,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm the booking, please tap the confirmation link we sent to your email address. If it isn't confirmed by {{5}}, we'll release the time. Reply STOP to opt out.",
+        "title": "Hi {{1}}, we're holding {{2}} at {{3}} for your call with {{4}}. To confirm the booking, please tap the confirmation link we sent to your email address. If it isn't confirmed by {{5}}, we'll release the time.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png"

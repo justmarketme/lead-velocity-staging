@@ -83,62 +83,82 @@ export function twilioVarPlan(spec = {}) {
 // Templates with their own media header (intro_media, unbooked_nudge_24h: the adviser's video; broker_intro_*: the
 // adviser's intro card) and the Flow templates (*_v2, unpublished) get no variant.
 export const MOVE_LINE = 'Life happens. If you ever need to move your call, just come back to this chat and ask to reschedule.';
-const STOP = 'Reply STOP to opt out.';
+// Jono, 19 Oct 2026 (FINAL): only the W03 consent keeps "Reply STOP to opt out."; every other v4 template drops it.
+// Meta requires honouring an opt-out, not wording in each message (WhatsApp Business Messaging Policy). STOP still works.
+const STOP_LINE = /\s*Reply STOP to opt out\.\s*$/;
 const firstOf = (s) => String(s || '').trim().split(/\s+/)[0];
 // the /j/<booking id> join redirect (lib/w05.mjs joinRedirect) inside a v1 method-detail variable
 const JOIN_ID = /\/j\/([A-Za-z0-9_-]{6,64})$/;
 const JOIN_URL = 'https://sortmycover.co.za/j/{{1}}';
+// "Reschedule" in place of a v1 "Add to calendar" URL button: the v1 URL value is the bare booking id
+const RESCHEDULE_FROM_URL = { type: 'QUICK_REPLY', text: 'Reschedule', src_index: null };
+const rescheduleFromId = (id) => (id ? `reschedule:${id}` : null);
+// "Yes, confirmed" where v1 has no Confirm button (reminder_2h): confirm:<booking_id> from its reschedule:<booking_id>
+const CONFIRMED_FROM_RESCHEDULE = { type: 'QUICK_REPLY', text: 'Yes, confirmed', src_index: null };
+const confirmFromReschedule = (p) => { const m = /^reschedule:(.+)$/.exec(String(p || '')); return m ? `confirm:${m[1]}` : null; };
 export const TEMPLATE_VARIANTS = [
   // booking_confirmed, by the method the v1 {{5}} already carries (lib/w05.mjs confirmDetail). No "Add to calendar" (the
   // booking is already in their calendar from the email / .ics), no Confirm / Cancel: Reschedule only (+ Join on Teams).
   { key: 'booking_confirmed_teams_v3', base: 'booking_confirmed', header: 'booked',
-    body: `Hi {{1}}, you are booked. *{{2}}* will meet you on *{{3}} at {{4}}* by Microsoft Teams. The invite is in your email, and you can join straight from the button below. ${MOVE_LINE} ${STOP}`,
+    body: `Hi {{1}}, you are booked. *{{2}}* will meet you on *{{3}} at {{4}}* by Microsoft Teams. The invite is in your email, and you can join straight from the button below. ${MOVE_LINE}`,
     example: ['Lerato', 'Mark Smith', 'Tue 7 Oct', '10:00'],
     buttons: [{ type: 'URL', text: 'Join Teams call', url: JOIN_URL, example: ['https://sortmycover.co.za/j/bk_8f3a2c'], src_index: 0 }, 2],
     derive: (b) => (/^Microsoft Teams\b/.test(String(b[4] || '')) ? { body: b.slice(0, 4) } : null) },
   // phone: needs the number in v1 {{5}} as "phone call on 0XX XXX XXXX" (one-line change in lib/w05.mjs confirmDetail,
-  // owned elsewhere). Until then {{5}} is "phone call", derive() returns null and the sender falls through to v2 / v1.
+  // owned elsewhere). Until then {{5}} is "phone call", derive() returns null and the sender falls through to v4 / v2 / v1.
   { key: 'booking_confirmed_phone_v3', base: 'booking_confirmed', header: 'booked',
-    body: `Hi {{1}}, you are booked. {{2}} will call you on {{3}} at *{{4}}* on *{{5}}*. ${MOVE_LINE} ${STOP}`,
+    body: `Hi {{1}}, you are booked. {{2}} will call you on {{3}} at *{{4}}* on *{{5}}*. ${MOVE_LINE}`,
     example: ['Lerato', 'Mark', '082 123 4567', '10:00', 'Tue 7 Oct'],
     buttons: [2],
     derive: (b) => { const m = /^phone call on (0\d{2} \d{3} \d{4})$/.exec(String(b[4] || '')); return m ? { body: [b[0], firstOf(b[1]), m[1], b[3], b[2]] } : null; } },
-  { key: 'booking_confirmed_v2', base: 'booking_confirmed', header: 'booked', sid: 'HXff2e2c298cc23411336ccd907ca1f5f4' },
-  { key: 'reminder_24h_v2', base: 'reminder_24h', header: 'reminder', sid: 'HX553796498a577ed87d7660bb79188da3' },
+  // any other method: the v1 body without the STOP line, Confirm / Reschedule / Cancel, no Add to calendar
+  { key: 'booking_confirmed_v4', base: 'booking_confirmed', header: 'booked', buttons: [1, 2, 3] },
+  { key: 'booking_confirmed_v2', base: 'booking_confirmed', header: 'booked', sid: 'HXff2e2c298cc23411336ccd907ca1f5f4', superseded_by: 'booking_confirmed_teams_v3 / _phone_v3 / _v4' },
+  // v4b5: "Yes, confirmed" (confirm:<booking_id>, the W09 Confirm tap: the v1 Confirm button's payload) + Reschedule
+  { key: 'reminder_24h_v3', base: 'reminder_24h', header: 'reminder',
+    body: 'Hi {{1}}, a quick reminder: your {{2}} call with *{{3}}* is tomorrow at *{{4}}*. Most people find 30 minutes is all it takes. Tap "Yes, confirmed" to let us know you can make it.',
+    example: ['Lerato', 'Microsoft Teams', 'Mark Smith', '10:00'],
+    buttons: [{ type: 'QUICK_REPLY', text: 'Yes, confirmed', src_index: 0 }, 1] },
+  { key: 'reminder_24h_v2', base: 'reminder_24h', header: 'reminder', sid: 'HX553796498a577ed87d7660bb79188da3', superseded_by: 'reminder_24h_v3' },
   // reminder_2h on Teams: the join link becomes a button (v1 {{4}} "Join on Teams: https://sortmycover.co.za/j/<id>")
   { key: 'reminder_2h_teams_v3', base: 'reminder_2h', header: 'reminder',
-    body: `Hi {{1}}, {{2}} has set aside 30 minutes for you today at *{{3}}* on Microsoft Teams. You can join straight from the button below. If you can't make it, reply here or tap Reschedule. ${STOP}`,
+    body: "Hi {{1}}, {{2}} has set aside 30 minutes for you today at *{{3}}* on Microsoft Teams. You can join straight from the button below. If you can't make it, reply here or tap Reschedule.",
     example: ['Lerato', 'Mark Smith', '10:00'],
-    buttons: [{ type: 'URL', text: 'Join Teams call', url: JOIN_URL, example: ['https://sortmycover.co.za/j/bk_8f3a2c'], src_index: null }, 0],
-    derive: (b) => { const s = String(b[3] || ''); const m = /^Join on Teams: https:\/\/\S+$/.test(s) && JOIN_ID.exec(s); return m ? { body: b.slice(0, 3), buttons: { 0: m[1] } } : null; } },
-  { key: 'reminder_2h_v2', base: 'reminder_2h', header: 'reminder', sid: 'HXe739563b95a73b72770feeebc737e443' },
-  { key: 'missed_you_v2', base: 'missed_you', header: 'reminder', sid: 'HX54d757e00cfd516eccbe8c70432bf706' },
-  { key: 'qualify_budget_v2', base: 'qualify_budget', header: 'intent', sid: 'HXf52cd6d5e4631e1a3b51906d463f0178' },
+    buttons: [{ type: 'URL', text: 'Join Teams call', url: JOIN_URL, example: ['https://sortmycover.co.za/j/bk_8f3a2c'], src_index: null }, CONFIRMED_FROM_RESCHEDULE, 0],
+    derive: (b, btn) => { const s = String(b[3] || ''); const m = /^Join on Teams: https:\/\/\S+$/.test(s) && JOIN_ID.exec(s); const c = confirmFromReschedule(btn[0]); return m && c ? { body: b.slice(0, 3), buttons: { 0: m[1], 1: c } } : null; } },
+  // v4b5: "Yes, confirmed" (confirm:<booking_id>, from the v1 reschedule:<booking_id> payload) + Reschedule
+  { key: 'reminder_2h_v3', base: 'reminder_2h', header: 'reminder', buttons: [CONFIRMED_FROM_RESCHEDULE, 0],
+    derive: (b, btn) => { const c = confirmFromReschedule(btn[0]); return c ? { buttons: { 0: c } } : null; } },
+  { key: 'reminder_2h_v2', base: 'reminder_2h', header: 'reminder', sid: 'HXe739563b95a73b72770feeebc737e443', superseded_by: 'reminder_2h_teams_v3 / reminder_2h_v3' },
+  { key: 'missed_you_v3', base: 'missed_you', header: 'reschedule' },
+  { key: 'missed_you_v2', base: 'missed_you', header: 'reminder', sid: 'HX54d757e00cfd516eccbe8c70432bf706', superseded_by: 'missed_you_v3' },
+  { key: 'qualify_budget_v2', base: 'qualify_budget', header: 'intent', sid: 'HXf52cd6d5e4631e1a3b51906d463f0178', superseded_by: 'start_here (v4 Instant Form first touch)' }, // qualify_budget = pre-v4 fallback only
   // reminder_10m online: v1 {{3}} "Join here: https://sortmycover.co.za/j/<id>" does not name the host, so the button
   // says "Join your call" (Teams, Zoom or Meet all redirect through /j/)
   { key: 'reminder_10m_online_v3', base: 'reminder_10m', header: 'reminder',
-    body: `Hi {{1}}, your call with {{2}} starts in 10 minutes. You can join straight from the button below. ${STOP}`,
+    body: 'Hi {{1}}, your call with {{2}} starts in 10 minutes. You can join straight from the button below.',
     example: ['Lerato', 'Mark Smith'],
     buttons: [{ type: 'URL', text: 'Join your call', url: JOIN_URL, example: ['https://sortmycover.co.za/j/bk_8f3a2c'], src_index: null }],
     derive: (b) => { const s = String(b[2] || ''); const m = /^Join here: https:\/\/\S+$/.test(s) && JOIN_ID.exec(s); return m ? { body: b.slice(0, 2), buttons: { 0: m[1] } } : null; } },
   { key: 'reminder_10m_v2', base: 'reminder_10m', header: 'reminder' },
-  { key: 'prep_nudge_v2', base: 'prep_nudge', header: 'reminder' },
+  { key: 'prep_nudge_v2', base: 'prep_nudge', header: 'expect' },
   // what_to_expect in the v4 form (Jono, 19 Oct 2026: lindi-flow-copy.md 5e, incl. the payslip tip, so prep_nudge is
-  // covered too). Same W09 values (first, adviser, method label); derive() uses the adviser's first name twice. No
-  // "Add to calendar" (the invite is already in their calendar, as booking_confirmed v3).
+  // covered too). Same W09 values (first, adviser, method label); derive() uses the adviser's first name twice. The v1
+  // "Add to calendar" becomes "Reschedule" (reschedule:<booking_id>, the v1 URL value is the booking id).
   { key: 'what_to_expect_v4', base: 'what_to_expect', header: 'expect',
-    body: "Hi {{1}}, here's what to expect on your call with {{2}}:\n• About 30 minutes, by {{3}}.\n• {{4}} starts by telling you their firm, FSP number and how they are paid.\n• They ask about your household and explain how the different kinds of cover work.\n• Nothing is bought on the call. Any next step is your choice.\nIf you have a payslip or a current policy schedule nearby it helps, but it isn't needed. " + STOP,
+    body: "Hi {{1}}, here's what to expect on your call with {{2}}:\n• About 30 minutes, by {{3}}.\n• {{4}} starts by telling you their firm, FSP number and how they are paid.\n• They ask about your household and explain how the different kinds of cover work.\n• Nothing is bought on the call. Any next step is your choice.\nIf you have a payslip or a current policy schedule nearby it helps, but it isn't needed.",
     example: ['Lerato', 'Mark', 'Microsoft Teams', 'Mark'],
-    buttons: [],
-    derive: (b) => (b[0] && b[1] && b[2] ? { body: [b[0], firstOf(b[1]), b[2], firstOf(b[1])] } : null) },
-  { key: 'what_to_expect_v2', base: 'what_to_expect', header: 'expect' },
+    buttons: [RESCHEDULE_FROM_URL],
+    derive: (b, btn) => (b[0] && b[1] && b[2] && rescheduleFromId(btn[0]) ? { body: [b[0], firstOf(b[1]), b[2], firstOf(b[1])], buttons: { 0: rescheduleFromId(btn[0]) } } : null) },
+  { key: 'what_to_expect_v2', base: 'what_to_expect', header: 'expect', buttons: [RESCHEDULE_FROM_URL],
+    derive: (b, btn) => (rescheduleFromId(btn[0]) ? { buttons: { 0: rescheduleFromId(btn[0]) } } : null) },
   { key: 'reschedule_offer_v3', base: 'reschedule_offer', header: 'reschedule' }, // _v2 is the Flow template
   { key: 'intro_media_voice_v2', base: 'intro_media_voice', header: 'video' }, // "A voice note from {{1}}" text header -> banner
   { key: 'unbooked_nudge_2h_v2', base: 'unbooked_nudge_2h', header: 'adviser' },
   { key: 'unbooked_nudge_24h_text_v2', base: 'unbooked_nudge_24h_text', header: 'adviser' }, // "Meet {{1}}" text header -> banner
   { key: 'unbooked_nudge_72h_v2', base: 'unbooked_nudge_72h', header: 'adviser' },
-  { key: 'reach_check_v2', base: 'reach_check', header: 'adviser' },
-  { key: 'attended_thanks_v2', base: 'attended_thanks', header: 'adviser' },
+  { key: 'reach_check_v2', base: 'reach_check', header: 'aftercall' },
+  { key: 'attended_thanks_v2', base: 'attended_thanks', header: 'aftercall' },
   { key: 'invite_email_bounced_v2', base: 'invite_email_bounced', header: 'invite' },
   { key: 'booking_held_verify_email_v2', base: 'booking_held_verify_email', header: 'invite' },
   { key: 'booking_hold_released_v2', base: 'booking_hold_released', header: 'invite' },
@@ -148,17 +168,19 @@ export const TEMPLATE_VARIANTS = [
 ];
 
 /**
- * v1 spec + variant row -> the variant's spec: banner header, the body (v1's, or the row's own text + example), the
- * buttons (a number = that v1 button, src_index = its v1 position; an object = a new button, src_index null when its
- * value comes from derive()). Pure.
+ * v1 spec + variant row -> the variant's spec: banner header (or the v1 media header, keep_header), the body (v1's
+ * without the STOP line, or the row's own text + example; a submitted row mirrors what was submitted, STOP line kept),
+ * the buttons (a number = that v1 button, src_index = its v1 position; an object = a new button, src_index null when
+ * its value comes from derive()). Pure.
  */
 export function variantSpec(spec = {}, v = {}) {
   const v1 = (spec.components || []);
   const v1Buttons = (v1.find((c) => c.type === 'BUTTONS') || {}).buttons || [];
-  const comps = [{ type: 'HEADER', format: 'IMAGE', banner: headerUrl(v.header) }];
+  const comps = v.keep_header ? v1.filter((c) => c.type === 'HEADER') : [{ type: 'HEADER', format: 'IMAGE', banner: headerUrl(v.header) }];
   for (const c of v1) {
     if (c.type === 'HEADER') continue;
     if (c.type === 'BODY' && v.body) comps.push({ type: 'BODY', text: v.body, example: { body_text: [v.example || []] } });
+    else if (c.type === 'BODY' && !v.sid) comps.push({ ...c, text: String(c.text || '').replace(STOP_LINE, '') });
     else if (c.type === 'BUTTONS' && Array.isArray(v.buttons)) continue;
     else comps.push(c);
   }
@@ -170,6 +192,12 @@ export function variantSpec(spec = {}, v = {}) {
 
 /** Body parameter texts of a Meta template payload. */
 const bodyValues = (tpl = {}) => (((tpl.components || []).find((c) => c.type === 'body') || {}).parameters || []).map((p) => (p && p.text != null ? String(p.text) : ''));
+/** Button parameter values of a Meta template payload, by v1 button index (sparse). */
+const buttonValues = (tpl = {}) => {
+  const out = [];
+  for (const c of (tpl.components || []).filter((x) => x.type === 'button')) { const p = (c.parameters || [])[0] || {}; out[Number(c.index)] = String(p.payload ?? p.text ?? ''); }
+  return out;
+};
 
 /**
  * The banner variant to send for template `name`, as { key, spec, derived }, else null. A variant is eligible when its
@@ -179,7 +207,7 @@ export function templateVariant(name, sids = {}, spec = null, tpl = null) {
   if (!spec) return null;
   for (const v of TEMPLATE_VARIANTS) {
     if (v.base !== name || !sids[v.key]) continue;
-    const derived = v.derive ? v.derive(bodyValues(tpl || {})) : null;
+    const derived = v.derive ? v.derive(bodyValues(tpl || {}), buttonValues(tpl || {})) : null;
     if (v.derive && !derived) continue;
     return { key: v.key, spec: variantSpec(spec, v), derived };
   }
@@ -285,6 +313,23 @@ export function startCtaContent(i = {}) {
 //   meta:   session interactive cta_url (one URL button; Meta has no in-session URL + reply-button mix).
 // It never degrades to a text Body (the token would sit in the message log). brands.start_page off, no lead token, no
 // live booked / confirmed booking, or another W10 action -> W10 exactly as today. W07 sends it (patch-w07-reschedule-card.mjs).
+/**
+ * v4b12 (Jono, 19 Oct 2026): while the /start/ page is pending (conv_state.state 'start_page') a chat message goes to Lindi
+ * as usual, and W07 then re-sends the Start here link with a FRESH lead token: "Tap below to pick your time with {adviser}."
+ * -> { send } (Cloud API cta_url; Twilio maps it to smc_start_cta) or { skip }. Never a text body with the token.
+ */
+export function startAgainPlan({ lead = {}, adviser_first = '', handoff = false, token = null, env = {} } = {}) {
+  if (!lead.id || !lead.phone) return { skip: 'no_lead' };
+  if (((lead.conv_state || {}).state) !== 'start_page') return { skip: 'not_pending' };
+  if (handoff) return { skip: 'handoff' }; // a person has the conversation now: no link on top of the handoff line
+  if (!token || !TOKEN_SAFE.test(String(token))) return { skip: 'no_lead_token' };
+  if (providerOf(env) === 'twilio' && !contentSids(env)[START_CTA_KEY]) return { skip: 'twilio_cta_content_missing' };
+  const who = firstWordOf(adviser_first) || 'your adviser';
+  return { send: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(lead.phone).replace(/\D/g, ''), type: 'interactive', interactive: { type: 'cta_url',
+    header: { type: 'image', image: { link: START_CTA_HEADER } }, body: { text: `Tap below to pick your time with ${who}.` },
+    action: { name: 'cta_url', parameters: { display_text: START_CTA_BUTTON, url: `${START_PAGE_LINK}${token}` } } } } };
+}
+
 export const RESCHEDULE_LINK = 'https://sortmycover.co.za/start/#move=1&lt=';
 export const RESCHEDULE_CTA_KEY = 'smc_reschedule_cta';
 export const RESCHEDULE_TEMPLATE = 'reschedule_card';

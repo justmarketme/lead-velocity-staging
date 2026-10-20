@@ -33,6 +33,7 @@
     "core": false,
     "base": "reminder_2h",
     "header": "reminder",
+    "superseded_by": "reminder_2h_teams_v3 / reminder_2h_v3",
     "submitted": "HXe739563b95a73b72770feeebc737e443"
   },
   "content": {

@@ -43,7 +43,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, this is our last message about your insurance and financial planning enquiry. On the call, {{2}} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again. Reply STOP to opt out.",
+        "title": "Hi {{1}}, this is our last message about your insurance and financial planning enquiry. On the call, {{2}} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"

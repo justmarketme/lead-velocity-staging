@@ -34,7 +34,7 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, the {{2}} invite for your call with {{3}} didn't reach your inbox, so when you have a moment, please reply with the email address you'd like us to use. Reply STOP to opt out.",
+        "title": "Hi {{1}}, the {{2}} invite for your call with {{3}} didn't reach your inbox, so when you have a moment, please reply with the email address you'd like us to use.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png"

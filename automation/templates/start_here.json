@@ -10,7 +10,7 @@
     },
     {
       "type": "BODY",
-      "text": "Hi {{1}}, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way. Reply STOP to opt out.",
+      "text": "Hi {{1}}, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.",
       "example": {
         "body_text": [
           [

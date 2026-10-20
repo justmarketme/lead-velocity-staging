@@ -5,6 +5,7 @@
 // (body <= 1024, header text <= 60, footer <= 60, button text <= 25, <= 10 buttons, <= 2 URL buttons,
 // quick replies grouped, one header variable max, no variable at the start or end of the body).
 import { readFileSync, readdirSync } from 'node:fs';
+const NO_STOP_LINE = new Set(['start_here']); // v4 templates (19 Oct 2026): no "Reply STOP to opt out."
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -86,7 +87,10 @@ for (const f of files) {
   for (const re of BANNED) if (re.test(scan)) err(n, `banned word ${re}`);
   if (!n.startsWith('ops_')) for (const re of JARGON) if (re.test(all)) err(n, `jargon ${re} in a broker/lead template`);
   if (EMOJI.test(all)) err(n, 'emoji in template');
-  if (!isInternal(n) && !/Reply STOP to opt out\.\s*$/.test(text)) err(n, 'lead-facing body must end with "Reply STOP to opt out."');
+  // Jono, 19 Oct 2026 (FINAL): the v4 templates carry no STOP line (only the W03 consent keeps it; Meta requires honouring an
+  // opt-out, not wording in each message). Existing v1 files keep theirs (approved as submitted).
+  if (!isInternal(n) && !NO_STOP_LINE.has(n) && !/Reply STOP to opt out\.\s*$/.test(text)) err(n, 'lead-facing body must end with "Reply STOP to opt out."');
+  if (NO_STOP_LINE.has(n) && /\bSTOP\b/.test(text)) err(n, 'v4 template must not mention STOP');
   if (isInternal(n)) {
     // POPIA 4.10a: a lead appears outside the portal only as first name + initial. Flag any two capitalised words in examples
     // that look like "Firstname Surname" unless it is the adviser/practice (known fixture names).

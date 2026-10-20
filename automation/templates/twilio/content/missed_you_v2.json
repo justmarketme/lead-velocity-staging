@@ -55,6 +55,7 @@
     "core": false,
     "base": "missed_you",
     "header": "reminder",
+    "superseded_by": "missed_you_v3",
     "submitted": "HX54d757e00cfd516eccbe8c70432bf706"
   },
   "content": {

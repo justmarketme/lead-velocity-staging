@@ -22,7 +22,7 @@
       {
         "n": 4,
         "kind": "button",
-        "type": "url",
+        "type": "quick_reply",
         "index": 0
       }
     ],
@@ -37,20 +37,20 @@
       "1": "Lerato",
       "2": "Mark Smith",
       "3": "Microsoft Teams",
-      "4": "bk_8f3a2c"
+      "4": "reschedule:sample"
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, here is what to expect on your call with {{2}}:\n- It takes about 30 minutes, by {{3}}.\n- The adviser will ask a few simple questions to understand what matters to you.\n- There is no obligation to buy anything on the call.\nReply STOP to opt out.",
+        "title": "Hi {{1}}, here is what to expect on your call with {{2}}:\n- It takes about 30 minutes, by {{3}}.\n- The adviser will ask a few simple questions to understand what matters to you.\n- There is no obligation to buy anything on the call.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-expect.png"
         ],
         "actions": [
           {
-            "type": "URL",
-            "title": "Add to calendar",
-            "url": "https://sortmycover.co.za/c/{{4}}"
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{4}}"
           }
         ]
       }

@@ -18,7 +18,7 @@
     ],
     "core": false,
     "base": "attended_thanks",
-    "header": "adviser"
+    "header": "aftercall"
   },
   "content": {
     "friendly_name": "smc_attended_thanks_v2",
@@ -29,10 +29,10 @@
     },
     "types": {
       "twilio/card": {
-        "title": "Thanks for making time today, {{1}}. {{2}} will follow up with you directly. Reply STOP to opt out.",
+        "title": "Thanks for making time today, {{1}}. {{2}} will follow up with you directly.",
         "subtitle": "SortMyCover",
         "media": [
-          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-aftercall.png"
         ]
       }
     }

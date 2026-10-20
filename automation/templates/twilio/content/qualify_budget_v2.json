@@ -45,6 +45,7 @@
     "core": false,
     "base": "qualify_budget",
     "header": "intent",
+    "superseded_by": "start_here (v4 Instant Form first touch)",
     "submitted": "HXf52cd6d5e4631e1a3b51906d463f0178"
   },
   "content": {
