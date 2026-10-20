@@ -91,3 +91,19 @@ test('W07 graph: the W15 route reaches -> W15 only (no Lindi, no sender, no neve
   const w15 = W07.nodes.find((n) => n.name === '-> W15');
   assert.equal(w15.parameters.workflowId.value, 'smc-w15');
 });
+
+test('a question with a side "reschedule" label never moves a booked call (KG, 20 Oct 2026)', async () => {
+  const { decide } = await import('../../conversation/logic.mjs');
+  const booking = { status: 'booked', day: 'Friday', date: '23 October', time: '09:00', method: 'phone' };
+  // what the ElevenLabs agent returned for "so what do i need to prepare for the call?"
+  const nlu = { intent: 'question', secondary_intents: ['reschedule'], topics: ['call_content', 'documents', 'cancel_move'], slots: {}, sentiment: 'neutral', confidence: 0.9 };
+  const d = decide('booked', nlu, {}, { booking });
+  assert.ok(!d.actions.some((a) => /reschedule|cancel_confirm/.test(a)), JSON.stringify(d.actions));
+  assert.equal(d.next_state, 'booked');
+  // a side "cancel" is ignored too; the same labels as the MAIN intent still act
+  assert.ok(!decide('booked', { ...nlu, secondary_intents: ['cancel'] }, {}, { booking }).actions.includes('cancel_confirm'));
+  assert.ok(decide('booked', { ...nlu, intent: 'reschedule', secondary_intents: [] }, {}, { booking }).actions.includes('reschedule'));
+  assert.ok(decide('booked', { ...nlu, intent: 'cancel', secondary_intents: [] }, {}, { booking }).actions.includes('cancel_confirm'));
+  // before a booking, a side "book" still offers times (harmless)
+  assert.ok(decide('booking', { intent: 'question', secondary_intents: ['book'], topics: [], slots: {}, confidence: 0.9 }, {}, {}).actions.some((a) => /slots/.test(a)));
+});

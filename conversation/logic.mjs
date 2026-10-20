@@ -65,7 +65,11 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
   // "Please cancel my call" became close_unbooked ("we won't message you again") and the booking stayed in the diary.
   // A live booking wins over a stale pre-booking state.
   if (ctx.booking && LIVE_BOOKING.has(ctx.booking.status) && STALE_WITH_BOOKING.has(state)) state = 'booked';
-  const intents = [nlu.intent, ...(nlu.secondary_intents || [])].filter(Boolean);
+  // With a live booking, moving or cancelling it must be what the client actually asked (the main intent), never a side
+  // guess: KG's test on 20 Oct 2026, "what do I need to prepare for the call?" came back intent question + secondary
+  // reschedule (Lindi had added "did you want to move it?"), and the reschedule card replaced Lindi's answer.
+  const sideOk = (i) => !(BOOKED.has(state) && (i === 'reschedule' || i === 'cancel'));
+  const intents = [nlu.intent, ...(nlu.secondary_intents || []).filter(sideOk)].filter(Boolean);
   const topics = nlu.topics || [];
   const slots = nlu.slots || {};
   const has = (i) => intents.includes(i);
