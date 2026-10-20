@@ -12,13 +12,14 @@ const hostOf = (a: Angle) => hostLabel(a) + CAMPAIGN_SUFFIX;
 export const campaignAngles = (): Angle[] => ANGLES.filter(isAttached);
 const N8N = site.n8n_base;
 
-/** CSP: 'self' plus exactly what the site needs (Meta Pixel domains, the n8n host, Cloudflare Turnstile). No 'unsafe-inline': no inline script or style exists. */
-export function csp(): string {
+/** CSP: 'self' plus exactly what the site needs (Meta Pixel domains, the n8n host, Cloudflare Turnstile). No 'unsafe-inline': no inline script or style exists.
+    `imgExtra`: further image origins, for one path only (see START_HEADERS). */
+export function csp(imgExtra: readonly string[] = []): string {
   return [
     "default-src 'self'",
     "script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com",
     "style-src 'self'",
-    "img-src 'self' https://www.facebook.com",
+    ["img-src 'self' https://www.facebook.com", ...imgExtra].join(" "),
     "font-src 'self'",
     `connect-src 'self' ${N8N} https://www.facebook.com https://connect.facebook.net`,
     "frame-src https://challenges.cloudflare.com",
@@ -38,8 +39,15 @@ export const SECURITY_HEADERS: Record<string, string> = {
   "X-Frame-Options": "DENY",
 };
 
-/** /start/ (Lindi's per-lead link): noindex in a header as well as the meta tag, and no referrer at all. */
-export const START_HEADERS: Record<string, string> = { "X-Robots-Tag": "noindex, nofollow", "Referrer-Policy": "no-referrer" };
+/** The adviser's approved headshot / intro card on /start/: public objects in Supabase Storage on this one origin. */
+export const START_IMG_ORIGIN = "https://cmsylaupctrbsvzrgzwy.supabase.co";
+/** /start/ (Lindi's per-lead link): noindex in a header as well as the meta tag, no referrer at all, and the site CSP with the
+    adviser photo origin added to img-src (this path only; set after SECURITY_HEADERS, so it replaces the site-wide CSP there). */
+export const START_HEADERS: Record<string, string> = {
+  "X-Robots-Tag": "noindex, nofollow",
+  "Referrer-Policy": "no-referrer",
+  "Content-Security-Policy": csp([START_IMG_ORIGIN]),
+};
 
 const dest = (to: string) =>({ status: 301, headers: { Location: to } });
 

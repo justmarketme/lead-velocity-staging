@@ -40,7 +40,30 @@ describe("deployment config", () => {
     expect(c).toMatch(/style-src 'self';/);
     expect(c).toContain("connect-src 'self' https://n8n.sortmycover.co.za https://www.facebook.com https://connect.facebook.net");
     expect(c).toContain("frame-ancestors 'none'");
+    expect(c).toContain("img-src 'self' https://www.facebook.com;");
+    expect(c).not.toContain("supabase.co");
     expect(API_BASE.startsWith("https://n8n.sortmycover.co.za/")).toBe(true);
+  });
+  it("/start/ only: the CSP adds exactly the Supabase Storage origin to img-src (the adviser photo), nothing else changes", async () => {
+    const { START_HEADERS, START_IMG_ORIGIN, SECURITY_HEADERS } = await import("../src/build/hosts");
+    expect(START_IMG_ORIGIN).toBe("https://cmsylaupctrbsvzrgzwy.supabase.co");
+    const s = START_HEADERS["Content-Security-Policy"];
+    expect(s).toContain("img-src 'self' https://www.facebook.com https://cmsylaupctrbsvzrgzwy.supabase.co;");
+    expect(s.replace(" https://cmsylaupctrbsvzrgzwy.supabase.co", "")).toBe(SECURITY_HEADERS["Content-Security-Policy"]);
+    expect(s.match(/supabase\.co/g)?.length).toBe(1);
+    // Vercel: the /start route (after the site-wide headers) carries it; Hostinger: set for START_PAGE after the site-wide CSP
+    const routes = vercelConfig().routes as Record<string, any>[];
+    const all = routes.findIndex((r) => r.src === "/(.*)" && r.headers?.["Content-Security-Policy"]);
+    const start = routes.findIndex((r) => r.src === "^/start(?:/.*)?$");
+    expect(start).toBeGreaterThan(all);
+    expect(routes[start].headers["Content-Security-Policy"]).toBe(s);
+    const ht = fs.readFileSync(path.join(root, "hostinger", ".htaccess"), "utf8");
+    const global = ht.indexOf('Header always set Content-Security-Policy "' + SECURITY_HEADERS["Content-Security-Policy"] + '"');
+    for (const env of ["START_PAGE", "REDIRECT_START_PAGE"]) {
+      const at = ht.indexOf(`Header always set Content-Security-Policy "${s}" env=${env}`);
+      expect(at, env).toBeGreaterThan(global);
+    }
+    expect(global).toBeGreaterThan(-1);
   });
   it("has one host root and one thanks route per campaign angle, before the filesystem handler", () => {
     const routes = vercelConfig().routes as Record<string, any>[];

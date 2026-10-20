@@ -14,7 +14,10 @@ const cfg = JSON.parse(fs.readFileSync(path.resolve(root, "..", "config/site.jso
 const angles = JSON.parse(fs.readFileSync(path.resolve(root, "..", "config/angles.json"), "utf8"));
 const slugForLabel = (label) => (angles.find((a) => (a.host_label || a.slug) === label && !a.hold) || {}).slug;
 const csp = fs.readFileSync(path.resolve(root, "..", "vercel.json"), "utf8");
-const CSP = JSON.parse(csp).routes.find((r) => r.headers && r.headers["Content-Security-Policy"]).headers;
+const ROUTES = JSON.parse(csp).routes;
+const CSP = ROUTES.find((r) => r.headers && r.headers["Content-Security-Policy"]).headers;
+// /start/ has its own headers (noindex, no referrer, the CSP with the adviser photo origin), as on Vercel and Hostinger
+const START = (ROUTES.find((r) => r.src === "^/start(?:/.*)?$") || {}).headers || {};
 
 function resolve(host, p) {
   const h0 = (host || "").split(":")[0];
@@ -35,7 +38,7 @@ http.createServer((req, res) => {
     const full = path.join(root, file);
     const type = TYPES[path.extname(full)] || "application/octet-stream";
     let body = fs.readFileSync(full);
-    const headers = { "Content-Type": type, ...CSP, ...extra };
+    const headers = { "Content-Type": type, ...CSP, ...(/^\/start(\/|$)/.test(p) ? START : {}), ...extra };
     if (r.campaign) headers["X-Robots-Tag"] = "noindex, nofollow";
     if (/^(text|application\/(javascript|json|xml))|svg/.test(type) || type.startsWith("text/")) { body = zlib.gzipSync(body); headers["Content-Encoding"] = "gzip"; }
     res.writeHead(status, headers); res.end(body);
