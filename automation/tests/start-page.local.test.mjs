@@ -230,7 +230,10 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   const s4 = W4.respond({ ...x4, busy: [], route: p4.route, now, holidays: HOL });
   assert.equal(s4.status, 200); assert.ok(s4.body.slots.length > 0, 'slots listed');
   assert.deepEqual(s4.body.methods, ['teams', 'phone']);
-  const SLOT = s4.body.slots[0];
+  // a Teams booking with an unverified email is held until min(now + 24 h, start - 2 h); W05 refuses a hold with < 15 min to
+  // verify (too_soon_to_verify), so take the first slot that leaves room (slots[0] can be ~2 h out, depending on the clock)
+  const SLOT = s4.body.slots.find((x) => Date.parse(x.start) - now > 4 * 3600_000);
+  assert.ok(SLOT, 'a slot at least 4 h out');
 
   // =========================================================================================== 4. W05 POST /book -> held
   const EMAIL = 'synthetic-sp-thandi@example.test';

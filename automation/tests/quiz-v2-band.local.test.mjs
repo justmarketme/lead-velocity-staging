@@ -71,14 +71,14 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   // ---- helpers that run the workflows' own steps
   const brokersFor = (mobile) => j(app(SQL_CONTEXT, ['', '', '', '', mobile, BRAND])[0][5]) || [];
   const quizBody = (mobile, over = {}) => ({
-    first_name: 'Synthetic Nomsa', mobile, consent: true, consent_text: 'synthetic consent text', consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic',
+    first_name: 'Synthetic Nomsa', mobile, consent: true, consent_text: 'synthetic consent text: Synthetic FSP (FSP 12345)', consent_version: 'CONSENT-NAMED-v3', consent_mode: 'named', // landing default (config/site.json); generic now waits for adviser_disclosed (ad404e8)
     age_band: '35_44', budget_pending: true, help_with: 'review', product_interest: 'life_cover', lang: 'en', started_at: Date.now() - 60e3,
     request_id: `req-${mobile}`, is_synthetic: true, context: { event_id: uuid() }, ...over,
   });
   /** POST /lead, quiz v2: normalise -> Decide (with the brokers the Context SQL returns) -> the Insert node's SQL. */
   const postLead = (mobile, over = {}) => {
     const sub = W01.normaliseSubmission(quizBody(mobile, over), {});
-    const d = W01.decide(sub, { now: Date.now(), line_type: 'mobile', mobile, lead_id: uuid(), brand_id: BRAND, brokers: brokersFor(mobile), consent_mode: 'generic' });
+    const d = W01.decide(sub, { now: Date.now(), line_type: 'mobile', mobile, lead_id: uuid(), brand_id: BRAND, brokers: brokersFor(mobile), consent_mode: 'named' });
     if (d.kind !== 'insert') return { d };
     d.row.is_synthetic = true;
     app(SQL_INSERT, [JSON.stringify(d.row), JSON.stringify(d.activities)]);
@@ -94,7 +94,7 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
     assert.equal(brand_id, BRAND, 'the receiving number resolves to the SMC brand');
     assert.equal(existing, leadId, 'the open lead is found (W07 passed it, or the 90-day match)');
     const r = W3.step(thread || null, { type: 'button', payload: buttonId }, { at: new Date().toISOString(), mobile, profile_name: 'Synthetic', lead_id: uuid(), broker,
-      brand: { brand_id, consent_mode: 'generic' }, existing_open_lead_id: existing, suppressed: suppressed === 't', wamid: `wamid-${uuid()}`, is_synthetic: false, lead: leadRow, typed: null, hops: 0, phone_number_id: PNID });
+      brand: { brand_id, consent_mode: 'named' }, existing_open_lead_id: existing, suppressed: suppressed === 't', wamid: `wamid-${uuid()}`, is_synthetic: false, lead: leadRow, typed: null, hops: 0, phone_number_id: PNID });
     for (const a of r.actions) if (a.kind === 'update_lead') app(SQL_UPDATE03, [a.id, JSON.stringify(a.set)]);
     return r.actions;
   };
