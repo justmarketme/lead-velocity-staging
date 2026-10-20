@@ -146,9 +146,9 @@
 ### FAQ-19 · Can my partner join?
 - topic: partner_join
 - type: answer
-- asked as: "Can my wife be on the call?" · "Kan my man ook inskakel?"
-- en: Yes, your partner is welcome to join. Just let {adviser_first} know at the start.
-- af: Ja, jou lewensmaat is welkom om in te skakel. Laat {adviser_first} net aan die begin weet.
+- asked as: "Can my wife be on the call?" · "Kan my man ook inskakel?" · "Can I add someone to the meeting?" · "Can my husband get the invite?"
+- en: Yes, they're welcome to join. For a Teams call, just forward your Teams invite email to them and they can join from the same link. For a phone call, they can join you on speaker. Let {adviser_first} know at the start that they're joining.
+- af: Ja, hulle is welkom om in te skakel. Vir 'n Teams-oproep stuur jy net jou Teams-uitnodiging se e-pos aan hulle aan, dan sluit hulle by dieselfde skakel aan. Vir 'n foonoproep kan hulle saam met jou op die luidspreker luister. Laat {adviser_first} aan die begin weet dat hulle saam is.
 
 ### FAQ-20 · Can the call be in my language?
 - topic: language_call
