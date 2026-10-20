@@ -105,8 +105,12 @@ test('v4b5 reminders: "Yes, confirmed" (confirm:<booking>) + Reschedule; 2h Team
   assert.deepEqual(send(tpl('reminder_24h', ['Lerato', 'Microsoft Teams', 'Mark Smith', '10:00'], [{ qr: `confirm:${BK}` }, { qr: `reschedule:${BK}` }]), env),
     { sid: 'HX24c', vars: { 1: 'Lerato', 2: 'Microsoft Teams', 3: 'Mark Smith', 4: '10:00', 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
   assert.deepEqual(defs['reminder_2h_v3.json'].content.types['twilio/card'].actions.map((x) => x.title), ['Yes, confirmed', 'Reschedule']);
-  assert.deepEqual(send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', 'Mark will call you on 082 123 4567.'], [{ qr: `reschedule:${BK}` }]), env),
-    { sid: 'HX2c', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: '10:00', 4: 'Mark will call you on 082 123 4567.', 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
+  // phone (20 Oct): fixed text, no whole-sentence variable: 1 first, 2 adviser first name, 3 number, 4 time
+  assert.equal(defs['reminder_2h_v3.json'].content.types['twilio/card'].title, "Hi {{1}}, {{2}} will call you on {{3}} today at *{{4}}*. If you can't make it, reply here or tap Reschedule.");
+  assert.deepEqual(send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', 'Mark will call you on +27821234567.'], [{ qr: `reschedule:${BK}` }]), env),
+    { sid: 'HX2c', vars: { 1: 'Lerato', 2: 'Mark', 3: '082 123 4567', 4: '10:00', 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });
+  // a WhatsApp call (or anything else) keeps v1 / v2
+  assert.equal(send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', 'Mark will WhatsApp-call you on +27821234567.'], [{ qr: `reschedule:${BK}` }]), env).sid, 'HX2');
   assert.deepEqual(defs['reminder_2h_teams_v3.json'].content.types['twilio/card'].actions.map((x) => x.title), ['Join Teams call', 'Yes, confirmed', 'Reschedule']);
   assert.deepEqual(send(tpl('reminder_2h', ['Lerato', 'Mark Smith', '10:00', `Join on Teams: https://sortmycover.co.za/j/${BK}`], [{ qr: `reschedule:${BK}` }]), env),
     { sid: 'HX2t', vars: { 1: 'Lerato', 2: 'Mark Smith', 3: '10:00', 4: BK, 5: `confirm:${BK}`, 6: `reschedule:${BK}` } });

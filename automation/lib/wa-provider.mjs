@@ -127,8 +127,19 @@ export const TEMPLATE_VARIANTS = [
     buttons: [{ type: 'URL', text: 'Join Teams call', url: JOIN_URL, example: ['https://sortmycover.co.za/j/bk_8f3a2c'], src_index: null }, CONFIRMED_FROM_RESCHEDULE, 0],
     derive: (b, btn) => { const s = String(b[3] || ''); const m = /^Join on Teams: https:\/\/\S+$/.test(s) && JOIN_ID.exec(s); const c = confirmFromReschedule(btn[0]); return m && c ? { body: b.slice(0, 3), buttons: { 0: m[1], 1: c } } : null; } },
   // v4b5: "Yes, confirmed" (confirm:<booking_id>, from the v1 reschedule:<booking_id> payload) + Reschedule
-  { key: 'reminder_2h_v3', base: 'reminder_2h', header: 'reminder', buttons: [CONFIRMED_FROM_RESCHEDULE, 0],
-    derive: (b, btn) => { const c = confirmFromReschedule(btn[0]); return c ? { buttons: { 0: c } } : null; } },
+  // phone (20 Oct 2026, Meta-friendly: no whole-sentence variable mid-body): v1 {{4}} "<Adviser> will call you on <number>." -> fixed
+  // text with the adviser's first name, the number (0XX XXX XXXX) and the time as variables. Teams / WhatsApp call: not this variant.
+  { key: 'reminder_2h_v3', base: 'reminder_2h', header: 'reminder',
+    body: "Hi {{1}}, {{2}} will call you on {{3}} today at *{{4}}*. If you can't make it, reply here or tap Reschedule.",
+    example: ['Lerato', 'Mark', '082 123 4567', '10:00'],
+    buttons: [CONFIRMED_FROM_RESCHEDULE, 0],
+    derive: (b, btn) => {
+      const m = /^\S+ will call you on (\+27\d{9}|0\d{2} ?\d{3} ?\d{4})\.$/.exec(String(b[3] || ''));
+      const c = confirmFromReschedule(btn[0]);
+      if (!m || !c) return null;
+      const d = m[1].replace(/\D/g, '').replace(/^27/, '0');
+      return { body: [b[0], firstOf(b[1]), `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`, b[2]], buttons: { 0: c } };
+    } },
   { key: 'reminder_2h_v2', base: 'reminder_2h', header: 'reminder', sid: 'HXe739563b95a73b72770feeebc737e443', superseded_by: 'reminder_2h_teams_v3 / reminder_2h_v3' },
   { key: 'missed_you_v3', base: 'missed_you', header: 'reschedule' },
   { key: 'missed_you_v2', base: 'missed_you', header: 'reminder', sid: 'HX54d757e00cfd516eccbe8c70432bf706', superseded_by: 'missed_you_v3' },
