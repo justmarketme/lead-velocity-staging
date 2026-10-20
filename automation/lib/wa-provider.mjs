@@ -187,6 +187,23 @@ export const TEMPLATE_VARIANTS = [
   { key: 'lead_low_budget_closed_v2', base: 'lead_low_budget_closed', header: 'intent' },
 ];
 
+// W08 Start here nudges (lib/w08.mjs startPayload; Content: templates/twilio/build-content.mjs startNudge). No Meta spec file,
+// so the plan is fixed here: static banner (no variable), body {{1}} first name {{2}} adviser, URL token {{3}}, quick reply {{4}}.
+// The caller sends the base name (start_nudge_2h ...). 20 Oct 2026: the *_v2 keys drop "Reply STOP to opt out." (only the
+// W03 consent keeps it) and win as soon as their SID is set; the 19 Oct keys stay as submitted (fallback only).
+export const START_NUDGE_KEYS = {
+  start_nudge_2h: ['start_nudge_2h_v2', 'start_nudge_2h'],
+  start_nudge_24h: ['start_nudge_24h_v2', 'start_nudge_24h'],
+  start_nudge_final: ['start_nudge_final_v2', 'start_nudge_final'],
+};
+export const START_NUDGE_SPEC = { components: [
+  { type: 'HEADER', format: 'IMAGE', banner: 'per touch' },
+  { type: 'BODY', text: 'Hi {{1}}, your call with {{2}}.' },
+  { type: 'BUTTONS', buttons: [{ type: 'URL', text: 'Pick a time', url: 'https://sortmycover.co.za/start/#lt={{1}}' }, { type: 'QUICK_REPLY', text: 'Not now' }] },
+] };
+/** The Content key to send for a start nudge (newest with a SID), or null. */
+export const startNudgeKey = (name, sids = {}) => ((START_NUDGE_KEYS[name] || []).find((k) => sids[k]) || null);
+
 /**
  * v1 spec + variant row -> the variant's spec: banner header (or the v1 media header, keep_header), the body (v1's
  * without the STOP line, or the row's own text + example; a submitted row mirrors what was submitted, STOP line kept),
@@ -466,6 +483,15 @@ export function toTwilioRequest(payload = {}, env = {}, opts = {}) {
   }
   if (t === 'template') {
     const tpl = payload.template || {};
+    if (START_NUDGE_KEYS[tpl.name]) {
+      // the payload carries the banner as an image header parameter (Meta shape); the Content's banner is static, so the
+      // fixed plan skips it (without it the header would take {{3}} and shift the token and the quick reply)
+      const key = startNudgeKey(tpl.name, sids);
+      if (!key) return { skip: true, reason: 'twilio_content_sid_missing' };
+      const r = templateVariables(tpl, env, START_NUDGE_SPEC);
+      if (r.error) return { skip: true, reason: r.error };
+      return { form: { ...base, ContentSid: sids[key], ContentVariables: JSON.stringify(r.vars) }, content_key: key };
+    }
     // A banner variant (TEMPLATE_VARIANTS) wins when its own SID is configured; its own var plan numbers the variables.
     const v = opts.spec ? templateVariant(tpl.name, sids, opts.spec, tpl) : null;
     const sid = v ? sids[v.key] : sids[tpl.name];
