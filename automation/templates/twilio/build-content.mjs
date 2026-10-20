@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { twilioVarPlan, defaultPayload, START_CTA_KEY, START_PAGE_LINK, START_CTA_HEADER, START_CTA_BUTTON, TEMPLATE_VARIANTS, variantSpec,
   RESCHEDULE_LINK, RESCHEDULE_CTA_KEY, RESCHEDULE_TEMPLATE, RESCHEDULE_BUTTON, KEEP_BUTTON, rescheduleCardBody, headerUrl } from '../../lib/wa-provider.mjs';
 import { START_PAGE_STEPS } from '../../ctwa/w03.js';
+import { startWords, START_BANNER, START_LINK, HEADER_BASE } from '../../lib/w08.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = join(HERE, '..');
@@ -199,6 +200,22 @@ export function rescheduleCta() {
       types: { 'twilio/card': { title: '{{1}}', media: [headerUrl('reschedule')], actions: [{ type: 'URL', title: RESCHEDULE_BUTTON, url: `${RESCHEDULE_LINK}{{2}}` }] } } } };
 }
 
+/**
+ * W08 Start here nudges (19 Oct 2026; lib/w08.mjs startMessage / startPayload): approved twilio/card, banner per touch
+ * (START_BANNER), body {{1}} first name {{2}} adviser, URL "Pick a time" -> /start/#lt={{3}}, quick reply {{4}}
+ * (Not now; No thanks on the last). Words = lib/w08.mjs startWords (the same text the session card sends).
+ */
+export const START_NUDGES = Object.keys(START_BANNER);
+export function startNudge(key) {
+  const reply = key === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
+  return { _meta: { key, source: 'lib/w08.mjs startWords (W08 start track, 19 Oct 2026)', approval: { name: `smc_${key}`, category: 'UTILITY' }, core: false,
+    banner: `header-${START_BANNER[key]}.png`,
+    var_plan: [{ n: 1, kind: 'body' }, { n: 2, kind: 'body' }, { n: 3, kind: 'button', type: 'url', index: 0 }, { n: 4, kind: 'button', type: 'quick_reply', index: 1 }] },
+    content: { friendly_name: `smc_${key}`, language: 'en', variables: { 1: 'Naledi', 2: 'Mark', 3: 'lt1.sample', 4: `${reply[0]}:sample` },
+      types: { 'twilio/card': { title: startWords(key, ['{{1}}', '{{2}}']), subtitle: 'SortMyCover', media: [`${HEADER_BASE}header-${START_BANNER[key]}.png`],
+        actions: [{ type: 'URL', title: 'Pick a time', url: `${START_LINK}{{3}}` }, { type: 'QUICK_REPLY', title: reply[1], id: '{{4}}' }] } } } };
+}
+
 export function buildAll() {
   const out = {};
   for (const name of FLOW_TEMPLATES) {
@@ -215,6 +232,7 @@ export function buildAll() {
   out[`${START_CTA_KEY}.json`] = startCta();
   out[`${RESCHEDULE_TEMPLATE}.json`] = rescheduleCard();
   out[`${RESCHEDULE_CTA_KEY}.json`] = rescheduleCta();
+  for (const k of START_NUDGES) out[`${k}.json`] = startNudge(k);
   return out;
 }
 
