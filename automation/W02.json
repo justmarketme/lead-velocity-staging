@@ -14,7 +14,7 @@
       "parameters": {
         "width": 700,
         "height": 320,
-        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop (consent tick; every age accepted since the instant form v2, 18 Oct 2026: W01 OUT_OF_BAND_AGE_BOOKS, never qualified outside 35-50) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN.\n\nPage ingress (I-16/I-25): this callback is the Meta `page` object. leadgen changes take the path above; `feed` comments are forwarded to W30 and Messenger DMs to W31 (Execute Workflow, no wait) with the raw body (base64 of the received bytes) and the original X-Hub-Signature-256, so they verify it themselves."
+        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop (consent tick; every age accepted since the instant form v2, 18 Oct 2026: W01 OUT_OF_BAND_AGE_BOOKS, never qualified outside 35-50) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN.\n\nPage ingress (I-16/I-25): this callback is the Meta `page` object. leadgen changes take the path above; Page feed / messages events get the 200 and nothing else (W30/W31 retired 19 Oct 2026). Routed-out leads are not stored or counted (the ops.notifications counter was dropped with the ops schema)."
       }
     },
     {
@@ -224,29 +224,6 @@
       }
     },
     {
-      "id": "n10",
-      "name": "Count routed-out (anonymous, no PII)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        1320,
-        80
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO ops.notifications (kind, \"to\", channel, severity, status, source, dedupe_key, what, body)\nSELECT 'lead_routed_out', 'console', 'console', 'info', 'sent', 'W02', $1::text, 'Lead Ad lead routed out (not qualified)', jsonb_build_object('ad_id', $2::text)\nWHERE NOT EXISTS (SELECT 1 FROM ops.notifications n WHERE n.dedupe_key = $1::text AND n.created_at > now() - interval '24 hours')\nRETURNING 1; -- anonymous: ad id only, reasons stay in the execution data and the lead is not stored (2.1.7).",
-        "options": {
-          "queryReplacement": "={{ [ \"routed_out:\" + $json.ad_id + \":\" + $json.leadgen_id, String($json.ad_id || '') ] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      }
-    },
-    {
       "id": "n11",
       "name": "Duplicate delivery: ignore",
       "type": "n8n-nodes-base.noOp",
@@ -326,114 +303,6 @@
           "responseCode": "={{ $json.ok ? 200 : 403 }}"
         }
       }
-    },
-    {
-      "id": "n20",
-      "name": "Page forward route?",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [
-        440,
-        260
-      ],
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "outputKey": "w30",
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "strict"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "id": "r1",
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "w30",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true
-            },
-            {
-              "outputKey": "w31",
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "typeValidation": "strict"
-                },
-                "combinator": "and",
-                "conditions": [
-                  {
-                    "id": "r2",
-                    "leftValue": "={{ $json.route }}",
-                    "rightValue": "w31",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ]
-              },
-              "renameOutput": true
-            }
-          ]
-        },
-        "options": {}
-      },
-      "notes": "I-16 / I-25: W02 is the `page` ingress. feed comment -> W30, Messenger DM -> W31. Leadgen items never match (they take \"Valid and has a lead?\")."
-    },
-    {
-      "id": "n21",
-      "name": "W30 Comment handler (forward raw body + signature)",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        700,
-        200
-      ],
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "smc-w30",
-          "cachedResultName": "W30 Comment handler"
-        },
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      },
-      "notes": "Input { raw_body_b64, signature, route }: the received bytes and X-Hub-Signature-256, unchanged. CONTRACTS.md \"Sub-workflow interfaces\"."
-    },
-    {
-      "id": "n22",
-      "name": "W31 DM handler (forward raw body + signature)",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        700,
-        320
-      ],
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "smc-w31",
-          "cachedResultName": "W31 DM handler"
-        },
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      },
-      "notes": "Same input as the W30 forward."
     }
   ],
   "connections": {
@@ -458,11 +327,6 @@
           },
           {
             "node": "Valid and has a lead?",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Page forward route?",
             "type": "main",
             "index": 0
           }
@@ -511,13 +375,7 @@
             "index": 0
           }
         ],
-        [
-          {
-            "node": "Count routed-out (anonymous, no PII)",
-            "type": "main",
-            "index": 0
-          }
-        ],
+        [],
         [
           {
             "node": "Duplicate delivery: ignore",
@@ -543,24 +401,6 @@
         [
           {
             "node": "Respond hub.challenge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Page forward route?": {
-      "main": [
-        [
-          {
-            "node": "W30 Comment handler (forward raw body + signature)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "W31 DM handler (forward raw body + signature)",
             "type": "main",
             "index": 0
           }

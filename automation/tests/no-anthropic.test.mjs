@@ -136,8 +136,8 @@ test('W07 existing fail-closed paths: a failed guardrail call blocks, a failed r
   }
 });
 
-const RELAY_WF = ['W11', 'W23', 'W29', 'W30', 'W31', 'W32', 'W33'];
-test('W11/W23/W29-W33: every LLM call is $env.LLM_RELAY_URL + $env.LLM_RELAY_TOKEN, reachable only through "LLM relay set?"', () => {
+const RELAY_WF = ['W11', 'W23', 'W29']; // W30-W33 retired 20 Oct 2026 (D5)
+test('W11/W23/W29: every LLM call is $env.LLM_RELAY_URL + $env.LLM_RELAY_TOKEN, reachable only through "LLM relay set?"', () => {
   for (const f of RELAY_WF) {
     const wf = WF(f);
     const calls = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest' && /LLM_RELAY_URL/.test(n.parameters.url || ''));
@@ -159,12 +159,6 @@ test('W11/W23/W29-W33: every LLM call is $env.LLM_RELAY_URL + $env.LLM_RELAY_TOK
       assert.equal(ifBranch(wf, g, { env: { LLM_RELAY_URL: 'https://relay.example.test/v1' } }), true, `${f} ${g}: set`);
     }
   }
-});
-
-test('W30 classify retry runs once even when no relay call ran (no loop on an unset LLM_RELAY_URL)', () => {
-  const code = node(WF('W30'), 'Parse classification').parameters.jsCode;
-  assert.match(code, /\$\('Needs classify retry\?'\)\.isExecuted/);
-  assert.match(JSON.stringify(node(WF('W30'), 'Needs classify retry?').parameters), /retry_tried/);
 });
 
 test('.env.example: LINDI_BRAIN_URL + LINDI_RELAY_TOKEN + LLM_RELAY_URL/TOKEN, no ANTHROPIC_* line', () => {

@@ -80,7 +80,7 @@ s3() { # docker compose down every compose project except lv (volumes kept), fre
 # lines, logic, pulse), knowledge/ (FAQ), community/, billing/ (checkout page), analytics/ (step 12 SQL),
 # landing/config/ (consent.json, read by lib/w01.mjs), data/ (za-public-holidays.json, read by W04 via index.cjs).
 # supabase/ is shipped for the migration files only; the VPS never holds a service-role key.
-SHIP_DIRS=(automation conversation knowledge community billing analytics landing/config data supabase/migrations)
+SHIP_DIRS=(automation conversation knowledge community billing landing/config data supabase/migrations)
 s4() { # git archive HEAD of the runtime dirs | ssh tar -x into /opt/lead-velocity (mounted read-only into n8n at /repo)
   remote "mkdir -p $REMOTE_DIR"
   local present=(); for p in "${SHIP_DIRS[@]}"; do git -C "$REPO" cat-file -e "HEAD:$p" 2>/dev/null && present+=("$p"); done
@@ -174,8 +174,8 @@ s11() { # Meta app subscriptions (WABA, page, instagram), Flow endpoint_uri; pri
   say "ACTION: uptime monitor (automation/vps/UPTIME.md) > monitors on https://$API_HOST/healthz, callback https://$API_HOST/webhook/w22/uptime"
 }
 # 12. Analytics layer (I-35k): after the Supabase migrations, before the synthetic suite reads facts.* views
-s12a() { # apply analytics/params, watchlist, kill-scale, W14-broker, W14-lv in order, one transaction (apply-analytics.sh; --analytics-dry-run = ROLLBACK)
-  PROVISION_ENV_FILE="$ENVF" "$REPO/automation/vps/apply-analytics.sh" "$ANALYTICS_MODE"
+s12a() { # retired 20 Oct 2026: the facts / analytics layer was dropped with the CRM-nurture chain (D5); nothing to apply
+  say "analytics layer retired (CRM-NURTURE-SCHEMA.md D5): skipped"
 }
 # 13. Edge function for W34 media erasure (I-39j/I-40f). Runs on the laptop with the Supabase CLI; the VPS never holds the server key.
 s12b() { # supabase secrets set W34_MEDIA_ERASE_SECRET (from .env, via a 0600 --env-file, never argv) + supabase functions deploy w34-media-erase --no-verify-jwt (HMAC, not JWT); SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are injected by Supabase
@@ -194,8 +194,7 @@ s12() { # node --test 'automation/tests/*.test.mjs' with N8N_PUBLIC_URL=https://
   ( cd "$REPO" && N8N_PUBLIC_URL="https://$API_HOST" TEST_TARGET=production node --test 'automation/tests/*.test.mjs' )
 }
 # 15. Ready: tell W26 on the VPS; W26 sets brokers.status = ready_for_go_live and WhatsApps Jonathan
-s13() { # signed POST https://API_HOST/webhook/w26/status {ok:true}; nothing is unpaused (Go live stays a human tap)
-  notify true "https://$API_HOST"
+s13() { # report done (W26 go-live runner retired 20 Oct 2026); nothing is unpaused (Go live stays a human tap)
   say "PROVISIONED in $(( ($(date +%s) - T0) / 60 )) min. Go live remains Jonathan's tap in the console."
 }
 

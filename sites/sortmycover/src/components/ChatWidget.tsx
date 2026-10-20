@@ -6,8 +6,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, startHref, waHref, type ChatContext } from "@/lib/whatsapp";
 import { consentCfg, provider } from "@/lib/site";
-import { beacon } from "@/lib/api";
-import { attribution, beaconOff, grantAds, hasConsent, track } from "@/lib/pixel";
+import { attribution, grantAds, hasConsent, track } from "@/lib/pixel";
 
 /** WhatsApp glyph (Simple Icons, CC0). */
 export function WaIcon({ size = 20 }: { size?: number }) {
@@ -32,7 +31,7 @@ export function WhatsAppCta({ ctx, className = "btn", children }: { ctx: ChatCon
     WhatsApp-first. `via` (where the visitor came from) is added at click time, so server and client render the same HTML. */
 export function StartCta({ ctx, className = "btn btn-secondary", children }: { ctx: ChatContext; className?: string; children?: ReactNode }) {
   return (
-    <a href={startHref(ctx)} className={`${className} desk-only`} onClick={(e) => { try { e.currentTarget.href = startHref(ctx, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain link */ } beacon(ctx.ref, "start", undefined, beaconOff); }}>
+    <a href={startHref(ctx)} className={`${className} desk-only`} onClick={(e) => { try { e.currentTarget.href = startHref(ctx, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain link */ } }}>
       {children ?? "Pick a time"}
     </a>
   );
@@ -90,7 +89,6 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     try { e.currentTarget.href = waHref(c, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain opener */ }
     if (ads) grantAds(); // loads the Pixel (only when site.pixel_id is set) and sends PageView
     track("Contact", { content_name: c.ref }); // no-op unless the Pixel is loaded, i.e. only with the optional consent
-    beacon(c.ref, "wa", undefined, beaconOff);
   };
 
   const who = c.wills ? "a will consultant" : "one authorised adviser";

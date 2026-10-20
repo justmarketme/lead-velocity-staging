@@ -11,13 +11,10 @@ import { workflowSql, checkSql } from './_sqlcheck.mjs';
 
 const A = join(dirname(fileURLToPath(import.meta.url)), '..');
 const load = (f) => JSON.parse(readFileSync(join(A, f), 'utf8'));
-const FILES = { 'SUB-whatsapp-send.json': 'smc-whatsapp-send', 'SUB-capi-send.json': 'smc-capi-send', 'SUB-w26-runner.json': 'smc-w26', 'SUB-ads-budget.json': 'smc-ads-budget', 'SUB-visit-beacon.json': 'smc-visit-beacon' };
+// SUB-w26-runner, SUB-ads-budget and SUB-visit-beacon were retired 20 Oct 2026 with the ops / ads / billing layers (D5).
+const FILES = { 'SUB-whatsapp-send.json': 'smc-whatsapp-send', 'SUB-capi-send.json': 'smc-capi-send' };
 const NOW = Date.parse('2026-10-03T10:00:00Z');
 
-// crm-nurture (2026-10-11): these sub-workflows write the ops schema (go-live to-dos, ads budget proposals, page-visit counts),
-// which the CRM chain does not create (supabase/migrations/CRM-NURTURE-SCHEMA.md, DROP list). Their logic tests below still run;
-// only the "SQL matches the schema" check is not applicable until they are re-scoped or retired (Jonathan's decision D5).
-const OUTSIDE_CHAIN = new Set(['SUB-w26-runner.json', 'SUB-ads-budget.json', 'SUB-visit-beacon.json']);
 for (const [f, id] of Object.entries(FILES)) {
   test(`${f}: id ${id}, inactive, errorWorkflow smc-w22, lv-automation only, one Postgres credential, SQL matches the schema`, { skip: !existsSync(join(A, f)) && 'not built yet' }, () => {
     const wf = load(f);
@@ -26,10 +23,8 @@ for (const [f, id] of Object.entries(FILES)) {
     const pgCreds = new Set(wf.nodes.filter((n) => n.type === 'n8n-nodes-base.postgres').map((n) => n.credentials?.postgres?.name));
     assert.deepEqual([...pgCreds], [PG_CRED]);
     const bad = checkSql(workflowSql(wf));
-    // what is missing is exactly the dropped design: the ops schema, and (W26 go-live) the onboarding-funnel column brokers.status_changed_at
-    if (OUTSIDE_CHAIN.has(f)) assert.ok(bad.length > 0 && bad.every((b) => b.table.startsWith('ops.') || (b.table === 'public.brokers' && b.column === 'status_changed_at')), `${f}: only dropped-design objects are missing: ${JSON.stringify(bad)}`);
-    else assert.deepEqual(bad, []);
-    for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.(sub(WhatsappSend|CapiSend|W26|AdsBudget|VisitBeacon)|waProvider)\b/, `${n.name} loads its lib`);
+    assert.deepEqual(bad, []);
+    for (const n of wf.nodes.filter((x) => x.type === 'n8n-nodes-base.code' && !/W22 signal/.test(x.name))) assert.match(n.parameters.jsCode, /require\('lv-automation'\)\.(sub(WhatsappSend|CapiSend)|waProvider)\b/, `${n.name} loads its lib`);
     assert.ok(wf.nodes.some((n) => n.type === 'n8n-nodes-base.executeWorkflowTrigger' || n.type === 'n8n-nodes-base.webhook'), 'has an entry point');
   });
 }
@@ -268,112 +263,4 @@ test('capi-send: usage header >= 80% or failure raises W22', async () => {
   assert.equal(r.ok, true); assert.equal(r.usage_pct, 85);
   const f = L.interpret({ statusCode: 400, body: { error: { message: 'bad', fbtrace_id: 'T' } } });
   assert.equal(f.ok, false); assert.equal(f.fbtrace_id, 'T');
-});
-
-// ------------------------------------------------------------------ smc-w26
-import { createHmac } from 'node:crypto';
-const W26 = load('SUB-w26-runner.json');
-const VERIFY = 'Verify HMAC (X-LV-Timestamp / X-LV-Signature)';
-const SECRET = 'x'.repeat(40);
-const signed = (body, { ts = Math.floor(Date.now() / 1000), secret = SECRET } = {}) => {
-  const raw = JSON.stringify(body);
-  return { headers: { 'x-lv-timestamp': String(ts), 'x-lv-signature': 'sha256=' + createHmac('sha256', secret).update(`${ts}.${raw}`).digest('hex') }, body };
-};
-const verify = async (req, env = { INTERNAL_HMAC_SECRET: SECRET }) => (await runCode(W26, VERIFY, { json: req, env }))[0].json;
-
-test('w26: provision.sh notify() signature verifies (same string-to-sign as provision.sh: "<ts>.<body>")', async () => {
-  const body = { step: 13, name: 'ready', ok: true, vps: '203.0.113.7' };
-  const v = await verify(signed(body));
-  assert.equal(v.ok, true); assert.deepEqual(v.body, body);
-  const sh = readFileSync(join(A, 'vps/provision.sh'), 'utf8');
-  assert.match(sh, /printf '%s\.%s' "\$ts" "\$body" \| openssl dgst -sha256 -hmac "\$INTERNAL_HMAC_SECRET"/);
-  assert.match(sh, /X-LV-Signature: sha256=\$sig/);
-});
-
-test('w26: wrong secret, tampered body, stale timestamp, missing secret -> rejected (401 branch)', async () => {
-  const body = { step: 13, name: 'ready', ok: true, vps: 'v' };
-  assert.equal((await verify(signed(body, { secret: 'y'.repeat(40) }))).reason, 'bad_signature');
-  const s = signed(body); s.body = { ...body, ok: false };
-  assert.equal((await verify(s)).reason, 'bad_signature');
-  assert.equal((await verify(signed(body, { ts: Math.floor(Date.now() / 1000) - 600 }))).reason, 'outside_replay_window');
-  assert.equal((await verify(signed(body), {})).reason, 'no_secret');
-  assert.equal((await verify({ headers: {}, body })).reason, 'missing_signature');
-  assert.deepEqual(W26.connections['Signature valid?'].main[1].map((x) => x.node), ['Respond 401']);
-});
-
-test('w26: ok:false -> W22 workflow_failed with the step; ready -> conditional update (onboarded + pending go-live row)', async () => {
-  const f = (await runCode(W26, 'Route status', { refs: { [VERIFY]: { body: { step: 7, name: 'restore', ok: false, vps: 'v' } } } })).json;
-  assert.equal(f.action, 'failed');
-  const sg = (await runCode(W26, 'Alert ops: W22 signal (provision step failed)', { refs: { 'Route status': f } })).json;
-  assert.equal(sg.signal_key, 'workflow_failed'); assert.match(sg.what, /step 7 \(restore\)/);
-  const r = (await runCode(W26, 'Route status', { refs: { [VERIFY]: { body: { step: 13, name: 'ready', ok: true, vps: 'v' } } } })).json;
-  assert.equal(r.action, 'ready');
-  const q = W26.nodes.find((n) => n.name.startsWith('Mark ready_for_go_live')).parameters.query;
-  assert.match(q, /br\.status = 'onboarded'/);
-  assert.match(q, /signal_key IN \('go_live_vps_gate', 'go_live_pending'\)/);
-  assert.match(q, /'go_live', 'jonathan', 'whatsapp', 'W26', 'queued', 'go_live_ready'/);
-  assert.match(q, /INSERT INTO ops\.proposals \(source, faculty[^)]*\)\s+SELECT 'manual', 'build'/);
-});
-
-test('w26: first payment does not require onboarded, opens GATE-VPS once, or skips to readiness when VPS_HOST is set', async () => {
-  const n = (await runCode(W26, 'Normalise first payment', { json: { op: 'first_payment', broker_id: 'b1', cycle_id: 'c1' } })).json;
-  assert.equal(n.valid, true);
-  const gate = (await runCode(W26, 'Plan go-live signal (GATE-VPS or readiness)', { json: n })).json;
-  assert.equal(gate.signal_key, 'go_live_vps_gate'); assert.equal(gate.dedupe_key, 'go_live:go_live_vps_gate:b1');
-  const ready = (await runCode(W26, 'Plan go-live signal (GATE-VPS or readiness)', { json: n, env: { VPS_HOST: '203.0.113.7' } })).json;
-  assert.equal(ready.signal_key, 'go_live_pending');
-  const q = W26.nodes.find((n) => n.name.startsWith('Record go_live notification')).parameters.query;
-  assert.doesNotMatch(q, /onboarded/);
-  assert.match(q, /WHERE NOT EXISTS \(SELECT 1 FROM ops\.notifications x WHERE x\.dedupe_key = \$3\)/);
-  assert.doesNotMatch(JSON.stringify(W26.nodes.filter((x) => x.type !== 'n8n-nodes-base.stickyNote')), /metaAds|setCampaignBudget|hostinger\.com\/api|unpause|paused = false/i, 'never provisions, spends or unpauses');
-});
-
-// ------------------------------------------------------------------ smc-ads-budget
-const AB = load('SUB-ads-budget.json');
-test('ads-budget: every raise / lower becomes a proposal (faculty media, source ads_budget) + approval outbox row', async () => {
-  const n = (await runCode(AB, 'Normalise input', { json: { op: 'raise', broker_id: 'b1', cycle_id: 'c1', amount_zar: 4500, reason: 'resumed' } })).json;
-  assert.equal(n.valid, true);
-  const p = (await runCode(AB, 'Build proposal + approval row', { json: n })).json;
-  assert.equal(p.proposal.faculty, 'media'); assert.equal(p.proposal.source, 'ads_budget'); assert.equal(p.proposal.cost_zar, 4500);
-  assert.deepEqual({ ...p.notification, payload: undefined }, { kind: 'approval', recipient: 'jonathan', channel: 'console', source: 'ads_budget', status: 'queued', ref_table: 'proposals', dedupe_key: 'ads_budget:b1:c1:raise', payload: undefined });
-  assert.notEqual(p.notification.source, 'console', 'W32 consumes only source=console rows as decisions');
-  assert.equal(p.notification.payload.daily_budget_zar, 130.43);
-  // §7 shape (W16/W19 today) is accepted too
-  const s7 = (await runCode(AB, 'Normalise input', { json: { action: 'lower', broker_id: 'b1', media_share_zar: 3000 } })).json;
-  assert.equal(s7.valid, true); assert.equal(s7.op, 'lower'); assert.equal(s7.amount_zar, 3000);
-  const lower = (await runCode(AB, 'Build proposal + approval row', { json: s7 })).json;
-  assert.equal(lower.proposal.cost_zar, 0);
-  const bad = (await runCode(AB, 'Normalise input', { json: { op: 'raise', broker_id: 'b1', amount_zar: 0 } })).json;
-  assert.equal(bad.valid, false);
-  // I-49f: W19's cycle-end shape (amount_zar 0 + media_share_zar) means "lower this broker's share to 0" = pause spend,
-  // never an invalid/dropped call and never a R0 proposal.
-  const w19 = (await runCode(AB, 'Normalise input', { json: { op: 'lower', action: 'lower', broker_id: 'b1', cycle_id: 'c1', amount_zar: 0, media_share_zar: 3000, reason: 'cycle_not_renewed' } })).json;
-  assert.equal(w19.valid, true); assert.equal(w19.amount_zar, 3000); assert.equal(w19.target_zar, 0); assert.equal(w19.mode, 'pause');
-  const pause = (await runCode(AB, 'Build proposal + approval row', { json: w19 })).json;
-  assert.match(pause.proposal.title, /^Pause the Meta spend for broker b1: remove its R3000 media share \(about R86\.96\/day entered in Meta, excl\. VAT\), target R0/);
-  assert.equal(pause.proposal.cost_zar, 0); assert.equal(pause.notification.payload.target_zar, 0); assert.equal(pause.notification.payload.mode, 'pause');
-  assert.equal(pause.notification.dedupe_key, 'ads_budget:b1:c1:lower');
-  // a lower with its own amount is a plain reduction; raise keeps mode 'raise'
-  assert.equal((await runCode(AB, 'Normalise input', { json: { op: 'lower', broker_id: 'b1', amount_zar: 1000, media_share_zar: 3000 } })).json.mode, 'reduce');
-  assert.equal(n.mode, 'raise'); assert.equal(n.target_zar, null);
-});
-
-test('ads-budget: media share is VAT-inclusive, daily budget = share / 1.15 / 30 (NH-22a)', async () => {
-  const { VAT_RATE, dailyBudgetExVat } = await import('../lib/sub-ads-budget.mjs');
-  assert.equal(VAT_RATE, 0.15);
-  assert.equal(dailyBudgetExVat(8492), 246.14);
-  const raise = (await runCode(AB, 'Build proposal + approval row', { json: (await runCode(AB, 'Normalise input', { json: { op: 'raise', broker_id: 'b1', cycle_id: 'c1', amount_zar: 8492 } })).json })).json;
-  assert.equal(raise.notification.payload.daily_budget_zar, 246.14);
-  assert.match(raise.proposal.title, /about R246\.14\/day entered in Meta, excl\. VAT/);
-  const lower = (await runCode(AB, 'Build proposal + approval row', { json: (await runCode(AB, 'Normalise input', { json: { op: 'lower', broker_id: 'b1', amount_zar: 1150 } })).json })).json;
-  assert.equal(lower.notification.payload.daily_budget_zar, 33.33); assert.equal(lower.notification.payload.mode, 'reduce');
-  assert.match(lower.proposal.title, /^Lower the Meta budget.*excl\. VAT\)$/);
-});
-
-test('ads-budget: never calls the Meta write path; the sticky note documents alternative (b)', () => {
-  const codeText = AB.nodes.filter((n) => n.type !== 'n8n-nodes-base.stickyNote').map((n) => JSON.stringify(n.parameters)).join('\n');
-  assert.doesNotMatch(codeText, /metaAds|setCampaignBudget|graph\.facebook\.com/);
-  assert.ok(!AB.nodes.some((n) => n.type === 'n8n-nodes-base.httpRequest'));
-  const note = AB.nodes.find((n) => n.type === 'n8n-nodes-base.stickyNote').parameters.content;
-  assert.match(note, /Alternative \(b\)/); assert.match(note, /decrease-only/);
 });

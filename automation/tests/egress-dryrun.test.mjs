@@ -20,7 +20,7 @@ const KNOWN_UNGATED = {
 };
 
 test('egress: at least the known workflows are scanned', () => {
-  assert.ok(files.length >= 36, `only ${files.length} workflow files`);
+  assert.ok(files.length >= 28, `only ${files.length} workflow files`);
   assert.ok(files.includes('SUB-whatsapp-send.json') && files.includes('W22.json'));
 });
 

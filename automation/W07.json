@@ -969,29 +969,6 @@
       "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
     },
     {
-      "id": "n22",
-      "name": "-> W35",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        1100,
-        400
-      ],
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "smc-w35",
-          "cachedResultName": "W35 Lead pulse"
-        },
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      },
-      "notes": "Called with { source: 'W07', route, msg, lead, booking }. Sub-workflow owns its reply."
-    },
-    {
       "id": "n23",
       "name": "-> W04_list",
       "type": "n8n-nodes-base.executeWorkflow",
@@ -2075,43 +2052,6 @@
         "mode": "runOnceForEachItem",
         "jsCode": "const L = require('lv-automation').w07;\nconst j = $json; const q = L.contactStart(j.booking, j.broker || {}, (j.lead && j.lead.language) || 'en');\nif (!q) return { json: { skip: true } };\nreturn { json: { skip: false, send: true, brand_id: j.lead.brand_id, msg: { from: j.lead.phone, wamid: 'w05:' + j.booking.id }, lead: j.lead, text: q.body, wa: { messaging_product: 'whatsapp', to: j.lead.phone, type: 'interactive', interactive: { type: 'button', body: { text: q.body }, action: { buttons: q.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } }, intent: 'contact', model: null, trip: false, rule: null, handoff: false } };"
       }
-    },
-    {
-      "id": "n471",
-      "name": "W32 tap -> decision item",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        220,
-        600
-      ],
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nreturn { json: L.w32DecisionItem($json.msg) };"
-      }
-    },
-    {
-      "id": "n472",
-      "name": "-> W32 decision",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        440,
-        600
-      ],
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "smc-w32",
-          "cachedResultName": "W32 Optimisation pulse, memo, retro, events, approvals"
-        },
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      },
-      "notes": "I-37e: enters W32 at 'Console decision (sub-call)' -> 'Validate decision' (parses payload approve:<id> | later:<id>). Only OPS_WHATSAPP_JONATHAN / OPS_WHATSAPP_KG taps reach here."
     },
     {
       "id": "n473",
@@ -3357,7 +3297,7 @@
         ],
         [
           {
-            "node": "-> W35",
+            "node": "Paused / opted out: log only",
             "type": "main",
             "index": 0
           }
@@ -3411,7 +3351,7 @@
         ],
         [
           {
-            "node": "W32 tap -> decision item",
+            "node": "Paused / opted out: log only",
             "type": "main",
             "index": 0
           }
@@ -3865,17 +3805,6 @@
         [
           {
             "node": "Anything to send?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "W32 tap -> decision item": {
-      "main": [
-        [
-          {
-            "node": "-> W32 decision",
             "type": "main",
             "index": 0
           }
@@ -4392,11 +4321,6 @@
             "index": 0
           }
         ]
-      ]
-    },
-    "Dry-run stub (Never silent: notify Jono (EMMA /api/notify))": {
-      "main": [
-        []
       ]
     }
   },

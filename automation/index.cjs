@@ -46,9 +46,6 @@ const MODULES = {
   waProvider: './lib/wa-provider.mjs',
   subEmailVerify: './lib/sub-email-verify.mjs', // 2026-10-11 email verification (Resend, clause 5.8), SUB-email-verify.json
   subCapiSend: './lib/sub-capi-send.mjs',
-  subW26: './lib/sub-w26.mjs',
-  subAdsBudget: './lib/sub-ads-budget.mjs',
-  subVisitBeacon: './lib/sub-visit-beacon.mjs', // I-32b first-party visit beacon
   // conversation (ESM, repo root)
   logic: '../conversation/logic.mjs',
   lines: '../conversation/lines.mjs',
@@ -60,8 +57,6 @@ const MODULES = {
   leadToken: './security/lead-token.js',
   redact: './security/redact.js',
   metaAds: './ads/meta-ads.js',
-  adsConsole: './ads/console-api.js', // the four console ads webhooks (ads-confirm, ads-budget, ads-ad-status, ads-campaign-status)
-  adsLaunchPlan: './ads/launch-plan.js', // launch plan defaults, caps from media shares, go-live / cycle-end budget plans
   capi: './capi/capi.js',
   // data (JSON, repo root): SA public holidays for W04 slot generation (I-46c; was an fs read off $env.REPO_DIR)
   holidays: '../data/za-public-holidays.json',
