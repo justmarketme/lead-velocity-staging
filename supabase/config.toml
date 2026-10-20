@@ -71,3 +71,6 @@ verify_jwt = false
 # n8n calls it with the relay token (Authorization: Bearer).
 [functions.smc-email-send]
 verify_jwt = false
+
+[functions.smc-transcribe]
+verify_jwt = false
