@@ -21,7 +21,7 @@ import { localZaFormat, normalizeEmail, normalizeZaPhone } from "../_shared/spok
 import { SMC_WHATSAPP_CONSENT_ASK, smcCallbackFirstMessage, smcConsentRecord } from "../_shared/smc_receptionist_persona.ts";
 import {
   ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, IN_CRITERIA,
-  leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
+  dialedWithin24h, leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
   transcriptText, twilioSignature, twilioSignatureOk, userTurns,
 } from "../_shared/smc_voice_lib.ts";
 
@@ -191,10 +191,24 @@ async function tick(db: SupabaseClient, dry: boolean) {
       continue;
     }
     if (dry || m.synthetic) { report.push({ id: r.id, action: "would_dial", to: r.recipient_contact, dry: true }); continue; }
-    if (env("SMC_CALLBACKS_ENABLED") !== "true") { report.push({ id: r.id, action: "skipped", why: "SMC_CALLBACKS_ENABLED is not true" }); continue; }
-    // Claim first (a crash after this never re-dials: max 1 automatic callback).
+    // Callbacks off: cancel rather than queue, so switching them on later never dials a backlog of old missed calls.
+    if (env("SMC_CALLBACKS_ENABLED") !== "true") {
+      await db.from("communications").update({ status: "failed", failed_reason: "callbacks_disabled", metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
+      report.push({ id: r.id, action: "cancelled", why: "callbacks_disabled" });
+      continue;
+    }
+    const { data: dialed } = await db.from("communications").select("id, metadata").eq("channel", "call").eq("workflow", WORKFLOW)
+      .eq("recipient_contact", r.recipient_contact).gte("created_at", new Date(now - 30 * 24 * 3600_000).toISOString())
+      .contains("metadata", { kind: "smc_voice_callback" });
+    if (dialedWithin24h(dialed ?? [], r.id, now)) {
+      await db.from("communications").update({ status: "failed", failed_reason: "callback_cap_24h", metadata: { ...m, state: "cancelled" } }).eq("id", r.id);
+      report.push({ id: r.id, action: "cancelled", why: "callback_cap_24h" });
+      continue;
+    }
+    // Claim first (a crash after this never re-dials: max 1 automatic callback). The state filter makes the claim
+    // atomic: a second tick racing on the same row re-checks it after the first commits and claims nothing.
     const { data: claimed } = await db.from("communications").update({ metadata: { ...m, state: "dialing", attempts: (m.attempts ?? 0) + 1, dialed_at: new Date().toISOString() } })
-      .eq("id", r.id).eq("status", "pending").select("id");
+      .eq("id", r.id).eq("status", "pending").contains("metadata", { state: "scheduled" }).select("id");
     if (!claimed?.length) continue;
     const sid = env("SMC_TWILIO_ACCOUNT_SID");
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Calls.json`, {

@@ -1,7 +1,7 @@
 // deno test supabase/functions/_shared/smc_voice_lib.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
-  ageBand, budgetBand, callbackDueAt, classifyOutcome, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
+  ageBand, budgetBand, callbackDueAt, classifyOutcome, dialedWithin24h, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
   mintLeadToken, nextCallWindow, sastIso, twilioSignature, twilioSignatureOk,
 } from "./smc_voice_lib.ts";
 
@@ -31,6 +31,15 @@ Deno.test("callback is due 5 minutes after the miss, inside the window", () => {
   assertEquals(sastIso(callbackDueAt(sast("2026-10-14T10:00:00"))), "2026-10-14T10:05:00+02:00");
   assertEquals(sastIso(callbackDueAt(sast("2026-10-14T19:43:00"))), "2026-10-15T08:00:00+02:00");
   assertEquals(sastIso(callbackDueAt(sast("2026-10-17T12:58:00"))), "2026-10-19T08:00:00+02:00");
+});
+
+Deno.test("dial-time cap: another callback dialled to the number in the last 24 h blocks this one", () => {
+  const now = sast("2026-10-19T08:00:00");
+  const dialed = (id: string, at: string) => ({ id, metadata: { dialed_at: new Date(sast(at)).toISOString() } });
+  assert(dialedWithin24h([dialed("a", "2026-10-18T09:00:00")], "b", now));
+  assert(!dialedWithin24h([dialed("a", "2026-10-18T07:59:00")], "b", now), "older than 24 h");
+  assert(!dialedWithin24h([dialed("b", "2026-10-19T07:00:00")], "b", now), "itself does not count");
+  assert(!dialedWithin24h([{ id: "a", metadata: {} }, { id: "c", metadata: null }], "b", now), "never dialled");
 });
 
 Deno.test("answers map onto the CRM's constrained columns", () => {

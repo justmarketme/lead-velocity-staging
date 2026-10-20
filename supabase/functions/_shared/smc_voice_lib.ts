@@ -61,6 +61,14 @@ export function callbackDueAt(missedAtMs: number): number {
   return nextCallWindow(missedAtMs + CALLBACK_DELAY_MS);
 }
 
+/**
+ * Dial-time cap: true when another automatic callback to this number was dialled in the 24 h before `nowMs`.
+ * The schedule-time check alone misses callbacks that were scheduled more than 24 h apart but fall due together.
+ */
+export function dialedWithin24h(others: { id: string; metadata?: { dialed_at?: string } | null }[], selfId: string, nowMs: number): boolean {
+  return others.some((o) => o.id !== selfId && !!o.metadata?.dialed_at && nowMs - Date.parse(o.metadata.dialed_at) < 24 * 3600_000);
+}
+
 /** "2026-10-14T10:00:00+02:00"-style SAST string, for logs and CRM notes. */
 export function sastIso(ms: number): string {
   return new Date(ms + SAST_OFFSET_MS).toISOString().replace(/\.\d{3}Z$/, "+02:00");
