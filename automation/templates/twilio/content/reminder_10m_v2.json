@@ -30,11 +30,11 @@
     "variables": {
       "1": "Lerato",
       "2": "Mark Smith",
-      "3": "Mark will call you from 082 555 0100."
+      "3": "Mark will call you on 082 123 4567."
     },
     "types": {
       "twilio/card": {
-        "title": "Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}}",
+        "title": "Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}} See you soon.",
         "subtitle": "SortMyCover",
         "media": [
           "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"

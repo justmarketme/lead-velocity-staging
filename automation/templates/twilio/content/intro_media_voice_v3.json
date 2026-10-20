@@ -1,0 +1,76 @@
+{
+  "_meta": {
+    "key": "intro_media_voice_v3",
+    "source": "automation/templates/intro_media_voice.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_intro_media_voice_v3",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false,
+    "base": "intro_media_voice",
+    "header": "video"
+  },
+  "content": {
+    "friendly_name": "smc_intro_media_voice_v3",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Tue 21 Oct",
+      "4": "10:00",
+      "5": "play_voice_note:sample",
+      "6": "reschedule:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, {{2}} recorded a short voice note (about 25 seconds) so you know who you will be speaking to. Your call is on *{{3}} at {{4}}*. Tap Play below to listen.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-video.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Play voice note",
+            "id": "{{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

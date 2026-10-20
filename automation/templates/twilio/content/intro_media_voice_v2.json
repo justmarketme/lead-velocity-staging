@@ -38,7 +38,8 @@
     ],
     "core": false,
     "base": "intro_media_voice",
-    "header": "video"
+    "header": "video",
+    "superseded_by": "intro_media_voice_v3 (Meta: body ended on a variable)"
   },
   "content": {
     "friendly_name": "smc_intro_media_voice_v2",

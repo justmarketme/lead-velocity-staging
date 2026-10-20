@@ -54,7 +54,8 @@
     ],
     "core": false,
     "base": "missed_you",
-    "header": "reschedule"
+    "header": "reschedule",
+    "superseded_by": "missed_you_v4 (Meta: body ended on a variable)"
   },
   "content": {
     "friendly_name": "smc_missed_you_v3",

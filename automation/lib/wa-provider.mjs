@@ -141,8 +141,13 @@ export const TEMPLATE_VARIANTS = [
       return { body: [b[0], firstOf(b[1]), `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`, b[2]], buttons: { 0: c } };
     } },
   { key: 'reminder_2h_v2', base: 'reminder_2h', header: 'reminder', sid: 'HXe739563b95a73b72770feeebc737e443', superseded_by: 'reminder_2h_teams_v3 / reminder_2h_v3' },
-  { key: 'missed_you_v3', base: 'missed_you', header: 'reschedule' },
-  { key: 'missed_you_v2', base: 'missed_you', header: 'reminder', sid: 'HX54d757e00cfd516eccbe8c70432bf706', superseded_by: 'missed_you_v3' },
+  // 20 Oct 2026: Meta rejected v3 / v2 below ("Variables can't be at the start or end of the template", subCode 2388299): once the
+  // STOP line went, their bodies ended on a variable. v4 / v3 end on fixed text; same variables, buttons and banner.
+  { key: 'missed_you_v4', base: 'missed_you', header: 'reschedule',
+    body: 'Hi {{1}}, sorry we missed you today. No stress, things happen. {{2}} can still do a 30-minute call. Here are 3 new times:\n1. {{3}}\n2. {{4}}\n3. {{5}}\nTap a time below, or Other times.',
+    example: ['Lerato', 'Mark Smith', 'Wed 22 Oct, 10:00', 'Thu 23 Oct, 14:00', 'Fri 24 Oct, 09:30'] },
+  { key: 'missed_you_v3', base: 'missed_you', header: 'reschedule', superseded_by: 'missed_you_v4 (Meta: body ended on a variable)' },
+  { key: 'missed_you_v2', base: 'missed_you', header: 'reminder', sid: 'HX54d757e00cfd516eccbe8c70432bf706', superseded_by: 'missed_you_v4' },
   { key: 'qualify_budget_v2', base: 'qualify_budget', header: 'intent', sid: 'HXf52cd6d5e4631e1a3b51906d463f0178', superseded_by: 'start_here (v4 Instant Form first touch)' }, // qualify_budget = pre-v4 fallback only
   // reminder_10m online: v1 {{3}} "Join here: https://sortmycover.co.za/j/<id>" does not name the host, so the button
   // says "Join your call" (Teams, Zoom or Meet all redirect through /j/)
@@ -151,7 +156,8 @@ export const TEMPLATE_VARIANTS = [
     example: ['Lerato', 'Mark Smith'],
     buttons: [{ type: 'URL', text: 'Join your call', url: JOIN_URL, example: ['https://sortmycover.co.za/j/bk_8f3a2c'], src_index: null }],
     derive: (b) => { const s = String(b[2] || ''); const m = /^Join here: https:\/\/\S+$/.test(s) && JOIN_ID.exec(s); return m ? { body: b.slice(0, 2), buttons: { 0: m[1] } } : null; } },
-  { key: 'reminder_10m_v2', base: 'reminder_10m', header: 'reminder' },
+  { key: 'reminder_10m_v2', base: 'reminder_10m', header: 'reminder', // fixed closing text: Meta rejects a body that ends on a variable
+    body: 'Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}} See you soon.', example: ['Lerato', 'Mark Smith', 'Mark will call you on 082 123 4567.'] },
   { key: 'prep_nudge_v2', base: 'prep_nudge', header: 'expect' },
   // what_to_expect in the v4 form (Jono, 19 Oct 2026: lindi-flow-copy.md 5e, incl. the payslip tip, so prep_nudge is
   // covered too). Same W09 values (first, adviser, method label); derive() uses the adviser's first name twice. The v1
@@ -164,7 +170,10 @@ export const TEMPLATE_VARIANTS = [
   { key: 'what_to_expect_v2', base: 'what_to_expect', header: 'expect', buttons: [RESCHEDULE_FROM_URL],
     derive: (b, btn) => (rescheduleFromId(btn[0]) ? { buttons: { 0: rescheduleFromId(btn[0]) } } : null) },
   { key: 'reschedule_offer_v3', base: 'reschedule_offer', header: 'reschedule' }, // _v2 is the Flow template
-  { key: 'intro_media_voice_v2', base: 'intro_media_voice', header: 'video' }, // "A voice note from {{1}}" text header -> banner
+  { key: 'intro_media_voice_v3', base: 'intro_media_voice', header: 'video',
+    body: 'Hi {{1}}, {{2}} recorded a short voice note (about 25 seconds) so you know who you will be speaking to. Your call is on *{{3}} at {{4}}*. Tap Play below to listen.',
+    example: ['Lerato', 'Mark Smith', 'Tue 21 Oct', '10:00'] },
+  { key: 'intro_media_voice_v2', base: 'intro_media_voice', header: 'video', superseded_by: 'intro_media_voice_v3 (Meta: body ended on a variable)' }, // "A voice note from {{1}}" text header -> banner
   { key: 'unbooked_nudge_2h_v2', base: 'unbooked_nudge_2h', header: 'adviser' },
   { key: 'unbooked_nudge_24h_text_v2', base: 'unbooked_nudge_24h_text', header: 'adviser' }, // "Meet {{1}}" text header -> banner
   { key: 'unbooked_nudge_72h_v2', base: 'unbooked_nudge_72h', header: 'adviser' },
