@@ -9,7 +9,7 @@
    noindex,nofollow, no referrer, not in the sitemap or any menu, no site chrome, no chat widget, no Meta Pixel. The token lives in the
    URL fragment, then sessionStorage, and is sent only as X-Lead-Token.
    No token (a desktop visit from a site CTA, /start/?ref=<page>&via=<source>): step 0 takes the first name, WhatsApp number and the
-   named consent, POSTs /lead, and continues with the token it returns; everything after that is the same as Lindi's link.
+   generic consent (no adviser named before booking), POSTs /lead, and continues with the token it returns; everything after that is the same as Lindi's link.
    Pure logic: src/lib/start.ts. API: src/lib/start-api.ts. Styles: src/styles/start.css. */
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { animate } from "motion/mini";
@@ -23,7 +23,7 @@ import { createStartApi, postLead, runBooking, runMove, type Adviser, type Booki
 import {
   AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, TOKEN_KEY, TOPICS, WHY_WHATSAPP, afterAdviser, answersPayload, availableMethods, canFinishTopics,
   bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
-  namedConsent, nextStep, onLoadFailure, prettyLocal, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt, startIntroLine,
+  genericConsent, nextStep, onLoadFailure, prettyLocal, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt,
   guestEmail, inviteLine, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, readMoveFromHash, suggestEmail, toE164, withinDays, toggleTopic, validEmail, validFirstName, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
@@ -43,7 +43,7 @@ const SHOW_ROWS = 8;
 const EMAIL_ERR = "That address doesn't look complete. Could you check it and send it again?";
 const NUMBER_ERR = "Please enter a South African number, like 082 123 4567.";
 const WA = waLink(site.whatsapp_number);
-const CONSENT = namedConsent(consentCfg);
+const CONSENT = genericConsent(consentCfg);
 const RATE_ERR = "Too many tries. Please wait a few minutes.";
 /** ?for=wills on the desktop link: the wills opener (with its consent statement) to the SortMyCover number; the source tag is read
     only on tap. */
@@ -625,7 +625,6 @@ function StartFlow() {
                 <span className="err" id="st-phone-err">{strs.err_mobile}</span>
                 <span className="ok" aria-live="polite">{e164 ? strs.ok_mobile + " " + prettyMobile(e164) : ""}</span>
               </div>
-              <p className="st-intro" data-disclosure>{startIntroLine()}</p>
               <div className={"consent-wrap" + (bad.consent ? " bad" : "")} data-disclosure>
                 <label className="consent">
                   <input id="st-consent" type="checkbox" checked={consent} aria-describedby="st-consent-err" onChange={(e) => { setConsent(e.target.checked); setBad((x) => ({ ...x, consent: !e.target.checked })); }} />

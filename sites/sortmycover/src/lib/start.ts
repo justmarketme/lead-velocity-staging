@@ -326,16 +326,16 @@ export function requestId(): string {
 }
 
 /* ---------------- step 0 (no token): details and consent ---------------- */
-/** The adviser named in the step 0 consent (consent_mode "named"). One place for the name, practice and FSP number. */
 /** Under the WhatsApp number on step 0 (Jono, 18 Oct 2026): why WhatsApp, and what arrives there next. */
 export const WHY_WHATSAPP = "Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold. Your booking confirmation and reminders come here too.";
-export const START_ADVISER = { name: "Mark Weston", practice: "Oracle Private Wealth", fsp: "28418" } as const;
-export const startIntroLine = (a: { name: string; practice: string; fsp: string } = START_ADVISER) =>
-  `You'll book a 30-minute call with ${a.name}, ${a.practice}, an authorised financial services provider (FSP ${a.fsp}).`;
 
-/** The named consent text exactly as shown (and posted as consent_text): config/consent.json named.text with the practice and FSP. */
-export function namedConsent(cfg: { named: { text: string; version: string } }, a: { practice: string; fsp: string } = START_ADVISER) {
-  return { text: cfg.named.text.replace(/\{practice_name\}/g, a.practice).replace(/\{fsp_number\}/g, a.fsp), version: cfg.named.version, mode: "named" as const };
+/**
+ * Step 0 names no adviser (Jono, 20 Oct 2026: the introduction to the adviser comes on WhatsApp and by email, not on the website
+ * before booking). The consent is config/consent.json generic, exactly as shown and posted as consent_text; W01 then requires the
+ * adviser to be disclosed before routing, which the booking step's adviser card does (W39 adviser_disclosed).
+ */
+export function genericConsent(cfg: { generic: { text: string; version: string } }) {
+  return { text: cfg.generic.text, version: cfg.generic.version, mode: "generic" as const };
 }
 
 /** South African mobile to +27..., or null. Accepts 082 123 4567, +27 82 123 4567, 0027 82..., 27821234567 (06x, 07x, 08x). */
@@ -371,9 +371,9 @@ export interface LeadInput {
   first_name: string; mobile: string; ads: "give" | "decline" | null; honeypot: string;
   origin: string; search: string; started_at: string; request_id: string; user_agent: string; now: number;
 }
-/** Body for POST /lead from step 0 (the removed quiz's postLead shape, consent_mode "named", start_page: true). */
-export function leadBody(i: LeadInput, cfg: { named: { text: string; version: string }; ads: { text: string; version: string } }) {
-  const c = namedConsent(cfg);
+/** Body for POST /lead from step 0 (the removed quiz's postLead shape, consent_mode "generic", start_page: true). */
+export function leadBody(i: LeadInput, cfg: { generic: { text: string; version: string }; ads: { text: string; version: string } }) {
+  const c = genericConsent(cfg);
   const { ref, utm } = leadAttribution(i.search);
   return {
     first_name: i.first_name.trim(), mobile: i.mobile, consent: true as const,
