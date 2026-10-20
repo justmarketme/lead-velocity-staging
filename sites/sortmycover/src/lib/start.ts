@@ -326,6 +326,15 @@ export function requestId(): string {
 }
 
 /* ---------------- step 0 (no token): details and consent ---------------- */
+/**
+ * The closing screens for a visit that began at step 0 (desktop / no Lindi link). That visitor has not been on WhatsApp yet, so
+ * "back to WhatsApp" makes no sense (Jono, 20 Oct 2026): say what arrives there, from whom, and why it is the easy way.
+ */
+export const webNextWhatsApp = (number: string | null) =>
+  `Next, look out for a WhatsApp from SortMyCover${number ? ` on ${number}` : ""} in the next minute. It has your booking details, and it's where your reminders come and where you can move or cancel your call with one tap. There's no app to download and nothing to log in to.`;
+export const webSaveNumber = (smcNumber: string) => `Our WhatsApp number is ${smcNumber}. Save it as SortMyCover so you know it's us.`;
+export const WEB_CHAT_NEXT = "Say hi to Lindi, SortMyCover's automated assistant, on WhatsApp. Lindi will help you find a time that suits you.";
+
 /** Under the WhatsApp number on step 0 (Jono, 18 Oct 2026): why WhatsApp, and what arrives there next. */
 export const WHY_WHATSAPP = "Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold. Your booking confirmation and reminders come here too.";
 

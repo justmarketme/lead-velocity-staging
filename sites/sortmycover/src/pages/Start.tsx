@@ -23,7 +23,7 @@ import { createStartApi, postLead, runBooking, runMove, type Adviser, type Booki
 import {
   AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, TOKEN_KEY, TOPICS, WHY_WHATSAPP, afterAdviser, answersPayload, availableMethods, canFinishTopics,
   bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
-  genericConsent, nextStep, onLoadFailure, prettyLocal, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt,
+  genericConsent, nextStep, onLoadFailure, prettyLocal, webNextWhatsApp, webSaveNumber, WEB_CHAT_NEXT, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt,
   guestEmail, inviteLine, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, readMoveFromHash, suggestEmail, toE164, withinDays, toggleTopic, validEmail, validFirstName, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
@@ -547,6 +547,11 @@ function StartFlow() {
       body = (<><Q ref={headRef}>Something went <em>wrong.</em></Q><p className="st-sub">Please try again.</p><div className="st-foot"><button type="button" className="btn st-btn" onClick={load}>Try again</button><a className="st-back" href={WA}>Back to WhatsApp</a></div></>);
       break;
     case "chat":
+      // A step-0 visitor (desktop, no Lindi link) has not been on WhatsApp yet: invite them there, never "back".
+      if (withDetails && !screen.wills) {
+        body = (<><Q ref={headRef}>{screen.noSlots ? <>No open times <em>right now.</em></> : <>Let's find you a time <em>on WhatsApp.</em></>}</Q><p className="st-sub">{WEB_CHAT_NEXT}</p><div className="st-foot"><a className="btn st-btn" href={WA}>Open WhatsApp</a><p className="st-fine">{webSaveNumber(site.whatsapp_number)}</p></div></>);
+        break;
+      }
       body = screen.noSlots
         ? (<><Q ref={headRef}>No open times <em>right now.</em></Q><p className="st-sub">Lindi will find you a time on WhatsApp.</p><div className="st-foot"><a className="btn st-btn" href={WA}>Back to WhatsApp</a></div></>)
         : screen.wills
@@ -595,10 +600,14 @@ function StartFlow() {
         <div className="st-done">
           <span className="st-bigtick" aria-hidden="true"><TickSvg size={34} width={3.4} /></span>
           <Q ref={headRef} className="st-done-h">Great, that's <em>all set.</em></Q>
-          <p className="st-done-p">{Who} has what they need{b ? ` for ${formatWhen(b.start)}` : " for your call"}. We'll be in touch on WhatsApp to remind you along the way.</p>
+          {withDetails
+            ? <><p className="st-done-p">{Who} has what they need{b ? ` for ${formatWhen(b.start)}` : " for your call"}.</p><p className="st-done-p">{webNextWhatsApp(e164 ? prettyLocal(e164) : null)}</p></>
+            : <p className="st-done-p">{Who} has what they need{b ? ` for ${formatWhen(b.start)}` : " for your call"}. We'll be in touch on WhatsApp to remind you along the way.</p>}
           {inviteNote(b)}
           <div className="st-foot">
-            <a className="btn st-btn" href={WA}>Back to WhatsApp</a>
+            {withDetails
+              ? <><a className="btn st-btn" href={WA}>Open WhatsApp</a><p className="st-fine">{webSaveNumber(site.whatsapp_number)}</p></>
+              : <a className="btn st-btn" href={WA}>Back to WhatsApp</a>}
             <p className="st-fine">Nothing is bought on the call. Any next step is your choice.</p>
           </div>
         </div>
