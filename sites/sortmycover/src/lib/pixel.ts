@@ -82,8 +82,6 @@ export function hasConsent(): boolean {
   return consentDecision({ ads: readCookie(COOKIE), gpc });
 }
 export function isOptedOut(): boolean { return readCookie(COOKIE) === "0"; }
-/** Used by the first-party beacon: no beacon when the visitor opted out. */
-export function beaconOff(): boolean { return isOptedOut(); }
 
 export function uuid(): string {
   const c = typeof crypto !== "undefined" ? crypto : undefined;

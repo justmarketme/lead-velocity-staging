@@ -63,7 +63,7 @@ describe("deployment config", () => {
   it("uses a single n8n base config value (switchable between n8n.leadvelocity.co.za and n8n.sortmycover.co.za)", () => {
     const site = JSON.parse(fs.readFileSync(path.join(root, "config/site.json"), "utf8"));
     expect(site.n8n_base).toMatch(/^https:\/\/n8n\./);
-    const src = ["src/lib/api.ts", "src/lib/site.ts", "src/lib/whatsapp.ts", "src/components/ChatWidget.tsx"].map((f) => fs.readFileSync(path.join(root, f), "utf8")).join("\n");
+    const src = ["src/lib/site.ts", "src/lib/whatsapp.ts", "src/components/ChatWidget.tsx"].map((f) => fs.readFileSync(path.join(root, f), "utf8")).join("\n");
     expect(src).not.toMatch(/https:\/\/n8n\.(leadvelocity|sortmycover)/);
   });
 });

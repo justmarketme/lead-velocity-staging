@@ -19,35 +19,24 @@ const BROWSER = {
   'W04.json': ['GET:slots'], // /start/, landing pages, the broker portal tile
   'W05.json': ['POST:book'], // /start/ and the landing pages
   'W39.json': ['GET:start', 'POST:start/answers', 'POST:start/adviser', 'POST:start/contact', 'POST:start/move'], // /start/ (v4: adviser card, contact numbers, answers, move)
-  'SUB-visit-beacon.json': ['POST:beacon'], // navigator.sendBeacon from the sites
-  'W19.json': ['POST:billing-autorenew'], // broker portal
   'W23.json': ['POST:intro/upload-confirm', 'POST:intro/approve', 'GET:intro/status', 'POST:intro/interview', 'POST:intro/script-select', 'POST:intro/upload',
     'POST:intro/script-generate', 'POST:intro/script-recheck'], // broker portal intro-video wizard
-  'SUB-ads-console.json': ['POST:ads-confirm', 'POST:ads-budget', 'POST:ads-ad-status', 'POST:ads-campaign-status'], // console Ads page
 };
 /** Browser-facing but deliberately narrower: the Lead Velocity console only (literal LV_CONSOLE). */
-const BROWSER_LV_CONSOLE = {
-  'W16.json': ['POST:billing/checkout', 'POST:billing/payment-received'],
-};
+const BROWSER_LV_CONSOLE = {}; // W16 billing was the only one (retired 20 Oct 2026, D5)
 /** Not called by a browser with fetch: no CORS option needed. file -> { 'method:path': reason }. */
 const EXEMPT = {
   'SUB-email-verify.json': { 'GET:v/:token': 'link in the verification email (top-level navigation)' },
-  'SUB-w26-runner.json': { 'POST:w26/status': 'provision.sh on the VPS (HMAC signed)' },
   'W02.json': { 'POST:meta-leadgen': 'Meta Lead Ads webhook', 'GET:meta-leadgen': 'Meta subscription handshake' },
   'W03.json': { 'GET:wa/:ref': 'tracked redirect link to wa.me', 'GET:whatsapp': 'Meta subscription handshake' },
   'W05.json': { 'GET:j/:booking_id': 'Teams join link (navigation)', 'GET:c/:booking_id': '.ics link (navigation)' },
   'W07.json': { 'POST:whatsapp': 'Meta WhatsApp webhook', 'POST:whatsapp-twilio': 'Twilio WhatsApp webhook' },
   'W15.json': { 'POST:sms-inbound': 'Twilio SMS webhook' },
-  'W16.json': { 'POST:paystack/webhook': 'Paystack webhook' },
   'W20.json': { 'POST:w20/broker-event': 'ms-oauth edge function (server)', 'POST:w20/preflight-result': 'server-side preflight', 'POST:w20/go-live': 'server-side go-live',
     'GET:ms/connect': 'portal link to Microsoft consent (navigation)', 'GET:ms/callback': 'Microsoft OAuth redirect (navigation)', 'POST:ms/disconnect': 'server-side (edge function)' },
-  'W25.json': { 'POST:billing/pricing/publish': 'console server-side caller with a shared secret' },
   'W27.json': { 'POST:meta-health': 'Meta webhook', 'GET:meta-health': 'Meta subscription handshake' },
   'W28.json': { 'POST:flow': 'Meta WhatsApp Flows data_exchange endpoint' },
-  'W30.json': { 'GET:meta-comments': 'Meta subscription handshake', 'POST:meta-comments': 'Meta comments webhook' },
-  'W31.json': { 'GET:meta-dm': 'Meta subscription handshake', 'POST:meta-dm': 'Meta DM webhook' },
-  'W32.json': { 'POST:smc-w32-event': 'n8n-internal / server', 'POST:smc-w32-decision': 'n8n-internal / server' },
-  'W34.json': { 'POST:w34/dsr': 'server-side DSR intake', 'POST:w34/dsr-action': 'server-side DSR action' },
+  'W34.json': { 'POST:w34/dsr': 'server-side DSR intake' },
   'W37.json': { 'POST:cal': 'Cal.com webhook' },
 };
 
@@ -55,7 +44,7 @@ const files = readdirSync(A).filter((f) => /^(W\d+|SUB-.+)\.json$/.test(f)).sort
 const hooks = (f) => JSON.parse(readFileSync(join(A, f), 'utf8')).nodes.filter((n) => n.type === 'n8n-nodes-base.webhook')
   .map((n) => ({ key: `${String(n.parameters.httpMethod || 'GET').toUpperCase()}:${n.parameters.path}`, name: n.name, origins: (n.parameters.options || {}).allowedOrigins }));
 
-test('every browser-facing webhook carries the literal ALLOWED_ORIGINS list (W01 /lead, /lead/skip, W05 /book, the beacon, ...)', () => {
+test('every browser-facing webhook carries the literal ALLOWED_ORIGINS list (W01 /lead, /lead/skip, W05 /book, W39 /start, ...)', () => {
   for (const [f, keys] of Object.entries(BROWSER)) {
     const h = hooks(f);
     for (const k of keys) {

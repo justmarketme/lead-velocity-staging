@@ -401,11 +401,11 @@ test('I-46b Explode delegations: all-items mode, every output item is { json: ob
   assert.deepEqual(back.map((o) => o.json.route), targets(book).filter((t) => t !== 'W03'), 'other targets still fan out');
 });
 
-test('I-46a / I-47d egress (ElevenLabs only, 19 Oct 2026): W07 calls only $env.LINDI_BRAIN_URL; W11/W23/W29-W33 only $env.LLM_RELAY_URL; no fallback host', () => {
+test('I-46a / I-47d egress (ElevenLabs only, 19 Oct 2026): W07 calls only $env.LINDI_BRAIN_URL; W11/W23/W29 only $env.LLM_RELAY_URL; no fallback host', () => {
   const all = readdirSync(new URL('..', import.meta.url)).filter((x) => /^W\d\d\.json$/.test(x)).map((x) => x.slice(0, 3));
   const isLlm = (n) => n.type === 'n8n-nodes-base.httpRequest' && /LINDI_BRAIN_URL|LLM_RELAY_URL/.test(n.parameters.url || '');
   const withLlm = all.filter((f) => JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')).nodes.some(isLlm));
-  assert.deepEqual(withLlm, ['W07', 'W11', 'W23', 'W29', 'W30', 'W31', 'W32', 'W33']);
+  assert.deepEqual(withLlm, ['W07', 'W11', 'W23', 'W29']); // W30-W33 retired 20 Oct 2026 (D5)
   for (const f of withLlm) {
     const wf = JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'));
     for (const n of wf.nodes.filter(isLlm)) {
@@ -533,7 +533,8 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
   // 2026-10-11 (verify gate): a typed email address -> save + smc-email-verify issue + one reply
   // 2026-10-19: W10-bound items pass the reschedule card check first (patch-w07-reschedule-card.mjs; not a card -> -> W10)
-  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
+  // 2026-10-20 (D5): W35 (lead pulse) and W32 (ops decisions) retired; their rule outputs only log
+  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], W35: ['Paused / opted out: log only'], W32_decision: ['Paused / opted out: log only'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });

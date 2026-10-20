@@ -55,24 +55,9 @@ test('W39: automation/build-w39.mjs regenerates the committed file byte for byte
   assertSame('W39', out.W39, 'automation/build-w39.mjs');
 });
 
-test('W16-W19 + W25: automation/billing/build-workflows.mjs regenerates the committed files byte for byte', () => {
-  const ids = ['W16', 'W17', 'W18', 'W19', 'W25'];
-  const out = regenerate('automation/billing/build-workflows.mjs', ids);
-  for (const id of ids) assertSame(id, out[id], 'automation/billing/build-workflows.mjs');
-});
-
-test('W32 + W33: optimisation/build-workflows.cjs generate() equals the committed files byte for byte', () => {
-  const { generate } = require(join(ROOT, 'optimisation', 'build-workflows.cjs'));
-  for (const [f, wf] of Object.entries(generate())) {
-    const id = f.replace(/^automation\//, '').replace(/\.json$/, '');
-    assertSame(id, JSON.stringify(wf, null, 2) + '\n', 'optimisation/build-workflows.cjs');
-  }
-});
-
 test('the generators never write into automation/ when GEN_OUT_DIR is set', () => {
-  const before = ['W03', 'W28', 'W16', 'W17', 'W18', 'W19', 'W25'].map((id) => readFileSync(join(AUTOMATION, `${id}.json`), 'utf8'));
+  const before = ['W03', 'W28'].map((id) => readFileSync(join(AUTOMATION, `${id}.json`), 'utf8'));
   regenerate('automation/build-w03-w28.mjs', ['W03']);
-  regenerate('automation/billing/build-workflows.mjs', ['W16']);
-  const after = ['W03', 'W28', 'W16', 'W17', 'W18', 'W19', 'W25'].map((id) => readFileSync(join(AUTOMATION, `${id}.json`), 'utf8'));
+  const after = ['W03', 'W28'].map((id) => readFileSync(join(AUTOMATION, `${id}.json`), 'utf8'));
   assert.deepEqual(after, before);
 });
