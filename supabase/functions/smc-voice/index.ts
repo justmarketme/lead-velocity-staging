@@ -30,6 +30,7 @@ const SMC_BRAND_ID = "6e532b05-984f-4906-90a0-a5257cde328c";
 const SMC_BROKER_ID = "306062a1-c271-4ae1-8b1e-bb9aed10a5f6"; // Mark Weston, Oracle Private Wealth
 const SMC_NUMBER = "+27600156480";
 const N8N = "https://n8n.sortmycover.co.za/webhook";
+const START_HERE_SID = "HXd261ab8c34bc33734af725679ec0b825"; // smc_start_here (approved UTILITY, Start here -> /start/#lt=)
 const QUALIFY_BUDGET_SID = "HX5a0030506140a58a86e8611f15a5af64"; // smc_qualify_budget (approved UTILITY)
 const BUDGET_TAP_IDS = ["budget_under_500", "budget_500_750", "budget_750_1250", "budget_1250_1499", "budget_1500_plus"];
 const WORKFLOW = "smc-voice";
@@ -400,10 +401,13 @@ async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient,
     if (error) console.error("lead update:", error.message);
   } else {
     if (existing?.opted_out_at) return fail("opted_out", "This number asked SortMyCover not to contact it. Don't book; thank them and say they can book on sortmycover.co.za if they change their mind.");
+    // Test leads are never routed (routing would reserve a slot on the adviser's paid order), and neither is anyone
+    // while the adviser is switched off (Jono, 20 Oct 2026: the phone follows the same switch as ad leads). An
+    // unrouted caller is handed to WhatsApp, where the /start/ page discloses the adviser and W01 routes.
+    const route = !wills && !test && await adviserLive(db);
     const { data, error } = await db.from("leads").insert({
-      // Test leads are never routed (routing would reserve a slot on the adviser's paid order).
-      brand_id: SMC_BRAND_ID, broker_id: wills || test ? null : SMC_BROKER_ID, routed_at: wills || test ? null : now,
-      routing_reason: wills || test ? null : "voice_named_consent",
+      brand_id: SMC_BRAND_ID, broker_id: route ? SMC_BROKER_ID : null, routed_at: route ? now : null,
+      routing_reason: route ? "voice_named_consent" : null,
       origin: "manual", source: "other", current_status: "New", is_synthetic: test,
       first_name: firstName, phone, age_band: age, budget_band: budget, reasons: reasons.length ? reasons : null, product_interest,
       consent_text: smcConsentRecord(wills ? "wills" : "cover"), consent_text_version: "smc-voice-v1", consent_mode: "named",
@@ -422,6 +426,12 @@ async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient,
     { conversation_id: conv, age_band: age, budget_band: budget, help_with: topics, consent: "yes", created }, `smcvoice:details:${conv}`);
   return json({ ok: true, saved: true, next: "whatsapp_consent", phone_spoken: localZaFormat(phone),
     say: "Saved. Now explain the appointment is set up on WhatsApp and ask permission to WhatsApp them on this number. Only after a clear yes, confirm the number and call send_whatsapp_followup with whatsapp_consent 'yes'. If they say no, offer an adviser call-back (request_callback)." });
+}
+
+/** The phone's adviser takes new leads only when his row is active and routing is on (the switch W01 reads). */
+async function adviserLive(db: SupabaseClient): Promise<boolean> {
+  const { data } = await db.from("brokers").select("active, routing_on").eq("id", SMC_BROKER_ID).maybeSingle();
+  return !!(data?.active && data?.routing_on);
 }
 
 async function leadTokenFor(db: SupabaseClient, conv: string) {
@@ -505,8 +515,14 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
     .eq("channel", "whatsapp").eq("workflow", WORKFLOW).contains("metadata", { conversation_id: conv });
   if ((count ?? 0) > 0) return json({ ok: true, already_sent: true, say: "The WhatsApp was already sent on this call." });
   const name = (lead?.first_name || String(p.first_name ?? "").trim().split(/\s+/)[0] || "there").slice(0, 40);
-  const variables: Record<string, string> = { "1": name };
-  BUDGET_TAP_IDS.forEach((id, i) => (variables[String(i + 2)] = id));
+  // /start/ v4 (brands.start_page on): the same Start here card as an ad lead, with this lead's own page link; the
+  // lead goes to conv_state 'start_page', so W08's Start here nudges follow. Without the flag, a lead or a token
+  // secret: the budget question as before.
+  const startToken = lead && await startPageOn(db) && env("SMC_LEAD_TOKEN_SECRET") ? await mintLeadToken(lead.id, env("SMC_LEAD_TOKEN_SECRET")) : null;
+  const tpl = startToken
+    ? { sid: START_HERE_SID, name: "start_here", variables: { "1": name, "2": startToken } as Record<string, string> }
+    : { sid: QUALIFY_BUDGET_SID, name: "qualify_budget", variables: { "1": name, ...Object.fromEntries(BUDGET_TAP_IDS.map((id, i) => [String(i + 2), id])) } as Record<string, string> };
+  const variables = tpl.variables;
 
   let sid: string | null = null;
   let sendError: string | null = null;
@@ -517,7 +533,7 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
     const tw = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${acct}/Messages.json`, {
       method: "POST",
       headers: { Authorization: twilioAuth(), "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ To: `whatsapp:${phone}`, From: `whatsapp:${SMC_NUMBER}`, ContentSid: QUALIFY_BUDGET_SID, ContentVariables: JSON.stringify(variables) }),
+      body: new URLSearchParams({ To: `whatsapp:${phone}`, From: `whatsapp:${SMC_NUMBER}`, ContentSid: tpl.sid, ContentVariables: JSON.stringify(variables) }),
     });
     const twBody = await tw.json().catch(() => ({}));
     if (tw.ok) sid = twBody.sid;
@@ -526,18 +542,28 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
   await db.from("communications").insert({
     channel: "whatsapp", direction: "outbound", workflow: WORKFLOW, brand_id: SMC_BRAND_ID, lead_id: lead?.id ?? null,
     sender_type: "system", recipient_type: "client", author: "bot", recipient_contact: phone,
-    template_name: "qualify_budget", template_category: "utility", content: `Template smc_qualify_budget to ${name} (voice handoff).`,
+    template_name: tpl.name, template_category: "utility", content: `Template smc_${tpl.name} to ${name} (voice handoff).`,
     status: test ? "pending" : sid ? "sent" : "failed", external_id: test ? null : sid, failed_reason: test ? "dry_run (test mode, not sent)" : sendError,
-    metadata: { conversation_id: conv, tool: "send_whatsapp_followup", dry_run: test, content_sid: QUALIFY_BUDGET_SID, reason: String(p.reason ?? "").slice(0, 200),
+    metadata: { conversation_id: conv, tool: "send_whatsapp_followup", dry_run: test, content_sid: tpl.sid, reason: String(p.reason ?? "").slice(0, 200),
       whatsapp_consent: { given: true, at: consentAt, source: "voice_call", wording: SMC_WHATSAPP_CONSENT_ASK } },
   });
   if (lead) {
-    await db.from("leads").update({ conv_state: { ...(await convState(db, lead.id)), whatsapp_consent: { given: true, at: consentAt, source: "voice_call", conversation_id: conv } } }).eq("id", lead.id);
-    await activity(db, lead.id, "voice_whatsapp_handoff", `Caller agreed to WhatsApp contact (${consentAt}); Lindi handed the conversation to WhatsApp (smc_qualify_budget ${sid ? "sent" : "FAILED"}).`,
+    const cs = await convState(db, lead.id);
+    // Only on a real send: a failed Start here card must not start W08 nudges about a link they never got.
+    await db.from("leads").update({ conv_state: { ...cs, ...(startToken && sid && !test ? { state: "start_page" } : {}), whatsapp_consent: { given: true, at: consentAt, source: "voice_call", conversation_id: conv } } }).eq("id", lead.id);
+    await activity(db, lead.id, "voice_whatsapp_handoff", `Caller agreed to WhatsApp contact (${consentAt}); Lindi handed the conversation to WhatsApp (smc_${tpl.name} ${sid ? "sent" : "FAILED"}).`,
       { conversation_id: conv, message_sid: sid, error: sendError, dry_run: test, whatsapp_consent_at: consentAt }, `smcvoice:wa:${conv}`);
   }
   if (!sid) return fail("send_failed", "Don't mention any failure. Say the adviser's office will be in touch on this number during office hours to set up the appointment, and close warmly.");
-  return json({ ok: true, sent_to: localZaFormat(phone), say: "WhatsApp sent from SortMyCover." });
+  return json({ ok: true, sent_to: localZaFormat(phone), say: startToken
+    ? "WhatsApp sent from SortMyCover. Tell them: in a moment they'll get a WhatsApp from SortMyCover; tapping Start here in it lets them pick a time that suits them."
+    : "WhatsApp sent from SortMyCover." });
+}
+
+/** brands.start_page (off | on): the /start/ v4 path for SortMyCover leads, the switch W03 reads. */
+async function startPageOn(db: SupabaseClient): Promise<boolean> {
+  const { data } = await db.from("brands").select("start_page").eq("id", SMC_BRAND_ID).maybeSingle();
+  return data?.start_page === "on";
 }
 
 async function convState(db: SupabaseClient, leadId: string): Promise<Record<string, unknown>> {
