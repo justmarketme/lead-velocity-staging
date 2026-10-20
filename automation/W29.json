@@ -14,7 +14,7 @@
       "parameters": {
         "width": 760,
         "height": 360,
-        "content": "W29 Feedback loop (4.12a). Entries: (a) W07 routes broker replies here: disposition list row (automation/templates/session/broker_disposition_list.json, row id = 4.12a code), broker_disposition quick reply (payload = code), quality 1-5, voice note (audio), broker_fit_followup taps; (b) W12 calls { event: 'outcome_recorded', outcome_id } for every new outcomes row; (c) daily 09:00 sweep for fit_followup nudges at +7 d.\nWrites outcomes.disposition_code / quality_score / transcript / summary (redacted, 2.1.7; voice audio is not kept, voice_note_url stays NULL); lead stage dispositioned.\nFeeds: W13 (unreachable -> uncontactable, nofit_criteria -> disqualified; a correction away from those withdraws; nothing else opens a replacement), ad_metrics quality_index / quality_n / nofit_rate per ad (index shown only at n >= 5), insights rows: kill_signal (index < 2.5 or not-a-fit > 40%, n >= 5) / scale_signal (index >= 4) for the 3.4 media rules (W29 never changes spend), budget_drift (> 15%), already_covered angle cluster, what_mattered (voice-note summaries -> pre-call brief corpus).\nThanks line is only ever a true statement. Logic automation/lib/w29.mjs; tests automation/tests/W29.test.mjs."
+        "content": "W29 Feedback loop (4.12a). Entries: (a) W07 routes broker replies here: disposition list row (automation/templates/session/broker_disposition_list.json, row id = 4.12a code), broker_disposition quick reply (payload = code), quality 1-5, voice note (audio), broker_fit_followup taps; (b) W12 calls { event: 'outcome_recorded', outcome_id } for every new outcomes row; (c) daily 09:00 sweep for fit_followup nudges at +7 d.\nWrites outcomes.disposition_code / quality_score / transcript / summary (redacted, 2.1.7; voice audio is not kept, voice_note_url stays NULL); lead stage dispositioned.\nFeeds: W13 (unreachable -> uncontactable, nofit_criteria -> disqualified; a correction away from those withdraws; nothing else opens a replacement); outcomes.summary is the what_mattered corpus for pre-call briefs; quality_signal rows on the lead timeline (admin-only: broker_id NULL; payload kind / text / n / broker_id / ad_id / angle; once per SAST day per broker + ad + kind): kill_signal (index < 2.5 or not-a-fit > 40%, n >= 5) / scale_signal (index >= 4) for the 3.4 media rules (W29 never changes spend), budget_drift (> 15%) and already_covered angle cluster over the broker's last 30 days. The ad quality index is derived from outcomes wherever it is read (analytics/kill-scale.sql v_ks_ad_quality); there is no ad_metrics, insights or cycles table (CRM-nurture chain, 11 Oct).\nThanks line is only ever a true statement. Logic automation/lib/w29.mjs; tests automation/tests/W29.test.mjs."
       }
     },
     {
@@ -475,16 +475,32 @@
             {
               "name": "Authorization",
               "value": "=Bearer {{ $env.TRANSCRIBE_API_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ media_url: $json.url, bearer_ref: 'META_SYSTEM_USER_TOKEN', model: $env.WHISPER_MODEL, language_hint: 'en' }) }}",
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "={{ $env.WHISPER_MODEL }}"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            },
+            {
+              "name": "language",
+              "value": "en"
+            }
+          ]
+        },
         "options": {
           "timeout": 30000,
           "response": {
@@ -556,7 +572,7 @@
     },
     {
       "id": "n20",
-      "name": "Save transcript + summary (+ what_mattered insight)",
+      "name": "Save transcript + summary (summary = what_mattered)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
@@ -565,9 +581,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH u AS (\n  UPDATE public.outcomes SET transcript = $2, summary = $3, voice_note_url = NULL, updated_at = now()\n   WHERE id = $1::uuid\n  RETURNING id, brand_id, broker_id, cycle_id)\nINSERT INTO public.insights (brand_id, source, broker_id, cycle_id, ad_id, angle, kind, text, n)\nSELECT u.brand_id, 'voice_note', u.broker_id, u.cycle_id, $4, $5, 'what_mattered', $3, 1\n  FROM u\n WHERE $6::boolean;",
+        "query": "UPDATE public.outcomes SET transcript = $2, summary = $3, voice_note_url = NULL, updated_at = now()\n WHERE id = $1::uuid\nRETURNING id, lead_id;",
         "options": {
-          "queryReplacement": "={{ [$json.o.id, $json.v.update ? $json.v.update.transcript : null, $json.v.update ? $json.v.update.summary : null, $json.o.ad_id, $json.o.angle, !!$json.v.insight] }}"
+          "queryReplacement": "={{ [$json.o.id, $json.v.update ? $json.v.update.transcript : null, $json.v.update ? $json.v.update.summary : null] }}"
         }
       },
       "credentials": {
@@ -610,7 +626,7 @@
     },
     {
       "id": "n22",
-      "name": "Outcomes for this ad + this cycle",
+      "name": "Outcomes for this ad + this broker (30 d)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
@@ -619,9 +635,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT o.quality_score, o.disposition_code, l.ad_id, l.angle, (l.ad_id = $1) AS same_ad, (o.cycle_id = $2::uuid) AS same_cycle\n  FROM public.outcomes o\n  JOIN public.leads l ON l.id = o.lead_id\n WHERE o.brand_id IS NOT NULL AND o.outcome = 'attended'\n   AND (l.ad_id = $1 OR o.cycle_id = $2::uuid);",
+        "query": "SELECT o.quality_score, o.disposition_code, l.ad_id, l.angle, (l.ad_id = $1) AS same_ad, (o.broker_id = $2::uuid) AS own,\n       (o.broker_id = $2::uuid AND o.created_at > now() - interval '30 days') AS own_30d\n  FROM public.outcomes o\n  JOIN public.leads l ON l.id = o.lead_id\n WHERE o.brand_id IS NOT NULL AND o.outcome = 'attended'\n   AND (l.ad_id = $1 OR (o.broker_id = $2::uuid AND o.created_at > now() - interval '30 days'));",
         "options": {
-          "queryReplacement": "={{ [$('Merge').item.json.o.ad_id || '', $('Merge').item.json.o.cycle_id] }}"
+          "queryReplacement": "={{ [$('Merge').item.json.o.ad_id || '', $('Merge').item.json.o.broker_id] }}"
         }
       },
       "credentials": {
@@ -647,12 +663,12 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w29;\nconst rows = $input.all().map((i) => i.json).filter((r) => r.ad_id !== undefined);\nconst m = $('Merge').first().json;\nconst q = L.adQuality(rows.filter((r) => r.same_ad));\nconst t = L.tuning(rows.filter((r) => r.same_cycle));\nconst ins = [];\nif (q.signal === 'pause') ins.push({ kind: 'kill_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls, not-a-fit ' + Math.round((q.nofit_rate || 0) * 100) + '%: pause per 3.4.', n: q.quality_n });\nif (q.signal === 'scale_candidate') ins.push({ kind: 'scale_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls: +20% if CPL is within threshold (3.4).', n: q.quality_n });\nfor (const x of t) ins.push(x);\nreturn [{ json: { o: m.o, q, insights: ins, thanks: L.thanksLine(q) } }];"
+        "jsCode": "const L = require('lv-automation').w29;\nconst rows = $input.all().map((i) => i.json).filter((r) => r.ad_id !== undefined);\nconst m = $('Merge').first().json;\nconst q = L.adQuality(rows.filter((r) => r.same_ad));\nconst mine = L.adQuality(rows.filter((r) => r.same_ad && r.own));\nconst t = L.tuning(rows.filter((r) => r.own_30d));\nconst signals = [];\nif (q.signal === 'pause') signals.push({ kind: 'kill_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls, not-a-fit ' + Math.round((q.nofit_rate || 0) * 100) + '%: pause per 3.4.', n: q.quality_n });\nif (q.signal === 'scale_candidate') signals.push({ kind: 'scale_signal', text: 'Lead quality ' + q.raw_index + ' from ' + q.quality_n + ' calls: +20% if CPL is within threshold (3.4).', n: q.quality_n });\nfor (const x of t) signals.push(x);\nreturn [{ json: { o: m.o, q, signals, thanks: L.thanksLine(mine) } }];"
       }
     },
     {
-      "id": "n24",
-      "name": "ad_metrics quality (latest row for the ad)",
+      "id": "n25",
+      "name": "Quality signals -> LV-only lead timeline (once per day per kind)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
@@ -661,36 +677,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE public.ad_metrics m\n   SET quality_index = $2::numeric, quality_n = $3::int, nofit_rate = $4::numeric, updated_at = now()\n WHERE m.ad_id = $1\n   AND m.date = (SELECT max(m2.date) FROM public.ad_metrics m2 WHERE m2.ad_id = $1);",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT $3::uuid, $1::uuid, 'W29', 'system', 'quality_signal',\n       jsonb_build_object('kind', x.p->>'kind', 'text', x.p->>'text', 'n', COALESCE((x.p->>'n')::int, 1), 'broker_id', $2::text, 'ad_id', $4::text, 'angle', COALESCE(x.p->>'angle', $5::text)),\n       now(), 'w29:signal:' || $2::text || ':' || COALESCE($4::text, '-') || ':' || (x.p->>'kind') || ':' || to_char(now() AT TIME ZONE 'Africa/Johannesburg', 'YYYY-MM-DD')\n  FROM jsonb_array_elements($6::jsonb) AS x(p)\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ [$json.o.ad_id || '', $json.q.quality_index, $json.q.quality_n, $json.q.nofit_rate] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "alwaysOutputData": true,
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 2000
-    },
-    {
-      "id": "n25",
-      "name": "insights: kill/scale + tuning (once per 24 h per kind)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        0,
-        600
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO public.insights (brand_id, source, broker_id, cycle_id, ad_id, angle, kind, text, n)\nSELECT $1::uuid, 'disposition', $2::uuid, $3::uuid, $4, COALESCE(x.p->>'angle', $5), x.p->>'kind', x.p->>'text', COALESCE((x.p->>'n')::int, 1)\n  FROM jsonb_array_elements($6::jsonb) AS x(p)\n WHERE NOT EXISTS (SELECT 1 FROM public.insights i\n                    WHERE i.kind = x.p->>'kind' AND i.broker_id = $2::uuid\n                      AND COALESCE(i.ad_id, '') = COALESCE($4, '') AND i.created_at > now() - interval '24 hours');",
-        "options": {
-          "queryReplacement": "={{ (() => { const a = $('Ad quality + tuning (w29.adQuality / tuning)').first().json; const o = a.o || {}; return [o.brand_id, o.broker_id, o.cycle_id, o.ad_id || null, o.angle || null, JSON.stringify(a.insights || [])]; })() }}"
+          "queryReplacement": "={{ (() => { const a = $('Ad quality + tuning (w29.adQuality / tuning)').first().json; const o = a.o || {}; return [o.brand_id, o.broker_id, o.lead_id, o.ad_id || null, o.angle || null, JSON.stringify(a.signals || [])]; })() }}"
         }
       },
       "credentials": {
@@ -781,43 +770,24 @@
     {
       "id": "n29",
       "name": "Send WhatsApp (broker)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
       "position": [
         880,
         600
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/{{ $env.META_GRAPH_VERSION }}/{{ $env.PHONE_NUMBER_ID }}/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.wa) }}",
         "options": {
-          "timeout": 10000,
-          "response": {
-            "response": {
-              "neverError": true
-            }
-          }
+          "waitForSubWorkflow": true
         }
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 3000
+      }
     },
     {
       "id": "n30",
@@ -952,6 +922,119 @@
         520
       ],
       "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "id": "n18t",
+      "name": "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(/^twilio:https:\\/\\/api\\.twilio\\.com\\//.test(String($json.value || ''))) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n18u",
+      "name": "Download voice note (Twilio MediaUrl, Basic auth)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        40
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ String($json.value).replace(/^twilio:/, '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + Buffer.from($env.TWILIO_API_KEY_SID ? $env.TWILIO_API_KEY_SID + ':' + $env.TWILIO_API_KEY_SECRET : $env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}"
+            }
+          ]
+        },
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "n18v",
+      "name": "Download voice note (Meta media URL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        360
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.META_SYSTEM_USER_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "644d6829-5757-a907-482e-9aee67e75f90",
+      "name": "SUB input (Send WhatsApp (broker))",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        720
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// lib/wa-route.cjs: \"Send WhatsApp (broker)\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W29\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W29:Send WhatsApp (broker):\" + exec + ':' + idx,\n} };"
+      }
     }
   ],
   "connections": {
@@ -1017,7 +1100,7 @@
         ],
         [
           {
-            "node": "Fetch WhatsApp media URL",
+            "node": "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)",
             "type": "main",
             "index": 0
           }
@@ -1031,7 +1114,7 @@
         ],
         [
           {
-            "node": "Outcomes for this ad + this cycle",
+            "node": "Outcomes for this ad + this broker (30 d)",
             "type": "main",
             "index": 0
           }
@@ -1074,7 +1157,7 @@
             "index": 0
           },
           {
-            "node": "Outcomes for this ad + this cycle",
+            "node": "Outcomes for this ad + this broker (30 d)",
             "type": "main",
             "index": 0
           }
@@ -1129,7 +1212,7 @@
       "main": [
         [
           {
-            "node": "Outcomes for this ad + this cycle",
+            "node": "Outcomes for this ad + this broker (30 d)",
             "type": "main",
             "index": 0
           }
@@ -1140,7 +1223,7 @@
       "main": [
         [
           {
-            "node": "Transcribe (Whisper-class, audio not stored)",
+            "node": "Download voice note (Meta media URL)",
             "type": "main",
             "index": 0
           }
@@ -1173,14 +1256,14 @@
       "main": [
         [
           {
-            "node": "Save transcript + summary (+ what_mattered insight)",
+            "node": "Save transcript + summary (summary = what_mattered)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Outcomes for this ad + this cycle": {
+    "Outcomes for this ad + this broker (30 d)": {
       "main": [
         [
           {
@@ -1195,25 +1278,14 @@
       "main": [
         [
           {
-            "node": "ad_metrics quality (latest row for the ad)",
+            "node": "Quality signals -> LV-only lead timeline (once per day per kind)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "ad_metrics quality (latest row for the ad)": {
-      "main": [
-        [
-          {
-            "node": "insights: kill/scale + tuning (once per 24 h per kind)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "insights: kill/scale + tuning (once per 24 h per kind)": {
+    "Quality signals -> LV-only lead timeline (once per day per kind)": {
       "main": [
         [
           {
@@ -1250,7 +1322,7 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp (broker)",
+            "node": "SUB input (Send WhatsApp (broker))",
             "type": "main",
             "index": 0
           }
@@ -1324,6 +1396,57 @@
         [
           {
             "node": "Voice note gate (w29.voiceNote)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio media? (MediaUrl, WHATSAPP_PROVIDER=twilio)": {
+      "main": [
+        [
+          {
+            "node": "Download voice note (Twilio MediaUrl, Basic auth)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch WhatsApp media URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download voice note (Twilio MediaUrl, Basic auth)": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (Whisper-class, audio not stored)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download voice note (Meta media URL)": {
+      "main": [
+        [
+          {
+            "node": "Transcribe (Whisper-class, audio not stored)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (Send WhatsApp (broker))": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (broker)",
             "type": "main",
             "index": 0
           }

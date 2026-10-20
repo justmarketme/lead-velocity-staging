@@ -100,10 +100,10 @@ export function unmarkedSweep(booking, ctx, now_ms) {
   if (ctx.reach === 'no') return { action: 'queue', escalation: { kind: 'outcome_unmarked', note: 'esc_kind=outcome_unmarked; lead said the adviser did not call: W12 Schedule D decides' } };
   return {
     action: 'auto_attend',
-    insert: { booking_id: booking.id, lead_id: booking.client_id, broker_id: booking.broker_id, cycle_id: booking.cycle_id, brand_id: booking.brand_id, outcome: 'attended', auto_marked: true, unconfirmed: true, marked_via: 'auto', lead_reach_check: ctx.reach || 'none' },
+    insert: { booking_id: booking.id, lead_id: booking.client_id, broker_id: booking.broker_id, brand_id: booking.brand_id, outcome: 'attended', auto_marked: true, unconfirmed: true, marked_via: 'auto', lead_reach_check: ctx.reach || 'none' },
     appointment_status: 'attended',
     escalation: { kind: 'outcome_unmarked', note: 'esc_kind=outcome_unmarked; auto-marked attended at 24 h, unconfirmed' }
   };
 }
-/** 4.12a: two unconfirmed in a cycle -> Jonathan calls the broker. */
+/** 4.12a: two unconfirmed for one broker within 30 days -> Jonathan calls the broker (no cycles: CRM-NURTURE-SCHEMA.md D7). */
 export const unconfirmedCall = (n) => n >= 2;

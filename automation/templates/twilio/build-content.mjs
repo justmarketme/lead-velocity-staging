@@ -47,7 +47,7 @@ export const FLOW_TEMPLATES = [
   'broker_intro_slots_v2', 'reschedule_offer_v2',
   // broker side of the flow
   'broker_new_booking', 'broker_booking_changed', 'broker_outcome_check', 'broker_disposition', 'broker_quality', 'broker_lead_offer',
-  'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief',
+  'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief', 'broker_fit_followup',
   // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
   'ops_alert',
   // lead-ad intro card WITH the SortMyCover disclosure (2026-10-18): proposal, for Jono with the Instant Form launch (BROKER-INTRO-V3.md)

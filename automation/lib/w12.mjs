@@ -253,6 +253,18 @@ export function attendedThanksMessage(lead, broker) {
   return { to: 'lead', template: 'attended_thanks', wa: templateMessage(lead.phone, 'attended_thanks', { body: [String(lead.first_name || '').trim() || 'there', broker.adviser_name || broker.contact_person] }) };
 }
 
+/**
+ * v4b16 (19 Oct 2026): the lead's "Yes, we spoke" tap gets a short reply at once (session text: the tap opened her
+ * 24-h window). It is her thank-you: attended_thanks is not sent again once this went (followUps reads
+ * sent_reach_thanks). No price wording, nothing about how the adviser is paid.
+ */
+export function reachThanksMessage(lead, broker) {
+  const adv = firstName(broker.adviser_name || broker.contact_person) || 'Your adviser';
+  const first = String(lead.first_name || '').trim();
+  return { to: 'lead', template: null, wa: textMessage(lead.phone, `Thanks${first ? ', ' + first : ''}. Glad you and ${adv} could talk. ${adv} will follow up with you directly.`) };
+}
+export const REACH_THANKS_WINDOW = 23 * H; // a tap older than this is outside her 24-h window: no session reply
+
 /** The in-window disposition list (automation/templates/session/broker_disposition_list.json, row ids = 4.12a codes). */
 export function dispositionListMessage(lead, broker) {
   return { to: 'broker', template: null, wa: listMessage(brokerTo(broker), {
@@ -351,12 +363,36 @@ const partsOf = (r = {}) => ({
   lead: { id: r.lead_id, first_name: r.first_name, last_name: r.last_name, phone: r.phone, language: r.language },
   broker: { adviser_name: r.adviser_name, contact_person: r.contact_person, adviser_whatsapp: r.adviser_whatsapp, whatsapp_number: r.whatsapp_number }
 });
-const sendItem = (r, m, key, extra = {}) => ({ fu: 'send', send: { to: m.to, wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: m.template, category: m.template ? 'utility' : 'service', key, workflow: 'W12', ...extra } });
+/** Why a message had nobody to go to (19 Oct 2026: a broker row with no WhatsApp number crashed "Store outbound"). */
+export const NO_RECIPIENT = Object.freeze({ broker: 'no_broker_whatsapp', lead: 'no_lead_phone' });
+const hasNumber = (to) => String(to ?? '').replace(/\D/g, '').length >= 9;
+/**
+ * sendItem -> { fu: 'send', send } or, with no number to send to, { fu: 'send_skipped', skip } (never a send with a NULL
+ * recipient). A claimed message (outcome_check / broker_nudge / reach_check / disposition_ask) is claimed with the skip
+ * under its own key, so the sweep moves on exactly as after a send (the nudge still comes at + 3 h, the 24-h auto-attend
+ * still runs); any other message logs under send_skipped:{key}, so it never looks sent (w12:apology is read by the late
+ * mark check). A broker with no number also raises ONE console escalation per booking: nobody can ask him how it went.
+ */
+const sendItem = (r, m, key, extra = {}) => {
+  if (!hasNumber(m.wa && m.wa.to)) {
+    const reason = NO_RECIPIENT[m.to] || 'no_recipient';
+    const skip = { to: m.to, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, booking_id: r.booking_id || null, template: m.template || null, key: extra.claim ? key : `send_skipped:${key}`, reason, workflow: 'W12' };
+    const out = { fu: 'send_skipped', skip };
+    if (m.to === 'broker') {
+      const { lead, broker } = partsOf(r);
+      const who = firstName(broker.adviser_name || broker.contact_person) || 'The adviser';
+      out.alert = { fu: 'alert', to: 'console', kind: 'other', severity: 'normal', lead_id: r.lead_id, broker_id: r.broker_id, brand_id: r.brand_id, booking_id: r.booking_id,
+        note: `esc_kind=broker_no_whatsapp; ${firstAndInitial(lead)}: ${who} has no WhatsApp number on the broker record (adviser_whatsapp / whatsapp_number), so W12 could not send ${m.template || 'the disposition list'}. Add the number or mark the outcome in the portal; unmarked at 24 h it counts as attended (unconfirmed).` };
+    }
+    return out;
+  }
+  return { fu: 'send', send: { to: m.to, wa: m.wa, lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, template: m.template, category: m.template ? 'utility' : 'service', key, workflow: 'W12', ...extra } };
+};
 
 /** meetingFromRow(row) -> the sweepActions() input for one "Meeting state" row. */
 export const meetingFromRow = (r = {}) => ({
   slot_end: r.slot_end, lead_id: r.lead_id,
-  sent: { outcome_check: Boolean(r.sent_outcome_check), broker_nudge: Boolean(r.sent_broker_nudge), reach_check: Boolean(r.sent_reach_check) },
+  sent: { outcome_check: Boolean(r.sent_outcome_check), broker_nudge: Boolean(r.sent_broker_nudge), reach_check: Boolean(r.sent_reach_check), reach_thanks: Boolean(r.sent_reach_thanks) },
   brokerMark: r.broker_mark || null, reach: r.reach || null, disposition: r.disposition_code || null, outcome_exists: Boolean(r.outcome_exists), optedOut: Boolean(r.opted_out_at)
 });
 
@@ -366,11 +402,19 @@ export const meetingFromRow = (r = {}) => ({
  */
 export function sweepItems(r = {}, now) {
   const { booking, lead, broker } = partsOf(r);
-  return sweepActions(meetingFromRow(r), now).map((a) => {
+  const actions = sweepActions(meetingFromRow(r), now);
+  const items = actions.map((a) => {
     if (a.kind === 'outcome_check' || a.kind === 'broker_nudge') return sendItem(r, outcomeCheckMessage(booking, lead, broker), `w12:${a.kind}:${r.booking_id}`, { claim: true });
     if (a.kind === 'reach_check') return sendItem(r, reachCheckMessage(booking, lead, broker), `w12:reach_check:${r.booking_id}`, { claim: true });
     return { fu: 'resolve', r: a.r, o: outcomeRow(a.r, { now }), row: r };
   });
+  // v4b16: "Yes, we spoke" while the outcome is still open -> reply once (claimed key). When this pass resolves the
+  // meeting (or disputes it), attended_thanks / the console takes over instead.
+  if (r.reach === 'yes' && !r.sent_reach_thanks && !r.opted_out_at && !actions.some((a) => a.kind === 'resolve')
+      && !(r.reach_at && now - ms(r.reach_at) > REACH_THANKS_WINDOW)) {
+    items.push(sendItem(r, reachThanksMessage(lead, broker), `w12:reach_thanks:${r.booking_id}`, { claim: true }));
+  }
+  return items;
 }
 
 /**
@@ -382,7 +426,7 @@ export function sweepItems(r = {}, now) {
 export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   const { booking, lead, broker } = partsOf(row);
   const out = outcomeId ? [{ fu: 'w29', event: 'outcome_recorded', outcome_id: outcomeId }] : []; // disputed: no row, alert only
-  if (r.lead_message === 'attended_thanks') out.push(sendItem(row, attendedThanksMessage(lead, broker), `w12:attended_thanks:${row.booking_id}`));
+  if (r.lead_message === 'attended_thanks' && !row.sent_reach_thanks) out.push(sendItem(row, attendedThanksMessage(lead, broker), `w12:attended_thanks:${row.booking_id}`));
   if (r.lead_message === 'broker_no_show_apology') out.push(sendItem(row, brokerNoShowApology(lead, broker), `w12:apology:${row.booking_id}`));
   for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId, row.slot_end) });
   // I-51b: a held Attended is parked (w12:capi_hold row = the release queue); a dropped one is logged with its reason.
@@ -396,6 +440,54 @@ export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
   if (r.outcome === 'disputed' || r.dispute_status === 'open') out.push({ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked ${row.broker_mark || 'nothing'}, lead answered ${row.reach || 'nothing'}. KG reviews in the console; nothing goes to the lead until KG decides, and no replacement is opened automatically (an Unreachable/wrong number disposition takes the normal W13 path).${(r.capi_held || []).length ? ` CAPI ${r.capi_held.join(', ')} held until KG decides (not sent).` : ''}` });
   return out;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Follow-up claim (19 Oct 2026). `w12:outcome:{booking_id}` (activity outcome_recorded) means "W12 ran the follow-ups
+// for this booking". The sweep's insert writes it with the outcomes row; every other writer of `outcomes` goes through
+// the claim below, so the follow-ups (thank-you, CAPI Attended gate, W29, W13, W10, alerts) run exactly once per booking
+// whoever wrote the row first.
+//  - Portal: the broker portal (src/pages/portal/Leads.tsx MarkOne.save) writes outcomes directly (marked_via 'portal')
+//    and only logs smc_portal_event 'outcome.marked', so the sweep (which skips a meeting with an outcomes row) never saw
+//    it. The tick reads those rows and resolves them with the same two-sided rules: the portal mark is the broker's mark.
+//  - auto_attended (W11's 24-h backstop row): claimed too, so a later portal confirmation of that row sends nothing twice.
+// ---------------------------------------------------------------------------------------------------------------
+export const PORTAL_MARKS = new Set(['attended', 'no_show', 'rescheduled']); // the portal's three buttons
+
+/**
+ * portalResolution(row, now) -> null | claim item. row = one "Portal-marked outcomes" SQL row (meeting, lead and
+ * broker columns + outcome_id, outcome, disposition_code, reach). null while the lead's side is still open (a No-show
+ * inside the reach window: the next tick looks again) or once the meeting is older than the sweep window.
+ * Lead "No" against any portal mark -> dispute (console, nothing to the lead), as for a WhatsApp tap (R6-03).
+ */
+export function portalResolution(row = {}, now) {
+  if (!row.outcome_id || !PORTAL_MARKS.has(row.outcome)) return null;
+  const end = ms(row.slot_end);
+  if (!Number.isFinite(end) || now < end || now >= end + STALE_AFTER_END) return null;
+  const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: row.outcome, reach: row.reach || null, disposition: row.disposition_code || null, optedOut: Boolean(row.opted_out_at), leadId: row.lead_id }, now);
+  if (r.outcome === 'pending') return null;
+  const o = outcomeRow(r, { now, via: 'portal' }); // null when disputed: the portal row stays, KG decides
+  return claimItem(r, { ...row, broker_mark: `${row.outcome} (portal)` }, row.outcome_id, 'portal', {
+    dispute_open: r.dispute_status === 'open',
+    appointment_status: o ? o.appointment_status : null,
+    // the portal asks the disposition with the mark (W29 sets 'dispositioned' for a WhatsApp disposition)
+    lead_stage: o ? (r.outcome === 'attended' && row.disposition_code ? 'dispositioned' : o.lead_stage) : null
+  });
+}
+
+/** autoAttendedResolution(row) -> claim item for W11's auto-attended row (op auto_attended: the attended path at 24 h). */
+export function autoAttendedResolution(row = {}) {
+  if (!row.outcome_id) return null;
+  const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: null, reach: row.reach === 'yes' ? 'yes' : null, optedOut: Boolean(row.opted_out_at), leadId: row.lead_id }, ms(row.slot_end) + AUTO_ATTEND_AFTER_END);
+  return claimItem(r, row, row.outcome_id, 'auto', { dispute_open: false, appointment_status: null, lead_stage: null });
+}
+
+const claimItem = (r, row, outcomeId, via, writes) => ({ fu: 'claim', via, r, row, outcome_id: outcomeId, ...writes });
+
+/** The claim query's parameters (one row per booking, `w12:outcome:{booking_id}`, ON CONFLICT DO NOTHING). */
+export const claimParams = (c) => [c.row.lead_id, c.row.brand_id, c.row.broker_id, c.row.booking_id, c.row.outcome || c.r.outcome, c.via, c.r.outcome, c.r.lead_reach_check || 'none', Boolean(c.dispute_open), c.appointment_status || null, c.lead_stage || null];
+
+/** After a won claim: the same follow-ups the sweep runs for a row it inserted. */
+export const claimedFollowUps = (c) => followUps(c.r, c.row, c.outcome_id);
 
 /**
  * I-50f: a broker mark (any of Attended / No-show / Rescheduled) that arrives after the Schedule D apology went out
