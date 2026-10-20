@@ -23,7 +23,7 @@ import { createStartApi, postLead, runBooking, runMove, type Adviser, type Booki
 import {
   AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, TOKEN_KEY, TOPICS, WHY_WHATSAPP, afterAdviser, answersPayload, availableMethods, canFinishTopics,
   bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
-  genericConsent, nextStep, onLoadFailure, prettyLocal, webNextWhatsApp, webSaveNumber, WEB_CHAT_NEXT, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt,
+  genericConsent, nextStep, onLoadFailure, prettyLocal, rateMessage, webNextWhatsApp, webSaveNumber, WEB_CHAT_NEXT, prettyMobile, prevStep, progress, readTokenFromHash, requestId, resumeAt,
   guestEmail, inviteLine, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, readMoveFromHash, suggestEmail, toE164, withinDays, toggleTopic, validEmail, validFirstName, waLink,
   type AdviserInfo, type Answers, type Method, type Slot, type StepId,
 } from "@/lib/start";
@@ -44,7 +44,6 @@ const EMAIL_ERR = "That address doesn't look complete. Could you check it and se
 const NUMBER_ERR = "Please enter a South African number, like 082 123 4567.";
 const WA = waLink(site.whatsapp_number);
 const CONSENT = genericConsent(consentCfg);
-const RATE_ERR = "Too many tries. Please wait a few minutes.";
 /** ?for=wills on the desktop link: the wills opener (with its consent statement) to the SortMyCover number; the source tag is read
     only on tap. */
 function willsHref(withVia = false): string {
@@ -243,7 +242,7 @@ function StartFlow() {
         await connect(r.token);
         return load();
       case "neutral": return setScreen({ k: "neutral" });
-      case "rate": return setFormErr(RATE_ERR);
+      case "rate": return setFormErr(rateMessage(r.retry_after_s, site.whatsapp_number));
       case "mobile": setBad({ phone: true }); return setFormErr(strs.err_mobile_server);
       default: return setFormErr(strs.err_send);
     }

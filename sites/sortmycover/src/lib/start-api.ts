@@ -220,12 +220,12 @@ export function createStartApi(token: string, base: string = API_BASE): StartApi
 export type LeadResult =
   | { kind: "accepted"; token: string; lead_id?: string }
   | { kind: "neutral" } // not_qualified or suppressed: thank them, no booking
-  | { kind: "rate" } // 429
+  | { kind: "rate"; retry_after_s: number | null } // 429: W01 sends 3600 (this connection, per hour) or 86400 (this number, per day)
   | { kind: "mobile" } // 422 on the number
   | { kind: "error" }; // 400 try_again, 5xx, network, or an accepted reply without a token (never proceed without one)
 
 export function interpretLead(status: number, body: any): LeadResult {
-  if (status === 429) return { kind: "rate" };
+  if (status === 429) return { kind: "rate", retry_after_s: Number.isFinite(Number(body?.retry_after_s)) && body?.retry_after_s != null ? Number(body.retry_after_s) : null };
   if (body && (body.status === "not_qualified" || body.status === "suppressed" || body.out_of_band === true)) return { kind: "neutral" };
   if (status === 422 && /mobile/.test(String(body?.error || ""))) return { kind: "mobile" };
   if (ok2xx(status) && body?.ok === true && body.status === "accepted" && typeof body.lead_token === "string" && body.lead_token)

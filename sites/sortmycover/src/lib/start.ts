@@ -335,6 +335,16 @@ export const webNextWhatsApp = (number: string | null) =>
 export const webSaveNumber = (smcNumber: string) => `Our WhatsApp number is ${smcNumber}. Save it as SortMyCover so you know it's us.`;
 export const WEB_CHAT_NEXT = "Lindi, SortMyCover's automated assistant, will help you pick a time on WhatsApp. Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold, and your booking confirmation, reminders and one-tap rescheduling all come to the same chat. There's no app to download and nothing to log in to. Tap below and say hi.";
 
+/**
+ * Step 0 rate limit (W01 429). W01 says which limit with retry_after_s: 86400 = this number's 5 a day, otherwise this
+ * connection's 10 an hour. "Wait a few minutes" was wrong for both (Jono hit the daily one on 20 Oct 2026).
+ */
+export function rateMessage(retryAfterS: number | null, smcNumber: string): string {
+  return retryAfterS != null && retryAfterS >= 86400
+    ? `This number has reached today's limit for booking requests. Please try again tomorrow, or message us on WhatsApp on ${smcNumber}.`
+    : `Too many tries from this connection. Please try again in an hour, or message us on WhatsApp on ${smcNumber}.`;
+}
+
 /** Under the WhatsApp number on step 0 (Jono, 18 Oct 2026): why WhatsApp, and what arrives there next. */
 export const WHY_WHATSAPP = "Why WhatsApp? It's quick and easy: you get answers fast, with no call centre or waiting on hold. Your booking confirmation and reminders come here too.";
 

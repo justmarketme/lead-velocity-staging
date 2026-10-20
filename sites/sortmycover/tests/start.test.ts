@@ -12,7 +12,7 @@ import consentJson from "../config/consent.json";
 import {
   AGE_BANDS, INCOME_BANDS, inviteLine, isLiveBooking, moveBody, moveNeedsNumber, moveWindowLine, prettyLocal, readMoveFromHash, withinDays, INTRO_DISCLOSURE, TOPICS, afterAdviser, answersComplete, answersPayload, availableMethods, bookBody, bookingCalls,
   canFinishTopics, cleanAnswers, contactPayload, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, guestEmail, initials,
-  leadAttribution, leadBody, limitGroups, methodLabel, genericConsent, nextStep, onLoadFailure, prettyMobile, prevStep, progress, readTokenFromHash, resumeAt,
+  leadAttribution, leadBody, limitGroups, methodLabel, genericConsent, rateMessage, nextStep, onLoadFailure, prettyMobile, prevStep, progress, readTokenFromHash, resumeAt,
   stepNumber, suggestEmail, toE164, toSaNumber, toggleTopic, validEmail, waLink, WHY_WHATSAPP,
   type AdviserInfo, type Method, type Next, type StepId,
 } from "../src/lib/start";
@@ -659,7 +659,11 @@ describe("step 0 (no token: desktop visits from a site CTA)", () => {
     expect(interpretLead(200, { ok: true, status: "accepted", lead_token: "" })).toEqual({ kind: "error" });
     expect(interpretLead(200, { ok: true, status: "not_qualified" })).toEqual({ kind: "neutral" });
     expect(interpretLead(200, { ok: true, status: "suppressed" })).toEqual({ kind: "neutral" });
-    expect(interpretLead(429, {})).toEqual({ kind: "rate" });
+    expect(interpretLead(429, {})).toEqual({ kind: "rate", retry_after_s: null });
+    expect(interpretLead(429, { error: "rate_limited", retry_after_s: 86400 })).toEqual({ kind: "rate", retry_after_s: 86400 });
+    expect(rateMessage(86400, "+27 60 015 6480")).toBe("This number has reached today's limit for booking requests. Please try again tomorrow, or message us on WhatsApp on +27 60 015 6480.");
+    expect(rateMessage(3600, "+27 60 015 6480")).toMatch(/^Too many tries from this connection\. Please try again in an hour/);
+    expect(rateMessage(null, "x")).toMatch(/in an hour/);
     expect(interpretLead(400, { error: "try_again" })).toEqual({ kind: "error" });
     expect(interpretLead(422, { error: "mobile_invalid" })).toEqual({ kind: "mobile" });
     expect(interpretLead(0, null)).toEqual({ kind: "error" });
