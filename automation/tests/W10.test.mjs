@@ -733,6 +733,8 @@ test('#12 a reason TYPED after the cancel card is read as the reason (keep first
     ['Something went wrong', 'cancel_problem', 'went_wrong'],
     ['Keep my call', 'keep', 'keep'], ['Actually keep it', 'keep', 'keep'], ["Don't cancel, I'm not ready to lose it", 'keep', 'keep'], ['never mind', 'keep', 'keep'],
     ['My husband handles it', 'cancel', 'other'], ["I don't have cover yet", 'cancel', 'other'],
+    // a question or a day / time is not a reason to cancel (the wait can outlive a "different time" tap): the times instead
+    ['Is Thursday possible?', 'offer', 'different_time'], ['tomorrow at 3pm', 'offer', 'different_time'], ['Can you just cancel it?', 'cancel', 'other'],
   ]) {
     assert.equal(R.classifyOp(typed(text)), op, text);
     assert.equal(R.cancelReasonOf(typed(text)).code, code, text);

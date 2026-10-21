@@ -450,8 +450,12 @@ export const TYPED_CANCEL_RULES = [
 export function typedCancelReason(text) {
   const t = typedNorm(text);
   for (const [code, re] of TYPED_CANCEL_RULES) if (re.test(t)) return { code };
+  // A question or a day / time without the word "cancel" is not a reason to cancel (e.g. "Is Thursday possible?" typed after
+  // tapping "I need a different time", whose reschedule card W07 sends without W10): show the times, never cancel on it.
+  if (!/\bcancel/u.test(t) && TYPED_TIME_ASK.test(t)) return { code: 'different_time' };
   return { code: 'other' };
 }
+const TYPED_TIME_ASK = /\?|\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\btomorrow\b|\bnext week\b|\b\d{1,2}(:\d{2})?\s*(am|pm|h)\b|\b\d{1,2}:\d{2}\b/u;
 /** Ops that end the typed-reason wait when they arrive while it is open (the client left the card another way). */
 export const WAIT_KEEP_OPS = new Set(['cancel_ask', 'cancel_other', 'cancel_problem', 'cancel', 'keep', 'cancel_reason_stale', 'move_effects']);
 export const clearsReasonWait = (op, lead = {}) => !!(lead && lead.conv_state && lead.conv_state.cancel_reason_pending) && !WAIT_KEEP_OPS.has(op);
