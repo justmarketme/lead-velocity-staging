@@ -1621,7 +1621,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// One reminder, same template, never in quiet hours (a lead due at night is picked up by the 08:00 sweep); then nothing.\nconst L = require('lv-automation').w01;\nreturn $input.all().filter((i) => i.json && i.json.id).map((i) => L.budgetReminder(i.json, Date.now())).filter(Boolean).map((r) => ({ json: r }));"
+        "jsCode": "// One reminder, same template, only inside the contact hours (a lead due outside them is picked up by the next sweep inside them); then nothing.\nconst L = require('lv-automation').w01;\nreturn $input.all().filter((i) => i.json && i.json.id).map((i) => L.budgetReminder(i.json, Date.now())).filter(Boolean).map((r) => ({ json: r }));"
       }
     },
     {
@@ -1938,7 +1938,7 @@
           "waitForSubWorkflow": false
         }
       },
-      "notes": "Polite close, once (correlation w01:low_budget_closed:<lead>). Never in quiet hours (lowBudgetClose defers to the 08:00 sweep)."
+      "notes": "Polite close, once (correlation w01:low_budget_closed:<lead>). Only inside the contact hours (lowBudgetClose defers to the next sweep inside them, lib/contact-hours.mjs)."
     },
     {
       "id": "n80",

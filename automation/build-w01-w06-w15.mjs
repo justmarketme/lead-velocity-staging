@@ -421,7 +421,7 @@ return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.c
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'Low-budget held notice (CTWA / held at intake)', 'WhatsApp Send (lead_low_budget_held, core)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'CAPI Lead at hand-over (held -> routed)', 'CAPI Send (Lead at hand-over)');
-  // ---- entry 4: the ONE qualify_budget reminder (lead-ad leads, no tap within 3 h; quiet hours 20:00-08:00 SAST)
+  // ---- entry 4: the ONE qualify_budget reminder (lead-ad leads, no tap within 3 h; marketing contact hours, lib/contact-hours.mjs)
   n.push(node('Every 15 min: budget reminder sweep', 'scheduleTrigger', 1.2, pos(0, 9), { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }));
   n.push(pg('Leads waiting on the budget tap (> 3 h, not reminded)', pos(1, 9),
 `SELECT l.id, l.phone, l.first_name, l.origin, l.routing_reason, l.broker_id, l.opted_out_at, l.disqualified_reason, l.qualified_at, l.created_at, l.conv_state
@@ -432,7 +432,7 @@ return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.c
    AND l.created_at <= now() - interval '3 hours'
  LIMIT 200;`));
   n.push(code('Budget reminder (w01.budgetReminder)', pos(2, 9),
-`// One reminder, same template, never in quiet hours (a lead due at night is picked up by the 08:00 sweep); then nothing.
+`// One reminder, same template, only inside the contact hours (a lead due outside them is picked up by the next sweep inside them); then nothing.
 const L = require('lv-automation').w01;
 return $input.all().filter((i) => i.json && i.json.id).map((i) => L.budgetReminder(i.json, Date.now())).filter(Boolean).map((r) => ({ json: r }));`));
   n.push(pg('Mark reminded (at-most-once) + delete 24 h after', pos(3, 9),
@@ -502,7 +502,7 @@ RETURNING lead_id;`, '={{ [$json.lead_id] }}'));
   n.push(code('Close send input (only rows just closed)', pos(5, 12),
 `const closed = new Set($input.all().map((i) => i.json && i.json.lead_id).filter(Boolean).map(String));
 return $('Hand off or close?').all().filter((i) => i.json.type === 'close' && i.json.send && closed.has(String(i.json.lead_id))).map((i) => ({ json: i.json.send }));`));
-  n.push(sub('WhatsApp Send (lead_low_budget_closed)', pos(6, 12), 'WhatsApp Send', false, 'Polite close, once (correlation w01:low_budget_closed:<lead>). Never in quiet hours (lowBudgetClose defers to the 08:00 sweep).'));
+  n.push(sub('WhatsApp Send (lead_low_budget_closed)', pos(6, 12), 'WhatsApp Send', false, 'Polite close, once (correlation w01:low_budget_closed:<lead>). Only inside the contact hours (lowBudgetClose defers to the next sweep inside them, lib/contact-hours.mjs).'));
   chain(c, 'Every 15 min: low-budget sweep (tier C)', 'Tier-C leads: assigned (hand off) or held 7 days (close)', 'Plan (w01.lowBudgetHandoff / lowBudgetClose)', 'Hand off or close?');
   link(c, 'Hand off or close?', 'Claim the hand-off (once per lead)', 0);
   link(c, 'Hand off or close?', 'Close politely (only if still held) + timeline', 1);

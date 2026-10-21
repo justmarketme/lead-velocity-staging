@@ -285,3 +285,32 @@ test('start nudge under Twilio: v2 Content wins once its SID is set, v1 until th
   assert.equal(send({}).skip, 'twilio_content_sid_missing');
   assert.deepEqual(P.START_NUDGE_KEYS.start_nudge_final, ['start_nudge_final_v2', 'start_nudge_final']);
 });
+
+// Smoke test #13 (21 Oct 2026): nudges are direct marketing -> CPA contact hours (lib/contact-hours.mjs), not just 20:00-08:00.
+test('CPA hours: no nudge on a Sunday, a Saturday afternoon or a public holiday; it moves to the next allowed time', () => {
+  // start track, consent Sat 24 Oct 10:00 (form lead): +2 h = Sat 12:00 (inside), +24 h = Sun 10:00 -> Mon 08:00, +72 h = Tue 10:00
+  const sat = N.nurturePlan(startLead({ origin: 'lead_ad', created_at: '2026-10-24T10:00:00+02:00' }));
+  assert.deepEqual(sat.steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_2h', '2026-10-24T12:00'], ['start_nudge_24h', '2026-10-26T08:00'], ['start_nudge_final', '2026-10-27T10:00']]);
+  assert.equal(N.due(startLead({ origin: 'lead_ad', created_at: '2026-10-24T10:00:00+02:00' }), ctx({ sent: new Set(['start_nudge_2h']) }), Date.parse('2026-10-25T10:05:00+02:00')).action, 'wait', 'Sunday: wait');
+  // unbooked track, first message Sat 14:00: +2 h = Sat 16:00 -> Mon 08:00
+  const p = N.nurturePlan(l02({ first_message_at: '2026-10-24T14:00:00+02:00' }));
+  assert.equal(SAST_ISO(p.steps[0].due_ms), '2026-10-26T08:00', 'Saturday afternoon -> Monday 08:00');
+  // +24 h = Sun 14:00 would also land on Mon 08:00: two nudges never go together (at least MIN_NUDGE_GAP apart)
+  assert.deepEqual(p.steps.map((s) => SAST_ISO(s.due_ms)), ['2026-10-26T08:00', '2026-10-26T14:00', '2026-10-27T14:00']);
+  // a nudge that fell due before the window closed but was not sent in time waits for the next window, then sends
+  const late = l02({ first_message_at: '2026-10-24T09:30:00+02:00' }); // +2 h = Sat 11:30
+  assert.equal(N.due(late, ctx(), Date.parse('2026-10-24T13:05:00+02:00')).action, 'wait', 'Saturday 13:05: wait');
+  assert.equal(N.due(late, ctx(), Date.parse('2026-10-25T12:00:00+02:00')).action, 'wait', 'Sunday: wait');
+  assert.equal(N.due(late, ctx(), Date.parse('2026-10-26T08:00:00+02:00')).action, 'send', 'Monday 08:00: sent, not dropped');
+  // municipal election day Wed 4 Nov 2026 is a public holiday
+  const hol = N.nurturePlan(l02({ first_message_at: '2026-11-03T10:00:00+02:00' }));
+  assert.equal(SAST_ISO(hol.steps[1].due_ms), '2026-11-05T08:00', '+24 h on 4 Nov -> Thu 08:00');
+  assert.equal(N.due(l02({ first_message_at: '2026-11-03T10:00:00+02:00' }), ctx({ sent: new Set(['unbooked_nudge_2h']) }), Date.parse('2026-11-04T10:00:00+02:00')).action, 'wait');
+});
+
+test('CPA hours, CTWA Start here: the last nudge stays inside the 72-h free window at the latest allowed moment', () => {
+  // consent Thu 22 Oct 10:00 (CTWA): +68 h = Sun 06:00 -> past the window if moved to Mon -> latest allowed before Sun 09:30 = Sat 12:30
+  const p = N.nurturePlan(startLead({ created_at: '2026-10-22T10:00:00+02:00' }));
+  assert.deepEqual(p.steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_2h', '2026-10-22T12:00'], ['start_nudge_24h', '2026-10-23T10:00'], ['start_nudge_final', '2026-10-24T12:30']]);
+  assert.ok(p.steps.every((s) => s.due_ms < Date.parse('2026-10-22T10:00:00+02:00') + N.CTWA_WINDOW));
+});
