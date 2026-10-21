@@ -75,6 +75,10 @@ export function MomentPicker() {
     const btn = list.current?.querySelectorAll<HTMLElement>("[role=tab]")[cur];
     const p = pill.current;
     if (!btn || !p) return;
+    // on a phone the strip is wider than the screen: bring the chosen tab into view by scrolling the strip only (scrollIntoView
+    // would also scroll the page), and not on first load, where the tabs sit below the fold
+    const l = list.current!;
+    if (!first.current && l.scrollWidth > l.clientWidth) l.scrollTo({ left: btn.offsetLeft - (l.clientWidth - btn.offsetWidth) / 2, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     const to = { transform: `translateX(${btn.offsetLeft}px)`, width: `${btn.offsetWidth}px` };
     if (first.current || prefersReducedMotion()) { Object.assign(p.style, to); first.current = false; return; }
     const ease = springEase(500, 32);
@@ -91,6 +95,17 @@ export function MomentPicker() {
     window.addEventListener("resize", onR);
     return () => window.removeEventListener("resize", onR);
   }, [cur]);
+  useEffect(() => {
+    // data-more drives the fade at the strip's right edge: shown only while tabs are still hidden past it
+    const l = list.current;
+    if (!l) return;
+    const upd = () => { l.dataset.more = String(l.scrollLeft + l.clientWidth < l.scrollWidth - 2); };
+    upd();
+    document.fonts?.ready.then(upd);
+    l.addEventListener("scroll", upd, { passive: true });
+    window.addEventListener("resize", upd);
+    return () => { l.removeEventListener("scroll", upd); window.removeEventListener("resize", upd); };
+  }, []);
   const onKey = (e: React.KeyboardEvent) => {
     const n = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!n) return;

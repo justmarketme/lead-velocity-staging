@@ -7,6 +7,8 @@ import { SplitRoles } from "@/components/Visuals";
 export default function HowItWorks() {
   return (
     <PageFrame title="How it works | SortMyCover" description="Three steps: say hi to Lindi on WhatsApp, meet your adviser and pick a time, have a 30-minute call, by video, WhatsApp or phone." path="/how-it-works/" h1="How it works" accent="works" lede="Three steps. No surprises." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "How it works", path: "/how-it-works/" }]}>
+      {/* the step titles are h3s: this keeps the outline H1 > H2 > H3 for screen readers, with no visible change */}
+      <h2 className="sr">What happens when you book</h2>
       <div className="my-6"><Steps items={HOW_STEPS} /></div>
       <SplitRoles />
       <h2>What SortMyCover does</h2>

@@ -47,6 +47,21 @@ describe("imagery", () => {
     const others = Object.entries(CAMPAIGN_SCENES).filter(([k]) => !AD_SCENES[k]).map(([, v]) => v.src);
     for (const o of others) expect(used, o).not.toContain(o);
   });
+  it("the home mosaic tiles ship at about 720px wide (a tile shows at 460px at most), with their real sizes in imagery.ts", () => {
+    // WebP size from the RIFF header: lossy 'VP8 ', lossless 'VP8L' or extended 'VP8X'
+    const size = (f: string) => {
+      const b = fs.readFileSync(f);
+      const kind = b.toString("ascii", 12, 16);
+      if (kind === "VP8 ") return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+      if (kind === "VP8L") { const n = b.readUInt32LE(21); return [(n & 0x3fff) + 1, ((n >> 14) & 0x3fff) + 1]; }
+      return [b.readUIntLE(24, 3) + 1, b.readUIntLE(27, 3) + 1];
+    };
+    for (const h of HERO_MOSAIC) {
+      expect(size(path.join(pub, h.src)), h.src).toEqual([h.w, h.h]);
+      expect(h.w, h.src).toBeLessThanOrEqual(800);
+      expect(fs.statSync(path.join(pub, h.src)).size, h.src).toBeLessThan(80_000);
+    }
+  });
   it("no image is labelled as AI-generated on the page (Jono's decision, 16 Oct 2026)", () => {
     for (const s of scenes) expect(s.alt).not.toMatch(/AI|generated/i);
   });

@@ -186,7 +186,7 @@ function readingRhythm(main: HTMLElement): Off {
 
 /** "On this page": names the section being read, springs the marker to it, pins under the header on a phone and sits in the
     left margin as a rail on a wide screen. Shown only while the reader is inside the guide's sections. */
-function sectionTracker(main: HTMLElement): Off {
+export function sectionTracker(main: HTMLElement): Off {
   const nav = main.querySelector<HTMLElement>("[data-toc]");
   if (!nav) return () => {};
   const box = nav.querySelector<HTMLDetailsElement>("details")!;
@@ -200,9 +200,11 @@ function sectionTracker(main: HTMLElement): Off {
   const offs: Off[] = [];
   const ease = springEase(380, 30);
   nav.classList.add("toc-live");
+  // the rail is held open on a wide screen; once the window narrows (rotation, resize) it closes and drops the rail's shift
+  let forced = false;
   const place = () => {
     nav.style.setProperty("--toc-top", `${(header?.offsetHeight ?? 64) + (wide() ? 28 : 0)}px`);
-    if (wide()) box.open = true;
+    if (wide()) { box.open = true; forced = true; } else if (forced) { box.open = false; box.style.transform = ""; forced = false; }
   };
   place();
   let active = -1;
@@ -243,7 +245,10 @@ function sectionTracker(main: HTMLElement): Off {
     e.preventDefault();
     if (!wide()) box.open = false;
     window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - (header?.offsetHeight ?? 64) - 70, behavior: "smooth" });
-    history.replaceState(null, "", a.hash);
+    // focus follows the reader (the tapped link is now hidden in the closed list); keep React Router's history state
+    h.setAttribute("tabindex", "-1");
+    h.focus({ preventScroll: true });
+    history.replaceState(history.state, "", a.hash);
   };
   nav.addEventListener("click", click);
   offs.push(() => nav.removeEventListener("click", click));
@@ -251,6 +256,18 @@ function sectionTracker(main: HTMLElement): Off {
   const toggle = () => { if (box.open && !wide()) { const ol = box.querySelector<HTMLElement>(".toc-list"); if (ol) animate(ol, { transform: ["translateY(-10px) scale(0.98)", "none"] }, { duration: 0.4, ease: [0.22, 1, 0.36, 1] }); } };
   box.addEventListener("toggle", toggle);
   offs.push(() => box.removeEventListener("toggle", toggle));
+  // phone list: a tap outside or Escape closes it. Phones only: the wide rail cannot be reopened by hand, and Escape also
+  // closes the chat panel
+  const down = (e: PointerEvent) => { if (box.open && !wide() && !nav.contains(e.target as Node)) box.open = false; };
+  const esc = (e: KeyboardEvent) => {
+    if (e.key !== "Escape" || !box.open || wide()) return;
+    const inside = nav.contains(document.activeElement);
+    box.open = false;
+    if (inside) nav.querySelector<HTMLElement>("summary")?.focus();
+  };
+  document.addEventListener("pointerdown", down, { passive: true });
+  document.addEventListener("keydown", esc);
+  offs.push(() => { document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", esc); });
   update();
   return () => { offs.forEach((o) => o()); nav.classList.remove("toc-live", "toc-on"); box.style.transform = ""; };
 }

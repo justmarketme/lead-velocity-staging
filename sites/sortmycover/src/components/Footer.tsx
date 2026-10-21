@@ -63,7 +63,7 @@ export function Footer() {
         <nav aria-labelledby="f-legal"><h2 id="f-legal">Legal</h2>
           <ul>
             <li><Link to="/privacy/">Privacy</Link></li><li><Link to="/terms/">Terms</Link></li>
-            <li><Link to="/paia/">PAIA manual</Link></li><li><Link to="/privacy/#opt-out">Opt out of ad measurement</Link></li>
+            <li><Link to="/paia/">PAIA manual</Link></li><li>{/* plain <a>: the browser loads the pre-rendered page and scrolls to #opt-out itself (an in-app Link landed at a random position) */}<a href="/privacy/#opt-out">Opt out of ad measurement</a></li>
           </ul>
         </nav>
       </div>

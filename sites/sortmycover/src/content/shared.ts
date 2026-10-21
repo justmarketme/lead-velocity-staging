@@ -49,7 +49,6 @@ export const SITE_FAQ: FaqItem[] = [
   ...HOME_FAQ,
   { id: "scam", q: "Is this a scam?", a: "Fair question. SortMyCover is a trading name of Lead Velocity (Pty) Ltd, registration 2025/637858/07. The address, phone and email are in the footer of every page, and the adviser’s FSP number can be checked on the FSCA register before you speak to them. Nobody is asked for ID numbers, bank details or payment." },
   { id: "why-number", q: "Why WhatsApp?", a: "Lindi books the call there: she sends the adviser’s details and the times to choose from, and reminds you before the call. The call itself can be by video, WhatsApp or phone." },
-  { id: "how-long", q: "How long is the call?", a: "About 30 minutes, at a time you pick. Booking it with Lindi on WhatsApp takes a few messages." },
   { id: "choose", q: "Can I choose my adviser?", a: "You are introduced to one adviser. You can check them on the FSCA register, and you decide after the call whether to go further." },
   { id: "insurer", q: "Is SortMyCover an insurer?", a: "No. SortMyCover is not a financial services provider. It does not sell cover, give advice, compare products or quote premiums. It introduces you to an adviser, who can." },
 ];

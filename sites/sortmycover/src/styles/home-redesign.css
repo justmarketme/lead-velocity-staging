@@ -23,6 +23,7 @@
 .smc-home .hero-band p.hx-intro{font-size:clamp(17px,1.5vw,19px);line-height:1.6;margin:24px 0 0;max-width:44ch;color:#45505a}
 .hx-actions{display:flex;flex-wrap:wrap;align-items:center;gap:18px 26px;margin-top:30px}
 .smc-home .hero-band .hx-how-link{font-weight:800;text-decoration:underline;text-underline-offset:4px}
+.hx-how-link,.hx-panel-copy ul a{display:inline-flex;align-items:center;min-height:44px}
 .smc-home .hero-band p.hx-micro{margin-top:16px;font-size:13px;letter-spacing:.02em;color:#6b7580}
 .hx-mosaic{position:relative;display:grid;grid-template-columns:1.15fr 1fr;grid-template-rows:240px 190px 150px;gap:14px}
 .hx-tile{margin:0;overflow:hidden;border-radius:22px;box-shadow:0 26px 50px #1f293324;background:#ecedee;will-change:transform}
@@ -41,6 +42,7 @@
 .hx-h2{font-size:clamp(32px,4.2vw,56px);line-height:1.02;letter-spacing:-.04em;margin:6px 0 32px;max-width:18ch}
 .hx-tabs{position:relative;display:flex;gap:4px;padding:6px;border-radius:999px;background:#f0f1f2;width:max-content;max-width:100%;overflow-x:auto;scrollbar-width:none;margin-bottom:22px}
 .hx-tabs::-webkit-scrollbar{display:none}
+.hx-tabs[data-more="true"]{-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent);mask-image:linear-gradient(90deg,#000 80%,transparent)}
 .hx-pill{position:absolute;top:6px;bottom:6px;left:0;border-radius:999px;background:var(--sm-charcoal);box-shadow:0 8px 18px #1f293333}
 .hx-tabs [role=tab]{position:relative;z-index:1;border:0;background:none;font:inherit;font-weight:800;font-size:15px;padding:12px 20px;border-radius:999px;color:var(--sm-charcoal);cursor:pointer;white-space:nowrap;min-height:44px;transition:color .2s}
 .hx-tabs [role=tab][aria-selected=true]{color:#fff}
@@ -52,7 +54,7 @@
 .hx-panel-copy h3 em{font-style:normal;color:var(--sm-charcoal);display:inline}
 .hx-panel-copy h3 em::before{content:"\A";white-space:pre}
 .hx-panel-copy p{font-size:17px;line-height:1.6;color:#4d5861;max-width:40ch;margin:16px 0}
-.hx-panel-copy ul{list-style:none;margin:0 0 22px;padding:0;display:grid;gap:8px}
+.hx-panel-copy ul{list-style:none;margin:0 0 22px;padding:0;display:grid;gap:0}
 .hx-panel-copy ul a{font-weight:800;color:var(--sm-charcoal);text-decoration:underline;text-underline-offset:4px}
 .hx-dark{background:var(--sm-charcoal);color:var(--sm-off-white)}
 .hx-dark .hx-h2{color:#fff}
