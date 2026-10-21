@@ -7,8 +7,8 @@
 // Never advice, never product comparisons, never premiums, never "best/right cover".
 
 // Renamed in the ElevenLabs dashboard on 17 Oct 2026 (Jono): "on call" vs the text-only twin
-// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, used by smc-lindi-chat). The twin is not pushed by
-// the sync; sync-voice-agents ?agent=smc-chat only reports how it differs from SMC_CHAT_* below (dry run).
+// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, used by smc-lindi-chat). sync-voice-agents
+// ?agent=smc-chat reports how it differs from SMC_CHAT_* below (dry run); POST ?agent=smc-chat&apply=1 pushes them (smoke #23).
 export const SMC_AGENT_NAME = "Lindi SortMyCover on call";
 export const SMC_CHAT_AGENT_ID = "agent_8201m54p8d5red0t08t1kgxv5b0m";
 export const SMC_CHAT_AGENT_NAME = "Lindi SortMyCover on WhatsApp";

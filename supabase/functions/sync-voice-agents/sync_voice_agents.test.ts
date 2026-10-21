@@ -1,6 +1,6 @@
 // deno test --allow-env supabase/functions/sync-voice-agents/sync_voice_agents.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@1";
-import { SMC_EVALUATION, smcChatDesired, smcChatDiff } from "./index.ts";
+import { SMC_EVALUATION, smcChatDesired, smcChatDiff, smcChatPatchBody } from "./index.ts";
 import { SMC_CHAT_BASE_PROMPT, smcCallbackFirstMessage } from "../_shared/smc_receptionist_persona.ts";
 
 Deno.test("disclosures judge (smoke test #47): told how to recognise a callback, and that the no-advice line is inbound-only", () => {
@@ -64,4 +64,30 @@ Deno.test("twin base prompt: fallback only, inside the client-copy rules, never 
   assert(!/\bfree\b|\blicensed\b|virtual assistant|\bAI\b/i.test(SMC_CHAT_BASE_PROMPT));
   assert(SMC_CHAT_BASE_PROMPT.includes("SortMyCover's automated assistant"));
   assert(!smcChatDesired().knowledge_base.includes("SMC /advisers/"));
+});
+
+Deno.test("?agent=smc-chat&apply=1 (smoke test #23): the PATCH sets exactly the checked fields, chat-only, and lands in sync", () => {
+  const d = smcChatDesired();
+  const kb = d.knowledge_base.map((name, i) => ({ type: "url", id: `doc${i}`, name, usage_mode: "auto" }));
+  const body = smcChatPatchBody(kb);
+  // chat twin: no phone opener, text only, no tools, voice, audio, turn-taking or webhook settings, no phone-call scoring
+  assertEquals(body.conversation_config.agent.first_message, "");
+  assertEquals(body.conversation_config.conversation.text_only, true);
+  assertEquals(Object.keys(body.conversation_config).sort(), ["agent", "conversation"]);
+  assertEquals(Object.keys(body.conversation_config.agent.prompt).sort(), ["knowledge_base", "llm", "prompt", "rag"]);
+  assertEquals(Object.keys(body.platform_settings).sort(), ["data_collection", "evaluation", "overrides"]);
+  assertEquals(body.platform_settings.data_collection, {});
+  assertEquals(body.platform_settings.evaluation.criteria, []);
+  assert(!JSON.stringify(body).includes("/advisers/"));
+  // what ElevenLabs holds once the PATCH replaced those fields on the drifted twin -> the dry run is empty
+  const after = {
+    ...DRIFTED,
+    name: body.name,
+    conversation_config: {
+      agent: { first_message: "", prompt: { ...body.conversation_config.agent.prompt } },
+      conversation: { text_only: true },
+    },
+    platform_settings: { ...DRIFTED.platform_settings, data_collection: {}, evaluation: { criteria: [] } },
+  };
+  assertEquals(smcChatDiff(after), []);
 });

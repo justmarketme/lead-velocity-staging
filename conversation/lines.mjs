@@ -196,6 +196,15 @@ export function fill(line, vars = {}) {
 }
 
 /** All fixed lines for a language, filled, for outputGate/toneCheck allow-lists. */
+// The person part of the 4.11 disclosure on its own (the last sentence of every DISCLOSE line). Added after Lindi's own intro
+// when her reply names her but leaves it out (smoke test #23, 21 Oct 2026: "Hi, I'm Lindi from SortMyCover! The call takes
+// about 30 minutes..." went out without it). Kept out of LINES on purpose: fixedLines() feeds the tone check, which removes
+// fixed lines before grading, and this sentence on its own would be stripped out of every reply that says it.
+export const DISCLOSE_PERSON = {
+  en: "You can ask for a person at any time.",
+  af: "Jy kan enige tyd vra om met 'n mens te praat.",
+};
+
 export function fixedLines(lang = 'en', vars = {}) {
   const set = LINES[lang] || LINES.en;
   return Object.values(set).map((l) => fill(l, vars));

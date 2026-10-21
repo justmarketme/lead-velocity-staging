@@ -11,7 +11,7 @@
 //   -> toneCheck -> assemble -> send.
 import { prefilter, redactForLLM, redactForStorage, outputGate, classifierInput, toneCheck, sanitiseField } from '../../conversation/guardrail.mjs';
 import { decide, DEFER_TOPICS, FAQ_TOPICS, INTENTS, ALL_TOPICS } from '../../conversation/logic.mjs';
-import { LINES, fill, fixedLines } from '../../conversation/lines.mjs';
+import { LINES, fill, fixedLines, DISCLOSE_PERSON } from '../../conversation/lines.mjs';
 import { isPulseLine } from '../../conversation/pulse.mjs';
 import { checkEmail } from './w05.mjs';
 import { takesTypedReason } from './w10.mjs';
@@ -824,6 +824,8 @@ const FIXED_TURN_ACTIONS = new Set(['stop', 'handoff_urgent', 'human_review', 'p
   'cancel_confirm']);
 const OWNED_ELSEWHERE = new Set(['W03', 'W07_contact', 'W15', 'W08']);
 const SAFETY_KEYS = ['ID_WARNING', 'BANK_WARNING', 'MEDIA_NOT_OPENED'];
+// The person part of the 4.11 disclosure, in Lindi's own words or as the approved DISCLOSE_PERSON line.
+export const PERSON_OFFER = { en: /\bask (?:for|to (?:speak|talk) (?:to|with)) (?:a|a real|an actual) person\b/iu, af: /\bvra om met ['’]n mens te praat\b/iu };
 
 /**
  * Put Lindi's reply in place of the conversational fixed lines (DISCLOSE when she introduces herself, CLARIFY, STAY_IN_LANE,
@@ -853,12 +855,16 @@ export function applyModelReply(plan, reply, ctx = {}) {
   const mentionsLindi = /\bLindi\b/u.test(r);
   const isSafety = (x, filled) => SAFETY_KEYS.some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
   const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_NO_NAME', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  // Smoke #23 (21 Oct 2026): her own intro replaces the fixed DISCLOSE line, so it must carry the whole disclosure. Live, "Hi, I'm
+  // Lindi from SortMyCover! The call takes about 30 minutes..." went out without the person line. A first-contact reply that
+  // names Lindi but leaves that out gets the approved DISCLOSE_PERSON line right after it.
+  const rr = !ctx.disclosed && mentionsLindi && !PERSON_OFFER[lang].test(r) ? `${r} ${DISCLOSE_PERSON[lang]}` : r;
   if (one) {
     const lines = one.lead_lines || [];
     const disc = !ctx.disclosed && !mentionsLindi ? lines.filter((x) => isDisclose(x, true)) : [];
     const keep = lines.filter((x) => isSafety(x, true));
     one.lead_lines = [...disc, ...keep];
-    one.body = [...disc, r, ...keep].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
+    one.body = [...disc, rr, ...keep].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
     one.model_reply = true;
     one.carries_disclose = !ctx.disclosed && (mentionsLindi || disc.length > 0);
     plan.discloses = one.carries_disclose;
@@ -866,7 +872,7 @@ export function applyModelReply(plan, reply, ctx = {}) {
     plan.prefix = !ctx.disclosed && !mentionsLindi ? plan.prefix.filter((x) => isDisclose(x, false)) : [];
     plan.suffix = plan.suffix.filter((x) => isSafety(x, false));
     plan.reply_actions = [];
-    plan.model_text = r;
+    plan.model_text = rr;
     plan.send = true;
     plan.discloses = !ctx.disclosed && (mentionsLindi || plan.prefix.length > 0);
   }

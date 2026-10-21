@@ -9,9 +9,11 @@
 //   POST ?agent=smc → only the SortMyCover receptionist: find-or-create the agent by
 //          name, upsert its smc-voice tools + website knowledge base, PATCH prompt,
 //          voice, LLM, data collection, evaluation and its post-call webhook.
-//   GET|POST ?agent=smc-chat → DRY RUN ONLY: reads Lindi's WhatsApp twin (smc-lindi-chat's agent) and returns how it
+//   GET|POST ?agent=smc-chat → DRY RUN: reads Lindi's WhatsApp twin (smc-lindi-chat's agent) and returns how it
 //          differs from the config in code (prompt, LLM, knowledge base, data collection, evaluations, overrides).
 //          Changes nothing at ElevenLabs.
+//   POST ?agent=smc-chat&apply=1 → PATCHes the twin to that config (smcChatPatchBody), reads it back, and fails unless the
+//          dry-run diff is then empty.
 //
 //   curl -X POST -H "Authorization: Bearer $SERVICE_ROLE_JWT" \
 //     https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/sync-voice-agents
@@ -486,6 +488,34 @@ async function smcChatDryRun() {
   return { agent_id: SMC_CHAT_AGENT_ID, dry_run: true, in_sync: diff.length === 0, diff, changed: "nothing (dry run)" };
 }
 
+/** The PATCH that brings the twin to smcChatDesired(): only the fields smcChatDiff checks. No tools, no voice or phone settings,
+ *  no post-call webhook (a text-only session ignores tts/asr/turn; smc-lindi-chat overrides prompt, first message, text_only). */
+export function smcChatPatchBody(knowledgeBase: Array<{ type: string; id: string; name: string; usage_mode: string }>) {
+  const d = smcChatDesired();
+  return {
+    name: d.name,
+    conversation_config: {
+      agent: { first_message: d.first_message, prompt: { prompt: d.prompt, llm: d.llm, knowledge_base: knowledgeBase, rag: { enabled: true } } },
+      conversation: { text_only: d.text_only },
+    },
+    platform_settings: {
+      data_collection: {},
+      evaluation: { criteria: [] },
+      overrides: { conversation_config_override: { agent: { prompt: { prompt: true }, first_message: true }, conversation: { text_only: true } } },
+    },
+  };
+}
+
+/** POST ?agent=smc-chat&apply=1 (smoke #23): PATCH the twin, read it back, fail loudly unless it now matches the code. */
+async function smcChatApply() {
+  const before = smcChatDiff(await el(`/agents/${SMC_CHAT_AGENT_ID}`)).map((x) => x.field);
+  const knowledgeBase = await ensureSmcKnowledgeBase(false);
+  await el(`/agents/${SMC_CHAT_AGENT_ID}`, { method: "PATCH", body: JSON.stringify(smcChatPatchBody(knowledgeBase)) });
+  const after = smcChatDiff(await el(`/agents/${SMC_CHAT_AGENT_ID}`));
+  if (after.length) throw new Error(`Lindi WhatsApp twin did not match after the PATCH: ${JSON.stringify(after).slice(0, 800)}`);
+  return { agent_id: SMC_CHAT_AGENT_ID, dry_run: false, changed: before, in_sync: true, diff: after };
+}
+
 function isServiceRole(req: Request): boolean {
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   try {
@@ -499,8 +529,11 @@ function isServiceRole(req: Request): boolean {
 if (import.meta.main) Deno.serve(async (req) => {
   if (!isServiceRole(req)) return new Response("forbidden", { status: 403 });
   try {
-    // ?agent=smc-chat → the WhatsApp twin, dry run only (GET or POST): never PATCHes.
-    if (new URL(req.url).searchParams.get("agent") === "smc-chat") return Response.json(await smcChatDryRun());
+    // ?agent=smc-chat → the WhatsApp twin: a dry run (GET, or POST without apply). Only POST ?agent=smc-chat&apply=1 PATCHes it.
+    if (new URL(req.url).searchParams.get("agent") === "smc-chat") {
+      const apply = req.method === "POST" && new URL(req.url).searchParams.get("apply") === "1";
+      return Response.json(apply ? await smcChatApply() : await smcChatDryRun());
+    }
     // ?el=/convai/... → raw ElevenLabs v1 passthrough (admin tooling: voice library search,
     // simulate-conversation tests, workspace settings, voice design and sample renders). The key never leaves
     // this function. Binary-safe: audio comes back byte for byte with ElevenLabs' own content type.

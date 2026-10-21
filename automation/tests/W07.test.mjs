@@ -8,7 +8,7 @@ import { FIX, lead, broker, at, ms } from './_harness.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W from '../lib/w07.mjs';
 import { decide } from '../../conversation/logic.mjs';
-import { LINES, fill } from '../../conversation/lines.mjs';
+import { LINES, fill, DISCLOSE_PERSON } from '../../conversation/lines.mjs';
 
 const WF = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
 const B = broker();
@@ -766,7 +766,10 @@ test('Lindi turn: "Yes" no longer gets silence; first contact still introduces L
   assert.ok(firstD.body.startsWith(L('DISCLOSE')), 'no "Lindi" in her reply -> the fixed intro is kept');
   const named = lt('hi, can I book a call?', { state: 'unbooked', disclosed: false, nlu: { intent: 'book', topics: ['greeting'] } });
   named.apply("Hi, I'm Lindi from SortMyCover, here to set up your call with Mark.", { disclosed: false });
-  assert.equal(named.plan.delegate.find((x) => x.to === 'W04').body.includes(L('DISCLOSE')), false);
+  const namedBody = named.plan.delegate.find((x) => x.to === 'W04').body;
+  assert.equal(namedBody.includes(L('DISCLOSE')), false);
+  // smoke #23: her own intro carries the WHOLE disclosure: the person line is added when she leaves it out
+  assert.ok(namedBody.startsWith("Hi, I'm Lindi from SortMyCover, here to set up your call with Mark. " + DISCLOSE_PERSON.en), namedBody);
   assert.equal(named.plan.discloses, true);
   const id = lt('my id is 8001015009087, how long is the call?', { nlu: { intent: 'question', topics: ['call_length', 'id_number'] } });
   assert.equal(id.apply("It's 30 minutes with Mark.").used, true);
@@ -952,6 +955,44 @@ test('#9 disclosure: no broker -> DISCLOSE_PRE_ROUTE; broker + name -> DISCLOSE;
   const p = plan({ first_name: null });
   W.applyModelReply(p, 'The call takes about 30 minutes.', { disclosed: false });
   assert.deepEqual(p.prefix, [LINES.en.DISCLOSE_NO_NAME]);
+});
+
+// Smoke test 21 Oct 2026 (#23): Lindi's own first reply on a start_page lead was "Hi, I'm Lindi from SortMyCover! The call takes
+// about 30 minutes, and you can join from your phone. ..." (+27600000912, 20:42). Naming herself dropped the fixed DISCLOSE line,
+// and with it "You can ask for a person at any time." Her intro must carry the whole disclosure: the person line is added.
+test('#23 disclosure: her own intro without the person line gets DISCLOSE_PERSON; with it, nothing is added (en + af)', () => {
+  const nlu = { intent: 'question', topics: ['call_length'], slots: {}, confidence: 0.9 };
+  const plan = (lang = 'en', disclosed = false) => {
+    const ld = mkLead(L01, { conv_state: { state: 'start_page' }, broker_id: null, first_name: null, language: lang });
+    const p = W.preStep({ text: 'how long is the call?' }, ld, {});
+    const d = decide('start_page', nlu, p.pre, {});
+    return W.planActions(d, { lead: ld, booking: null, pre: p.pre, nlu, now_ms: NOON, lang, state: 'start_page', wamid: 'w23', disclosed, adviser_first: p.adviser_first, faq: FAQ_MAP, text_store: p.text_store });
+  };
+  for (const lang of ['en', 'af']) for (const k of ['DISCLOSE', 'DISCLOSE_NO_NAME', 'DISCLOSE_PRE_ROUTE']) assert.ok(LINES[lang][k].endsWith(` ${DISCLOSE_PERSON[lang]}`), `${lang}.${k} ends with DISCLOSE_PERSON`);
+  const send = (p) => W.gateAndAssemble(p, { fallback: '' }).text;
+  const live = "Hi, I'm Lindi from SortMyCover! The call takes about 30 minutes, and you can join from your phone.";
+  const p1 = plan();
+  assert.equal(W.applyModelReply(p1, live, { disclosed: false, question: 'how long is the call?' }).used, true);
+  assert.equal(send(p1), `${live} ${DISCLOSE_PERSON.en}`);
+  assert.equal(p1.discloses, true);
+  assert.match(send(p1), W.PERSON_OFFER.en);
+  // already says it in her own words: nothing added
+  const own = "Hi, I'm Lindi from SortMyCover, here to set up your call with an adviser. You can ask for a real person any time.";
+  const p2 = plan();
+  W.applyModelReply(p2, own, { disclosed: false, question: 'how long is the call?' });
+  assert.equal(send(p2), own);
+  // Afrikaans
+  const af = "Hallo, ek is Lindi van SortMyCover! Die oproep duur omtrent 30 minute.";
+  const p3 = plan('af');
+  W.applyModelReply(p3, af, { disclosed: false, question: 'hoe lank is die oproep?' });
+  assert.equal(send(p3), `${af} ${DISCLOSE_PERSON.af}`);
+  // already disclosed: a later reply naming Lindi is left alone
+  const p4 = plan('en', true);
+  W.applyModelReply(p4, "It's Lindi again. The call takes about 30 minutes.", { disclosed: true, question: 'how long is the call?' });
+  assert.equal(send(p4), "It's Lindi again. The call takes about 30 minutes.");
+  // the prompt asks for it too, so the line is only a safety net
+  const prompt = readFileSync(new URL('../../conversation/prompts/lindi-turn.md', import.meta.url), 'utf8');
+  assert.match(prompt, /If DISCLOSED is false[^\n]*ask for a person at any time/u);
 });
 
 // Smoke test 21 Oct 2026 (#18): Twilio receipts arrive out of order; a late 'sent' overwrote 'failed' (row eb052c4f) and a late
