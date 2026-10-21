@@ -91,7 +91,12 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     return () => window.removeEventListener(CHAT_EVENT, on);
   }, [show]);
   // a new page: back to that page's context, closed (keyed on the path: two pages can share a context; a #hash jump is no new page)
-  useEffect(() => { setCtx(null); setOpen(false); }, [pathname]);
+  // Back on a phone with the panel open: Layout has already tried to focus <main> while it was still inert (refused), so release
+  // the page here and finish that move
+  useEffect(() => {
+    if (inerted.current.length) { release(); document.getElementById("main")?.focus({ preventScroll: true }); }
+    setCtx(null); setOpen(false);
+  }, [pathname, release]);
   /* Phones: the open panel and its scrim cover the page, so header, main and footer are inert while it is open (a screen reader
      or keyboard cannot leave the consent panel into the dimmed page). Wider screens: the panel is not modal, the page stays live. */
   useEffect(() => {

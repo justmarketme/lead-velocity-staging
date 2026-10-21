@@ -88,6 +88,22 @@ describe("chat panel", () => {
     expect(document.activeElement).toBe(cta());
   });
 
+  it("phones: Back while it is open closes it and focus still reaches the new page's <main> (not stuck on the inert page)", () => {
+    // browsers refuse focus inside an inert subtree; jsdom does not, so the rule is applied here for this test
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (this: HTMLElement, o?: FocusOptions) { if (!this.closest("[inert]")) focus.call(this, o); };
+    try {
+      mount("/about/", true);
+      act(() => go("/contact/"));
+      click(launcher());
+      expect(host.querySelector("#main")!.hasAttribute("inert")).toBe(true);
+      act(() => (go as unknown as (n: number) => void)(-1)); // the phone's Back
+      expect(panel()).toBeNull();
+      expect(host.querySelector("[inert]")).toBeNull();
+      expect(document.activeElement).toBe(host.querySelector("#main"));
+    } finally { HTMLElement.prototype.focus = focus; }
+  });
+
   it("wider screens: the page stays usable (the panel is not modal there)", () => {
     mount("/about/");
     click(launcher());
