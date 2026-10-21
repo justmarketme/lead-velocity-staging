@@ -7,6 +7,10 @@ import { act } from "react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Layout from "../src/components/Layout";
+import * as pm from "../src/lib/pageMotion";
+
+// the on-demand motion chunk, recorded instead of run (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21: /legal/ joined NO_MOTION)
+vi.mock("../src/lib/pageMotion", () => ({ pageMotion: vi.fn(() => () => {}), footerMotion: vi.fn(() => () => {}) }));
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -69,5 +73,35 @@ describe("page change", () => {
     expect(into).toHaveBeenCalled();
     expect(focusOpts).toEqual([]);
     sec.remove();
+  });
+});
+
+describe("motion chunk requests (NO_MOTION and reduced motion)", () => {
+  const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  const remount = async (path: string, reduce: boolean) => {
+    act(() => root.unmount());
+    vi.mocked(pm.pageMotion).mockClear();
+    vi.mocked(pm.footerMotion).mockClear();
+    window.matchMedia = ((q: string) => ({ matches: reduce && q.includes("reduce"), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} })) as any;
+    root = createRoot(host);
+    act(() => root.render(h(MemoryRouter, { initialEntries: [path] }, h(Layout, null, h(Nav)))));
+    await flush();
+  };
+  it("/legal/ requests no motion chunk; a normal page then requests pageMotion and footerMotion (with the apex footer)", async () => {
+    await remount("/legal/", false);
+    expect(pm.pageMotion).not.toHaveBeenCalled();
+    expect(pm.footerMotion).not.toHaveBeenCalled();
+    act(() => go("/about/"));
+    await flush();
+    expect(pm.pageMotion).toHaveBeenCalledTimes(1);
+    expect(pm.footerMotion).toHaveBeenCalledTimes(1);
+    expect((vi.mocked(pm.footerMotion).mock.calls[0][0] as HTMLElement).matches(".site-footer[data-footer]")).toBe(true);
+  });
+  it("reduced motion requests neither pageMotion nor footerMotion", async () => {
+    await remount("/about/", true);
+    act(() => go("/contact/"));
+    await flush();
+    expect(pm.pageMotion).not.toHaveBeenCalled();
+    expect(pm.footerMotion).not.toHaveBeenCalled();
   });
 });

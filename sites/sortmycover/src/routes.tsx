@@ -73,6 +73,8 @@ export const apexRoutes: RouteDef[] = [
   // Privacy notice and terms: signed off 17 Oct 2026 (Jono), DRAFT marks removed, indexable.
   page("/privacy/", () => import("./pages/Legal").then((m) => ({ default: m.Privacy })), { lastmod: "2026-10-17" }),
   page("/terms/", () => import("./pages/Legal").then((m) => ({ default: m.Terms })), { lastmod: "2026-10-17" }),
+  // Legal & disclosures: the full company details every footer links to (ECT Act s43). Indexable, in the sitemap.
+  page("/legal/", () => import("./pages/Legal").then((m) => ({ default: m.Disclosures })), { lastmod: "2026-10-21" }),
   // PAIA manual: not published yet, the page is a placeholder with the contact route, so it stays noindex.
   page("/paia/", () => import("./pages/Legal").then((m) => ({ default: m.Paia })), { indexable: false }),
   // Lindi's per-lead link (sortmycover.co.za/start/#lt=<token>): hidden, noindex,nofollow, not in the sitemap or any menu.

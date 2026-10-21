@@ -164,3 +164,34 @@ describe("chat panel", () => {
     expect(box().checked).toBe(false);
   });
 });
+
+/* FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 2: the fee line left the apex footer and moved to the point of collection (CPA s41,
+   FAIS holding-out), and the privacy notice is visible beside the tick (POPIA s18 layered notice), not only inside "Full wording". */
+describe("chat panel disclosures", () => {
+  const goBtn = () => host.querySelector(".chat-go")!;
+  const collect = () => host.querySelector(".chat-panel [data-disclosure]") as HTMLElement | null;
+  it("a Privacy notice link is visible outside the collapsed Full wording, on the apex", () => {
+    mount("/about/");
+    click(launcher());
+    const links = [...host.querySelectorAll(".chat-panel a")].filter((a) => a.textContent === "Privacy notice" && !a.closest("details"));
+    expect(links).toHaveLength(1);
+    expect(links[0].getAttribute("href")).toBe("https://sortmycover.co.za/privacy/");
+    expect(links[0].getAttribute("target")).toBe("_blank");
+  });
+  it("cover: the no-advice + fee line sits directly before Open WhatsApp, with a How we make money link", () => {
+    mount("/about/");
+    click(launcher());
+    const c = collect()!;
+    expect(c.textContent).toContain("SortMyCover gives no advice. Advisers pay us a fee for the introduction; it does not depend on what you buy.");
+    expect(c.querySelector("a")?.getAttribute("href")).toBe("https://sortmycover.co.za/how-we-make-money/");
+    expect(c.nextElementSibling).toBe(goBtn());
+  });
+  it("wills: only the no-advice half (the will consultant's fee arrangement is not settled)", () => {
+    mount("/wills/");
+    click(launcher());
+    const c = collect()!;
+    expect(c.textContent).toBe("SortMyCover gives no advice.");
+    expect(c.querySelector("a")).toBeNull();
+    expect(c.compareDocumentPosition(goBtn()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});

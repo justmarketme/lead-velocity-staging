@@ -8,6 +8,9 @@
 import { animate } from "motion/mini";
 import { hover, inView, press, scroll, spring, stagger } from "motion";
 
+/** Static legal pages load no Motion at all (no motion chunk, no page or footer motion). */
+export const NO_MOTION = /^\/(privacy|terms|paia|legal)\//;
+
 export function prefersReducedMotion(): boolean {
   return typeof window === "undefined" || !window.matchMedia || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -153,4 +156,20 @@ export function leave(el: Element, done: () => void) {
 export function watchInView(el: Element, onChange: (visible: boolean) => void): () => void {
   onChange(false);
   return inView(el, () => { onChange(true); return () => onChange(false); }, { amount: 0 });
+}
+
+/** Footer group on a phone (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): the list glides open or shut (toggleDetails), the
+ *  chevron spring-rotates and, on open, the links cascade down 6px. Transform only on the chevron and links; no opacity anywhere.
+ *  Reduced motion: toggleDetails returns early (native instant toggle) and the chevron comes from CSS `details[open] .f-chev`. */
+export function footerGroupToggle(d: HTMLDetailsElement, list: HTMLElement, chev: Element, e: { preventDefault(): void }) {
+  const wasOpen = d.open; // read BEFORE toggleDetails: on close it keeps d.open true for 0.2s
+  toggleDetails(d, list, e);
+  if (prefersReducedMotion()) return;
+  const clr = () => { (chev as HTMLElement).style.transform = ""; };
+  animate(chev, { transform: wasOpen ? ["rotate(180deg)", "rotate(0deg)"] : ["rotate(0deg)", "rotate(180deg)"] }, { type: spring, visualDuration: 0.3, bounce: 0.25 }).finished.then(clr, clr);
+  if (!wasOpen) {
+    const lis = Array.from(list.querySelectorAll<HTMLElement>("li"));
+    const c = () => lis.forEach((l) => { l.style.transform = ""; });
+    if (lis.length) animate(lis, { transform: ["translateY(-6px)", "none"] }, { duration: 0.3, delay: stagger(0.03), ease: [0.22, 1, 0.36, 1] }).finished.then(c, c);
+  }
 }

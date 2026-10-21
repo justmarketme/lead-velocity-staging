@@ -1,15 +1,13 @@
 import PageFrame from "@/components/PageFrame";
 import { Link } from "react-router-dom";
 import { company } from "@/lib/site";
-import { CompanyCard } from "@/components/Visuals";
 
 export default function About() {
   return (
-    <PageFrame title="About SortMyCover | SortMyCover" description="SortMyCover is a trading name of Lead Velocity (Pty) Ltd, registration 2025/637858/07, Menlyn Maine, Pretoria. What we do and what we do not do." path="/about/" h1="About SortMyCover" lede="Who is legally responsible, what we do and what we do not do." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "About", path: "/about/" }]}>
-      <CompanyCard />
-      <h2>Who we are</h2>
-      <p><strong>{company.legal_name}</strong> trading as <strong>{company.trading_as}</strong>. Registration number {company.registration}. {company.address_lines.join(", ")}. Phone <a href={"tel:" + company.phone_tel}>{company.phone_display}</a>. Email <a href={"mailto:" + company.email}>{company.email}</a>.</p>
-      <p>The Information Officer is {company.information_officer}. Registered with the Information Regulator, registration number {company.information_officer_registration} ({company.information_officer_registered_on}).</p>
+    <PageFrame title="About SortMyCover | SortMyCover" description="What SortMyCover does, what it does not do, how it is paid and who runs it." path="/about/" h1="About SortMyCover" lede="What we do, what we do not do, and who runs SortMyCover." crumbs={[{ name: "SortMyCover", path: "/" }, { name: "About", path: "/about/" }]}>
+      {/* the company card, registration, address and Information Officer moved to /legal/ (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21) */}
+      <h2>Who runs SortMyCover</h2>
+      <p>SortMyCover is a trading name of {company.legal_name}, a South African company. Its registration number, directors and addresses are on <Link to="/legal/">Legal &amp; disclosures</Link>. Phone <a href={"tel:" + company.phone_tel}>{company.phone_display}</a>. Email <a href={"mailto:" + company.email}>{company.email}</a>.</p>
       <h2>What we do</h2>
       <p>When you ask for it, we introduce you to one adviser from an authorised financial services provider and help book a 30-minute call. The call is by video, WhatsApp or phone, at a time you pick.</p>
       <h2>What we do not do</h2>

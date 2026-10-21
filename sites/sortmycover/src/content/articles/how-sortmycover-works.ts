@@ -8,7 +8,7 @@ export const body: Block[] = [
   { type: "h2", text: "Who runs SortMyCover?" },
   {
     type: "p",
-    text: "SortMyCover is a service of Lead Velocity (Pty) Ltd, a South African company. Lead Velocity (Pty) Ltd trades as SortMyCover. The company's full details are in the footer of every page and in the privacy notice.",
+    text: "SortMyCover is a trading name of Lead Velocity (Pty) Ltd, a South African company. The company's full details are on the Legal & disclosures page and in the privacy notice.",
   },
   { type: "h2", text: "What does SortMyCover do?" },
   {

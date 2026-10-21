@@ -157,6 +157,8 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
             <input type="checkbox" checked={agreed} onChange={(e) => { setAgreedFor(e.target.checked ? recipient : null); setNudge(false); }} />
             <span>I agree that SortMyCover may message me on WhatsApp about my call and share my details with {who}. I am 18 or older.</span>
           </label>
+          {/* POPIA s18 layered notice: the privacy notice is visible beside the tick, not only inside "Full wording" (spec FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21) */}
+          <p className="chat-fine chat-privacy"><a href={APEX + "/privacy/"} target="_blank" rel="noopener">Privacy notice</a></p>
           <details className="chat-more"><summary>Full wording</summary><p>{CONSENT_TEXT} <a href={APEX + "/privacy/"} target="_blank" rel="noopener">Privacy notice</a></p></details>
           {!adsBefore && (
             <>
@@ -168,6 +170,9 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
             </>
           )}
           {nudge && !agreed && <p className="chat-err" role="alert">Tick the first box to continue.</p>}
+          {/* collection line, directly above the button (CPA s41, FAIS holding-out): replaces the fee line that left the apex footer.
+              Wills: no fee statement (the will consultant's fee arrangement is not settled). */}
+          <p className="chat-fine chat-collect" data-disclosure>{c.wills ? "SortMyCover gives no advice." : <>SortMyCover gives no advice. Advisers pay us a fee for the introduction; it does not depend on what you buy. <a href={APEX + "/how-we-make-money/"} target="_blank" rel="noopener">How we make money</a></>}</p>
           <a className="btn btn-wa chat-go" href={waHref(c)} target="_blank" rel="noopener noreferrer" aria-disabled={!agreed} onClick={go}>
             <WaIcon size={18} />Open WhatsApp
           </a>

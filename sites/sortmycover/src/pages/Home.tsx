@@ -128,7 +128,7 @@ export default function Home() {
               <p className="mt-auto pt-2"><WhatsAppCta ctx={{ topic: "a will", ref: "w-home-wills", wills: true }} className="btn w-full sm:w-auto">Chat about a will</WhatsAppCta></p>
             </article>
           </div>
-          <p className="mt-6 text-[15px] text-muted-foreground max-w-[70ch]" data-disclosure>SortMyCover is run by Lead Velocity (Pty) Ltd, registration {company.registration}. Not a financial services provider. We give no advice. <a className="underline" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
+          <p className="mt-6 text-[15px] text-muted-foreground max-w-[70ch]" data-disclosure>SortMyCover is not a financial services provider and gives no advice. <a className="underline" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
           <p className="mt-2 text-[15px] text-muted-foreground max-w-[70ch]">Questions? {site.whatsapp_number ? <>WhatsApp <a className="underline" href={waHref(contextFor("/"))} onClick={(e) => { e.preventDefault(); openChat(contextFor("/")); }}>{site.whatsapp_number}</a> or email</> : <>Email</>} <a className="underline" href={"mailto:" + company.email}>{company.email}</a>. We answer questions about how this works, not about cover or wills.</p>
         </div>
       </section>
@@ -177,7 +177,7 @@ export default function Home() {
         <div className="grid gap-6" data-disclosure>
           <div>
             <h2 id="h-is" className="text-[26px] mb-3">What SortMyCover is, and is not</h2>
-            <p><strong>Is:</strong> an introduction and booking service run by Lead Velocity (Pty) Ltd. Advisers pay it a fee that does not depend on what you buy.</p>
+            <p><strong>Is:</strong> an introduction and booking service. Advisers pay it a fee that does not depend on what you buy.</p>
             <p><strong>Is not:</strong> an insurer, a financial services provider, an adviser, a will drafter or a comparison site. We do not quote, rank or recommend.</p>
           </div>
           <div>

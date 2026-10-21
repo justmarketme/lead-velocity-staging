@@ -112,7 +112,7 @@ export function CheckSteps() {
   );
 }
 
-/** The company's legal identity as a card. Used on /about/. */
+/** The company's legal identity as a card. Used on /legal/ (moved from /about/, FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21). */
 export function CompanyCard() {
   return (
     <figure className="viz viz-company" data-viz="company">
@@ -123,6 +123,7 @@ export function CompanyCard() {
         <span className="co-sub">trading as {company.trading_as}</span>
         <dl>
           <div><dt>Registration</dt><dd>{company.registration}</dd></div>
+          {company.directors.length > 0 && <div><dt>Directors</dt><dd>{company.directors.join(", ")}</dd></div>}
           <div><dt>Information Officer reg.</dt><dd>{company.information_officer_registration}</dd></div>
           <div><dt>Address</dt><dd>{company.address_lines.join(", ")}</dd></div>
         </dl>

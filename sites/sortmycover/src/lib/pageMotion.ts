@@ -4,12 +4,16 @@
    the primary CTA are never faded in, every effect cleans up, and the whole system is off only when the visitor's OS asks for
    reduced motion. Phones get the full scroll choreography; pointer effects (tilt, spotlight, magnetic, pan) need a fine pointer. */
 import { animate } from "motion/mini";
-import { hover, inView, press, scroll } from "motion";
+import { hover, inView, press, scroll, spring, stagger } from "motion";
 import { drawLineOnScroll, drawPath, prefersReducedMotion, springTo } from "./motion";
 
 type Off = () => void;
 const fine = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 let launcherDone = false;
+/** The footer persists across routes: its arrival plays once per visit. */
+let footerShown = false;
+/** Test hook: a fresh visit. */
+export const resetFooterMotion = () => { footerShown = false; };
 
 /** Offsets a below-the-fold element now and springs it home when it scrolls in. The element stays fully visible throughout
     (transform only); a failsafe puts it home after 2.5 s whatever the observer does. */
@@ -288,5 +292,46 @@ export function pageMotion(main: HTMLElement): Off {
   main.querySelectorAll<HTMLElement>(".ab-bar").forEach((b) => offs.push(drawOnEnter(b, "y", 0.1)));
   main.querySelectorAll<HTMLElement>(".cta-quiet").forEach((c) => { offs.push(settleOnEnter(c, "translateY(36px) scale(0.95)", { amount: 0.25, stiffness: 200, damping: 22 })); offs.push(pointerGlow(c)); });
   offs.push(vizMotion(main), readingRhythm(main), sectionTracker(main), cards(main), magnetic(main));
+  return () => offs.forEach((o) => o());
+}
+
+/** Footer arrival (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): a yellow hairline draws left to right and the brand column and
+    the three link groups settle up 18px with a soft spring, once per visit, and only when the footer starts below the fold. Two
+    observers: one arms (offsets) the footer 320px before it arrives, one plays it at 12% visible; play before arming does nothing,
+    so a visitor who jumps straight to the footer never sees a snap-down. A 4 s failsafe from arming always puts everything home.
+    Touches only [data-f-settle] and .f-rule (never .f-base or a [data-disclosure]); transform only; the footer's WhatsApp button
+    is magnetic on a mouse. */
+export function footerMotion(footer: HTMLElement): Off {
+  if (prefersReducedMotion() || !footer) return () => {};
+  const offs: Off[] = [magnetic(footer, ".site-footer .f-cta")];
+  const items = Array.from(footer.querySelectorAll<HTMLElement>("[data-f-settle]")).filter((i) => !i.closest("[data-disclosure]") && !i.querySelector("[data-disclosure]"));
+  const rule = footer.querySelector<HTMLElement>(".f-rule");
+  if (!footerShown && items.length && rule) {
+    let armed = false;
+    let fail = 0;
+    const clearItems = () => items.forEach((i) => { i.style.transform = ""; });
+    const clearRule = () => { rule.style.transform = ""; };
+    const play = () => {
+      if (!armed || footerShown) return;
+      footerShown = true;
+      window.clearTimeout(fail);
+      try {
+        animate(rule, { transform: ["scaleX(0)", "scaleX(1)"] }, { duration: 0.9, ease: [0.22, 1, 0.36, 1] }).finished.then(clearRule, clearRule);
+        animate(items, { transform: ["translateY(18px)", "none"] }, { type: spring, visualDuration: 0.55, bounce: 0.12, delay: stagger(0.07, { startDelay: 0.08 }) }).finished.then(clearItems, clearItems);
+      } catch { clearItems(); clearRule(); }
+    };
+    offs.push(inView(footer, () => {
+      if (armed || footerShown) return undefined;
+      // already on screen when the observer first reports: never offset what the visitor can see
+      if (footer.getBoundingClientRect().top < window.innerHeight) { footerShown = true; return undefined; }
+      armed = true;
+      items.forEach((i) => { i.style.transform = "translateY(18px)"; });
+      rule.style.transform = "scaleX(0)";
+      fail = window.setTimeout(() => { play(); clearItems(); clearRule(); }, 4000);
+      return undefined;
+    }, { margin: "0px 0px 320px 0px" }));
+    offs.push(inView(footer, () => { play(); return undefined; }, { amount: 0.12 }));
+    offs.push(() => { window.clearTimeout(fail); if (!footerShown || armed) { clearItems(); clearRule(); } });
+  }
   return () => offs.forEach((o) => o());
 }

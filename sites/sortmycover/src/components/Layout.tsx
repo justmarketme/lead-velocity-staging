@@ -5,11 +5,10 @@ import { contextFor } from "@/lib/whatsapp";
 import { Wordmark } from "./Brand";
 import { Footer } from "./Footer";
 import { ReadProgress } from "./Interactive";
+import { NO_MOTION } from "@/lib/motion";
 
 /** Desktop nav shows from xl (1280px): seven items do not fit next to the wordmark and the button below that; the menu takes over. */
 const NAV: [string, string][] = [["Cover types", "/cover/"], ["Wills & estate", "/wills/"], ["How it works", "/how-it-works/"], ["Learn", "/learn/"], ["About", "/about/"], ["Contact", "/contact/"]];
-/** Static legal pages load no Motion at all. */
-const NO_MOTION = /^\/(privacy|terms|paia)\//;
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
@@ -57,7 +56,14 @@ function PageMotion() {
     let dead = false;
     const main = document.getElementById("main");
     if (!main) return;
-    import("@/lib/pageMotion").then((m) => { if (!dead) off = m.pageMotion(main); });
+    import("@/lib/pageMotion").then((m) => {
+      if (dead) return;
+      const offs = [m.pageMotion(main)];
+      // the apex footer (spec FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): arrival once per visit, magnetic WhatsApp button
+      const f = document.querySelector<HTMLElement>(".site-footer[data-footer]");
+      if (f) offs.push(m.footerMotion(f));
+      off = () => offs.forEach((o) => o());
+    });
     return () => { dead = true; off(); };
   }, [pathname]);
   return null;

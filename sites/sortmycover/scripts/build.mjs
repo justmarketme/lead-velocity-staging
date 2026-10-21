@@ -27,7 +27,7 @@ try {
   const hosts = await server.ssrLoadModule("/src/build/hosts.ts");
 
   // chunk preload: the route's own chunk starts downloading with the HTML instead of after the entry script has run
-  const PAGE = { '/': 'Home', '/book/': 'Book', '/book/thanks/': 'BookThanks', '/how-it-works/': 'HowItWorks', '/how-we-make-money/': 'HowWeMakeMoney', '/advisers/': 'Advisers', '/about/': 'About', '/contact/': 'Contact', '/complaints/': 'Complaints', '/faq/': 'Faq', '/learn/': 'Learn', '/learn/glossary/': 'Glossary', '/wills/': 'Wills', '/cover/': 'Cover', '/editorial-policy/': 'EditorialPolicy', '/accessibility/': 'Accessibility', '/privacy/': 'Legal', '/terms/': 'Legal', '/paia/': 'Legal', '/start/': 'Start' };
+  const PAGE = { '/': 'Home', '/book/': 'Book', '/book/thanks/': 'BookThanks', '/how-it-works/': 'HowItWorks', '/how-we-make-money/': 'HowWeMakeMoney', '/advisers/': 'Advisers', '/about/': 'About', '/contact/': 'Contact', '/complaints/': 'Complaints', '/faq/': 'Faq', '/learn/': 'Learn', '/learn/glossary/': 'Glossary', '/wills/': 'Wills', '/cover/': 'Cover', '/editorial-policy/': 'EditorialPolicy', '/accessibility/': 'Accessibility', '/privacy/': 'Legal', '/terms/': 'Legal', '/paia/': 'Legal', '/legal/': 'Legal', '/start/': 'Start' };
   const chunkFor = (r) => {
     let keys;
     if (r.campaign) keys = ['src/pages/Campaign.tsx'];
@@ -70,6 +70,13 @@ try {
   if (site.env === "production") {
     const miss = [["company.registration", site.company.registration], ["pixel_id", site.pixel_id], ["domain_verification", site.domain_verification], ["n8n_base", site.n8n_base], ["whatsapp_number", site.whatsapp_number]].filter(([, v]) => !v).map(([k]) => k);
     if (miss.length) { failed++; console.error("production build needs config/site.json: " + miss.join(", ")); }
+  }
+  // ECT Act s43(1)(f): /legal/ must list the directors (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 7 step 1). Launch checklist:
+  // owner Jono, done when /legal/ lists the directors exactly as on the CIPC record.
+  if (!site.company.directors || !site.company.directors.length) {
+    const msg = "config/site.json company.directors is empty: /legal/ shows no Directors row (ECT Act s43(1)(f)). Add the names exactly as on the CIPC record.";
+    if (site.env === "production") { failed++; console.error("production build: " + msg); }
+    else console.warn(["", "*".repeat(50), "WARNING: " + msg, "*".repeat(50), ""].join("\n"));
   }
   // CORS allow-list for n8n (its Webhook node takes exact origins only): the apex plus every attached campaign host
   const angles = JSON.parse(fs.readFileSync(path.join(root, "config/angles.json"), "utf8"));
