@@ -4,7 +4,7 @@
 // Postgres backend exists (automation/tests/_localpg.mjs). Run: node --test automation/tests/broker-consent-change.local.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { localPgBackend, startLocalPg, applyRepoMigrations } from './_localpg.mjs';
@@ -42,7 +42,9 @@ test('ad consent, per-ad approval, change requests (local Postgres)', { skip: !P
     applyRepoMigrations(pg);
     pg.sql(LIVE_EXTRAS);
     // The 12/13 Oct broker migrations in order (the ones these build on), then ours. Each in one transaction.
-    for (const f of readdirSync(MIG).filter((x) => /^2026101[23]\d{6}_.*\.sql$/.test(x)).sort()) pg.file(join(MIG, f), ['-1']);
+    // `create extension pg_cron | pg_net` is stubbed (pg-stub.sql), as in applyRepoMigrations (20261013180000 creates pg_cron)
+    const noExt = (f) => readFileSync(join(MIG, f), 'utf8').replace(/create extension if not exists (pg_cron|pg_net)[^;]*;/gi, '-- stubbed');
+    for (const f of readdirSync(MIG).filter((x) => /^2026101[23]\d{6}_.*\.sql$/.test(x)).sort()) pg.sql(noExt(f), ['-1']);
     // Re-runnable
     pg.file(join(MIG, '20261013190000_broker_ad_consent_and_approval.sql'), ['-1']);
     pg.file(join(MIG, '20261013200000_broker_change_requests.sql'), ['-1']);
