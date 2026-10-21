@@ -5,7 +5,7 @@
    reduced motion. Phones get the full scroll choreography; pointer effects (tilt, spotlight, magnetic, pan) need a fine pointer. */
 import { animate } from "motion/mini";
 import { hover, inView, press, scroll } from "motion";
-import { drawLineOnScroll, drawPath, prefersReducedMotion, springDuration, springEase } from "./motion";
+import { drawLineOnScroll, drawPath, prefersReducedMotion, springTo } from "./motion";
 
 type Off = () => void;
 const fine = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -15,10 +15,9 @@ let launcherDone = false;
     (transform only); a failsafe puts it home after 2.5 s whatever the observer does. */
 function settleOnEnter(el: HTMLElement, from: string, opts: { amount?: number; delay?: number; stiffness?: number; damping?: number } = {}): Off {
   if (el.getBoundingClientRect().top < (window.innerHeight || 800)) return () => {};
-  const ease = springEase(opts.stiffness ?? 260, opts.damping ?? 24);
   el.style.transform = from;
   let done = false;
-  const home = () => { if (done) return; done = true; stop(); window.clearTimeout(t); animate(el, { transform: [from, "none"] }, { duration: springDuration(ease), delay: opts.delay ?? 0, ease: ease as any }).finished.then(clear, clear); };
+  const home = () => { if (done) return; done = true; stop(); window.clearTimeout(t); animate(el, { transform: [from, "none"] }, springTo(opts.stiffness ?? 260, opts.damping ?? 24, { delay: opts.delay ?? 0 })).finished.then(clear, clear); };
   const clear = () => { el.style.transform = ""; };
   const stop = inView(el, () => { home(); return undefined; }, { amount: opts.amount ?? 0.35 });
   const t = window.setTimeout(home, 2500);
@@ -64,8 +63,7 @@ function pointerGlow(area: HTMLElement): Off {
 function cards(root: ParentNode): Off {
   const els = Array.from(root.querySelectorAll<HTMLElement>(".card-link, .viz-card, .co-card, .wa-phone"));
   if (!els.length) return () => {};
-  const ease = springEase(320, 22);
-  const dur = springDuration(ease);
+  const sp = springTo(320, 22);
   const offs: Off[] = [];
   if (fine()) {
     for (const c of els) {
@@ -77,24 +75,22 @@ function cards(root: ParentNode): Off {
         c.style.transform = `perspective(900px) rotateX(${((0.5 - y) * 6).toFixed(2)}deg) rotateY(${((x - 0.5) * 8).toFixed(2)}deg) translateY(-3px)`;
       };
       c.addEventListener("pointermove", move);
-      offs.push(hover(c, () => () => { animate(c, { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px)" }, { duration: dur, ease: ease as any }); }));
+      offs.push(hover(c, () => () => { animate(c, { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px)" }, sp); }));
       offs.push(() => { c.removeEventListener("pointermove", move); c.style.transform = ""; });
     }
   } else {
-    offs.push(press(els, (c) => { animate(c, { transform: "scale(0.97)" }, { duration: dur, ease: ease as any }); return () => { animate(c, { transform: "scale(1)" }, { duration: dur, ease: ease as any }); }; }));
+    offs.push(press(els, (c) => { animate(c, { transform: "scale(0.97)" }, sp); return () => { animate(c, { transform: "scale(1)" }, sp); }; }));
   }
   return () => offs.forEach((o) => o());
 }
 
 /** Magnetic buttons on a mouse (the button leans toward the cursor and springs back). */
-function magnetic(root: ParentNode): Off {
+export function magnetic(root: ParentNode, selector = ".page-body .btn, .page-head .btn, .smc-campaign .hx-actions .btn"): Off {
   if (!fine()) return () => {};
-  const ease = springEase(300, 18);
-  const dur = springDuration(ease);
   const offs: Off[] = [];
-  root.querySelectorAll<HTMLElement>(".page-body .btn, .page-head .btn, .smc-campaign .hx-actions .btn").forEach((b) => {
+  root.querySelectorAll<HTMLElement>(selector).forEach((b) => {
     const move = (e: PointerEvent) => { const r = b.getBoundingClientRect(); b.style.transform = `translate(${(((e.clientX - r.left) / r.width - 0.5) * 12).toFixed(1)}px, ${(((e.clientY - r.top) / r.height - 0.5) * 8).toFixed(1)}px)`; };
-    const leave = () => { animate(b, { transform: "translate(0px, 0px)" }, { duration: dur, ease: ease as any }); };
+    const leave = () => { animate(b, { transform: "translate(0px, 0px)" }, springTo(300, 18)); };
     b.addEventListener("pointermove", move);
     b.addEventListener("pointerleave", leave);
     offs.push(() => { b.removeEventListener("pointermove", move); b.removeEventListener("pointerleave", leave); b.style.transform = ""; });
@@ -107,8 +103,7 @@ function launcher(): Off {
   const el = document.querySelector<HTMLElement>(".chat-launch");
   if (!el || launcherDone) return () => {};
   launcherDone = true;
-  const ease = springEase(380, 20);
-  animate(el, { transform: ["translateY(28px) scale(0.7)", "none"] }, { duration: springDuration(ease), delay: 0.5, ease: ease as any }).finished.then(() => { el.style.transform = ""; }, () => { el.style.transform = ""; });
+  animate(el, { transform: ["translateY(28px) scale(0.7)", "none"] }, springTo(380, 20, { delay: 0.5 })).finished.then(() => { el.style.transform = ""; }, () => { el.style.transform = ""; });
   const t = window.setTimeout(() => {
     if (el.getAttribute("aria-expanded") === "true") return;
     animate(el, { transform: ["rotate(0deg) scale(1)", "rotate(-10deg) scale(1.08)", "rotate(8deg) scale(1.08)", "rotate(-4deg) scale(1.04)", "rotate(0deg) scale(1)"] }, { duration: 0.8, ease: "easeInOut" }).finished.then(() => { el.style.transform = ""; }, () => { el.style.transform = ""; });
@@ -154,11 +149,10 @@ function vizMotion(main: HTMLElement): Off {
   // the chat plays: bubbles settle in turn when the phone comes into view, the dots type, and a tap replays it
   main.querySelectorAll<HTMLElement>(".wa-phone").forEach((ph) => {
     const msgs = Array.from(ph.querySelectorAll<HTMLElement>(".wa-msg"));
-    const ease = springEase(360, 24);
     const play = () => msgs.forEach((m, i) => {
       const from = m.classList.contains("wa-me") ? "translate(18px, 14px) scale(0.86)" : "translate(-18px, 14px) scale(0.86)";
       m.style.transform = from;
-      animate(m, { transform: [from, "none"] }, { duration: springDuration(ease), delay: 0.15 + i * 0.55, ease: ease as any }).finished.then(() => { m.style.transform = ""; }, () => { m.style.transform = ""; });
+      animate(m, { transform: [from, "none"] }, springTo(360, 24, { delay: 0.15 + i * 0.55 })).finished.then(() => { m.style.transform = ""; }, () => { m.style.transform = ""; });
     });
     offs.push(inView(ph, () => { play(); return undefined; }, { amount: 0.45 }));
     const replay = () => play();
@@ -198,7 +192,6 @@ export function sectionTracker(main: HTMLElement): Off {
   const wide = () => !!window.matchMedia && window.matchMedia("(min-width: 1240px)").matches;
   const header = document.querySelector<HTMLElement>(".site-header");
   const offs: Off[] = [];
-  const ease = springEase(380, 30);
   nav.classList.add("toc-live");
   // the rail is held open on a wide screen; once the window narrows (rotation, resize) it closes and drops the rail's shift
   let forced = false;
@@ -215,7 +208,7 @@ export function sectionTracker(main: HTMLElement): Off {
     links.forEach((a, j) => a.toggleAttribute("aria-current", j === i));
     const a = links[Math.max(0, i)];
     now.textContent = a.textContent;
-    animate(ind, { transform: `translateY(${a.parentElement!.offsetTop}px)`, height: `${a.parentElement!.offsetHeight}px` } as any, { duration: springDuration(ease), ease: ease as any });
+    animate(ind, { transform: `translateY(${a.parentElement!.offsetTop}px)`, height: `${a.parentElement!.offsetHeight}px` } as any, springTo(380, 30));
     if (!wide()) animate(now, { transform: ["translateY(8px)", "none"] }, { duration: 0.35, ease: [0.22, 1, 0.36, 1] });
   };
   const update = () => {

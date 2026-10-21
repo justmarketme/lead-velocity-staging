@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { animate } from "motion/mini";
 import { inView, scroll, stagger } from "motion";
-import { parallax, prefersReducedMotion, revealChildren, springDuration, springEase, springGestures } from "@/lib/motion";
+import { parallax, prefersReducedMotion, revealChildren, springGestures, springTo } from "@/lib/motion";
 import { HERO_MOSAIC, SCENES, type SceneImage } from "@/content/imagery";
 import { articlePath } from "@/content";
 import { WhatsAppCta } from "./ChatWidget";
@@ -24,8 +24,7 @@ export function HeroMosaic() {
     const tiles = Array.from(el.querySelectorAll<HTMLElement>("[data-depth]"));
     const offs = tiles.map((t) => parallax(t, Number(t.dataset.depth)));
     const chip = el.querySelector<HTMLElement>("[data-chip]");
-    const ease = springEase(380, 20);
-    const a = chip ? animate(chip, { opacity: [0, 1], transform: ["translateY(18px) scale(.94)", "translateY(0px) scale(1)"] }, { duration: springDuration(ease), delay: 0.6, ease: ease as any }) : null;
+    const a = chip ? animate(chip, { opacity: [0, 1], transform: ["translateY(18px) scale(.94)", "translateY(0px) scale(1)"] }, springTo(380, 20, { delay: 0.6 })) : null;
     return () => { offs.forEach((o) => o()); a?.cancel(); };
   }, []);
   const [a, b, c, d] = HERO_MOSAIC;
@@ -81,8 +80,7 @@ export function MomentPicker() {
     if (!first.current && l.scrollWidth > l.clientWidth) l.scrollTo({ left: btn.offsetLeft - (l.clientWidth - btn.offsetWidth) / 2, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     const to = { transform: `translateX(${btn.offsetLeft}px)`, width: `${btn.offsetWidth}px` };
     if (first.current || prefersReducedMotion()) { Object.assign(p.style, to); first.current = false; return; }
-    const ease = springEase(500, 32);
-    animate(p, { transform: to.transform, width: to.width }, { duration: springDuration(ease), ease: ease as any });
+    animate(p, { transform: to.transform, width: to.width }, springTo(500, 32));
     const panel = panels.current?.querySelector<HTMLElement>(`[data-panel="${cur}"]`);
     if (panel) {
       animate(panel.querySelectorAll<HTMLElement>("[data-in]"), { opacity: [0, 1], transform: ["translateY(10px)", "translateY(0px)"] }, { duration: 0.38, delay: stagger(0.05), ease: "easeOut" });
@@ -179,8 +177,7 @@ export function JourneyScroll({ steps }: { steps: Step[] }) {
   useEffect(() => {
     const s = ref.current?.querySelector<HTMLElement>(`[data-screen="${cur}"]`);
     if (!s || prefersReducedMotion()) return;
-    const ease = springEase(420, 30);
-    animate(s, { opacity: [0, 1], transform: ["translateY(14px) scale(.98)", "translateY(0px) scale(1)"] }, { duration: springDuration(ease), ease: ease as any });
+    animate(s, { opacity: [0, 1], transform: ["translateY(14px) scale(.98)", "translateY(0px) scale(1)"] }, springTo(420, 30));
   }, [cur]);
   return (
     <div ref={ref} className="hx-journey">
@@ -227,8 +224,7 @@ function splitReveal(root: HTMLElement): () => void {
     const timer = window.setTimeout(restore, 3000);
     const stop = inView(h, () => {
       window.clearTimeout(timer);
-      const ease = springEase(260, 26);
-      animate(inner, { transform: ["translateY(105%)", "translateY(0%)"] }, { duration: springDuration(ease), delay: stagger(0.045), ease: ease as any }).finished.then(restore, restore);
+      animate(inner, { transform: ["translateY(105%)", "translateY(0%)"] }, springTo(260, 26, { delay: stagger(0.045) })).finished.then(restore, restore);
       return undefined;
     }, { amount: 0.4 });
     stops.push(() => { window.clearTimeout(timer); stop(); restore(); });
@@ -239,8 +235,6 @@ function splitReveal(root: HTMLElement): () => void {
 /* ---------- 6. Magnetic primary buttons (fine pointers only): the button leans toward the cursor and springs back ---------- */
 function magnetic(root: HTMLElement): () => void {
   if (!window.matchMedia("(pointer: fine)").matches) return () => {};
-  const ease = springEase(300, 18);
-  const dur = springDuration(ease);
   const offs: (() => void)[] = [];
   root.querySelectorAll<HTMLElement>(".btn-lg").forEach((b) => {
     const move = (e: PointerEvent) => {
@@ -248,7 +242,7 @@ function magnetic(root: HTMLElement): () => void {
       const x = ((e.clientX - r.left) / r.width - 0.5) * 14, y = ((e.clientY - r.top) / r.height - 0.5) * 10;
       b.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     };
-    const leave = () => { animate(b, { transform: "translate(0px, 0px)" }, { duration: dur, ease: ease as any }); };
+    const leave = () => { animate(b, { transform: "translate(0px, 0px)" }, springTo(300, 18)); };
     b.addEventListener("pointermove", move);
     b.addEventListener("pointerleave", leave);
     offs.push(() => { b.removeEventListener("pointermove", move); b.removeEventListener("pointerleave", leave); b.style.transform = ""; });
