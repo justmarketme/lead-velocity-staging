@@ -56,7 +56,8 @@ function whatsAppNodeExpr(n) {
 }
 
 /**
- * opts: { caller: 'W09', nodes: { '<send node name>': { record: bool (default false), bypass_suppression?: bool,
+ * opts: { caller: 'W09', nodes: { '<send node name>': { record: bool (default false), bypass_suppression?: bool | '<JS expr,
+ *          per item: only === true bypasses>',
  *          wa?: '<JS expr override>' } } }
  * record defaults to false because almost every caller writes its own communications row from the returned id; set
  * record:true for a send whose workflow does not (W05, W08 close line, W10, W11, W23, W28): the sub then writes it.
@@ -81,7 +82,7 @@ function routeWaSends(wf, opts = {}) {
       `const idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;`,
       'return { json: {',
       "  kind: 'prebuilt', wa, to: wa && wa.to,",
-      `  record: ${record}, caller: ${JSON.stringify(caller)}, bypass_suppression: ${cfg.bypass_suppression === true},`,
+      `  record: ${record}, caller: ${JSON.stringify(caller)}, bypass_suppression: ${typeof cfg.bypass_suppression === 'string' ? `(${cfg.bypass_suppression}) === true` : cfg.bypass_suppression === true},`,
       `  phone_number_id: ${pnid ? `(${pnid}) || null` : 'null'},`,
       `  lead_id: ${cfg.lead_id || 'null'}, broker_id: ${cfg.broker_id || 'null'},`,
       `  correlation: ${JSON.stringify(caller + ':' + name + ':')} + exec + ':' + idx,`,

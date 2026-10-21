@@ -127,6 +127,8 @@ SELECT br.id AS brand_id,
 // smc_start_cta Content SID under Twilio) and a lead token can be minted for the lead this tap creates; otherwise the tap path.
 const PROVIDER = String($env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
 let SIDS = {}; try { SIDS = JSON.parse($env.TWILIO_CONTENT_SIDS || '{}') || {}; } catch (e) { SIDS = {}; }
+// smoke test #16 (21 Oct 2026): a +27 60 000 xxxx test number is stored as a synthetic lead (lib/wa.mjs SYNTHETIC_RANGE)
+const SYNTHETIC_RANGE = /^2760000[0-9]{4}$/;
 const out = [];
 for (const [i, item] of $input.all().entries()) {
   const ctxRow = item.json;
@@ -138,7 +140,7 @@ for (const [i, item] of $input.all().entries()) {
     try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
   }
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
-    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false,
+    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: SYNTHETIC_RANGE.test(String(m.mobile || '').replace(/[^0-9]/g, '')),
     lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
@@ -171,7 +173,7 @@ RETURNING stage;`,
   // Session banner (Jono, 19 Oct 2026; lib/wa-banner.cjs): with WA_SESSION_BANNERS=on a reply that cannot carry an image header
   // (a list; Twilio reply buttons) gets its header card as an image message first. Off (default): banner null, nothing changes.
   n.push(code('Build Cloud API body', [2240, 490], W3 + WB + "const BENV = { WA_SESSION_BANNERS: $env.WA_SESSION_BANNERS, WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER };\n" +
-    "return $input.all().map((it) => { const sb = WB.sessionBanner(W3.toCloudApi(it.json._mobile, it.json.message), BENV); return { json: { pnid: it.json._pnid, body: sb.wa, banner: sb.banner, brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }; });"));
+    "return $input.all().map((it) => { const sb = WB.sessionBanner(W3.toCloudApi(it.json._mobile, it.json.message), BENV); return { json: { pnid: it.json._pnid, body: sb.wa, banner: sb.banner, brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body, close_line: it.json.close_line === true } }; });"));
   n.push(pg('Reply claim (w07:reply:{wamid})', [2460, -120],
 `-- I-48b: one inbound message -> at most one lead-facing reply (W03 and W07 share the key). Second claim -> 0 rows -> nothing sent.
 WITH c AS (
@@ -197,15 +199,16 @@ SELECT c.id AS reply_claim_id, $3::jsonb AS out FROM c;`,
   }, { credentials: WA }));
   n.push(code('Banner done: the message (W03)', [3010, -300], "return { json: $('Banner first? (W03)').item.json };", 'runOnceForEachItem'));
   n.push({ ...pg('Store outbound (W03)', [3120, -120],
-`-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}.
-INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)
+`-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}. A send the sender refused or
+-- that failed (suppressed, not allow-listed, provider error) is logged 'failed' with the reason and no id (smoke test #7).
+INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, failed_reason, lead_id, author, workflow, template_category, metadata)
 -- lead_id only when the lead row exists (a first message's insert may not have committed): never a foreign-key stop.
-VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4,
+VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, $8, nullif($4, ''), nullif($9, ''),
         (SELECT l.id FROM public.leads l WHERE l.id = nullif($5, '')::uuid), 'bot', 'W03', 'service',
         jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text, 'lead_id_wanted', nullif($5, '')))
 ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
 RETURNING id;`,
-    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', !($json.messages && $json.messages[0]), o.wamid]; })() }}"), onError: 'continueRegularOutput' });
+    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const got = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; const failed = !got && $json.ok === false; const id = got || (failed ? '' : 'dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', id.startsWith('dry:'), o.wamid, failed ? 'failed' : 'sent', failed ? String($json.error || 'send_failed').slice(0, 300) : '']; })() }}"), onError: 'continueRegularOutput' });
   // 17 Oct 2026: a website opener that needs a person (wills: no wills calendar yet) opens a console escalation. Positioned
   // below 'Insert lead' so the v1 execution order writes the lead first; never fails the run.
   n.push({ ...pg('Escalate to a person (opener)', [2240, 1260],
@@ -526,7 +529,8 @@ function EP_SAFE() { return W28; }
 // GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
 const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
 // 2026-10-11: every WhatsApp send goes through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER switches it.
-const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false }, 'WhatsApp send (banner)': { record: false } } }; // Store outbound (W03) logs the reply
+// bypass_suppression only for the consent "No thanks" close line (ctwa/w03.js close_line): its suppression row is written first
+const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false, bypass_suppression: '$json.out.close_line' }, 'WhatsApp send (banner)': { record: false } } }; // Store outbound (W03) logs the reply
 /** The banner send never stops the reply: routing rebuilt the node, so its error mode is set after routing. */
 const bannerNeverBlocks = (wf) => { for (const x of wf.nodes) if (x.name === 'WhatsApp send (banner)') x.onError = 'continueRegularOutput'; return wf; };
 const W28_ROUTE = { caller: 'W28', nodes: { 'WhatsApp send list': { record: true }, 'WhatsApp send ask_email': { record: true } } };

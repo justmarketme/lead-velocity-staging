@@ -338,7 +338,9 @@ export function planActions(decision, ctx) {
   if (has('clarify')) { plan.prefix.push(L.CLARIFY); plan.unanswered = (ctx.unanswered || 0) + 1; }
   if (has('commitment_ok')) plan.prefix.push(L.COMMIT_OK);
   if (has('commitment_check')) plan.prefix.push(L.COMMIT_CHECK);
-  if (has('close_unbooked')) { plan.prefix.push(L.CLOSE_UNBOOKED); plan.delegate.push({ to: 'W08', action: 'close' }); plan.lead_updates.stage = 'unbooked_closed'; }
+  // smoke test #6 (21 Oct 2026): W08 sends the one CLOSE_UNBOOKED line (past the suppression it writes), so W07 sends
+  // nothing itself: no second goodbye, no FAQ line, and no "Start here again" card (that hangs off W07's own send).
+  if (has('close_unbooked')) { plan.prefix.push(L.CLOSE_UNBOOKED); plan.delegate.push({ to: 'W08', action: 'close' }); plan.lead_updates.stage = 'unbooked_closed'; plan.send = false; }
   if (has('flag_band_conflict')) esc('band_conflict');
   for (const a of decision.actions) {
     if (REPLY_ACTIONS.test(a)) plan.reply_actions.push(a);

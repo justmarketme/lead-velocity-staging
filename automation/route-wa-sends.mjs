@@ -16,7 +16,8 @@ const CONFIG = {
     'Send WhatsApp (session, in 24-h window)': { record: false }, // "Store outbound" logs it
     'Send ops alert': { record: false },                           // ops (Jonathan / KG): not a lead or broker timeline
   } },
-  W08: { caller: 'W08', nodes: { 'Send WhatsApp': { record: false }, 'Send close line': { record: true } } },
+  // Send close line: past the suppression row its own tap just wrote (smoke test #6, patch-smoke-c2-sends.mjs)
+  W08: { caller: 'W08', nodes: { 'Send WhatsApp': { record: false }, 'Send close line': { record: true, bypass_suppression: true } } },
   W10: { caller: 'W10', nodes: { 'Send WhatsApp': { record: true } } },
   W11: { caller: 'W11', nodes: { 'Send digest': { record: true }, 'Send pre-call brief': { record: true } } },
   // W29 (19 Oct 2026, v4b16): quality ask, thanks and the +7 d fit_followup template to the broker; no log node of its own

@@ -275,9 +275,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'system', 'W08', $7, $8, $9::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_name, template_category, metadata, failed_reason)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, $10, NULLIF($4, ''), $5::uuid, $6::uuid, 'system', 'W08', $7, $8, $9::jsonb, NULLIF($11, ''))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const d = $('Build message (template or session)').item.json; return [d.brand_id, d.phone, d.template, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + d.idempotency_key), d.lead_id, d.broker_id, d.channel === 'template' ? d.template : null, d.channel === 'template' ? 'utility' : 'service', JSON.stringify({ touch: d.touch, channel: d.channel })]; })() }}"
+          "queryReplacement": "={{ (() => { const d = $('Build message (template or session)').item.json; const got = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; const failed = !got && $json.ok === false; return [d.brand_id, d.phone, d.template, got || (failed ? '' : 'dry:' + d.idempotency_key), d.lead_id, d.broker_id, d.channel === 'template' ? d.template : null, d.channel === 'template' ? 'utility' : 'service', JSON.stringify({ touch: d.touch, channel: d.channel }), failed ? 'failed' : 'sent', failed ? String($json.error || 'send_failed').slice(0, 300) : '']; })() }}"
         }
       },
       "credentials": {
@@ -607,7 +607,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// lib/wa-route.cjs: \"Send close line\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W08\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W08:Send close line:\" + exec + ':' + idx,\n} };"
+        "jsCode": "// lib/wa-route.cjs: \"Send close line\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W08\", bypass_suppression: true,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W08:Send close line:\" + exec + ':' + idx,\n} };"
       }
     }
   ],
