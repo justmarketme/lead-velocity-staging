@@ -51,6 +51,8 @@ export const CLOSE_AFTER_LAST = 24 * H;
 export const CTWA_WINDOW = 72 * H;
 /** Two nudges that both move to the same opening (a weekend, a holiday) go at least this far apart, never together. */
 export const MIN_NUDGE_GAP = 6 * H;
+/** A restarted (post-cancel) nudge goes out before W10's C1A decision at cancelled_at + 96 h (lib/w10.mjs C1A_SEQUENCE_MS), with 2 h to spare. */
+export const RESTART_LAST_BEFORE = 94 * H;
 export const MAX_LEAD_MESSAGES = 12; // 4.6 cost design
 const STALL_STATES = new Set(['consent_pending', 'q_age', 'q_bond', 'q_dependants', 'q_budget', 'q_budget_clarify']);
 const CLOSED = new Set(['unbooked_closed', 'opted_out', 'disqualified', 'booked', 'confirmed', 'attended', 'no_show', 'dispositioned', 'replacement_due']);
@@ -80,6 +82,13 @@ export function nurturePlan(lead) {
     let due = outOfQuiet(t0 + s.after);
     if (prev !== null && due < prev + MIN_NUDGE_GAP) due = outOfQuiet(prev + MIN_NUDGE_GAP);
     if (tr === 'ctwa_stall' && due >= t0 + CTWA_WINDOW) continue; // never spend outside the free entry window on a stall nudge
+    if (restart !== null && due >= restart + RESTART_LAST_BEFORE) {
+      // review 21 Oct: the contact hours pushed it past W10's 96 h C1A decision (e.g. a Wednesday-afternoon cancel's +72 h is
+      // Saturday afternoon -> Monday): send at the latest contact-hours moment before it instead, if still after the last
+      const back = latestDaytimeBefore(restart + RESTART_LAST_BEFORE);
+      if (back > (prev !== null ? prev + MIN_NUDGE_GAP : t0)) steps.push({ touch: s.touch, due_ms: back });
+      continue;
+    }
     if (tr === 'start_ctwa' && due >= t0 + CTWA_WINDOW) {
       // quiet hours pushed it past the free window: send at the latest daytime moment inside it instead (if still after the last)
       const back = latestDaytimeBefore(t0 + CTWA_WINDOW - 30 * 60_000);

@@ -314,3 +314,28 @@ test('CPA hours, CTWA Start here: the last nudge stays inside the 72-h free wind
   assert.deepEqual(p.steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_2h', '2026-10-22T12:00'], ['start_nudge_24h', '2026-10-23T10:00'], ['start_nudge_final', '2026-10-24T12:30']]);
   assert.ok(p.steps.every((s) => s.due_ms < Date.parse('2026-10-22T10:00:00+02:00') + N.CTWA_WINDOW));
 });
+
+// Review 21 Oct 2026 (#13 follow-up): with the CPA contact hours, the restarted +72 h nudge can move past Saturday 13:00 / a
+// Sunday / a holiday to +113 h, after W10's 96 h C1A sweep has claimed the replacement. The last restarted nudge is pulled back
+// to the latest contact-hours moment before that sweep (as start_ctwa does for its free window). Over a long holiday weekend with
+// no contact-hours room 6 h after the +24 h nudge, the +72 h one is not sent at all rather than after the replacement claim.
+test('review #13: a restarted sequence\'s nudges all land before W10\'s 96 h C1A decision, inside the contact hours', async () => {
+  const { C1A_SEQUENCE_MS } = await import('../lib/w10.mjs');
+  const { inMarketingHours } = await import('../lib/contact-hours.mjs');
+  for (const cx of ['2026-10-21T13:00:00Z', '2026-12-23T13:00:00Z', '2027-03-25T13:00:00Z', '2026-10-24T11:00:00Z', '2026-10-30T17:30:00Z', '2026-11-03T10:00:00Z']) {
+    const p = N.nurturePlan({ id: 'l', origin: 'web', stage: 'booked', conv_state: { state: 'unbooked' }, first_message_at: '2026-10-01T08:00:00Z', cancelled_at: cx });
+    const holidayWeekend = ['2026-12-23T13:00:00Z', '2027-03-25T13:00:00Z'].includes(cx);
+    assert.deepEqual(p.steps.map((s) => s.touch), ['unbooked_nudge_2h', 'unbooked_nudge_24h', ...(holidayWeekend ? [] : ['unbooked_nudge_72h'])], cx);
+    for (const s of p.steps) {
+      assert.ok(s.due_ms < Date.parse(cx) + C1A_SEQUENCE_MS - N.H, `${cx} ${s.touch} at +${((s.due_ms - Date.parse(cx)) / N.H).toFixed(1)} h: before the 96 h sweep`);
+      assert.equal(inMarketingHours(s.due_ms), true, `${cx} ${s.touch}: inside the contact hours`);
+    }
+    for (let i = 1; i < p.steps.length; i++) assert.ok(p.steps[i].due_ms > p.steps[i - 1].due_ms, `${cx}: in order`);
+  }
+  // Wednesday 15:00 cancel: +72 h is Saturday afternoon (closed) -> Saturday 12:30, before the sweep (was Monday, +113 h)
+  const wed = N.nurturePlan({ id: 'l', origin: 'web', conv_state: { state: 'unbooked' }, first_message_at: '2026-10-01T08:00:00Z', cancelled_at: '2026-10-21T13:00:00Z' });
+  assert.equal(wed.steps[2].due_ms, Date.parse('2026-10-24T10:30:00Z'));
+  // an ordinary weekday cancel keeps +2 / +24 / +72 exactly
+  const plain = N.nurturePlan({ id: 'l', origin: 'web', conv_state: { state: 'unbooked' }, first_message_at: '2026-10-01T08:00:00Z', cancelled_at: '2026-10-19T08:00:00Z' });
+  assert.deepEqual(plain.steps.map((s) => (s.due_ms - Date.parse('2026-10-19T08:00:00Z')) / N.H), [2, 24, 72]);
+});
