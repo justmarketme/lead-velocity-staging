@@ -209,7 +209,7 @@ test('W15 structure: id smc-w15, inactive, nodes present, every connection resol
   for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.postgres')) assert.equal(n.credentials.postgres.name, PG_CRED, n.name);
   assert.equal(WF.settings.errorWorkflow, 'smc-w22');
   const claim = WF.nodes.find((n) => n.name === N.claim).parameters.query;
-  assert.match(claim, /INSERT INTO public\.suppression[\s\S]*public\.smc_hash_contact\(\$1\), 'stop', NULL[\s\S]*ON CONFLICT \(mobile_hash, source\) DO NOTHING/, 'suppression insert is the claim, digits-only hash, LV-wide');
+  assert.match(claim, /INSERT INTO public\.suppression[\s\S]*public\.smc_hash_contact\(\$1\), 'stop', NULL[\s\S]*ON CONFLICT \(mobile_hash, brand_id\) WHERE mobile_hash IS NOT NULL DO UPDATE[\s\S]*SET source = 'stop'[\s\S]*WHERE suppression\.source <> 'stop'/, 'suppression insert/upgrade is the claim, digits-only hash, LV-wide; a repeat STOP claims nothing');
   const kinds = WF.nodes.find((n) => n.name === N.fanIf).parameters.rules.values.map((v) => v.outputKey);
   assert.deepEqual(kinds, ['w09', 'graph_delete', 'broker_wa', 'broker_email', 'confirm_wa', 'confirm_sms', 'broker_held']);
   assert.equal(WF.connections[N.fanIf].main.length, kinds.length, 'every fan-out kind is wired');
