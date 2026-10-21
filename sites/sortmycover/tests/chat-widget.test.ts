@@ -9,6 +9,7 @@ import { MemoryRouter, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import Layout from "../src/components/Layout";
 import { WhatsAppCta } from "../src/components/ChatWidget";
+import { openChat } from "../src/lib/whatsapp";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -117,5 +118,49 @@ describe("chat panel", () => {
     expect(a.getAttribute("href")).toBe("https://sortmycover.co.za/privacy/");
     expect(a.getAttribute("target")).toBe("_blank");
     expect(a.getAttribute("rel")).toContain("noopener");
+  });
+
+  it("after a page change (focus on <main>) or an 'On this page' tap (focus on a heading), closing goes to the launcher", () => {
+    mount("/about/");
+    act(() => go("/contact/"));
+    expect(document.activeElement).toBe(host.querySelector("#main")); // the Layout moves focus to the new page's content
+    click(cta()); // a tap: Safari does not focus the link, so focus is still on <main>
+    click(closeX());
+    expect(document.activeElement).toBe(launcher());
+    const h2 = document.createElement("h2");
+    h2.tabIndex = -1;
+    host.querySelector("#main")!.appendChild(h2);
+    h2.focus();
+    click(cta());
+    act(() => { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+    expect(document.activeElement).toBe(launcher());
+  });
+
+  it("phones: the skip link is inert too, so the keyboard cannot leave the panel through it", () => {
+    mount("/about/", true);
+    const skip = host.querySelector("a.skip")!;
+    click(launcher());
+    expect(skip.hasAttribute("inert")).toBe(true);
+    click(closeX());
+    expect(skip.hasAttribute("inert")).toBe(false);
+  });
+
+  it("a tick for an adviser does not carry over to a will consultant (or back)", () => {
+    mount("/about/");
+    const box = () => panel()!.querySelector("input[type=checkbox]") as HTMLInputElement;
+    click(cta()); // cover: one authorised adviser
+    expect(panel()!.textContent).toContain("one authorised adviser");
+    click(box());
+    expect(box().checked).toBe(true);
+    click(closeX());
+    act(() => openChat({ topic: "a will", ref: "w-test-wills", wills: true }));
+    expect(panel()!.textContent).toContain("a will consultant");
+    expect(box().checked).toBe(false);
+    click(panel()!.querySelector(".chat-go")!);
+    expect(panel()!.querySelector("[role=alert]")).toBeTruthy(); // Open WhatsApp asks for the tick first
+    click(box());
+    click(closeX());
+    click(cta());
+    expect(box().checked).toBe(false);
   });
 });

@@ -40,10 +40,15 @@ export function StartCta({ ctx, className = "btn btn-secondary", children }: { c
   );
 }
 
+/** What can have opened the panel (and take focus back when it closes). */
+const OPENER = "a[href], button, summary, [role=tab]";
+
 export default function ChatWidget({ base }: { base: ChatContext }) {
   const [open, setOpen] = useState(false);
   const [ctx, setCtx] = useState<ChatContext | null>(null);
-  const [agreed, setAgreed] = useState(false);
+  /* the consent names who gets the details (an adviser or a will consultant): a tick counts only for the recipient it was given
+     for, so the panel reopened by the other kind of CTA shows the box unticked */
+  const [agreedFor, setAgreedFor] = useState<"adviser" | "wills" | null>(null);
   const [ads, setAds] = useState(false);
   const [adsBefore, setAdsBefore] = useState(false);
   const [nudge, setNudge] = useState(false);
@@ -58,23 +63,27 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const inerted = useRef<Element[]>([]);
   const hid = useId();
   const c = ctx ?? base;
+  const recipient = c.wills ? "wills" : "adviser";
+  const agreed = agreedFor === recipient;
   const { pathname } = useLocation();
 
   const release = useCallback(() => { for (const el of inerted.current) el.removeAttribute("inert"); inerted.current = []; }, []);
   const show = useCallback((next: ChatContext | null) => {
-    // what opened the panel gets focus back on close; a CTA tapped while focus is inside the panel keeps the first opener
+    // what opened the panel gets focus back on close; a CTA tapped while focus is inside the panel keeps the first opener.
+    // Only a control counts: Safari and iOS do not focus a tapped link or button, so focus is still wherever the page put it
+    // (<body>, <main> after a page change, a heading after an "On this page" tap), and that is not what opened the panel.
     const a = document.activeElement as HTMLElement | null;
-    if (!panel.current?.contains(a)) opener.current = a;
+    if (!panel.current?.contains(a)) opener.current = a?.matches(OPENER) ? a : null;
     setCtx(next); setNudge(false); setOpen(true); setUsed(true);
   }, []);
   const hide = useCallback(() => {
     release(); // first: an opener inside an inert page cannot take focus
     setOpen(false);
-    // Safari and iOS do not focus a tapped link or button (the opener is then <body>), and an opener that has gone or is hidden
-    // refuses focus: both fall back to the launcher. preventScroll: closing does not pull the page back to the CTA.
+    // no opener (see show) or one that has gone or is hidden (it refuses focus): the launcher. preventScroll: closing does not
+    // pull the page back to the CTA.
     const o = opener.current;
     opener.current = null;
-    if (o && o !== document.body) o.focus({ preventScroll: true });
+    if (o) o.focus({ preventScroll: true });
     if (!o || document.activeElement !== o) launcher.current?.focus();
   }, [release]);
 
@@ -97,7 +106,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     if (inerted.current.length) { release(); document.getElementById("main")?.focus({ preventScroll: true }); }
     setCtx(null); setOpen(false);
   }, [pathname, release]);
-  /* Phones: the open panel and its scrim cover the page, so header, main and footer are inert while it is open (a screen reader
+  /* Phones: the open panel and its scrim cover the page, so the skip link, header, main and footer are inert while it is open (a screen reader
      or keyboard cannot leave the consent panel into the dimmed page). Wider screens: the panel is not modal, the page stays live. */
   useEffect(() => {
     if (!open || !window.matchMedia) return;
@@ -105,7 +114,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     const apply = () => {
       release();
       if (!phone.matches) return;
-      inerted.current = [...document.querySelectorAll(".site-header, #main, .site-footer")].filter((el) => !el.hasAttribute("inert"));
+      inerted.current = [...document.querySelectorAll(".skip, .site-header, #main, .site-footer")].filter((el) => !el.hasAttribute("inert"));
       for (const el of inerted.current) el.setAttribute("inert", "");
     };
     apply();
@@ -145,7 +154,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
             <button ref={close} type="button" className="chat-x" aria-label="Close" onClick={hide}>×</button>
           </div>
           <label className={"chat-check" + (nudge && !agreed ? " is-missing" : "")}>
-            <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setNudge(false); }} />
+            <input type="checkbox" checked={agreed} onChange={(e) => { setAgreedFor(e.target.checked ? recipient : null); setNudge(false); }} />
             <span>I agree that SortMyCover may message me on WhatsApp about my call and share my details with {who}. I am 18 or older.</span>
           </label>
           <details className="chat-more"><summary>Full wording</summary><p>{CONSENT_TEXT} <a href={APEX + "/privacy/"} target="_blank" rel="noopener">Privacy notice</a></p></details>
