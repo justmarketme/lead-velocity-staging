@@ -36,6 +36,7 @@ const MODULES = {
   w22: './lib/w22.mjs', // W22 Alerts (lean, 18 Oct 2026): normalise, 24 h dedupe, email + WhatsApp plan
   w37: './lib/w37-cal.mjs',
   w38: './lib/w38.mjs', // W38 SMC lead alert (owner): watermark, de-dupe, minimised message, commit-after-2xx
+  social: './lib/social.mjs', // W40 Social replies (21 Oct 2026): Lindi on Facebook and Instagram, comments + DMs
   w39: './lib/w39.mjs', // W39 Start page API (18 Oct 2026): GET /start + POST /start/answers for sortmycover.co.za/start/
   w20ms: './lib/w20-ms.mjs',
   w29: './lib/w29.mjs',

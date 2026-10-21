@@ -14,14 +14,17 @@ export const CRITICAL_WORKFLOWS = /^(W01|W02|W03|W04|W05|W06|W07|W09|W10|W15|W28
 export const PARTNERS = ['jonathan', 'kg'];
 const NAME = { jonathan: 'Jono', kg: 'KG' };
 
-// Registered producer signals: defaults under the producer's own fields (W20, W27, W30/W31, W34). Unregistered keys pass through.
+// Registered producer signals: defaults under the producer's own fields (W20, W27, W34, W40). Unregistered keys pass through.
 export const PRODUCER_SIGNALS = {
   meta_asset_health: { severity: 'red', scope: 'brand:unknown', source: 'W27', what: 'Meta asset health alert', impact: 'Ads, WhatsApp or lead capture may be affected', first_action: 'Open Ads Manager and Business Settings for the failing asset' },
   ms_client_secret_invalid: { severity: 'red', scope: 'ms_app:broker_connect', source: 'W20', what: 'Microsoft rejected the broker-connect app credentials', impact: 'No broker can connect or reconnect Outlook', first_action: 'Rotate the client secret in Entra ID and update the W20 credential' },
-  community_escalation: { severity: 'amber', scope: 'escalation:unknown', source: 'W30', what: 'Community escalation: a person needs to follow up', impact: 'A commenter or DM sender is waiting for a person', first_action: 'Open the console Community screen' },
+  // W40 Social replies (Lindi on Facebook and Instagram, 21 Oct 2026; W30/W31 retired): a link and a case type only, never text or a name.
+  community_escalation: { severity: 'amber', to: 'both', scope: 'escalation:unknown', source: 'W40', what: 'Social: a person needs to follow up', impact: 'A commenter or DM sender is waiting for a person; Lindi has paused on that thread', first_action: 'Reply from the Business Suite inbox (link in the alert)' },
+  social_distress: { severity: 'red', to: 'both', scope: 'social:distress', source: 'W40', what: 'Social: someone may be in distress', impact: 'Lindi sent nothing; a person must reply personally', first_action: 'Reply personally from the Business Suite inbox; care note and SADAG line in conversation/handoff.md' },
+  social_breaker: { severity: 'red', scope: 'social:breaker', source: 'W40', what: 'Social replies: circuit breaker tripped, Lindi is drafting only', impact: 'A spam wave or a loop on the Page or Instagram', first_action: 'Check the Page and Instagram; set SOCIAL_MODE=off if needed' },
   comment_sentiment: { severity: 'amber', scope: 'ad:unknown', source: 'W30', what: 'Ad comment sentiment note', impact: 'Creative or FAQ may need a change', first_action: 'Review the ad comments' },
   hostile_thread: { severity: 'amber', scope: 'ad:unknown', source: 'W30', what: 'Hostile comment thread under a live ad', impact: 'A hostile thread under a live ad', first_action: 'Review the ad for pause' },
-  webhook_signature_invalid: { severity: 'red', scope: 'webhook:unknown', source: 'W30', what: 'A Meta webhook failed signature verification', impact: 'Real events may be refused', first_action: 'Check META_APP_SECRET and the webhook subscription' },
+  webhook_signature_invalid: { severity: 'red', scope: 'webhook:unknown', source: 'W40', what: 'A Meta webhook failed signature verification', impact: 'Real events may be refused', first_action: 'Check META_APP_SECRET and the webhook subscription' },
   dsar_received: { severity: 'amber', notify_now: true, to: 'io', scope: 'dsr:unknown', source: 'W34', what: 'New data-subject request', impact: 'POPIA 30-day clock started', first_action: 'Verify identity and answer by hand from howzit@ (escalation kind dsr)' },
   popia_breach: { severity: 'red', to: 'both', scope: 'incident:unknown', source: 'W34', what: 'Possible POPIA breach reported', impact: 'POPIA s22 duties may apply; containment comes first', first_action: 'Read the mail at howzit@, contain, then follow the breach runbook' },
   dsar_due: { severity: 'amber', to: 'io', scope: 'dsr:clock', source: 'W34', what: 'Data-subject request due within 7 days or unverified', impact: 'POPIA 30-day deadline approaching', first_action: 'Open the console Compliance screen' },

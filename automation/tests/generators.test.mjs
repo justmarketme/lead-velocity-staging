@@ -55,6 +55,11 @@ test('W39: automation/build-w39.mjs regenerates the committed file byte for byte
   assertSame('W39', out.W39, 'automation/build-w39.mjs');
 });
 
+test('W40: automation/build-w40.mjs regenerates the committed file byte for byte', () => {
+  const out = regenerate('automation/build-w40.mjs', ['W40']);
+  assertSame('W40', out.W40, 'automation/build-w40.mjs');
+});
+
 test('the generators never write into automation/ when GEN_OUT_DIR is set', () => {
   const before = ['W03', 'W28'].map((id) => readFileSync(join(AUTOMATION, `${id}.json`), 'utf8'));
   regenerate('automation/build-w03-w28.mjs', ['W03']);

@@ -405,12 +405,13 @@ test('I-46a / I-47d egress (ElevenLabs only, 19 Oct 2026): W07 calls only $env.L
   const all = readdirSync(new URL('..', import.meta.url)).filter((x) => /^W\d\d\.json$/.test(x)).map((x) => x.slice(0, 3));
   const isLlm = (n) => n.type === 'n8n-nodes-base.httpRequest' && /LINDI_BRAIN_URL|LLM_RELAY_URL/.test(n.parameters.url || '');
   const withLlm = all.filter((f) => JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')).nodes.some(isLlm));
-  assert.deepEqual(withLlm, ['W07', 'W11', 'W23', 'W29']); // W30-W33 retired 20 Oct 2026 (D5)
+  assert.deepEqual(withLlm, ['W07', 'W11', 'W23', 'W29', 'W40']); // W30-W33 retired 20 Oct 2026 (D5); W40 = Lindi on social (21 Oct 2026)
+  const lindi = (f) => f === 'W07' || f === 'W40'; // Lindi's brain: smc-lindi-chat (ElevenLabs), never the relay
   for (const f of withLlm) {
     const wf = JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'));
     for (const n of wf.nodes.filter(isLlm)) {
-      assert.equal(n.parameters.url, f === 'W07' ? '={{ $env.LINDI_BRAIN_URL }}' : '={{ $env.LLM_RELAY_URL }}', `${f} ${n.name}`);
-      assert.equal(n.parameters.headerParameters.parameters.find((h) => h.name === 'x-api-key').value, f === 'W07' ? '={{ $env.LINDI_RELAY_TOKEN }}' : '={{ $env.LLM_RELAY_TOKEN }}', `${f} ${n.name}`);
+      assert.equal(n.parameters.url, lindi(f) ? '={{ $env.LINDI_BRAIN_URL }}' : '={{ $env.LLM_RELAY_URL }}', `${f} ${n.name}`);
+      assert.equal(n.parameters.headerParameters.parameters.find((h) => h.name === 'x-api-key').value, lindi(f) ? '={{ $env.LINDI_RELAY_TOKEN }}' : '={{ $env.LLM_RELAY_TOKEN }}', `${f} ${n.name}`);
     }
   }
 });

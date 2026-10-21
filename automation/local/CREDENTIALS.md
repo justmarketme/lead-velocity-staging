@@ -65,13 +65,14 @@ W26 has no JSON yet (it runs as `provision.sh`, see LOCAL-STAGING.md §7). W01�
 | W37 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W38 | LV Supabase - n8n_app (least privilege) | `postgres` |
 | W39 | LV Supabase - n8n_app (least privilege) | `postgres` |
+| W40 | LV Supabase - n8n_app (least privilege) | `postgres` |
 
 ## B. Distinct credentials (machine-checked: name, type, used by) and what backs each one
-"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`. 15 credentials across 30 workflow files. No credential holds an LLM key: Lindi (W07) reads `LINDI_BRAIN_URL` + `LINDI_RELAY_TOKEN` and the other LLM jobs read `LLM_RELAY_URL` + `LLM_RELAY_TOKEN` from `.env` (`$env`); there is no Anthropic API in this system (19 Oct 2026).
+"Backed by" names the `.env` variable (or the source) that the value is copied from when the credential is created in the n8n UI. "No `.env` name" means a random value of at least 32 characters, generated once when the credential is created, stored in the password manager and listed by name in `ops.secret_inventory`. 15 credentials across 31 workflow files. No credential holds an LLM key: Lindi (W07, W40) reads `LINDI_BRAIN_URL` + `LINDI_RELAY_TOKEN` and the other LLM jobs read `LLM_RELAY_URL` + `LLM_RELAY_TOKEN` from `.env` (`$env`); there is no Anthropic API in this system (19 Oct 2026).
 
 | Credential name | Type | Used by | n8n form | Backed by |
 |---|---|---|---|---|
-| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-capi-send, SUB-email-verify, SUB-w20-ms-token, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W15, W20, W23, W24, W27, W28, W29, W34, W37, W38, W39 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
+| LV Supabase - n8n_app (least privilege) | `postgres` | SUB-capi-send, SUB-email-verify, SUB-w20-ms-token, SUB-whatsapp-send, W01, W02, W03, W04, W05, W06, W07, W08, W09, W10, W11, W12, W13, W15, W20, W23, W24, W27, W28, W29, W34, W37, W38, W39, W40 | Host, DB, port, user, password, SSL on | `SUPABASE_DB_URL` host/db/port. Login = `n8n_app_login` (LOCAL-STAGING.md §1b), password from the password manager |
 | MS Graph app-only - howzit@ Mail.Send | `oAuth2Api` | W05, W10, W15, W36 | OAuth2 client credentials, scope `https://graph.microsoft.com/.default` | `MS_TENANT_ID`, `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET` (C2) |
 | Meta system user token (Bearer) | `httpHeaderAuth` | SUB-capi-send, W20 | `Authorization: Bearer …` | `META_SYSTEM_USER_TOKEN` (C1) |
 | Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send) | `microsoftOutlookOAuth2Api` | W34 | Microsoft Outlook OAuth2, signed in as howzit@ | `MS_GRAPH_CLIENT_ID`, `MS_CLIENT_SECRET`. Consent by howzit@ (C2) |

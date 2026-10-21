@@ -14,7 +14,7 @@
       "parameters": {
         "width": 700,
         "height": 320,
-        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop (consent tick; every age accepted since the instant form v2, 18 Oct 2026: W01 OUT_OF_BAND_AGE_BOOKS, never qualified outside 35-50) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN.\n\nPage ingress (I-16/I-25): this callback is the Meta `page` object. leadgen changes take the path above; Page feed / messages events get the 200 and nothing else (W30/W31 retired 19 Oct 2026). Routed-out leads are not stored or counted (the ops.notifications counter was dropped with the ops schema)."
+        "content": "W02 Lead Ads webhook (leadgen). Verify X-Hub-Signature-256 over the raw body -> 200 immediately -> fetch lead via Graph (retry x3 in meta-ads.js) -> idempotency on leadgen_id -> backstop (consent tick; every age accepted since the instant form v2, 18 Oct 2026: W01 OUT_OF_BAND_AGE_BOOKS, never qualified outside 35-50) -> same path as W01 via the sub-workflow \"W01 Lead core\": dedupe 90 d, Twilio line-type, route to broker, store, CAPI Lead, first WhatsApp < 60 s. Out-of-band / no-consent leads are NOT stored and never enter the automation (2.1.7); only an anonymous counter row is written. CONTRACT ASSUMPTION: automation/tests/W01.test.mjs does not exist yet; payload below follows crm-gap leads columns and must be reconciled by automation-engineer. Needs env META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_SYSTEM_USER_TOKEN.\n\nPage ingress (I-16/I-25): this callback is the Meta `page` object. leadgen changes take the path above. Page feed comments, Messenger messages, standby and hand-over events get the 200 and, only when SOCIAL_MODE is shadow or live, go to W40 Social replies (raw bytes + signature, W40 re-checks; 21 Oct 2026). SOCIAL_MODE unset / off = nothing is forwarded. Routed-out leads are not stored or counted (the ops.notifications counter was dropped with the ops schema)."
       }
     },
     {
@@ -47,7 +47,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\n// Raw bytes exactly as received (binary), kept for the byte-for-byte forward to W30 / W31 (I-16, I-25).\nconst buf = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64') : Buffer.from(it.json.rawBody || JSON.stringify(it.json.body), 'utf8');\nconst raw = buf.toString('utf8');\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst events = M.parseLeadgenWebhook(body);\nconst out = events.map((e) => ({ json: { valid: true, ...e } }));\n// Page object: feed comments -> W30, Messenger DMs -> W31. Forward the ORIGINAL body (base64 of the received bytes) + the\n// original signature header; the callee verifies it itself. Nothing is re-serialised, nothing is trusted because W02 checked it.\nif (body && body.object === 'page') {\n  const entries = Array.isArray(body.entry) ? body.entry : [];\n  const hasComment = entries.some((e) => (e.changes || []).some((c) => c && c.field === 'feed' && c.value && c.value.item === 'comment'));\n  const hasDm = entries.some((e) => Array.isArray(e.messaging) && e.messaging.length > 0);\n  const fwd = (route) => ({ json: { valid: true, route, raw_body_b64: buf.toString('base64'), signature: sig } });\n  if (hasComment) out.push(fwd('w30'));\n  if (hasDm) out.push(fwd('w31'));\n}\nif (!out.length) return [{ json: { valid: true, empty: true } }];\nreturn out;"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst it = $input.first();\n// Raw bytes exactly as received (binary), kept for the byte-for-byte forward to W40 Social replies (I-16, I-25).\nconst buf = it.binary && it.binary.data ? Buffer.from(it.binary.data.data, 'base64') : Buffer.from(it.json.rawBody || JSON.stringify(it.json.body), 'utf8');\nconst raw = buf.toString('utf8');\nconst sig = (it.json.headers || {})['x-hub-signature-256'];\nif (!M.verifyWebhookSignature(raw, sig, $env.META_APP_SECRET)) return [{ json: { valid: false } }];\nconst body = JSON.parse(raw);\nconst events = M.parseLeadgenWebhook(body);\nconst out = events.map((e) => ({ json: { valid: true, ...e } }));\n// Page object: feed comments, Messenger messages, standby (another app owns the thread) and hand-over events -> W40 Social\n// replies. Forward the ORIGINAL body (base64 of the received bytes) + the original signature header; W40 verifies it itself.\n// Nothing is re-serialised, nothing is trusted because W02 checked it. \"Social forward on?\" sends it only when SOCIAL_MODE is on.\nif (body && body.object === 'page') {\n  const entries = Array.isArray(body.entry) ? body.entry : [];\n  const nonEmpty = (a) => Array.isArray(a) && a.length > 0;\n  const social = entries.some((e) => (e.changes || []).some((c) => c && c.field === 'feed' && c.value && c.value.item === 'comment')\n    || nonEmpty(e.messaging) || nonEmpty(e.standby));\n  if (social) out.push({ json: { valid: true, route: 'w40', raw_body_b64: buf.toString('base64'), signature: sig } });\n}\nif (!out.length) return [{ json: { valid: true, empty: true } }];\nreturn out;"
       }
     },
     {
@@ -303,6 +303,60 @@
           "responseCode": "={{ $json.ok ? 200 : 403 }}"
         }
       }
+    },
+    {
+      "id": "n16",
+      "name": "Social forward on? (SOCIAL_MODE)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        -300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.route === 'w40' && ['shadow', 'live'].includes(String($env.SOCIAL_MODE || '').trim().toLowerCase())) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n17",
+      "name": "W40 Social replies (Page comments + Messenger)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        -300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w40",
+          "cachedResultName": "W40 Social replies"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -327,6 +381,11 @@
           },
           {
             "node": "Valid and has a lead?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Social forward on? (SOCIAL_MODE)",
             "type": "main",
             "index": 0
           }
@@ -401,6 +460,17 @@
         [
           {
             "node": "Respond hub.challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Social forward on? (SOCIAL_MODE)": {
+      "main": [
+        [
+          {
+            "node": "W40 Social replies (Page comments + Messenger)",
             "type": "main",
             "index": 0
           }
