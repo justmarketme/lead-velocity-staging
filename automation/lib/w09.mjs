@@ -212,7 +212,10 @@ export function buildMessage(job, ctx) {
 export function confirmReply(lead = {}, booking = {}, broker = {}, now) {
   const L = LINES[lead.language] || LINES.en;
   const soon = ms(booking.appointment_date) - now <= 36 * H;
-  const body = fill(soon ? L.CONFIRM_THANKS : L.COMMIT_OK, { first_name: lead.first_name || '', adviser_first: firstName(broker.adviser_name || broker.contact_person) });
+  const first = String(lead.first_name || '').trim();
+  // no name (smoke test 21 Oct 2026, #2): drop ", {first_name}" so it reads "Thanks, you're confirmed." (never "Thanks, ,")
+  const line = soon ? (first ? L.CONFIRM_THANKS : L.CONFIRM_THANKS.replace(', {first_name}', '')) : L.COMMIT_OK;
+  const body = fill(line, { first_name: first, adviser_first: firstName(broker.adviser_name || broker.contact_person) });
   return { to: 'lead', wa: textMessage(lead.phone, body) };
 }
 

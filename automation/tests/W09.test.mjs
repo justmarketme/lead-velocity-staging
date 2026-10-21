@@ -378,3 +378,17 @@ test('I-53k: W05 finish -> W09 schedule carries {now, is_synthetic} on a shifted
   const W05WF = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
   assert.match(W05WF.nodes.find((n) => n.name === 'Decide (w05.decide + MX)').parameters.jsCode, /test_clock: now !== wall/);
 });
+
+// Smoke test 21 Oct 2026 (#2): the Confirm-tap reply filled {first_name} with '' -> "Thanks, , you're confirmed."
+test('#2 W09 confirmReply: no first name -> the name is left out ("Thanks, you\'re confirmed."), never "Thanks, ,"', () => {
+  const now = Date.parse('2026-10-25T09:00:00Z');
+  const booking = { appointment_date: '2026-10-26T09:00:00Z' };
+  const broker = { adviser_name: 'Mark Smith' };
+  for (const first_name of [null, '', '  ']) {
+    const en = R.confirmReply({ phone: '+27600000002', first_name, language: 'en' }, booking, broker, now).wa.text.body;
+    assert.match(en, /^Thanks, you're confirmed\. /, JSON.stringify(first_name));
+    const af = R.confirmReply({ phone: '+27600000002', first_name, language: 'af' }, booking, broker, now).wa.text.body;
+    assert.match(af, /^Dankie, jy is bevestig\. /);
+  }
+  assert.match(R.confirmReply({ phone: '+27600000002', first_name: 'Sipho', language: 'en' }, booking, broker, now).wa.text.body, /^Thanks, Sipho, you're confirmed\. /);
+});

@@ -770,3 +770,24 @@ test('button tap path unchanged: no consent_method, empty opener_text', () => {
 test('W03.json inlines typedConsent', () => {
   assert.ok(WF.nodes.find((n) => n.name === 'W03 step').parameters.jsCode.includes('function typedConsent('));
 });
+
+// Smoke test 21 Oct 2026 (#2): W07 hands W03 its normalised msg, and the WhatsApp profile name lives ON the msg
+// (wa-provider normaliseTwilioInbound / w07 normaliseInbound). The hand-off node read j.profile_name / m.profile_name only,
+// so every WhatsApp lead was stored with first_name NULL ("Hi -, you are booked", Mark's notice "-", blank Outlook title).
+test('#2 W07 -> W03 hand-off keeps the profile name from msg: consent says the name and the lead row stores a cleaned first name', async () => {
+  const handoff = (profile_name) => ({ source: 'W07', route: 'W03', msg: { wamid: 'SMname1', from: '+27600000921', at_ms: Date.parse('2026-10-21T14:24:24Z'), type: 'text', text: 'Hi', profile_name }, lead: null });
+  const [ad] = await runCode(WF, 'W07 hand-off -> Cloud API message', { items: [handoff('Smoke Test')] });
+  assert.equal(ad.json.profile_name, 'Smoke Test');
+  const SPB = { ...BRAND, consent_mode: 'generic', start_page: true };
+  const ctx = (extra) => ({ at: ad.json.at, mobile: ad.json.mobile, profile_name: ad.json.profile_name, lead_id: 'lead_name_1', broker: null, brand: SPB, existing_open_lead_id: null, suppressed: false, wamid: 'SMname1', is_synthetic: true, start_page: { token: 'lt1.x' }, ...extra });
+  const first = W3.step(null, ad.json.msg, ctx());
+  assert.match(sends(first.actions)[0].message.body, /^Thanks, Smoke\. /);
+  const yes = W3.step(first.thread, { id: 'SMname2', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx({ wamid: 'SMname2' }));
+  assert.equal(yes.actions.find((a) => a.kind === 'insert_lead').row.first_name, 'Smoke Test');
+  // a profile name with no letters stores no name (the senders then say "there" / "your client"), never an emoji or '-'
+  for (const odd of ['🙂🙂', ' - ', '', null]) {
+    const r = W3.step(first.thread, { id: 'SMname3', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx({ wamid: 'SMname3', profile_name: odd }));
+    assert.equal(r.actions.find((a) => a.kind === 'insert_lead').row.first_name, null, JSON.stringify(odd));
+  }
+  assert.equal(W3.cleanName('  Thabo 🙂 Mokoena '), 'Thabo Mokoena');
+});

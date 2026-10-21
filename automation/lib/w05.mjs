@@ -586,7 +586,7 @@ export function invitedByOutlook(ctx = {}, p = {}, booking = {}, ev = {}) {
 export function graphEvent(ctx, p, opts = {}) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const first = firstName(lead.first_name || lead.name);
+  const first = firstName(lead.first_name || lead.name) || 'your client';
   const number = lead.call_number || lead.phone;
   const startPage = isStartPageLead(lead);
   const portal = String(opts.portalUrl || PORTAL).replace(/\/$/, '');
@@ -615,7 +615,7 @@ export function graphEvent(ctx, p, opts = {}) {
     reminderMinutesBeforeStart: 15,
     isOnlineMeeting: p.method === 'teams',
     // the guest follows the client's invite rule: an attendee only when the client is one (add_client_as_attendee)
-    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: first }, type: 'required' },
+    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: firstName(lead.first_name || lead.name) || p.email }, type: 'required' },
       ...(p.method === 'teams' && p.guest_email ? [{ emailAddress: { address: p.guest_email, name: 'Guest' }, type: 'required' }] : [])] : [],
     body: { contentType: 'text', content: lines.join('\n') },
   };
@@ -782,7 +782,7 @@ export function inviteMail(ctx, p, booking, ev = {}) {
   const when = `${dateLabel(p.start)} at ${timeLabel(p.start)} (South African time)`;
   const link = ev.join_url || null;
   const word = METHOD_LABEL[p.method];
-  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Authorised financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
+  const text = [`Hi ${firstName(lead.first_name) || 'there'},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Authorised financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
   const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Your call with ${adviserFirst}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
   return {
     to: p.email,
@@ -909,12 +909,12 @@ export function brokerNotice(ctx, p) {
   const startPage = isStartPageLead(lead);
   const b = brokerConfig(ctx.broker);
   const adviserFirst = firstName(b.adviser_name || b.contact_person);
-  const vars = [adviserFirst, firstName(lead.first_name), dateLabel(p.start), timeLabel(p.start), METHOD_LABEL[p.method], BAND_LABEL.age_band[lead.age_band] || '-', BAND_LABEL.budget_band[lead.budget_band] || '-'].map((v) => clean(v));
+  const vars = [adviserFirst, firstName(lead.first_name) || 'your client', dateLabel(p.start), timeLabel(p.start), METHOD_LABEL[p.method], BAND_LABEL.age_band[lead.age_band] || '-', BAND_LABEL.budget_band[lead.budget_band] || '-'].map((v) => clean(v));
   const to = b.adviser_whatsapp || b.whatsapp_number || null;
   return {
     template: 'broker_new_booking', to, vars,
     wa: to ? templateWa(to, 'broker_new_booking', vars, [{ url: `l/${lead.id}` }]) : null,
-    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1]} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. ${startPage ? startPageNotice(lead, p) : `Age band ${vars[5]}, budget band ${vars[6]}.`}${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
+    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1].charAt(0).toUpperCase()}${vars[1].slice(1)} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. ${startPage ? startPageNotice(lead, p) : `Age band ${vars[5]}, budget band ${vars[6]}.`}${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
   };
 }
 
@@ -922,7 +922,7 @@ export function brokerNotice(ctx, p) {
 export function bookingConfirmed(ctx, p, booking) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id, SITE, booking.call_number || lead.call_number || lead.phone)].map((v) => clean(v));
+  const vars = [firstName(lead.first_name) || 'there', b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id, SITE, booking.call_number || lead.call_number || lead.phone)].map((v) => clean(v));
   return templateWa(lead.phone, 'booking_confirmed', vars, [{ url: booking.id }, { quick_reply: `confirm:${booking.id}` }, { quick_reply: `reschedule:${booking.id}` }, { quick_reply: `cancel:${booking.id}` }], lead.language);
 }
 

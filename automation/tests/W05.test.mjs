@@ -1234,3 +1234,26 @@ test('v4b15 adviser notice: a start-page lead shows income + topics (or "Prep an
   assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.alt_number, l\.income_band,/);
   assert.match(WF5.nodes.find((x) => x.name === 'Load booking for method change').parameters.query, /l\.income_band, l\.conv_state, l\.routing_reason,/);
 });
+
+// Smoke test 21 Oct 2026 (#2): a lead with no first name got "Hi ," in the invite, "Hi -," in booking_confirmed, and Mark's
+// notice / email subject read "-" ("New booking: - on ..."). No name -> "there" for the client, "your client" for the adviser.
+test('#2 W05 lib: no first name -> "there" to the client, "your client" to the adviser (never "-" or an empty name)', () => {
+  const p = { start: '2026-10-26T11:00:00+02:00', end: '2026-10-26T11:30:00+02:00', method: 'teams', email: 'client@gmail.com', idempotency_key: 'k-nn', booked_via: 'page', context: {}, route: 'shared' };
+  for (const first_name of [null, '', '   ']) {
+    const c = ctx5({ lead: { ...ctx5().lead, first_name }, broker: { ...broker(), email: 'mark@example.com', adviser_whatsapp: '+27820000099' } });
+    const mail = W5.inviteMail(c, p, { id: 'b-nn' }, { ok: true });
+    assert.match(mail.message.body.content, /^Hi there,\n/, JSON.stringify(first_name));
+    const n = W5.brokerNotice(c, p);
+    assert.equal(n.vars[1], 'your client');
+    assert.match(n.email.subject, /^New booking: your client on /);
+    assert.match(n.email.body, /^Your client booked a /);
+    const bc = W5.bookingConfirmed(c, p, { id: 'b-nn', call_number: '+27600000002' });
+    assert.equal(bc.template.components[0].parameters[0].text, 'there');
+    const ev = W5.graphEvent(c, { ...p, method: 'phone' });
+    assert.doesNotMatch(ev.subject, /–\s+–/);
+  }
+  // a named lead is unchanged
+  const named = ctx5();
+  assert.match(W5.inviteMail(named, p, { id: 'b-n' }, { ok: true }).message.body.content, /^Hi Sipho,\n/);
+  assert.equal(W5.brokerNotice(named, p).vars[1], 'Sipho');
+});
