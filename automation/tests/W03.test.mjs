@@ -684,3 +684,89 @@ test('start page ON: the Start here card never comes before the consent tap (Hi 
   assert.deepEqual(cta.map((m) => m.type), ['cta_url'], 'Yes -> the Start here card');
   assert.equal(cta[0].header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png', 'the card keeps its own welcome header');
 });
+
+// ---------------------------------------------------------------- typed consent (Jono, 21 Oct 2026)
+const TYPED_YES = ['yes', 'Yes', 'YES!!', 'yes please', 'Yes I agree', 'yes, I agree.', 'I agree', 'agree', 'ok yes', 'Okay', 'yes continue', 'Yes, continue', 'ja', 'Yebo', 'yes 👍', '👍 Yes please 🙏', 'I consent', 'agreed', 'Yes I agree to this'];
+const TYPED_NO = ['no', 'No.', 'no thanks', 'No thank you', 'nee', 'NO!!', 'nope', 'I don’t agree', 'I do not agree', 'not interested', 'No, I do not agree'];
+const TYPED_AMBIGUOUS = ['yes but', 'Yes, but what does it cost', 'what is this', 'not yet', 'maybe', 'yes?', 'Yes I agree?', 'ok?', 'who are you', 'yes if it is free', 'yes no', 'no I agree', 'ok no', 'hi', '👍', '', '   ', 'yes 2', 'sure', 'I do', 'stop', 'Is this legit', 'yes I agree but only by email', 'no idea'];
+
+test('typedConsent: plain yes -> consent_yes, plain no -> consent_no, anything else -> null (re-ask)', () => {
+  const t = (s) => W3.typedConsent({ type: 'text', text: { body: s } });
+  for (const s of TYPED_YES) assert.equal(t(s), 'consent_yes', s);
+  for (const s of TYPED_NO) assert.equal(t(s), 'consent_no', s);
+  for (const s of TYPED_AMBIGUOUS) assert.equal(t(s), null, JSON.stringify(s));
+  assert.equal(W3.typedConsent({ type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'x' } } }), null, 'taps are not typed');
+  assert.equal(W3.typedConsent({ type: 'text', text: 'yes' }), 'consent_yes', 'flat text shape');
+});
+
+const typedCtx = (id, extra = {}) => ({ at: '2026-10-21T09:00:00+02:00', mobile: '+27600000570', profile_name: 'Ann', lead_id: 'lead_typed_1', broker: MARK, brand: BRAND, existing_open_lead_id: null, suppressed: false, wamid: id, is_synthetic: true, ...extra });
+const typedFirst = (extra) => W3.step(null, { from: '27600000570', id: 'SMt0', timestamp: '1', type: 'text', text: { body: 'hi' }, referral: { source_type: 'ad', source_id: '1203', source_url: 'https://fb.me/y', headline: 'H', ctwa_clid: 'clid_t' } }, typedCtx('SMt0', extra));
+const typedMsg = (body, id = 'SMt1') => ({ from: '27600000570', id, timestamp: '2', type: 'text', text: { body } });
+
+test('typed yes at await_consent: lead stored exactly like a tap, then q_age; typed words + consent_method recorded', () => {
+  for (const words of TYPED_YES) {
+    const first = typedFirst();
+    const r = W3.step(first.thread, typedMsg(words), typedCtx('SMt1'));
+    const ins = r.actions.filter((a) => a.kind === 'insert_lead');
+    assert.equal(ins.length, 1, words);
+    const row = ins[0].row;
+    assert.equal(row.consent_text, sends(first.actions)[0].message.body, 'stored consent = the words shown');
+    assert.equal(row.consent_text_version, 'ctwa-named-v3');
+    assert.equal(row.consent_source, 'ctwa_ad', 'door unchanged');
+    assert.equal(row.stage, 'verified');
+    assert.equal(row.provenance.consent_method, 'typed', words);
+    assert.equal(row.provenance.opener_text, words.trim(), 'the exact typed words are the evidence');
+    assert.equal(row.provenance.inbound_sid, 'SMt1');
+    assert.equal(row.optin.opener_text, words.trim(), 'lead_optins.opener_text (CRM "Message sent")');
+    assert.equal(row.optin.message_sid, 'SMt1');
+    assert.equal(r.thread.stage, 'q_age');
+    assert.equal(sends(r.actions)[0].message.body, 'Which age group are you in?');
+    assert.equal(r.actions.filter((a) => a.kind === 'capi' && a.event_name === 'Lead').length, 1);
+    assert.equal(JSON.stringify(r.thread).includes(words.trim()) && words.trim().length > 3, false, 'no free text in thread state');
+  }
+  // v4 /start/ brand: typed "Yes I agree" -> the Start here card, like the tap
+  const v4ctx = { brand: { ...SP_BRAND, consent_mode: 'named' }, broker: null, start_page: { token: SP_TOKEN } };
+  const v4 = typedFirst(v4ctx);
+  const y = W3.step(v4.thread, typedMsg('Yes I agree'), typedCtx('SMt2', v4ctx));
+  assert.deepEqual(sends(y.actions).map((a) => a.message.type), ['cta_url']);
+  assert.equal(y.actions.find((a) => a.kind === 'insert_lead').row.consent_text_version, 'ctwa-generic-v4');
+});
+
+test('typed no at await_consent closes like the No thanks tap (hash suppressed, nothing stored)', () => {
+  for (const words of TYPED_NO) {
+    const first = typedFirst();
+    const r = W3.step(first.thread, typedMsg(words), typedCtx('SMt3'));
+    assert.equal(r.actions.some((a) => a.kind === 'insert_lead'), false, words);
+    assert.deepEqual(r.actions.filter((a) => a.kind === 'suppress').map((a) => a.source), ['no_consent_ctwa'], words);
+    assert.deepEqual(r.thread, { stage: 'closed', closed_reason: 'consent_no', at: '2026-10-21T09:00:00+02:00' });
+    assert.equal(sends(r.actions)[0].message.body, 'No problem. We won’t contact you again. Take care.');
+  }
+});
+
+test('ambiguous typed text at await_consent re-asks with the consent buttons; nothing stored, stage unchanged', () => {
+  for (const words of TYPED_AMBIGUOUS) {
+    const first = typedFirst();
+    const r = W3.step(first.thread, typedMsg(words), typedCtx('SMt4'));
+    assert.equal(r.actions.some((a) => a.kind === 'insert_lead' || a.kind === 'suppress'), false, JSON.stringify(words));
+    assert.equal(r.thread.stage, 'await_consent');
+    const s = sends(r.actions);
+    assert.equal(s.length, 1);
+    assert.deepEqual(s[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no']);
+  }
+});
+
+test('button tap path unchanged: no consent_method, empty opener_text', () => {
+  const first = typedFirst();
+  const r = W3.step(first.thread, { id: 'SMt5', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, typedCtx('SMt5'));
+  const row = r.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal('consent_method' in row.provenance, false);
+  assert.equal(row.provenance.opener_text, '');
+  assert.equal(row.optin.opener_text, null);
+  // a tap is a tap, whatever its title says
+  const no = W3.step(first.thread, { id: 'SMt6', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_no', title: 'yes' } } }, typedCtx('SMt6'));
+  assert.equal(no.thread.closed_reason, 'consent_no');
+});
+
+test('W03.json inlines typedConsent', () => {
+  assert.ok(WF.nodes.find((n) => n.name === 'W03 step').parameters.jsCode.includes('function typedConsent('));
+});

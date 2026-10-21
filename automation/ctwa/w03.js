@@ -78,6 +78,38 @@ function consentFor(mode, broker) {
   };
 }
 
+// ---------------------------------------------------------------- typed consent (Jono, 21 Oct 2026)
+// POPIA asks for consent that is voluntary, specific and informed, not for a button. A person who TYPES a plain yes to the
+// consent question has consented; before this they were re-asked forever (seen live 21 Oct). Strict on purpose: every word
+// must come from the small vocabulary below and at least one must be a clear yes (or no). A question mark, a condition, a
+// negative or any other word ("yes but", "maybe", "what is this", "yes?") is not an answer, and the buttons are re-sent.
+// Case, punctuation and emojis are ignored; apostrophes are dropped ("don't" -> "dont"). STOP is W07/W15's, never here.
+const TYPED_YES_CORE = new Set(['yes', 'yeah', 'yep', 'yup', 'ja', 'yebo', 'ewe', 'ok', 'okay', 'agree', 'agreed', 'consent']);
+const TYPED_YES_FILL = new Set(['i', 'please', 'continue', 'thanks', 'thank', 'you', 'go', 'ahead', 'to', 'this', 'that', 'it', 'with']);
+const TYPED_NO_CORE = new Set(['no', 'nope', 'nah', 'nee', 'cha', 'hayi', 'disagree']);
+const TYPED_NO_FILL = new Set(['thanks', 'thank', 'you', 'please', 'i', 'im', 'am', 'do', 'dont', 'not', 'agree', 'interested']);
+const TYPED_NO_PHRASES = new Set(['not interested', 'im not interested', 'i am not interested', 'i dont agree', 'i do not agree', 'dont agree']);
+const TYPED_NEGATORS = new Set(['not', 'dont', 'disagree']);
+/** A typed reply to the consent question -> 'consent_yes' | 'consent_no' | null (not a plain answer: ask again). */
+function typedConsent(msg) {
+  if (!msg || msg.type !== 'text') return null;
+  const raw = String((msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text) || '');
+  if (!raw.trim() || raw.length > 80 || /[?¿؟]/.test(raw)) return null;
+  const norm = raw.normalize('NFKC').toLowerCase().replace(/['’‘`´]/g, '')
+    .replace(/[\p{P}\p{S}\p{Extended_Pictographic}‍︎️]/gu, ' ').trim();
+  const words = norm.split(/\s+/).filter(Boolean);
+  if (!words.length || words.length > 8 || !words.every((w) => /^\p{L}+$/u.test(w))) return null; // digits etc. -> not plain
+  const phrase = words.join(' ');
+  if (words.every((w) => TYPED_YES_CORE.has(w) || TYPED_YES_FILL.has(w)) && words.some((w) => TYPED_YES_CORE.has(w))) return 'consent_yes';
+  if (TYPED_NO_PHRASES.has(phrase)) return 'consent_no';
+  if (words.every((w) => TYPED_NO_CORE.has(w) || TYPED_NO_FILL.has(w)) && words.some((w) => TYPED_NO_CORE.has(w))) {
+    // "no I agree" contradicts itself: a yes word without a negator is not a plain no
+    if (words.some((w) => TYPED_YES_CORE.has(w)) && !words.some((w) => TYPED_NEGATORS.has(w))) return null;
+    return 'consent_no';
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------- website opener (sites/sortmycover/docs/WHATSAPP-OPENERS.md)
 // 17 Oct 2026: WhatsApp is the only way to book. The site's chat widget asks for the consent tick, then opens wa.me with:
 //   Hi Lindi, I'd like to chat about <topic>. I agree that SortMyCover may message me on WhatsApp about this and share my
@@ -336,12 +368,16 @@ function step(thread, msg, ctx) {
 
   const id = tapId(msg);
   if (t.stage === 'await_consent') {
-    if (id === 'consent_no') {
+    // a tap wins; with no tap, a plain typed yes/no counts the same (typedConsent, 21 Oct 2026)
+    const typedChoice = id ? null : typedConsent(msg);
+    const choice = id || typedChoice;
+    const typedWords = typedChoice ? String((msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text) || '').trim() : '';
+    if (choice === 'consent_no') {
       actions.push({ kind: 'suppress', mobile_hash: hashMobile(ctx.mobile), source: 'no_consent_ctwa' });
       send({ type: 'text', body: 'No problem. We won’t contact you again. Take care.' });
       return { thread: { stage: 'closed', closed_reason: 'consent_no', at: ctx.at }, actions: actions.concat([{ kind: 'cancel_stall' }]) }; // origin + answers dropped
     }
-    if (id === 'consent_yes') {
+    if (choice === 'consent_yes') {
       const o = t.origin || {};
       const row = {
         id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: o.origin || 'ctwa', ref: o.ref || null, ad_id: o.ad_id || null,
@@ -351,8 +387,11 @@ function step(thread, msg, ctx) {
         is_synthetic: !!ctx.is_synthetic,
       };
       // provenance (17 Oct 2026): the door is decided by the FIRST message (t.origin / t.first_*), the evidence is this tap
-      row.provenance = provenanceFor({ origin: o, referral: t.first_referral || null, wamid: ctx.wamid, at: ctx.at, text: '', version: t.consent.version });
+      row.provenance = provenanceFor({ origin: o, referral: t.first_referral || null, wamid: ctx.wamid, at: ctx.at, text: typedWords, version: t.consent.version });
       row.provenance.first_inbound_sid = t.first_wamid || null;
+      // typed consent: the exact words are the evidence (provenance.opener_text -> lead_optins.opener_text, shown in the CRM
+      // as "Message sent"), and consent_method says how it was given (lead_activities ctwa_consent payload)
+      if (typedChoice) row.provenance.consent_method = 'typed';
       row.consent_source = row.provenance.door;
       row.optin = optinRecord(row);
       actions.push({ kind: 'insert_lead', row });
@@ -578,4 +617,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { typedConsent, consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
