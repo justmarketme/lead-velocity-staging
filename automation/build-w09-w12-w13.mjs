@@ -426,7 +426,7 @@ RETURNING id;`,
   ON CONFLICT (booking_id) DO NOTHING
   RETURNING id, booking_id, lead_id, broker_id),
 ap AS (UPDATE public.appointments SET status = $12, updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),
-st AS (UPDATE public.leads SET stage = COALESCE($13, stage), conv_state = CASE WHEN $14::text IS NOT NULL AND COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', $14::text) ELSE conv_state END, updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
+st AS (UPDATE public.leads SET stage = COALESCE($13, stage), conv_state = CASE WHEN $14::text IS NOT NULL AND COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') AND ${L12.noNewerLiveBookingSql('(SELECT o.booking_id FROM o WHERE o.lead_id = leads.id LIMIT 1)')} THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', $14::text) ELSE conv_state END, updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
 tl AS (
   INSERT INTO public.lead_activities (${ACTIVITY_COLS})
   SELECT o.lead_id, $4::uuid, $3::uuid, 'W12', 'system', 'outcome_recorded', jsonb_build_object('booking_id', o.booking_id::text, 'outcome', $5::text, 'auto_marked', $9::boolean, 'unconfirmed', $10::boolean, 'reach', $6::text), now(), 'w12:outcome:' || o.booking_id::text
@@ -490,7 +490,7 @@ d AS (UPDATE public.outcomes SET dispute_status = 'open', updated_at = now()
        WHERE booking_id = $4::uuid AND $9::boolean AND dispute_status = 'none' AND EXISTS (SELECT 1 FROM c) RETURNING id),
 ap AS (UPDATE public.appointments SET status = $10, updated_at = now()
         WHERE id = $4::uuid AND $10 IS NOT NULL AND EXISTS (SELECT 1 FROM c) RETURNING id),
-st AS (UPDATE public.leads SET stage = COALESCE($11, stage), conv_state = CASE WHEN $12::text IS NOT NULL AND COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', $12::text) ELSE conv_state END, updated_at = now()
+st AS (UPDATE public.leads SET stage = COALESCE($11, stage), conv_state = CASE WHEN $12::text IS NOT NULL AND COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') AND ${L12.noNewerLiveBookingSql('$4::uuid')} THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', $12::text) ELSE conv_state END, updated_at = now()
         WHERE id = $1::uuid AND ($11 IS NOT NULL OR $12 IS NOT NULL) AND EXISTS (SELECT 1 FROM c) RETURNING id)
 SELECT c.id FROM c;`,
     '={{ $json.params }}');
@@ -635,7 +635,7 @@ o AS (
    WHERE booking_id = $1::uuid AND outcome = 'attended' AND EXISTS (SELECT 1 FROM k)
   RETURNING id, booking_id, lead_id, brand_id, broker_id, marked_at),
 ap AS (UPDATE public.appointments SET status = 'no_show', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),
-st AS (UPDATE public.leads SET stage = 'no_show', conv_state = CASE WHEN COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', 'no_show') ELSE conv_state END, updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
+st AS (UPDATE public.leads SET stage = 'no_show', conv_state = CASE WHEN COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') AND ${L12.noNewerLiveBookingSql('(SELECT o.booking_id FROM o WHERE o.lead_id = leads.id LIMIT 1)')} THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', 'no_show') ELSE conv_state END, updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
 tl AS (
   INSERT INTO public.lead_activities (${ACTIVITY_COLS})
   SELECT o.lead_id, o.brand_id, o.broker_id, 'W12', 'system', 'outcome_kg_not_attended', jsonb_build_object('booking_id', o.booking_id::text, 'from', 'attended', 'to', 'no_show', 'nh', 'NH-62', 'decided_by', $2::text), now(), 'w12:kg_not_attended:' || o.booking_id::text
