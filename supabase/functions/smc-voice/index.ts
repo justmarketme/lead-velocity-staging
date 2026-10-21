@@ -33,6 +33,8 @@ const START_HERE_SID = "HXd261ab8c34bc33734af725679ec0b825"; // smc_start_here (
 const QUALIFY_BUDGET_SID = "HX5a0030506140a58a86e8611f15a5af64"; // smc_qualify_budget (approved UTILITY)
 const BUDGET_TAP_IDS = ["budget_under_500", "budget_500_750", "budget_750_1250", "budget_1250_1499", "budget_1500_plus"];
 const WORKFLOW = "smc-voice";
+// lead_optins.consent_version for a WhatsApp yes given on a call (the words asked are SMC_WHATSAPP_CONSENT_ASK).
+const VOICE_WHATSAPP_CONSENT_VERSION = "CONSENT-VOICE-WHATSAPP-v1";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const json = (body: unknown, status = 200) =>
@@ -551,6 +553,14 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
       whatsapp_consent: { given: true, at: consentAt, source: "voice_call", wording: SMC_WHATSAPP_CONSENT_ASK } },
   });
   if (lead) {
+    // Opt-in provenance (append-only, one row per consent): the CRM's Opt-ins panel reads lead_optins, not conv_state.
+    // channel 'voice_call' needs migration 20261021120000_lead_optins_voice_call.sql; until then the insert is refused
+    // and only logged, and the consent stays recorded on the communications row and conv_state as before.
+    const { error: optinError } = await db.from("lead_optins").insert({
+      lead_id: lead.id, brand_id: SMC_BRAND_ID, channel: "voice_call", consent_version: VOICE_WHATSAPP_CONSENT_VERSION,
+      consent_text: SMC_WHATSAPP_CONSENT_ASK, received_at: consentAt, recorded_by: "smc-voice",
+    });
+    if (optinError) console.error("lead_optins voice_call:", optinError.message);
     const cs = await convState(db, lead.id);
     // Only on a real send: a failed Start here card must not start W08 nudges about a link they never got.
     await db.from("leads").update({ conv_state: { ...cs, ...(startToken && sid && !test ? { state: "start_page" } : {}), whatsapp_consent: { given: true, at: consentAt, source: "voice_call", conversation_id: conv } } }).eq("id", lead.id);
