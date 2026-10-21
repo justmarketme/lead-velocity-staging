@@ -270,6 +270,13 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     for (const f of walk(dist).filter((x) => /\.(js|json|txt|xml|webmanifest|css)$/.test(x))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(/capital\s*legacy|capitallegacy|43826/i);
   });
+  it("/how-it-works/ headings never skip a level: a visually hidden H2 sits above the step H3s", () => {
+    const h = pages.find((p) => p.rel === "how-it-works/index.html")!.html;
+    const main = h.slice(h.indexOf("<main"), h.indexOf("</main>"));
+    const levels = [...main.matchAll(/<h([1-6])[\s>]/g)].map((m) => Number(m[1]));
+    levels.forEach((l, i) => { if (i) expect(l - levels[i - 1], `h${levels[i - 1]} then h${l}`).toBeLessThanOrEqual(1); });
+    expect(main).toMatch(/<h2 class="sr">What happens when you book<\/h2>/);
+  });
   it("each code-drawn visual ships pre-rendered on its page, with its words in the HTML (readable with no JavaScript)", () => {
     const want: Record<string, [string, string]> = {
       "how-it-works/index.html": ["split", "Only the adviser"],
