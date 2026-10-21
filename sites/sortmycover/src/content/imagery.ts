@@ -8,11 +8,11 @@ export type SceneImage = { src: string; alt: string; w: number; h: number; scene
 const s = (key: string, alt: string, scene: string, w = 1440, h = 966): SceneImage => ({ src: `/img/${key}.webp`, alt, w, h, scene });
 
 export const SCENES = {
-  /* home: hero mosaic (all four groups in the first screen) */
-  heroKitchen: s("hero-kitchen", "A couple talking at their kitchen table", "Black South African couple, early 40s, talking and smiling at a light wooden kitchen table with coffee, Johannesburg home, morning light", 1440, 1788),
-  heroBaby: s("hero-baby", "Parents with their baby in the living room", "Indian South African couple, mid-30s, the father holding a baby, the mother laughing, bright Durban living room with plants", 1440, 1076),
-  heroMove: s("hero-move", "A couple unpacking boxes in a new home", "Coloured South African couple, late 30s, unpacking cardboard boxes in a new Cape Town house, Table Mountain soft through the window", 1440, 1788),
-  heroMorning: s("hero-morning", "A parent getting ready for work", "White South African mother, mid-40s, laptop bag on her shoulder, child's school bag on a chair, morning routine in a Pretoria home", 1440, 1076),
+  /* home: hero mosaic (all four groups in the first screen); 720px wide: a tile shows at about 170-260px on phones and desktop (up to about 460px on a one-column tablet) */
+  heroKitchen: s("hero-kitchen", "A couple talking at their kitchen table", "Black South African couple, early 40s, talking and smiling at a light wooden kitchen table with coffee, Johannesburg home, morning light", 720, 894),
+  heroBaby: s("hero-baby", "Parents with their baby in the living room", "Indian South African couple, mid-30s, the father holding a baby, the mother laughing, bright Durban living room with plants", 720, 538),
+  heroMove: s("hero-move", "A couple unpacking boxes in a new home", "Coloured South African couple, late 30s, unpacking cardboard boxes in a new Cape Town house, Table Mountain soft through the window", 720, 894),
+  heroMorning: s("hero-morning", "A parent getting ready for work", "White South African mother, mid-40s, laptop bag on her shoulder, child's school bag on a chair, morning routine in a Pretoria home", 720, 538),
   /* home: life-moment picker */
   momentBond: s("moment-bond", "A couple holding the keys to a new home", "Indian South African couple, about 40, standing at the front door of a new townhouse in Umhlanga, holding a set of keys, smiling at each other"),
   momentBaby: s("moment-baby", "A father with a newborn at home", "White South African father, late 30s, rocking a newborn by a sunny window in a Centurion home, quiet and tender"),
