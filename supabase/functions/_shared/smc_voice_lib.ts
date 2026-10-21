@@ -285,3 +285,63 @@ export function callContactAt(startedMs: number, durationSecs: number, nowMs = D
   const end = startedMs > 0 ? startedMs + Math.max(0, durationSecs) * 1000 : nowMs;
   return new Date(Math.min(end, nowMs)).toISOString();
 }
+
+// ---------------------------------------------------------------------------- contact route (WhatsApp or team call-back)
+
+export type ContactRoute = "whatsapp" | "callback";
+
+/**
+ * Which consent save_caller_details was given (Jono, 21 Oct 2026): a yes to WhatsApp, or (after a no to WhatsApp) a yes to a
+ * call-back from the SortMyCover team. WhatsApp wins if both are 'yes'. Null = no consent, nothing may be saved.
+ */
+export function voiceContactRoute(p: { whatsapp_consent?: unknown; callback_consent?: unknown }): ContactRoute | null {
+  const yes = (v: unknown) => String(v ?? "").trim().toLowerCase() === "yes";
+  return yes(p.whatsapp_consent) ? "whatsapp" : yes(p.callback_consent) ? "callback" : null;
+}
+
+/** WhatsApp needs an SA mobile (+27 6x/7x/8x); a team call-back takes any SA number, landlines included (+27 1x-8x). */
+export function voicePhoneOk(phone: string | null | undefined, route: ContactRoute): boolean {
+  if (!phone) return false;
+  return route === "whatsapp" ? /^\+27[6-8]\d{8}$/.test(phone) : /^\+27[1-8]\d{8}$/.test(phone);
+}
+
+/** leads.line_type for an SA E.164 number: 06x/07x/081-084 mobile, 087 VoIP, 01x-05x landline. */
+export function zaLineType(phone: string | null | undefined): "mobile" | "landline" | "voip" | "unknown" {
+  if (!phone) return "unknown";
+  if (/^\+27(6\d|7\d|8[1-4])\d{7}$/.test(phone)) return "mobile";
+  if (/^\+2787\d{7}$/.test(phone)) return "voip";
+  if (/^\+27[1-5]\d{8}$/.test(phone)) return "landline";
+  return "unknown";
+}
+
+/**
+ * Who hears about a call-back request: the team inbox plus Jono and KG, through team-notify (Resend, from howzit@).
+ * Every address must be in team-notify's TEAM list, or team-notify refuses the send.
+ */
+export const SMC_CALLBACK_ALERT_TO = ["howzit@leadvelocity.co.za", "jonojettoo@leadvelocity.co.za"];
+export const SMC_CALLBACK_ALERT_CC = ["kgomotsopule@leadvelocity.co.za"];
+
+/** The internal email for a call-back request. Team-only, so it carries the number to call; never health, ID or banking details. */
+export function callbackAlertEmail(a: {
+  firstName: string; phoneSpoken: string; lineType: string; preferredTime: string | null; helpWith: string[];
+  conversationId: string; leadId: string; atMs: number; synthetic?: boolean;
+}): { subject: string; text: string } {
+  const test = a.synthetic ? "[TEST] " : "";
+  return {
+    subject: `${test}SortMyCover call-back: ${a.firstName} on ${a.phoneSpoken}`.slice(0, 200),
+    text: [
+      `${a.firstName} called SortMyCover, said no to WhatsApp and asked for a call-back from the SortMyCover team (Lindi, phone).`,
+      "",
+      `Call: ${a.phoneSpoken} (${a.lineType})`,
+      `Best time of day: ${a.preferredTime || "not given"}`,
+      `Wants help with: ${a.helpWith.join(", ").replace(/_/g, " ") || "not sure"}`,
+      `Asked at: ${spokenSast(a.atMs)} (SAST)`,
+      "",
+      "This is a SortMyCover team call, not the adviser: the lead is not routed and no adviser details were shared.",
+      "Call inside CPA hours (Mon-Fri 08:00-20:00, Sat 09:00-13:00, not Sundays or public holidays). Don't WhatsApp them: they declined it.",
+      "",
+      `Lead: ${a.leadId}`,
+      `Conversation: ${a.conversationId} (transcript on the lead's call record)`,
+    ].join("\n"),
+  };
+}

@@ -215,16 +215,30 @@ const smcCallerId = { type: "string", dynamic_variable: "caller_number" };
 const SMC_TOOL_DEFS: ToolDef[] = [
   {
     name: "save_caller_details",
-    description: "Save the caller's first name, number and what they want help with. Call once, right after a clear yes to being contacted on WhatsApp on this number, then call send_whatsapp_followup.",
+    description: "Save the caller's first name, number and what they want help with. Call once, right after a clear yes to being contacted on WhatsApp on this number (then call send_whatsapp_followup), or, if they said no to WhatsApp, right after a clear yes to a call-back from the SortMyCover team (then call request_callback).",
     properties: {
       first_name: { type: "string", description: "Caller's first name." },
       help_with: { type: "string", description: "What they want help with, e.g. 'life cover', 'disability cover', 'severe illness cover', 'income protection', 'a will', 'not sure'. Several allowed." },
-      mobile: { type: "string", description: "Their mobile number, digits only, e.g. 0825551234. Omit to use the number they're calling from." },
-      whatsapp_consent: { type: "string", description: "'yes' only if they clearly agreed to be contacted on WhatsApp on this number; otherwise do not call this tool." },
+      mobile: { type: "string", description: "The number to contact them on, digits only, e.g. 0825551234. A mobile for WhatsApp; for a call-back a landline is fine (e.g. 0123456789). Omit to use the number they're calling from." },
+      whatsapp_consent: { type: "string", description: "'yes' only if they clearly agreed to be contacted on WhatsApp on this number. Omit otherwise." },
+      callback_consent: { type: "string", description: "'yes' only if they said no to WhatsApp and then clearly agreed to a call-back from the SortMyCover team. Omit otherwise." },
       conversation_id: smcConversationId,
       caller_id: smcCallerId,
     },
-    required: ["whatsapp_consent", "conversation_id"],
+    required: ["conversation_id"],
+  },
+  {
+    name: "request_callback",
+    description: "Ask the SortMyCover team (a person from SortMyCover, not the adviser) to call the caller back. Only after they said no to WhatsApp, then a clear yes to 'Would you like someone from the SortMyCover team to give you a call back on this number instead?', with the number read back and confirmed, and after save_caller_details with callback_consent 'yes'. Never together with send_whatsapp_followup.",
+    properties: {
+      callback_consent: { type: "string", description: "'yes' only if the caller clearly agreed to a call-back from the SortMyCover team; otherwise do not call this tool." },
+      preferred_time: { type: "string", description: "The time of day they said suits them, in their words, e.g. 'weekday mornings', 'after 5pm'. Omit if they had no preference." },
+      first_name: { type: "string", description: "Caller's first name, if known." },
+      mobile: { type: "string", description: "The confirmed number to call, digits only (landline or mobile). Omit to use the saved or calling number." },
+      conversation_id: smcConversationId,
+      caller_id: smcCallerId,
+    },
+    required: ["callback_consent", "conversation_id"],
   },
 ];
 
@@ -270,10 +284,12 @@ const SMC_WHATSAPP_TOOL_DEFS: ToolDef[] = [
 ];
 
 const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }> = {
-  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), declined (did not want WhatsApp or did not want to proceed), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
+  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), callback_requested (said no to WhatsApp and request_callback returned ok: the SortMyCover team will call them back), declined (wanted neither WhatsApp nor a call-back, or did not want to proceed), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
   first_name: { type: "string", description: "Caller's first name, if given." },
   help_with: { type: "string", description: "What the caller wanted help with (life, disability, severe illness, income protection, will, not sure)." },
   whatsapp_consent: { type: "boolean", description: "True only if the caller clearly said yes to being contacted on WhatsApp on their number." },
+  callback_consent: { type: "boolean", description: "True only if the caller said no to WhatsApp and clearly said yes to a call-back from the SortMyCover team." },
+  callback_preferred_time: { type: "string", description: "The time of day the caller said suits them for the SortMyCover team's call-back, in their words. Empty if no call-back." },
   advice_requested: { type: "boolean", description: "True ONLY if the caller explicitly asked Lindi for advice, a quote or price, a recommendation, or a comparison of products or insurers. Asking to book a call or saying what cover they want is NOT a request for advice." },
   call_notes: { type: "string", description: "2-4 short factual notes for the adviser/team: what they want, their situation as stated, preferred times or method, anything to follow up. No health, ID or banking details." },
 };
@@ -284,7 +300,9 @@ const SMC_EVALUATION = [
   { id: "disclosures", name: "Opening disclosures", type: "prompt",
     conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with authorised advisers." },
   { id: "next_step", name: "Clear next step", type: "prompt",
-    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, or (declined) a kind explanation with the website. Failure if the call ended with no next step while the caller wanted help." },
+    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover; or, if they said no to WhatsApp, a call-back from the SortMyCover team on a confirmed number (never presented as the adviser calling); or (declined both) a kind explanation with the website. Failure if the call ended with no next step while the caller wanted help." },
+  { id: "callback_consent_first", name: "Call-back offered once, only after a no to WhatsApp", type: "prompt",
+    conversation_goal_prompt: "Success if request_callback was only called after the caller said no to WhatsApp and then clearly said yes to a call-back from the SortMyCover team, with the number read back, or was not called at all; and the call-back was offered at most once. Failure otherwise." },
   { id: "whatsapp_consent_first", name: "WhatsApp consent before sending", type: "prompt",
     conversation_goal_prompt: "Success if send_whatsapp_followup was only called after the caller clearly said yes to being contacted on WhatsApp, or was not called at all. Failure if it was called before or without a clear yes." },
   { id: "no_system_talk", name: "No system or booking-failure talk", type: "prompt",

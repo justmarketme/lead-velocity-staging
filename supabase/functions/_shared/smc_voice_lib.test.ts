@@ -2,8 +2,10 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
   ageBand, budgetBand, callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, countsTowardCap, dialedWithin24h, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
-  mintLeadToken, nextCallWindow, sastIso, twilioSignature, twilioSignatureOk,
+  callbackAlertEmail, mintLeadToken, nextCallWindow, sastIso, SMC_CALLBACK_ALERT_CC, SMC_CALLBACK_ALERT_TO, twilioSignature, twilioSignatureOk,
+  voiceContactRoute, voicePhoneOk, zaLineType,
 } from "./smc_voice_lib.ts";
+import { localZaFormat, normalizeZaPhone } from "./spoken.ts";
 
 const sast = (s: string) => Date.parse(`${s}+02:00`);
 
@@ -123,6 +125,69 @@ Deno.test("why WhatsApp (Jono, 18 Oct 2026): one spoken sentence in the consent 
   assert(SMC_WHATSAPP_CONSENT_ASK.endsWith("Do I have your permission to contact you on WhatsApp on this number?"));
   assert(!/\bfree\b|\bcosts?\b|\bprice\b|\bR\d/i.test(SMC_WHATSAPP_CONSENT_ASK));
   assert(!/\bAI\b/.test(SMC_WHATSAPP_CONSENT_ASK));
+});
+
+Deno.test("call-back route (Jono, 21 Oct 2026): consent picks the route; a landline is fine for a call-back, not for WhatsApp", () => {
+  assertEquals(voiceContactRoute({ whatsapp_consent: "yes" }), "whatsapp");
+  assertEquals(voiceContactRoute({ whatsapp_consent: "Yes", callback_consent: "yes" }), "whatsapp");
+  assertEquals(voiceContactRoute({ whatsapp_consent: "no", callback_consent: " YES " }), "callback");
+  assertEquals(voiceContactRoute({ whatsapp_consent: "maybe" }), null);
+  assertEquals(voiceContactRoute({}), null);
+  const landline = normalizeZaPhone("012 345 6789")!;
+  assertEquals(landline, "+27123456789");
+  assert(!voicePhoneOk(landline, "whatsapp"));
+  assert(voicePhoneOk(landline, "callback"));
+  assert(voicePhoneOk("+27825551234", "whatsapp") && voicePhoneOk("+27825551234", "callback"));
+  assert(voicePhoneOk("+27871234567", "callback"), "087 VoIP");
+  assert(!voicePhoneOk("+27901234567", "callback"), "not an SA geographic or mobile range");
+  assert(!voicePhoneOk("+447700900123", "callback"), "foreign");
+  assert(!voicePhoneOk(null, "callback"));
+  assertEquals(zaLineType("+27825551234"), "mobile");
+  assertEquals(zaLineType("+27731234567"), "mobile");
+  assertEquals(zaLineType("+27123456789"), "landline");
+  assertEquals(zaLineType("+27214567890"), "landline");
+  assertEquals(zaLineType("+27871234567"), "voip");
+  assertEquals(zaLineType(null), "unknown");
+  assertEquals(localZaFormat(landline), "012 345 6789");
+});
+
+Deno.test("call-back team alert: team addresses only (team-notify accepts them), number + time, never the adviser", async () => {
+  const { plan } = await import("../team-notify/index.ts");
+  const mail = callbackAlertEmail({
+    firstName: "Gert", phoneSpoken: "012 345 6789", lineType: "landline", preferredTime: "weekday mornings", helpWith: ["life_cover", "wills"],
+    conversationId: "conv_abc", leadId: "lead-1", atMs: sast("2026-10-21T10:00:00"),
+  });
+  assertEquals(mail.subject, "SortMyCover call-back: Gert on 012 345 6789");
+  assert(mail.text.includes("Call: 012 345 6789 (landline)"));
+  assert(mail.text.includes("Best time of day: weekday mornings"));
+  assert(mail.text.includes("Wants help with: life cover, wills"));
+  assert(mail.text.includes("not the adviser"));
+  assert(!/Mark Weston|Oracle|28418|43826/.test(mail.text));
+  assertEquals(plan({ to: SMC_CALLBACK_ALERT_TO, cc: SMC_CALLBACK_ALERT_CC, subject: mail.subject, text: mail.text }).ok, true);
+  const t = callbackAlertEmail({ firstName: "T", phoneSpoken: "x", lineType: "unknown", preferredTime: null, helpWith: [], conversationId: "c", leadId: "l", atMs: 0, synthetic: true });
+  assert(t.subject.startsWith("[TEST] "));
+  assert(t.text.includes("Best time of day: not given") && t.text.includes("Wants help with: not sure"));
+});
+
+Deno.test("call-back offer on the phone: once, SortMyCover team (not the adviser), confirm number + time of day", async () => {
+  const { SMC_PROMPT, SMC_CALLBACK_OFFER } = await import("./smc_receptionist_persona.ts");
+  assertEquals(SMC_CALLBACK_OFFER, "No problem. Would you like someone from the SortMyCover team to give you a call back on this number instead?");
+  assert(SMC_PROMPT.includes(`offer the call-back ONCE, in these words: "${SMC_CALLBACK_OFFER}"`));
+  assert(SMC_PROMPT.includes("What time of day usually suits you best for a call?"));
+  assert(SMC_PROMPT.includes("Done. Someone from the SortMyCover team will give you a call on that number"));
+  assert(SMC_PROMPT.includes("never say the adviser will call"));
+  assert(!/adviser's office/.test(SMC_PROMPT));
+  assert(!/\bfree\b|\bno cost\b|\bAI\b/i.test(SMC_CALLBACK_OFFER));
+});
+
+Deno.test("sync-voice-agents attaches request_callback again (SortMyCover team call-back) and scores it", async () => {
+  const src = await Deno.readTextFile(new URL("../sync-voice-agents/index.ts", import.meta.url));
+  const attached = src.slice(src.indexOf("const SMC_TOOL_DEFS"), src.indexOf("export const SMC_BOOKING_TOOL_DEFS"));
+  assert(attached.includes('name: "request_callback"'));
+  assert(attached.includes("callback_consent"));
+  assert(/upsertTools\(\[\.\.\.SMC_TOOL_DEFS, \.\.\.SMC_WHATSAPP_TOOL_DEFS\]/.test(src));
+  assert(src.includes("callback_requested (said no to WhatsApp and request_callback returned ok"));
+  assert(src.includes("a call-back from the SortMyCover team on a confirmed number"));
 });
 
 Deno.test("callback timeline rows: one per callback, only with a lead", () => {
