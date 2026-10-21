@@ -5,7 +5,7 @@ Jono, 17 Oct 2026: WhatsApp is the only way to book. The site has no booking for
 ## How a visitor reaches WhatsApp
 
 1. They tap any "Chat on WhatsApp" button, or the green launcher at the bottom right.
-2. The chat panel opens. It introduces Lindi as SortMyCover's AI booking assistant, lists what happens on WhatsApp, and asks for the consent tick. The consent text is `config/consent.json` -> `generic`, version **CONSENT-GENERIC-v5web**, the same wording as the booking form. The flow spec requires consent before WhatsApp.
+2. The chat panel opens. It introduces Lindi as SortMyCover's automated booking assistant, lists what happens on WhatsApp, and asks for the consent tick. The consent text is `config/consent.json` -> `generic`, version **CONSENT-GENERIC-v5web**, the same wording as the booking form. The flow spec requires consent before WhatsApp.
 3. "Open WhatsApp" stays blocked until the box is ticked. It then opens `https://wa.me/27600156480?text=<opener>`.
 4. Without JavaScript, the buttons link straight to the same URL. The opener states the consent in the person's own words, so the chat itself records it.
 
