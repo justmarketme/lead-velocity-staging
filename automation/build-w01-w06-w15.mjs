@@ -695,9 +695,17 @@ const msg = { wamid: ev.wamid, template: m.template_name, variables: (m.metadata
 const e = L.statusEffect(msg, { status: ev.status, at: ev.at || new Date().toISOString() });
 return [{ json: { skip: false, ev, m, e, sms: e.sms ? { to: m.recipient_contact, text: e.sms.text } : null, l: { id: m.lead_id, brand_id: m.brand_id, broker_id: m.broker_id, phone: m.recipient_contact }, wamid: ev.wamid } }];`));
   n.push(pg('Stamp disclosure evidence (first delivery wins)', pos(4, 3),
-`WITH c AS (
-  UPDATE public.communications SET status = $3, delivered_at = CASE WHEN $3 IN ('delivered','read') THEN COALESCE(delivered_at, $4::timestamptz) ELSE delivered_at END,
-         failed_reason = CASE WHEN $3 = 'failed' THEN $5 ELSE failed_reason END, updated_at = now()
+`-- Receipts arrive out of order (Twilio: 'undelivered' then 'sent' a second later, smoke test #18, 21 Oct 2026), so the
+-- status only moves forward: pending < sent < delivered < read; failed lands only over pending / sent and is terminal.
+WITH c AS (
+  UPDATE public.communications SET
+         status = CASE WHEN status = 'failed' THEN status
+                       WHEN $3 = 'failed' THEN CASE WHEN COALESCE(status, 'pending') IN ('pending', 'sent') THEN 'failed' ELSE status END
+                       WHEN (CASE $3 WHEN 'read' THEN 3 WHEN 'delivered' THEN 2 WHEN 'sent' THEN 1 ELSE 0 END)
+                          > (CASE status WHEN 'read' THEN 3 WHEN 'delivered' THEN 2 WHEN 'sent' THEN 1 ELSE 0 END) THEN $3
+                       ELSE status END,
+         delivered_at = CASE WHEN $3 IN ('delivered','read') THEN COALESCE(delivered_at, $4::timestamptz) ELSE delivered_at END,
+         failed_reason = CASE WHEN $3 = 'failed' AND COALESCE(status, 'pending') IN ('pending', 'sent') THEN $5 ELSE failed_reason END, updated_at = now()
    WHERE id = $1::uuid RETURNING id)
 UPDATE public.leads l
    SET wa_delivered_at = COALESCE(l.wa_delivered_at, $4::timestamptz), disclosure_delivered_at = COALESCE(l.disclosure_delivered_at, $4::timestamptz),
