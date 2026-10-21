@@ -953,3 +953,28 @@ test('#9 disclosure: no broker -> DISCLOSE_PRE_ROUTE; broker + name -> DISCLOSE;
   W.applyModelReply(p, 'The call takes about 30 minutes.', { disclosed: false });
   assert.deepEqual(p.prefix, [LINES.en.DISCLOSE_NO_NAME]);
 });
+
+// Smoke test 21 Oct 2026 (#18): Twilio receipts arrive out of order; a late 'sent' overwrote 'failed' (row eb052c4f) and a late
+// 'delivered' overwrote 'read'. The W07 receipt UPDATE only moves a row forward: sent < delivered < read; failed only from
+// pending / sent (Twilio queued / accepted / sending map to 'sent'). Same status again stays a no-op update (idempotent).
+test('#18 receipt status only moves forward (pure rule + the W07 "Status receipt" SQL carries the same rule)', () => {
+  const may = W.receiptMayMove;
+  // the live cases
+  assert.equal(may('failed', 'sent'), false, 'eb052c4f: failed is never overwritten by a late sent');
+  assert.equal(may('read', 'delivered'), false, 'read is never pulled back to delivered');
+  assert.equal(may('delivered', 'sent'), false);
+  assert.equal(may('delivered', 'failed'), false, 'a delivered message cannot fail afterwards');
+  assert.equal(may('read', 'failed'), false);
+  assert.equal(may('failed', 'delivered'), false);
+  // forward moves
+  for (const [a, b] of [[null, 'sent'], ['pending', 'sent'], ['sent', 'delivered'], ['sent', 'read'], ['delivered', 'read'], ['sent', 'failed'], ['pending', 'failed'], [null, 'failed'], ['sent', 'sent'], ['read', 'read']]) assert.equal(may(a, b), true, `${a} -> ${b}`);
+  assert.equal(may('received', 'delivered'), false, 'inbound rows are never receipts');
+  assert.equal(may('sent', 'bogus'), false);
+  // the workflow SQL is generated from the same table (patch-w07-receipt-forward.mjs)
+  const q = WF.nodes.find((n) => n.name === 'Status receipt -> communications + disclosure evidence').parameters.query;
+  assert.ok(q.includes(W.receiptGuardSql('$2')), q);
+  assert.match(q, /WHERE channel = 'whatsapp' AND external_id = \$1 AND brand_id IS NOT NULL\s+AND CASE \$2/);
+  // and the SQL CASE, evaluated, agrees with the pure rule for every pair
+  const sqlRule = (from, to) => { const m = new RegExp(`WHEN '${to}' THEN coalesce\\(status, 'pending'\\) IN \\(([^)]*)\\)`).exec(q); return !!m && m[1].split(',').map((s) => s.trim().replace(/'/g, '')).includes(from == null ? 'pending' : from); };
+  for (const from of [null, 'pending', 'sent', 'delivered', 'read', 'failed', 'received']) for (const to of ['sent', 'delivered', 'read', 'failed']) assert.equal(sqlRule(from, to), may(from, to), `${from} -> ${to}`);
+});

@@ -102,6 +102,21 @@ export function w06StatusItem(row = {}) {
   const at = row.at ? new Date(row.at).toISOString() : null;
   return { op: 'status', wamid: row.wamid, status: row.status, at, errors: row.error ? [String(row.error)] : [] };
 }
+/**
+ * Smoke test 21 Oct 2026 (#18): receipts arrive out of order (a late 'sent' overwrote 'failed', a late 'delivered' overwrote
+ * 'read'). A receipt may only move communications.status forward: sent < delivered < read; failed only from pending / sent
+ * (Twilio queued / accepted / sending already map to 'sent'). The same status again stays allowed (idempotent re-delivery).
+ * receiptGuardSql() is the same table as SQL; patch-w07-receipt-forward.mjs puts it in the W07 "Status receipt" UPDATE.
+ */
+export const RECEIPT_FROM = {
+  sent: ['pending', 'sent'],
+  delivered: ['pending', 'sent', 'delivered'],
+  read: ['pending', 'sent', 'delivered', 'read'],
+  failed: ['pending', 'sent', 'failed'],
+};
+export const receiptMayMove = (from, to) => (RECEIPT_FROM[to] || []).includes(from == null ? 'pending' : String(from));
+export const receiptGuardSql = (param = '$2') => `AND CASE ${param} ${Object.entries(RECEIPT_FROM)
+  .map(([to, from]) => `WHEN '${to}' THEN coalesce(status, 'pending') IN (${from.map((s) => `'${s}'`).join(', ')})`).join(' ')} ELSE false END`;
 export const BEST_TIME = { best_mornings: 'mornings', best_lunchtime: 'lunchtime', best_afternoons: 'afternoons', best_evenings: 'evenings', best_any: 'any' };
 
 // W32 Approve / Later quick replies (optimisation/n8n-code/w32-pulse-messages.js + w32-escalate.js: "approve:<uuid>" | "later:<uuid>").
