@@ -148,12 +148,25 @@ export async function verifyEmail(st, leadId, now) {
   if (!req) return asHttp(200, { finalized: false });
   return book(st, req, now, { sub: true });
 }
-/** W05 "Every 5 min: release unverified holds" (+ the rebook nudge). */
+/**
+ * W05 "Every 5 min: release unverified holds" (+ the rebook nudge). Same semantics as the W05.json query: the hold is
+ * released at verify_by; the nudge only inside the contact hours (w05.holdNudgeOpen), otherwise marked pending for the
+ * first sweep inside them; once per booking; never to a lead with another live booking or an opt-out.
+ */
 export function releaseHolds(st, now) {
   const out = [];
+  st.holdNudge ||= new Map(); // booking id -> 'pending' | 'sent'
   for (const b of st.bookings) if (b.status === W5.HELD && ms(b.verify_by) <= now) {
     Object.assign(b, { status: 'cancelled', cancelled_at: iso(now) });
+    st.holdNudge.set(b.id, 'pending');
+  }
+  if (!W5.holdNudgeOpen(now)) return out;
+  for (const [id, state] of st.holdNudge) {
+    if (state !== 'pending') continue;
+    st.holdNudge.set(id, 'sent');
+    const b = st.bookings.find((x) => x.id === id);
     const l = st.leads.get(b.client_id);
+    if (l.opted_out_at || st.bookings.some((x) => x.id !== id && x.client_id === b.client_id && ['pending_verification', 'booked', 'confirmed'].includes(x.status))) continue;
     const n = W5.holdReleased({ id: b.id, appointment_date: b.appointment_date, lead_id: l.id, first_name: l.first_name, phone: l.mobile });
     st.messages.push({ to: l.mobile, kind: 'wa', template: n.template, vars: n.variables, buttons: n.buttons });
     out.push(n);
@@ -526,7 +539,9 @@ test('W05.json verify gate wiring: insert writes the hold or promotes it; held b
   assert.ok(to('Sub op?').flat().includes('Load held slot + lead (finalize)'));
   assert.equal(nd('-> Email verify (hold: issue)').parameters.workflowId.value, 'smc-email-verify');
   assert.match(nd('Release held slots past verify_by (+ timeline)').parameters.query, /status = 'pending_verification' AND a\.verify_by <= now\(\)/);
-  assert.deepEqual(to('Every 5 min: release unverified holds'), [['Release held slots past verify_by (+ timeline)']]);
+  // smoke test #13: the 5-min sweep reads the contact hours first (one item, always), then releases (the nudge is gated on it)
+  assert.deepEqual(to('Every 5 min: release unverified holds'), [['Contact hours now (w05.holdNudgeOpen)']]);
+  assert.deepEqual(to('Contact hours now (w05.holdNudgeOpen)'), [['Release held slots past verify_by (+ timeline)']]);
   assert.equal(nd('-> WhatsApp Send (booking_hold_released)').parameters.workflowId.value, 'smc-whatsapp-send');
 });
 
@@ -1233,4 +1248,48 @@ test('v4b15 adviser notice: a start-page lead shows income + topics (or "Prep an
   // the loads feed income_band (+ conv_state for the method-change PATCH body)
   assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.alt_number, l\.income_band,/);
   assert.match(WF5.nodes.find((x) => x.name === 'Load booking for method change').parameters.query, /l\.income_band, l\.conv_state, l\.routing_reason,/);
+});
+
+// Smoke test #13 (21 Oct 2026): the rebook nudge after a released hold is a marketing send. The release itself happens at
+// verify_by (the slot is freed for everyone at once); the nudge waits for the contact hours (lib/contact-hours.mjs) and goes
+// at most once, never to a lead who booked again or opted out meanwhile.
+test('W05 hold released outside the contact hours: slot freed at once, nudge held to the next allowed sweep, sent once', () => {
+  const st = newBookState();
+  const lid = 'lead_hold_night';
+  st.leads.set(lid, { id: lid, first_name: 'Thandi', mobile: '+27600000901' });
+  st.bookings.push({ id: 'bk_night', client_id: lid, status: W5.HELD, verify_by: '2026-10-24T22:30:00+02:00', appointment_date: '2026-10-27T10:00:00+02:00' });
+  assert.deepEqual(releaseHolds(st, ms('2026-10-24T22:30:00+02:00')), [], 'Saturday 22:30: no WhatsApp');
+  assert.equal(st.bookings[0].status, 'cancelled', 'the slot is freed at verify_by all the same');
+  assert.deepEqual(releaseHolds(st, ms('2026-10-25T11:00:00+02:00')), [], 'Sunday: still held back');
+  const mon = releaseHolds(st, ms('2026-10-26T08:00:00+02:00'));
+  assert.equal(mon.length, 1, 'Monday 08:00: the nudge goes'); assert.equal(mon[0].template, 'booking_hold_released');
+  assert.equal(mon[0].correlation, 'w05:hold_released:bk_night');
+  assert.deepEqual(releaseHolds(st, ms('2026-10-26T08:05:00+02:00')), [], 'once only');
+  // a lead who booked again before the hours opened gets no "pick a time" nudge
+  const l2 = 'lead_hold_rebooked';
+  st.leads.set(l2, { id: l2, first_name: 'Sipho', mobile: '+27600000902' });
+  st.bookings.push({ id: 'bk_night2', client_id: l2, status: W5.HELD, verify_by: '2026-10-26T21:00:00+02:00', appointment_date: '2026-10-28T10:00:00+02:00' });
+  releaseHolds(st, ms('2026-10-26T21:00:00+02:00'));
+  st.bookings.push({ id: 'bk_new', client_id: l2, status: 'booked', appointment_date: '2026-10-29T10:00:00+02:00' });
+  assert.deepEqual(releaseHolds(st, ms('2026-10-27T08:00:00+02:00')), []);
+  assert.equal(W5.holdNudgeOpen(ms('2026-11-04T10:00:00+02:00')), false, '4 Nov 2026 election day');
+  assert.equal(W5.holdNudgeOpen(ms('2026-10-24T12:00:00+02:00')), true, 'Saturday morning');
+});
+
+test('W05.json: the release sweep gates the rebook nudge on the contact hours (w05.holdNudgeOpen) and claims it once', () => {
+  const WF = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  const to = (n) => (WF.connections[n]?.main || []).map((o) => o.map((x) => x.node));
+  const hours = nd('Contact hours now (w05.holdNudgeOpen)');
+  assert.ok(hours && /require\('lv-automation'\)\.w05/.test(hours.parameters.jsCode) && /L\.holdNudgeOpen\(Date\.now\(\)\)/.test(hours.parameters.jsCode));
+  assert.deepEqual(to('Every 5 min: release unverified holds'), [['Contact hours now (w05.holdNudgeOpen)']]);
+  assert.deepEqual(to('Contact hours now (w05.holdNudgeOpen)'), [['Release held slots past verify_by (+ timeline)']]);
+  const rel = nd('Release held slots past verify_by (+ timeline)');
+  assert.match(rel.parameters.options.queryReplacement, /in_hours/);
+  const q = rel.parameters.query;
+  assert.match(q, /'nudge', 'pending'/, 'a hold released outside the hours is marked for the next allowed sweep');
+  assert.match(q, /WHERE \$1::boolean/, 'nothing is nudged outside the hours');
+  assert.match(q, /'w05:hold_nudge:' \|\| d\.id::text[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING/, 'at most once');
+  assert.match(q, /x\.id <> d\.id AND x\.status IN \('pending_verification','booked','confirmed'\)/, 'not after a new booking (the released hold itself excluded)');
+  assert.deepEqual(checkSql([{ node: rel.name, sql: q }]), []);
 });

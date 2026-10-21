@@ -34,6 +34,7 @@ import { LINES, fill } from '../../conversation/lines.mjs';
 import { ipKey, turnstileVerdict } from './w01.mjs';
 import { brokerConfig, calendarRoute, clockFor, ms, iso, MIN, D, TZ } from './w04.mjs';
 import { INCOME_LABELS } from './w39.mjs';
+import { inMarketingHours } from './contact-hours.mjs';
 export { clockFor };
 
 const require = createRequire(import.meta.url);
@@ -754,7 +755,12 @@ export function heldReminderMessage(lead, held) {
  * Release sweep (every 5 min): a held slot whose verify_by passed is released (status cancelled, cancelled_at) and the
  * lead gets ONE nudge to rebook (template booking_hold_released, "See open times" -> the W04 list). row = the released
  * appointment joined with the lead (first_name, phone, language).
+ * The nudge is a marketing send (smoke test #13): the slot is freed at verify_by whatever the hour, but the nudge goes
+ * only inside the contact hours (holdNudgeOpen); a hold released outside them is nudged by the first sweep inside them,
+ * once (lead_activities w05:hold_nudge:<booking>), and not at all if the lead booked again or opted out meanwhile.
  */
+export const holdNudgeOpen = (nowMs = Date.now()) => inMarketingHours(nowMs);
+
 export function holdReleased(row = {}) {
   const vars = [firstName(row.first_name) || 'there', dateLabel(row.appointment_date), timeLabel(row.appointment_date)].map((v) => clean(v));
   return { to: row.phone, kind: 'template', template: 'booking_hold_released', variables: vars, buttons: [{ quick_reply: 'see_open_times' }],

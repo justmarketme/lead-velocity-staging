@@ -394,18 +394,37 @@ SELECT l.id, l.email, l.phone, l.language, l.first_name, bk.method, bk.adviser_n
   n.push(node('Every 5 min: release unverified holds', 'scheduleTrigger', 1.2, { rule: { interval: [{ field: 'minutes', minutesInterval: 5 }] } }));
   n.push(pg('Release held slots past verify_by (+ timeline)', `-- A HELD slot (pending_verification) whose email was not verified by verify_by (min(+24 h, start - 2 h)) is released for
 -- everyone. Nothing reached the broker (no calendar event, no notice), so nothing is undone there.
+-- The rebook nudge is a marketing send (smoke test #13): only inside the contact hours ($1 = w05.holdNudgeOpen, lib/contact-hours.mjs).
+-- A hold released outside them is marked nudge 'pending' and nudged by the first sweep inside them (within 4 days), once
+-- (w05:hold_nudge:<booking>), and not at all when the lead has another live booking or opted out meanwhile.
 WITH r AS (
   UPDATE public.appointments a SET status = 'cancelled', cancelled_at = now(), updated_at = now()
    WHERE a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND a.verify_by <= now()
   RETURNING a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.method),
 t AS (
   INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
-  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified'), now(), 'w05:hold_released:' || r.id::text
+  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified', 'nudge', 'pending'), now(), 'w05:hold_released:' || r.id::text
     FROM r
-  ON CONFLICT (idempotency_key) DO NOTHING)
-SELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phone, l.language
-  FROM r JOIN public.leads l ON l.id = r.client_id
- WHERE l.opted_out_at IS NULL;`));
+  ON CONFLICT (idempotency_key) DO NOTHING),
+d AS (
+  SELECT r.id, r.client_id, r.brand_id, r.broker_id, r.appointment_date FROM r WHERE $1::boolean
+  UNION ALL
+  SELECT a.id, a.client_id, a.brand_id, a.broker_id, a.appointment_date
+    FROM public.lead_activities la
+    JOIN public.appointments a ON a.id::text = la.payload->>'booking_id' AND a.status = 'cancelled'
+   WHERE $1::boolean AND la.workflow = 'W05' AND la.activity_type = 'booking_hold_released' AND la.payload->>'nudge' = 'pending'
+     AND la.occurred_at > now() - interval '4 days'),
+n AS (
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT d.client_id, d.brand_id, d.broker_id, 'W05', 'system', 'booking_hold_nudged', jsonb_build_object('booking_id', d.id), now(), 'w05:hold_nudge:' || d.id::text
+    FROM d
+   WHERE NOT EXISTS (SELECT 1 FROM public.appointments x WHERE x.client_id = d.client_id AND x.id <> d.id AND x.status IN ('pending_verification','booked','confirmed'))
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING payload->>'booking_id' AS booking_id)
+SELECT d.id, d.appointment_date, l.id AS lead_id, l.first_name, l.phone, l.language
+  FROM n JOIN d ON d.id::text = n.booking_id
+  JOIN public.leads l ON l.id = d.client_id
+ WHERE l.opted_out_at IS NULL;`, "={{ [String($json.in_hours === true)] }}"));
   n.push(code('Rebook nudge (w05.holdReleased)', 'w05.mjs', `return $input.all().filter((i) => i.json && i.json.id && i.json.phone).map((i) => ({ json: L.holdReleased(i.json) }));`));
   n.push(node('-> WhatsApp Send (booking_hold_released)', 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-whatsapp-send', cachedResultName: 'WhatsApp Send' }, options: { waitForSubWorkflow: false } }));
   // ---------- SortMyCover client email (17 Oct 2026): booking_confirmed from the fan-out (Effect? smc_email), booking_updated
@@ -417,8 +436,10 @@ SELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phon
   n.push(http(SMC_RELAY, 'POST', "={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1') + '/smc-email-send' }}", { timeout: 15000, extra: { onError: 'continueRegularOutput' }, params: { sendHeaders: true, headerParameters: { parameters: [{ name: 'Authorization', value: '=Bearer {{ $env.LINDI_RELAY_TOKEN }}' }, { name: 'Idempotency-Key', value: "={{ $json.relay.idempotency_key || '' }}" }] }, sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.relay.body) }}' } }));
   n.push(code('Client email result (w05.clientEmailResult)', 'w05.mjs', `// Sent (2xx + Resend id) or dry-run -> nothing; anything else -> one W22 alert per failed email (the booking stands).\nconst out = [];\n$input.all().forEach((it, i) => {\n  let sent = it.json && it.json.smc_email ? it.json : null;\n  if (!sent) { try { sent = ($('${SMC_MAIL_GATE}').itemMatching(i) || {}).json || {}; } catch (e) { sent = {}; } }\n  const alert = L.clientEmailResult(it.json, sent);\n  if (alert) out.push({ json: alert });\n});\nreturn out;`));
   n.push(code('Method client email (SortMyCover)', 'w05.mjs', `const p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.smc_email ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: p.smc_email } }] : [];`));
+  // smoke test #13: are we inside the marketing contact hours now? (feeds $1 of the release query; one item, always)
+  n.push(code('Contact hours now (w05.holdNudgeOpen)', 'w05.mjs', `return [{ json: { in_hours: L.holdNudgeOpen(Date.now()) === true } }];`));
   // ---------- connections
-  chain(c, 'Every 5 min: release unverified holds', 'Release held slots past verify_by (+ timeline)', 'Rebook nudge (w05.holdReleased)', '-> WhatsApp Send (booking_hold_released)');
+  chain(c, 'Every 5 min: release unverified holds', 'Contact hours now (w05.holdNudgeOpen)', 'Release held slots past verify_by (+ timeline)', 'Rebook nudge (w05.holdReleased)', '-> WhatsApp Send (booking_hold_released)');
   chain(c, 'POST /book', 'Parse + verify caller (w05.parseHttp)', 'Caller ok?');
   link(c, 'Caller ok?', 'Guard counters (bk_ip / bk_lead)', 0); link(c, 'Caller ok?', 'Answer', 1);
   chain(c, 'Guard counters (bk_ip / bk_lead)', 'Turnstile needed? (page, secret set, not a test hook)');
