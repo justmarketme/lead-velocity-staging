@@ -106,7 +106,9 @@ export function decide(state, nlu = {}, pre = {}, ctx = {}) {
   if (pre.injection || pre.impersonation) return { actions: ['stay_in_lane', ...(defer ? ['defer'] : [])], next_state: state };
 
   const answers = [];
-  for (const t of topics) if (FAQ_TOPICS[t] && !answers.includes(`answer:${FAQ_TOPICS[t]}`)) answers.push(`answer:${FAQ_TOPICS[t]}`);
+  // FAQ-06 (cancel / move: "Tap Reschedule or Cancel") only when there is a booking to move (smoke test 21 Oct 2026, #32)
+  const faqOk = (t) => t !== 'cancel_move' || BOOKED.has(state);
+  for (const t of topics) if (FAQ_TOPICS[t] && faqOk(t) && !answers.includes(`answer:${FAQ_TOPICS[t]}`)) answers.push(`answer:${FAQ_TOPICS[t]}`);
   if (topics.includes('language_chat')) answers.push('set_language');
   if (topics.includes('my_booking') && BOOKED.has(state)) answers.push('booking_status');
   if (topics.includes('off_topic') && !answers.length && !defer) return { actions: ['stay_in_lane'], next_state: state };

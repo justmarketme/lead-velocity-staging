@@ -1008,3 +1008,23 @@ test('#34 an inbound with no content (blank text, location share) never reaches 
   assert.equal(W.routeInbound(tw({ Body: '' }), { ...c, lead: { ...lead, opted_out_at: '2026-10-21T10:00:00Z' } }).route, 'W15');
   assert.equal(W.routeInbound(tw({ Body: '' }), { ...c, lead: null }).route, 'W03');
 });
+
+// Smoke test 21 Oct 2026 (#32, part 1): "Can I cancel?" before any booking got FAQ-06 ("Tap Reschedule or Cancel"), and there
+// is no such button yet. Without a booking FAQ-06 is neither chosen by decide() nor offered to Lindi's model. What a CANCEL
+// means before booking is Jono's call and is unchanged here (cancel intent -> close_unbooked as before).
+test('#32 FAQ-06 (cancel / move) only when there is a booking: decide() and the FAQ list Lindi sees', () => {
+  const q = { intent: 'question', topics: ['cancel_move'], slots: {}, confidence: 0.9 };
+  for (const st of ['start_page', 'unbooked', 'booking', 'q_age', 'consent_pending']) {
+    assert.ok(!decide(st, q, {}, {}).actions.includes('answer:FAQ-06'), st);
+  }
+  assert.ok(decide('booked', q, {}, {}).actions.includes('answer:FAQ-06'), 'booked: kept (golden G006)');
+  assert.ok(decide('start_page', q, {}, { booking: { id: 'bk', status: 'booked' } }).actions.includes('answer:FAQ-06'), 'a live booking wins over a stale state');
+  // unchanged: a pre-booking cancel intent still closes the nurture (Jono decides that separately)
+  assert.deepEqual(decide('unbooked', { intent: 'cancel', topics: ['cancel_move'], slots: {}, confidence: 0.9 }, {}, {}).actions, ['close_unbooked']);
+  // the model's FAQ list
+  const j = (booking) => ({ lead: mkLead(L01, { conv_state: { state: 'start_page' } }), booking, broker: BROKER_ROW, adviser_first: 'Mark', pre: {}, text_llm: 'Can I cancel?' });
+  const user = (booking) => W.turnRequest({ j: j(booking), faq: FAQ_MAP, now_ms: NOON }).request.messages[0].content;
+  assert.doesNotMatch(user(null), /FAQ-06:/);
+  assert.match(user({ id: 'bk', status: 'booked', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams' }), /FAQ-06: /);
+  assert.match(user(null), /FAQ-01: /, 'the other answers stay');
+});

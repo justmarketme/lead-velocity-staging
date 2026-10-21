@@ -741,6 +741,9 @@ export function faqLines(faq = {}, lang = 'en', vars = {}) {
   return out;
 }
 
+/** No booking yet: drop the answers about an existing call (FAQ-06 "Tap Reschedule or Cancel"; smoke test 21 Oct 2026, #32). */
+export const withoutBookingFaqs = (faq = {}) => Object.fromEntries(Object.entries(faq).filter(([, e]) => !e || e.topic !== 'cancel_move'));
+
 /** What the system will most likely do after this message, so the reply can lead into it. */
 export function nextHint(state, booking) {
   if (state === 'consent_pending') return 'waiting for their yes or no to sharing their details with the adviser';
@@ -775,7 +778,7 @@ export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms 
     `NOW: ${new Date(now_ms + SAST).toISOString().slice(0, 19)}+02:00 Africa/Johannesburg`, `FIRST_NAME: ${first}`, `ADVISER: ${adviser_first}`,
     `BOOKING: ${bv && bv.time ? `${bv.day} ${bv.date} ${bv.time} by ${bv.method_label}${bv.status === 'pending_verification' ? ' (held, waiting for their email)' : ''}` : 'none'}`,
     `KNOWN: ${known.join(', ')}`, `LANGUAGE: ${lang}`, `LEAD_USED_EMOJI: ${!!(j.pre && j.pre.lead_used_emoji)}`,
-    'FAQ (approved answers you may use, in your own words):', ...faqLines(faq, lang, vars),
+    'FAQ (approved answers you may use, in your own words):', ...faqLines(j.booking ? faq : withoutBookingFaqs(faq), lang, vars),
     'RECENT TURNS (oldest first):', ...(turnLines(turns).length ? turnLines(turns) : ['(none)']),
     `MESSAGE: """${String(j.text_llm || '').replace(/"{3,}/gu, '"').slice(0, 1200)}"""`,
   ].join('\n');
