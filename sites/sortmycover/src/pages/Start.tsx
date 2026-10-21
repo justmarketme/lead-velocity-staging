@@ -437,12 +437,16 @@ function StartFlow() {
      One history entry guards a step that shows "‹ Back" (email, number, income, topics), and the browser's Back runs the same
      back(step), so prevStep stays the one rule. Leaving such a step for a screen without "‹ Back" (Booked, All set, age, time, Move
      your call...) drops the guard again: Back never reaches a step before the booking, and from any other screen it leaves the
-     page as before. While a call is in flight (busy) the press is held (the guard goes straight back), so a booking is never cut off. */
+     page as before. While a call is in flight (busy) the press is held (the guard goes straight back), so a booking is never cut off.
+     Only a guard this page pushed is dropped with history.back(): after a reload (or a return to a discarded tab) the entry keeps
+     its state, and going back from it would load the page a second time, so a stale flag is cleared in place instead. */
   const guarded = !!(step && backTo);
   const dropping = useRef(false);
-  const pushGuard = () => history.pushState({ ...history.state, [BACK_GUARD]: 1 }, "");
+  const pushed = useRef(false);
+  const pushGuard = () => { pushed.current = true; history.pushState({ ...history.state, [BACK_GUARD]: 1 }, ""); };
   useEffect(() => {
-    const has = !!history.state?.[BACK_GUARD];
+    let has = !!history.state?.[BACK_GUARD];
+    if (has && !pushed.current) { const { [BACK_GUARD]: _, ...rest } = history.state; history.replaceState(rest, ""); has = false; }
     if (guarded && !has) pushGuard();
     else if (!guarded && has) { dropping.current = true; history.back(); }
   }, [guarded, key]); // eslint-disable-line react-hooks/exhaustive-deps

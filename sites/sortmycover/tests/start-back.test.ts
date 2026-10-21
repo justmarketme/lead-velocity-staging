@@ -42,10 +42,11 @@ async function pressBack() {
   await settle();
 }
 
-function open(hash: string) {
+/** stale: the /start/ entry already carries a guard flag, as after a reload on a guarded step (the entry keeps its state). */
+function open(hash: string, stale = false) {
   try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* none */ }
   history.replaceState(null, "", "/prev/"); // the page the visitor came from (WhatsApp, or a site page)
-  history.pushState(null, "", "/start/" + hash);
+  history.pushState(stale ? { smcBack: 1 } : null, "", "/start/" + hash);
   entries = history.length;
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -169,6 +170,17 @@ describe("/start/: the phone's Back", () => {
     await pressBack();
     expect(heading()).toMatch(/^Pick a new time/);
     expect(guard()).toBe(false);
+    await pressBack();
+    expect(location.pathname).toBe("/prev/");
+  }, 20000);
+
+  it("after a reload on a guarded step, the stale guard is cleared in place: the page is not left (or loaded twice)", async () => {
+    open("#lt=demo", true);
+    await until(() => !!button(/^See Mark's times$/), "the adviser card");
+    await settle();
+    expect(location.pathname).toBe("/start/");
+    expect(guard()).toBe(false);
+    expect(history.length).toBe(entries); // no new entry, none dropped
     await pressBack();
     expect(location.pathname).toBe("/prev/");
   }, 20000);
