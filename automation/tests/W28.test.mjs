@@ -299,3 +299,15 @@ test('W28 last resort ("ask for a day"): a real text body reaches W07, which sen
   }
   assert.doesNotMatch(LINES.en.ASK_DAY, /calendar|system|error|free|AI\b/i, 'never mentions a calendar problem (standing rule)');
 });
+
+// Review 21 Oct 2026: a broker with no adviser_name (contact_person only) gave an Afrikaans lead "... met your adviser".
+test('review W28 last resort: the adviser falls back to contact_person, then to the lead\'s own language ("jou adviseur")', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  const row = (language, adviser_first_name) => ({ lead_id: 'L1', phone: '+27820000921', brand_id: 'b', opted_out_at: null, language, first_name: null, broker_id: 'B1', adviser_name: null, adviser_first_name });
+  const body = async (r) => (await runCode(WF, 'Build 10-slot list', { items: [{ slots: [] }], refs: { 'Load lead for list': r, 'Called by W06/W07/W10/W22': { op: 'send_list', lead_id: 'L1' } } }))[0].json.body;
+  assert.match(await body(row('af', null)), /met jou adviseur,/);
+  assert.doesNotMatch(await body(row('af', null)), /your adviser/);
+  assert.match(await body(row('en', null)), /with your adviser,/);
+  const q = WF.nodes.find((n) => n.name === 'Load lead for list').parameters.query;
+  assert.match(q, /split_part\(coalesce\(nullif\(b\.adviser_name, ''\), b\.contact_person\), ' ', 1\) AS adviser_first_name/);
+});

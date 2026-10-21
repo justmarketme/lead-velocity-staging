@@ -452,7 +452,7 @@ return [{ json: { response: out.response, effects: out.effects, lead_id: ctx.lea
   n.push(switchOn('Op?', [220, 600], '={{ $json.op }}', ['send_list', 'revert', 'ask_email']));
   n.push(code('Normalise send_list input', [1760, 280], "return $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json._lead_id || it.json.lead_id, reason: it.json.reason || null } }));"));
   n.push(pg('Load lead for list', [440, 520],
-    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
+    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(coalesce(nullif(b.adviser_name, ''), b.contact_person), ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
     '={{ [ $json.lead_id ] }}'));
   n.push(node('W04 Slot engine (list)', 'executeWorkflow', 1.1, [660, 520], { source: 'database', workflowId: ref('W04 Slots API'), options: { waitForSubWorkflow: true } }));
   n.push(code('Build 10-slot list', [880, 520], EP_SAFE() + LINES_W28 +
@@ -465,7 +465,8 @@ let delegate = null; try { delegate = $('Called by W06/W07/W10/W22').first().jso
 // ladder step 4: W07 asks for a day. The body is the ASK_DAY line itself (21 Oct 2026: it was null and W07 sent nothing).
 if (w04.fallback || !(w04.slots || []).length) {
   const AL = LINES[l.language === 'af' ? 'af' : 'en'];
-  return [{ json: { lead_id: l.lead_id, body: AL.ASK_DAY.replace('{adviser_first}', l.adviser_first_name || 'your adviser'), last_resort: true } }];
+  // review 21 Oct: no adviser name -> the lead's own language (never English inside the Afrikaans line)
+  return [{ json: { lead_id: l.lead_id, body: AL.ASK_DAY.replace('{adviser_first}', l.adviser_first_name || (l.language === 'af' ? 'jou adviseur' : 'your adviser')), last_resort: true } }];
 }
 const body = EP.listFallback({ adviser_name: l.adviser_name, adviser_first_name: l.adviser_first_name }, w04.slots, spread, l.phone, { delegate, lead: { language: l.language, first_name: l.first_name }, lines: LINES });
 return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body, last_resort: false } }];`));
