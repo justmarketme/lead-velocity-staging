@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { StartCta, WhatsAppCta } from "@/components/ChatWidget";
-import { WA_EXPECT, contextFor } from "@/lib/whatsapp";
+import { WA_EXPECT, contextFor, openChat, waHref } from "@/lib/whatsapp";
 import { Seo } from "@/lib/head";
 import {APEX, FEE_LINE, NO_COMMISSION, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, company, provider, site} from "@/lib/site";
 import { organization, website } from "@/lib/jsonld";
@@ -129,7 +129,7 @@ export default function Home() {
             </article>
           </div>
           <p className="mt-6 text-[15px] text-muted-foreground max-w-[70ch]" data-disclosure>SortMyCover is run by Lead Velocity (Pty) Ltd, registration {company.registration}. Not a financial services provider. We give no advice. <a className="underline" href={site.fsca_register_url} rel="noopener noreferrer">Check any adviser or provider on the FSCA register</a>.</p>
-          <p className="mt-2 text-[15px] text-muted-foreground max-w-[70ch]">Questions? {site.whatsapp_number ? <>WhatsApp {site.whatsapp_number} or email</> : <>Email</>} <a className="underline" href={"mailto:" + company.email}>{company.email}</a>. We answer questions about how this works, not about cover or wills.</p>
+          <p className="mt-2 text-[15px] text-muted-foreground max-w-[70ch]">Questions? {site.whatsapp_number ? <>WhatsApp <a className="underline" href={waHref(contextFor("/"))} onClick={(e) => { e.preventDefault(); openChat(contextFor("/")); }}>{site.whatsapp_number}</a> or email</> : <>Email</>} <a className="underline" href={"mailto:" + company.email}>{company.email}</a>. We answer questions about how this works, not about cover or wills.</p>
         </div>
       </section>
 

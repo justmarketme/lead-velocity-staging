@@ -57,7 +57,7 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
         </section>
         <section className="wrap-narrow pb-8" aria-labelledby="h-faq">
           <h2 id="h-faq" className="text-[24px] mb-3">Questions people ask</h2>
-          {(wills ? WILLS_FAQ : CAMPAIGN_FAQ).map((f) => <FaqItem key={f.id} q={f.q}><p><Inline text={f.a} /></p></FaqItem>)}
+          {(wills ? WILLS_FAQ : CAMPAIGN_FAQ).map((f) => <FaqItem key={f.id} q={f.q}><p><Inline text={f.a} chat={campaignContext(angle)} /></p></FaqItem>)}
         </section>
       </main>
       <CampaignFooter feeLine={!wills} />

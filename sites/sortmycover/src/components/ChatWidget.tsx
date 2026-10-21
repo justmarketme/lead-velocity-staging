@@ -4,8 +4,9 @@
    ad-measurement checkbox (CONSENT-ADS-v2web, the Pixel loads only when ticked), and the button. Rendered closed on the server;
    nothing here hides content or a disclosure. */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, startHref, waHref, type ChatContext } from "@/lib/whatsapp";
-import { consentCfg, provider } from "@/lib/site";
+import { APEX, consentCfg, provider } from "@/lib/site";
 import { attribution, grantAds, hasConsent, track } from "@/lib/pixel";
 
 /** WhatsApp glyph (Simple Icons, CC0). */
@@ -28,8 +29,10 @@ export function WhatsAppCta({ ctx, className = "btn", children }: { ctx: ChatCon
 }
 
 /** Desktop only (hidden on touch screens and narrow windows): pick a time on SortMyCover's own /start/ page. Phones stay
-    WhatsApp-first. `via` (where the visitor came from) is added at click time, so server and client render the same HTML. */
+    WhatsApp-first. `via` (where the visitor came from) is added at click time, so server and client render the same HTML.
+    Not on will CTAs: /start/ has no times for a will, it only hands over to WhatsApp, so the button promised what it did not do. */
 export function StartCta({ ctx, className = "btn btn-secondary", children }: { ctx: ChatContext; className?: string; children?: ReactNode }) {
+  if (ctx.wills) return null;
   return (
     <a href={startHref(ctx)} className={`${className} desk-only`} onClick={(e) => { try { e.currentTarget.href = startHref(ctx, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain link */ } }}>
       {children ?? "Pick a time"}
@@ -51,11 +54,29 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const panel = useRef<HTMLDivElement>(null);
   const launcher = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const inerted = useRef<Element[]>([]);
   const hid = useId();
   const c = ctx ?? base;
+  const { pathname } = useLocation();
 
-  const show = useCallback((next: ChatContext | null) => { setCtx(next); setNudge(false); setOpen(true); setUsed(true); }, []);
-  const hide = useCallback(() => { setOpen(false); launcher.current?.focus(); }, []);
+  const release = useCallback(() => { for (const el of inerted.current) el.removeAttribute("inert"); inerted.current = []; }, []);
+  const show = useCallback((next: ChatContext | null) => {
+    // what opened the panel gets focus back on close; a CTA tapped while focus is inside the panel keeps the first opener
+    const a = document.activeElement as HTMLElement | null;
+    if (!panel.current?.contains(a)) opener.current = a;
+    setCtx(next); setNudge(false); setOpen(true); setUsed(true);
+  }, []);
+  const hide = useCallback(() => {
+    release(); // first: an opener inside an inert page cannot take focus
+    setOpen(false);
+    // Safari and iOS do not focus a tapped link or button (the opener is then <body>), and an opener that has gone or is hidden
+    // refuses focus: both fall back to the launcher. preventScroll: closing does not pull the page back to the CTA.
+    const o = opener.current;
+    opener.current = null;
+    if (o && o !== document.body) o.focus({ preventScroll: true });
+    if (!o || document.activeElement !== o) launcher.current?.focus();
+  }, [release]);
 
   useEffect(() => {
     const on = () => setAtTop(window.scrollY < window.innerHeight / 2);
@@ -69,7 +90,23 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     window.addEventListener(CHAT_EVENT, on);
     return () => window.removeEventListener(CHAT_EVENT, on);
   }, [show]);
-  useEffect(() => { setCtx(null); setOpen(false); }, [base.ref, base.topic]); // a new page: back to that page's context, closed
+  // a new page: back to that page's context, closed (keyed on the path: two pages can share a context; a #hash jump is no new page)
+  useEffect(() => { setCtx(null); setOpen(false); }, [pathname]);
+  /* Phones: the open panel and its scrim cover the page, so header, main and footer are inert while it is open (a screen reader
+     or keyboard cannot leave the consent panel into the dimmed page). Wider screens: the panel is not modal, the page stays live. */
+  useEffect(() => {
+    if (!open || !window.matchMedia) return;
+    const phone = window.matchMedia("(max-width: 640px)");
+    const apply = () => {
+      release();
+      if (!phone.matches) return;
+      inerted.current = [...document.querySelectorAll(".site-header, #main, .site-footer")].filter((el) => !el.hasAttribute("inert"));
+      for (const el of inerted.current) el.setAttribute("inert", "");
+    };
+    apply();
+    phone.addEventListener?.("change", apply);
+    return () => { phone.removeEventListener?.("change", apply); release(); };
+  }, [open, release]);
   useEffect(() => {
     if (!open) return;
     setAdsBefore(hasConsent());
@@ -106,7 +143,7 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
             <input type="checkbox" checked={agreed} onChange={(e) => { setAgreed(e.target.checked); setNudge(false); }} />
             <span>I agree that SortMyCover may message me on WhatsApp about my call and share my details with {who}. I am 18 or older.</span>
           </label>
-          <details className="chat-more"><summary>Full wording</summary><p>{CONSENT_TEXT} <a href="/privacy/">Privacy notice</a></p></details>
+          <details className="chat-more"><summary>Full wording</summary><p>{CONSENT_TEXT} <a href={APEX + "/privacy/"} target="_blank" rel="noopener">Privacy notice</a></p></details>
           {!adsBefore && (
             <>
               <label className="chat-check chat-check-opt">
