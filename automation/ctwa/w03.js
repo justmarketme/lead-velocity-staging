@@ -149,7 +149,9 @@ function openerGreeting(op, profileName) {
   const first = String(profileName || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
   const hi = first ? `Hi ${first}, I'm Lindi` : "Hi, I'm Lindi";
   // Jono, 17 Oct 2026: no "AI assistant" wording; Lindi introduces herself as SortMyCover's (same as the W07 fallbacks)
-  return `${hi} from SortMyCover. Thanks for getting in touch about ${op.topic}. If it's something else, just tell me.`;
+  // smoke test 21 Oct 2026 (#36): the topic is the person's own words; "my" is echoed as "your" (greeting only, the topic is stored as typed)
+  const topic = String(op.topic || '').replace(/\bmy\b/giu, 'your');
+  return `${hi} from SortMyCover. Thanks for getting in touch about ${topic}. If it's something else, just tell me.`;
 }
 
 /**
@@ -259,6 +261,9 @@ const START_PAGE_LINK = 'https://sortmycover.co.za/start/#lt=';
 // Jono 19 Oct 2026: the Start here card carries the welcome banner (header-welcome), every lead-facing message its own banner.
 const START_PAGE_HEADER = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png';
 const START_PAGE_BUTTON = 'Start here';
+/** The WhatsApp profile name as stored in leads.first_name (smoke test 21 Oct 2026, #2): letters, spaces, ' and - only, at most
+ *  60 characters; nothing left (emoji, dash, blank) -> null, so the senders say "there" / "your client" instead of a symbol. */
+const cleanName = (s) => String(s || '').normalize('NFKC').replace(/[^\p{L}\p{M}' -]/gu, ' ').replace(/\s+/g, ' ').trim().replace(/^[' -]+|[' -]+$/g, '').slice(0, 60) || null;
 const firstWord = (s) => String(s || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
 /** How the page works, one step per line (Jono, 19 Oct 2026, words fixed). No "free", no "AI", no operator name. */
 const START_PAGE_STEPS = "Here's how it works:\n" +
@@ -381,7 +386,7 @@ function step(thread, msg, ctx) {
       const o = t.origin || {};
       const row = {
         id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: o.origin || 'ctwa', ref: o.ref || null, ad_id: o.ad_id || null,
-        ctwa_clid: o.ctwa_clid || null, phone: ctx.mobile, first_name: ctx.profile_name || null,
+        ctwa_clid: o.ctwa_clid || null, phone: ctx.mobile, first_name: cleanName(ctx.profile_name),
         consent_text: t.consent.text, consent_text_version: t.consent.version, consent_mode: t.consent.mode,
         consent_at: ctx.at, consent_source: 'ctwa', verified_at: ctx.at, wa_delivered_at: t.first_at, stage: 'verified',
         is_synthetic: !!ctx.is_synthetic,
@@ -442,7 +447,7 @@ function openerIntake(op, origin, ctx, actions) {
   const send = (m) => actions.push({ kind: 'send', message: m });
   const row = {
     id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: 'ctwa', ref: op.ref, ad_id: origin.ad_id || null,
-    ctwa_clid: origin.ctwa_clid || null, phone: ctx.mobile, first_name: ctx.profile_name || null,
+    ctwa_clid: origin.ctwa_clid || null, phone: ctx.mobile, first_name: cleanName(ctx.profile_name),
     consent_text: op.consent_text, consent_text_version: OPENER_CONSENT_VERSION, consent_mode: 'generic',
     consent_at: ctx.at, consent_source: OPENER_CONSENT_SOURCE, verified_at: ctx.at, wa_delivered_at: ctx.at, stage: 'verified',
     source: op.source, product_interest: op.product_interest, reasons: op.reasons,
@@ -617,4 +622,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { typedConsent, consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { cleanName, typedConsent, consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };

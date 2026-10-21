@@ -102,6 +102,21 @@ export function w06StatusItem(row = {}) {
   const at = row.at ? new Date(row.at).toISOString() : null;
   return { op: 'status', wamid: row.wamid, status: row.status, at, errors: row.error ? [String(row.error)] : [] };
 }
+/**
+ * Smoke test 21 Oct 2026 (#18): receipts arrive out of order (a late 'sent' overwrote 'failed', a late 'delivered' overwrote
+ * 'read'). A receipt may only move communications.status forward: sent < delivered < read; failed only from pending / sent
+ * (Twilio queued / accepted / sending already map to 'sent'). The same status again stays allowed (idempotent re-delivery).
+ * receiptGuardSql() is the same table as SQL; patch-w07-receipt-forward.mjs puts it in the W07 "Status receipt" UPDATE.
+ */
+export const RECEIPT_FROM = {
+  sent: ['pending', 'sent'],
+  delivered: ['pending', 'sent', 'delivered'],
+  read: ['pending', 'sent', 'delivered', 'read'],
+  failed: ['pending', 'sent', 'failed'],
+};
+export const receiptMayMove = (from, to) => (RECEIPT_FROM[to] || []).includes(from == null ? 'pending' : String(from));
+export const receiptGuardSql = (param = '$2') => `AND CASE ${param} ${Object.entries(RECEIPT_FROM)
+  .map(([to, from]) => `WHEN '${to}' THEN coalesce(status, 'pending') IN (${from.map((s) => `'${s}'`).join(', ')})`).join(' ')} ELSE false END`;
 export const BEST_TIME = { best_mornings: 'mornings', best_lunchtime: 'lunchtime', best_afternoons: 'afternoons', best_evenings: 'evenings', best_any: 'any' };
 
 // W32 Approve / Later quick replies (optimisation/n8n-code/w32-pulse-messages.js + w32-escalate.js: "approve:<uuid>" | "later:<uuid>").
@@ -128,6 +143,9 @@ export function convStatePatch(plan = {}, { disclosed_after = false, now_iso = n
   if (!(plan.delegate || []).some((d) => d && d.to === 'W03')) p.state = plan.next_state;
   return p;
 }
+
+/** An inbound with nothing in it for Lindi: no text, tap, list row, media, Flow reply or ad referral (#34). */
+export const isEmptyInbound = (msg = {}) => !String(msg.text || '').trim() && !msg.payload && !msg.list_id && !msg.media && !msg.flow_response && !msg.referral;
 
 export function routeInbound(msg, ctx = {}) {
   const r = routeCore(msg, ctx);
@@ -163,6 +181,9 @@ function routeCore(msg, ctx) {
   // W15 decides (lib/w15.mjs followupOf): a stop_why:<code> reason is stored, stop_undo:changed_mind gets its one reply,
   // a typed CANCEL releases a kept booking; anything else is stored by nobody and answered by nobody.
   if (ctx.lead.opted_out_at) return { route: 'W15', reason: 'stop_followup' };
+  // Smoke test 21 Oct 2026 (#34): nothing to answer (blank text, a location share: no text, tap, media or Flow reply) -> no route
+  // matches, so the Route switch's fallback (the log-only no-op) takes it: no model call, no Start here card.
+  if (isEmptyInbound(msg)) return { route: 'ignore_empty', reason: 'no content (blank text or a location share)' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
   // 18 Oct 2026 (Jono): the email is confirmed by the link only. No code is offered any more, so a typed 6-digit number is
@@ -355,7 +376,9 @@ export function planActions(decision, ctx) {
   }
   // 4.11 disclosure: the first free-text reply carries DISCLOSE (W06's intro card already named the practice + FSP)
   if (!ctx.disclosed && (plan.prefix.length || plan.suffix.length || plan.reply_actions.length || plan.delegate.some((d) => ONE_MESSAGE[d.to]?.(d)))) {
-    plan.prefix.unshift(ctx.adviser_first ? L.DISCLOSE : L.DISCLOSE_PRE_ROUTE);
+    // smoke test 21 Oct 2026 (#9): chosen by broker_id (adviser_first is never empty: preStep falls back to 'your adviser'),
+    // and a routed lead with no first name gets the nameless line ("Hi , I'm Lindi" before).
+    plan.prefix.unshift(!ctx.lead?.broker_id ? L.DISCLOSE_PRE_ROUTE : first ? L.DISCLOSE : L.DISCLOSE_NO_NAME);
     plan.discloses = true;
   }
   if (decision.actions.length === 1 && decision.actions[0] === 'none') plan.send = false;
@@ -718,6 +741,9 @@ export function faqLines(faq = {}, lang = 'en', vars = {}) {
   return out;
 }
 
+/** No booking yet: drop the answers about an existing call (FAQ-06 "Tap Reschedule or Cancel"; smoke test 21 Oct 2026, #32). */
+export const withoutBookingFaqs = (faq = {}) => Object.fromEntries(Object.entries(faq).filter(([, e]) => !e || e.topic !== 'cancel_move'));
+
 /** What the system will most likely do after this message, so the reply can lead into it. */
 export function nextHint(state, booking) {
   if (state === 'consent_pending') return 'waiting for their yes or no to sharing their details with the adviser';
@@ -752,7 +778,7 @@ export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms 
     `NOW: ${new Date(now_ms + SAST).toISOString().slice(0, 19)}+02:00 Africa/Johannesburg`, `FIRST_NAME: ${first}`, `ADVISER: ${adviser_first}`,
     `BOOKING: ${bv && bv.time ? `${bv.day} ${bv.date} ${bv.time} by ${bv.method_label}${bv.status === 'pending_verification' ? ' (held, waiting for their email)' : ''}` : 'none'}`,
     `KNOWN: ${known.join(', ')}`, `LANGUAGE: ${lang}`, `LEAD_USED_EMOJI: ${!!(j.pre && j.pre.lead_used_emoji)}`,
-    'FAQ (approved answers you may use, in your own words):', ...faqLines(faq, lang, vars),
+    'FAQ (approved answers you may use, in your own words):', ...faqLines(j.booking ? faq : withoutBookingFaqs(faq), lang, vars),
     'RECENT TURNS (oldest first):', ...(turnLines(turns).length ? turnLines(turns) : ['(none)']),
     `MESSAGE: """${String(j.text_llm || '').replace(/"{3,}/gu, '"').slice(0, 1200)}"""`,
   ].join('\n');
@@ -806,7 +832,7 @@ export function applyModelReply(plan, reply, ctx = {}) {
   const vars = plan.vars || {};
   const mentionsLindi = /\bLindi\b/u.test(r);
   const isSafety = (x, filled) => SAFETY_KEYS.some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
-  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_NO_NAME', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
   if (one) {
     const lines = one.lead_lines || [];
     const disc = !ctx.disclosed && !mentionsLindi ? lines.filter((x) => isDisclose(x, true)) : [];

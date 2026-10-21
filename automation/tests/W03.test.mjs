@@ -423,8 +423,8 @@ test('opener from an unknown number: lead stored at once with the opener consent
   assert.equal(s.length, 1, 'one message');
   assert.equal(s[0].message.type, 'list');
   assert.match(s[0].message.body, /^Hi Thabo, I'm Lindi from SortMyCover\. /);
-  assert.equal(/AI/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
-  assert.match(s[0].message.body, /Thanks for getting in touch about cover for my family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
+  assert.equal(/\bAI\b/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
+  assert.match(s[0].message.body, /Thanks for getting in touch about cover for your family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
   assert.equal(r.thread.stage, 'q_age');
   assert.equal(r.thread.lead_id, 'lead_opener_1');
 });
@@ -578,7 +578,7 @@ test('start page ON: a website opener greets, then the call-to-action (wills ope
   const s = sends(r.actions);
   assert.equal(s.length, 1);
   assert.equal(s[0].message.type, 'cta_url');
-  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for my family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
   assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'start_page', topic: 'cover for my family', ref: 'a06' });
   assert.equal(r.thread.stage, 'start_page');
   const w = W3.step(null, msg(OPENER('a will', 'Capital Legacy', 'b02')), ctx);
@@ -769,4 +769,33 @@ test('button tap path unchanged: no consent_method, empty opener_text', () => {
 
 test('W03.json inlines typedConsent', () => {
   assert.ok(WF.nodes.find((n) => n.name === 'W03 step').parameters.jsCode.includes('function typedConsent('));
+});
+
+// Smoke test 21 Oct 2026 (#2): W07 hands W03 its normalised msg, and the WhatsApp profile name lives ON the msg
+// (wa-provider normaliseTwilioInbound / w07 normaliseInbound). The hand-off node read j.profile_name / m.profile_name only,
+// so every WhatsApp lead was stored with first_name NULL ("Hi -, you are booked", Mark's notice "-", blank Outlook title).
+test('#2 W07 -> W03 hand-off keeps the profile name from msg: consent says the name and the lead row stores a cleaned first name', async () => {
+  const handoff = (profile_name) => ({ source: 'W07', route: 'W03', msg: { wamid: 'SMname1', from: '+27600000921', at_ms: Date.parse('2026-10-21T14:24:24Z'), type: 'text', text: 'Hi', profile_name }, lead: null });
+  const [ad] = await runCode(WF, 'W07 hand-off -> Cloud API message', { items: [handoff('Smoke Test')] });
+  assert.equal(ad.json.profile_name, 'Smoke Test');
+  const SPB = { ...BRAND, consent_mode: 'generic', start_page: true };
+  const ctx = (extra) => ({ at: ad.json.at, mobile: ad.json.mobile, profile_name: ad.json.profile_name, lead_id: 'lead_name_1', broker: null, brand: SPB, existing_open_lead_id: null, suppressed: false, wamid: 'SMname1', is_synthetic: true, start_page: { token: 'lt1.x' }, ...extra });
+  const first = W3.step(null, ad.json.msg, ctx());
+  assert.match(sends(first.actions)[0].message.body, /^Thanks, Smoke\. /);
+  const yes = W3.step(first.thread, { id: 'SMname2', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx({ wamid: 'SMname2' }));
+  assert.equal(yes.actions.find((a) => a.kind === 'insert_lead').row.first_name, 'Smoke Test');
+  // a profile name with no letters stores no name (the senders then say "there" / "your client"), never an emoji or '-'
+  for (const odd of ['🙂🙂', ' - ', '', null]) {
+    const r = W3.step(first.thread, { id: 'SMname3', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx({ wamid: 'SMname3', profile_name: odd }));
+    assert.equal(r.actions.find((a) => a.kind === 'insert_lead').row.first_name, null, JSON.stringify(odd));
+  }
+  assert.equal(W3.cleanName('  Thabo 🙂 Mokoena '), 'Thabo Mokoena');
+});
+
+// Smoke test 21 Oct 2026 (#36): the opener's topic is the person's words ("cover for my family"); echoed back as-is it read
+// as if Lindi had a family. The greeting swaps "my" for "your"; the stored topic (conv_state.topic) stays their words.
+test('#36 opener greeting: "my" in the topic becomes "your" in the greeting only', () => {
+  assert.equal(W3.openerGreeting({ topic: 'cover for my family' }, 'Thabo'), "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.");
+  assert.match(W3.openerGreeting({ topic: 'My income' }, ''), /about your income\./);
+  assert.match(W3.openerGreeting({ topic: 'life cover for mylene' }, ''), /about life cover for mylene\./, 'whole word only');
 });

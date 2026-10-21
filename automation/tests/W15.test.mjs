@@ -646,3 +646,21 @@ test('W15 after STOP: every list row id is routed and stored under its own code'
   assert.deepEqual(W15.followupOf({ list_id: 'stop_undo:changed_mind' }), { type: 'undo' });
   assert.equal(W15.followupOf({ list_id: 'stop_why:bogus' }), null);
 });
+
+// Smoke test 21 Oct 2026 (#33): "START" after STOP (exec 11520) was not a follow-up, so nothing happened at all. START / UNSTOP
+// (the carrier keywords to come back) take the existing "I changed my mind" path: evidence + escalation + ONE reply.
+test('#33 W15 after STOP: typed START / UNSTOP -> the "I changed my mind" path (no automatic re-subscribe)', async () => {
+  for (const word of ['START', 'start', ' Start! ', 'UNSTOP', 'unstop.']) assert.deepEqual(W15.followupOf({ text: word }), { type: 'undo' }, word);
+  for (const word of ['start again tomorrow?', 'restart', 'starting']) assert.equal(W15.followupOf({ text: word }), null, word);
+  assert.equal(W15.isStop('START'), false); assert.equal(W15.isStop('UNSTOP'), false);
+  const st = newState();
+  const { l, at } = await seedOptedOut(st);
+  const before = st.sent.length;
+  await handleFollowUp(st, l.mobile, { type: 'text', text: 'START' }, at + 60_000);
+  assert.ok(isSuppressed(st, l.mobile) && st.leads.get(l.id).opted_out_at, 'still opted out: a person re-subscribes');
+  const ev = st.activities.find((a) => a.activity_type === 'stop_undo_requested');
+  assert.equal(ev.payload.text, 'START');
+  assert.equal(st.escalations.length, 1);
+  assert.equal(st.sent.length, before + 1);
+  assert.equal(st.sent.at(-1).kind, 'stop_undo_reply');
+});
