@@ -1,9 +1,15 @@
 /**
  * Shared utility for the legal/document AI assistant.
  * Calls the `gemini-proxy` Supabase Edge Function (auth required); GEMINI_API_KEY stays server-side (I-32c).
+ * Off by default (VITE_LEGAL_AI_ENABLED): gemini-proxy is not deployed (smoke test 21 Oct 2026 #51), so the
+ * contract / invoice / proposal tools hide the assistant card until the function is live and the flag is "true".
  */
 import { errorMessage } from "@/lib/groupB-errors";
 import { supabase } from "@/integrations/supabase/client";
+
+const env = import.meta.env;
+
+export const LEGAL_AI_ENABLED: boolean = env.VITE_LEGAL_AI_ENABLED === "true";
 
 interface AIAssistantResult {
     response: string;
@@ -18,6 +24,7 @@ export async function callLegalAI(
     /** Document-specific rules the model must follow (e.g. fixed contract wording, flat-fee model). */
     guidance?: string
 ): Promise<AIAssistantResult> {
+    if (!LEGAL_AI_ENABLED) throw new Error("The drafting assistant is switched off.");
     const modelConfigs = [
         { name: "gemini-2.0-flash", version: "v1beta" },
         { name: "gemini-1.5-flash", version: "v1" },

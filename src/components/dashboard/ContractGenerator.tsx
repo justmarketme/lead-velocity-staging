@@ -32,7 +32,7 @@ import { getContractEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { renderAgreementHtml } from "@/lib/contract/renderHtml";
 import contractLogo from "@/assets/lead-velocity-logo-contract.png";
-import { callLegalAI } from "@/utils/legalAI";
+import { callLegalAI, LEGAL_AI_ENABLED } from "@/utils/legalAI";
 import { ALL_PLANS, PILOT, PILOT_OFFERED, isPilot, perLead, pricingSummaryText, zar } from "@/lib/pricing";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import type { BrokerOnboardingRow } from "@/types/groupA-broker";
@@ -571,6 +571,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                 <Input value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="client@company.co.za" className="bg-slate-950/50 border-white/10 h-9 text-sm" />
                             </div>
 
+                            {LEGAL_AI_ENABLED && (
                             <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
                                 <CardContent className="p-4 space-y-4">
                                     <p className="text-[10px] text-slate-500">The assistant can explain clauses and fill details. It cannot change the agreement's wording.</p>
@@ -629,6 +630,7 @@ const ContractGenerator = ({ onBack, initialData }: ContractGeneratorProps) => {
                                     </div>
                                 </CardContent>
                             </Card>
+                            )}
 
                             {history.length > 0 && (
                                 <div className="space-y-3 mt-6">
