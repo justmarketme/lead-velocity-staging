@@ -100,3 +100,11 @@ export function nowFrom(input = {}, env = {}, wall = Date.now()) {
 
 /** I-38d (CONTRACTS.md): a lead-facing send that Meta accepted (wamid) touches leads.last_contact_at; dry runs never. */
 export const touchesLastContact = (to, wamid) => to === 'lead' && typeof wamid === 'string' && wamid.length > 0 && !wamid.startsWith('dry:');
+
+/**
+ * Smoke-test numbers (21 Oct 2026, smoke test #16): +27 60 000 xxxx (digits 2760000 + 4) is the range every synthetic
+ * harness uses (wa-smoke.sh, the test fixtures), so the sender dry-runs it and intake (W03) flags such a lead
+ * is_synthetic. The SMC business number (+27 60 015 6480) is outside it.
+ */
+export const SYNTHETIC_RANGE = /^2760000\d{4}$/;
+export const isSyntheticNumber = (v) => SYNTHETIC_RANGE.test(String(v == null ? '' : v).replace(/\D/g, ''));

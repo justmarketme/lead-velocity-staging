@@ -1990,9 +1990,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_category, intent, llm_model, latency_ms, guardrail_trip, guardrail_rule, handoff, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'bot', 'W07', 'service', $7, $8, $9, $10::boolean, $11, $12::boolean, '{}'::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_category, intent, llm_model, latency_ms, guardrail_trip, guardrail_rule, handoff, metadata, failed_reason)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, $13, NULLIF($4, ''), $5::uuid, $6::uuid, 'bot', 'W07', 'service', $7, $8, $9, $10::boolean, $11, $12::boolean, '{}'::jsonb, NULLIF($14, ''))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const s = $('Anything to send?').item.json; return [s.brand_id, s.msg.from, s.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + s.msg.wamid), s.lead ? s.lead.id : null, s.lead ? s.lead.broker_id : null, s.intent || null, s.model, s.latency_ms || null, !!s.trip, s.rule || null, !!s.handoff]; })() }}"
+          "queryReplacement": "={{ (() => { const s = $('Anything to send?').item.json; const got = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; const failed = !got && $json.ok === false; return [s.brand_id, s.msg.from, s.text, got || (failed ? '' : 'dry:' + s.msg.wamid), s.lead ? s.lead.id : null, s.lead ? s.lead.broker_id : null, s.intent || null, s.model, s.latency_ms || null, !!s.trip, s.rule || null, !!s.handoff, failed ? 'failed' : 'sent', failed ? String($json.error || 'send_failed').slice(0, 300) : '']; })() }}"
         }
       },
       "credentials": {

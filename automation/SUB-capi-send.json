@@ -72,7 +72,7 @@
       "alwaysOutputData": true,
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT (l.id IS NOT NULL) AS found, l.consent_ads_at, l.phone, l.first_name, l.last_name, l.fbc, l.fbp, l.client_ip, l.client_user_agent,\n       COALESCE(NULLIF($2, '')::uuid, l.brand_id)::text AS lead_brand_id, br.pixel_id, br.dataset_id, br.waba_id,\n       EXISTS (SELECT 1 FROM public.capi_log g WHERE g.event_id = $3 AND g.event_name = $4) AS duplicate\n  FROM (SELECT 1) one\n  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid\n  LEFT JOIN public.brands br ON br.id = COALESCE(NULLIF($2, '')::uuid, l.brand_id);",
+        "query": "SELECT (l.id IS NOT NULL) AS found, l.is_synthetic, l.consent_ads_at, l.phone, l.first_name, l.last_name, l.fbc, l.fbp, l.client_ip, l.client_user_agent,\n       COALESCE(NULLIF($2, '')::uuid, l.brand_id)::text AS lead_brand_id, br.pixel_id, br.dataset_id, br.waba_id,\n       EXISTS (SELECT 1 FROM public.capi_log g WHERE g.event_id = $3 AND g.event_name = $4) AS duplicate\n  FROM (SELECT 1) one\n  LEFT JOIN public.leads l ON l.id = NULLIF($1, '')::uuid\n  LEFT JOIN public.brands br ON br.id = COALESCE(NULLIF($2, '')::uuid, l.brand_id);",
         "options": {
           "queryReplacement": "={{ [ $json.lead_id || '', $json.brand_id || '', $json.event_id, $json.event_name ] }}",
           "queryBatching": "independently"
@@ -399,7 +399,7 @@
         0
       ],
       "parameters": {
-        "content": "## smc-capi-send (LOCAL-STAGING §7)\nInput (ids only): `{ event_name, event_id, action_source, lead_id, brand_id, ctwa_clid?, value?, event_time? }`; a caller may add `user: { phone, fn, ln, external_id, ip, ua, fbc, fbp }` + `custom_data` (lead row wins).\n1. Consent gate (`leads.consent_ads_at`). 2. Hash inside (capi.buildEvent); email never. 3. Dataset by action_source. 4. Dedupe on capi_log unique(event_id, event_name); DRY_RUN writes nothing. 5. 3 tries; failure or usage >= 80% -> W22. 6. CAPI_TEST_EVENT_CODE -> evidence JSONL at CAPI_EVIDENCE_PATH.\nExecution data is not saved (hashed identifiers).",
+        "content": "## smc-capi-send (LOCAL-STAGING §7)\nInput (ids only): `{ event_name, event_id, action_source, lead_id, brand_id, ctwa_clid?, value?, event_time? }`; a caller may add `user: { phone, fn, ln, external_id, ip, ua, fbc, fbp }` + `custom_data` (lead row wins).\n0. Test leads (`leads.is_synthetic`, +27 60 000 xxxx) skipped unless CAPI_TEST_EVENT_CODE. 1. Consent gate (`leads.consent_ads_at`). 2. Hash inside (capi.buildEvent); email never. 3. Dataset by action_source. 4. Dedupe on capi_log unique(event_id, event_name); DRY_RUN writes nothing. 5. 3 tries; failure or usage >= 80% -> W22. 6. CAPI_TEST_EVENT_CODE -> evidence JSONL at CAPI_EVIDENCE_PATH.\nExecution data is not saved (hashed identifiers).",
         "width": 520,
         "height": 300
       },

@@ -379,7 +379,9 @@ function step(thread, msg, ctx) {
     const typedWords = typedChoice ? String((msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text) || '').trim() : '';
     if (choice === 'consent_no') {
       actions.push({ kind: 'suppress', mobile_hash: hashMobile(ctx.mobile), source: 'no_consent_ctwa' });
-      send({ type: 'text', body: 'No problem. We won’t contact you again. Take care.' });
+      // close_line: the suppression above is written before this reply goes out, so W03 sends this one line past it
+      // (smc-whatsapp-send bypass_suppression, the same rule as W15's one STOP confirmation; smoke test #6, 21 Oct 2026)
+      actions.push({ kind: 'send', message: { type: 'text', body: 'No problem. We won’t contact you again. Take care.' }, close_line: true });
       return { thread: { stage: 'closed', closed_reason: 'consent_no', at: ctx.at }, actions: actions.concat([{ kind: 'cancel_stall' }]) }; // origin + answers dropped
     }
     if (choice === 'consent_yes') {

@@ -4,6 +4,7 @@
 // event_time? }) and the decided shape ({ event_name, event_id, lead_id?, user: { phone, fn?, ln?, external_id?, ip?,
 // ua?, fbc?, fbp? }, custom_data? }). User data from the lead row wins; email is never sent (no `em`, ever).
 import { createRequire } from 'node:module';
+import { isSyntheticNumber } from './wa.mjs';
 const require = createRequire(import.meta.url);
 const capi = require('../capi/capi.js');
 
@@ -59,14 +60,19 @@ export function userFrom(n, lead) {
 
 /**
  * build(n, ctx, env, nowMs) -> { action: 'skip'|'duplicate'|'dry'|'send', reason?, url?, body?, log? }
- *   ctx: "Load lead" row { found, consent_ads_at, phone, first_name, last_name, fbc, fbp, client_ip, client_user_agent,
- *        lead_brand_id, pixel_id, dataset_id, waba_id, duplicate }
- * Consent gate first (event-spec "Consent gate"), then dedupe (capi_log), then DRY_RUN (nothing written), then send.
+ *   ctx: "Load lead" row { found, is_synthetic, consent_ads_at, phone, first_name, last_name, fbc, fbp, client_ip,
+ *        client_user_agent, lead_brand_id, pixel_id, dataset_id, waba_id, duplicate }
+ * Test leads out first (unless CAPI_TEST_EVENT_CODE), then the consent gate (event-spec "Consent gate"), then dedupe (capi_log), then DRY_RUN (nothing written), then send.
  */
 export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
   const brand_id = n.brand_id || ctx.lead_brand_id || null;
   const log = { lead_id: n.lead_id, brand_id, event_name: n.event_name, event_id: n.event_id, action_source: n.action_source };
   if (!n.valid) return { action: 'skip', reason: 'invalid_input', missing: n.missing, log };
+  // smoke test #17 (21 Oct 2026): a test lead (leads.is_synthetic, or a +27 60 000 xxxx number) never reaches the pixel
+  // (Meta cannot delete events). Only with CAPI_TEST_EVENT_CODE set (Events Manager "Test events", the E2E window) does
+  // it go, and then as a test event.
+  const synthetic = ctx.is_synthetic === true || ctx.is_synthetic === 't' || isSyntheticNumber(ctx.phone || (n.user && n.user.phone));
+  if (synthetic && !env.CAPI_TEST_EVENT_CODE) return { action: 'skip', reason: 'synthetic_lead', log };
   const metaName = n.action_source === 'business_messaging' ? MESSAGING_EVENT_NAME[n.event_name] : n.event_name;
   if (!metaName) return { action: 'skip', reason: 'no_messaging_event_type', log };
   if (metaName !== n.event_name) log.meta_event_name = metaName;

@@ -16,7 +16,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { templateMessage, textMessage, paramCounts } from './wa.mjs';
+import { templateMessage, textMessage, paramCounts, isSyntheticNumber } from './wa.mjs';
 import { providerOf, interpretTwilio, toTwilioRequest, twilioBasicAuth } from './wa-provider.mjs';
 
 const TEMPLATES = join(dirname(fileURLToPath(import.meta.url)), '..', 'templates');
@@ -134,7 +134,7 @@ export function allowListed(to, env = {}) {
  * decide(n, ctx, env, nowMs)
  *   n   : normalise() output
  *   ctx : row from "Load context" { brand_id, suppressed, last_inbound_at, template_status, duplicate }
- * Order: duplicate -> suppression -> allow-list -> template/window rules -> DRY_RUN -> send.
+ * Order: duplicate -> suppression -> allow-list -> template/window rules -> DRY_RUN / synthetic number -> send.
  */
 export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
   const provider = providerOf(env);
@@ -177,6 +177,8 @@ export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
     else payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: n.to, type: n.media.type, [n.media.type]: n.media.id ? { id: n.media.id, ...(n.media.caption ? { caption: n.media.caption } : {}) } : { link: n.media.link, ...(n.media.caption ? { caption: n.media.caption } : {}) } };
   }
   if (String(env.DRY_RUN_SENDS || '').toLowerCase() === 'true') return { ...base, action: 'dry', sent_as: sentAs, external_id: `dry:${n.correlation}` };
+  // smoke test #16 (21 Oct 2026): a +27 60 000 xxxx test number is never sent to, whatever DRY_RUN_SENDS says (wa.mjs)
+  if (isSyntheticNumber(n.to)) return { ...base, action: 'dry', reason: 'synthetic_number', sent_as: sentAs, external_id: `dry:${n.correlation}` };
   return { ...base, action: 'send', sent_as: sentAs, payload };
 }
 
