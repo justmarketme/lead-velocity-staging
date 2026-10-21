@@ -566,7 +566,7 @@ test('cancel card: Something went wrong -> hello@ + Keep my call / Cancel it; An
   assert.deepEqual(o.interactive.action.buttons.map((b) => b.reply.id), ['cancel_yes:bk_C1', 'keep_it:bk_C1']);
   const now = Date.parse('2026-10-19T10:00:00Z');
   const wait = R.cancelReasonPending(cBkLive(), now);
-  assert.deepEqual(wait, { booking_id: 'bk_C1', until: '2026-10-19T10:30:00.000Z' });
+  assert.deepEqual(wait, { booking_id: 'bk_C1', until: '2026-10-19T10:30:00.000Z', via: 'other' }); // review 21 Oct: the wait records its opener
   const typed = { delegate: { action: 'cancel_reason_text' }, msg: { text: 'My husband   handles it' } };
   assert.equal(R.classifyOp(typed), 'cancel');
   assert.deepEqual(R.cancelReasonOf(typed), { code: 'other', text: 'My husband   handles it', typed: true });
@@ -851,4 +851,24 @@ test('#40 W10 move in place: conv_state.state rescheduling -> booked in the same
   assert.match(q, /SELECT mv\.id, mv\.graph_event_id, mv\.reschedule_count FROM mv;$/);
   assert.match(q, /mv AS \(\nUPDATE public\.appointments a[\s\S]*WHERE a\.id = \$1::uuid AND chk\.free AND a\.status IN \('booked','confirmed'\)/, 'the row still moves only when free and live');
   assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /Move booking in place/.test(x.node))), []);
+});
+
+// Review 21 Oct 2026 (smoke #12 follow-up): negated keep, the wait's opener, and the stored reason is redacted.
+test('review #12: "can\'t keep" / "never mind, cancel it" cancel; the card wait records via card; the stored reason is redacted', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  const typed = (text) => ({ delegate: { action: 'cancel_reason_text' }, msg: { text } });
+  for (const text of ['I cant keep it, something came up', "Sorry, I can't keep my booking", 'never mind cancel it', "I won't make it, cancel please"]) assert.equal(R.classifyOp(typed(text)), 'cancel', text);
+  for (const text of ['never mind', 'Never mind, keep it', 'No', 'Wait', 'I changed my mind', "Please don't"]) assert.equal(R.classifyOp(typed(text)), 'keep', text);
+  assert.equal(R.classifyOp(typed("Don't cancel, I'm not ready to lose it")), 'keep');
+  // the wait records who opened it: the card (W07 then reads only clear replies) or the "Another reason" tap
+  const merge = async (op) => (await runCode(WF, 'Merge context', { json: { id: 'bk_C1', client_id: 'l1', status: 'booked', appointment_date: '2026-10-21T08:00:00Z', ends_at: '2026-10-21T08:30:00Z', conv_state: {} }, refs: { 'Classify op': { op } } })).json;
+  assert.equal(JSON.parse((await merge('cancel_ask')).cancel_wait).via, 'card');
+  assert.equal(JSON.parse((await merge('cancel_other')).cancel_wait).via, 'other');
+  assert.equal(R.cancelReasonPending({ id: 'b' }, 0).via, 'other', 'default: the explicit "Another reason" wait');
+  // health, ID and bank text typed as the reason is stored redacted (W07 masks them before storage); the code is still read
+  const sick = R.cancelReasonOf(typed("I'm in hospital for chemo that week"));
+  assert.equal(sick.code, 'other'); assert.doesNotMatch(sick.text, /chemo|hospital/i);
+  const id = R.cancelReasonOf(typed('My ID is 8001015009087, please cancel'));
+  assert.doesNotMatch(id.text, /8001015009087/); assert.doesNotMatch(R.reasonParams(id)[1], /8001015009087/);
+  assert.equal(R.cancelReasonOf(typed('My husband handles it')).text, 'My husband handles it');
 });

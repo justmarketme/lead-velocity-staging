@@ -3507,6 +3507,31 @@
           "waitForSubWorkflow": true
         }
       }
+    },
+    {
+      "id": "w07-resched-endwait",
+      "name": "End typed-reason wait (reschedule card, W07)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        320,
+        80
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The client picked \"a different time\" (reschedule card): the cancel card's typed-reason wait ends here.\nUPDATE public.leads l SET conv_state = l.conv_state - 'cancel_reason_pending', updated_at = now()\n WHERE l.id = $1::uuid AND l.conv_state ? 'cancel_reason_pending'\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || '00000000-0000-0000-0000-000000000000' ] }}"
+        }
+      }
     }
   ],
   "connections": {
@@ -4856,6 +4881,11 @@
         [
           {
             "node": "SUB input (Send reschedule card (W07))",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "End typed-reason wait (reschedule card, W07)",
             "type": "main",
             "index": 0
           }

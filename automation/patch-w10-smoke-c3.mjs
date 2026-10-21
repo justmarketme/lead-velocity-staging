@@ -68,6 +68,11 @@ const WAITPG = 'Typed-reason wait (open for the card / end it)';
     if (!m.parameters.jsCode.includes(a)) throw new Error('Merge context anchor not found');
     m.parameters.jsCode = m.parameters.jsCode.replace(a, b);
   }
+  // review 21 Oct: the wait records who opened it (via 'card' | 'other'); W07 reads only clear replies on a card-opened wait
+  const v0 = 'JSON.stringify(W.cancelReasonPending(__o.bk, Date.now())) : \'\'; // smoke #12: the card opens the wait too';
+  const v1 = "JSON.stringify(W.cancelReasonPending(__o.bk, Date.now(), __o.op === 'cancel_ask' ? 'card' : 'other')) : ''; // smoke #12: the card opens the wait too (via card: W07 takesTypedReason)";
+  if (m.parameters.jsCode.includes(v0)) m.parameters.jsCode = m.parameters.jsCode.replace(v0, v1);
+  if (!m.parameters.jsCode.includes(v1)) throw new Error('Merge context: wait via not set');
 }
 if (!has(WAITIF)) {
   const [x, y] = node(MERGE).position;

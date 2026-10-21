@@ -16,6 +16,7 @@
 //    otherwise the 10-slot list in-window, or the reschedule_offer template (3 slots) outside the 24-h window.
 import { createRequire } from 'node:module';
 import { LINES, fill } from '../../conversation/lines.mjs';
+import { redactForStorage } from '../../conversation/guardrail.mjs';
 import { isSmcLead, smcClientEmail, smcRelayEmail, parseSub as parseW05Sub } from './w05.mjs';
 import { rescheduleCardPlan } from './wa-provider.mjs';
 export const H = 3600_000;
@@ -133,9 +134,10 @@ export const cancelNeedsConfirm = (source) => source === 'text';
 export function cancelReasonOf(input = {}) {
   const d = input.delegate || {};
   if (d.action === 'cancel_reason_text') {
-    const text = String((input.msg && input.msg.text) || '').slice(0, 500);
-    const t = typedCancelReason(text);
-    return { code: t.code === 'keep' ? 'keep' : t.code, text, typed: true };
+    const raw = String((input.msg && input.msg.text) || '');
+    const t = typedCancelReason(raw);
+    // review 21 Oct: the stored reason is the redacted text (health, ID and bank details masked, as W07 stores messages)
+    return { code: t.code === 'keep' ? 'keep' : t.code, text: redactForStorage(raw).slice(0, 500), typed: true };
   }
   const r = parseCancelReason((input.msg && (input.msg.payload || input.msg.list_id)) || '');
   return r ? { code: r.code } : null;
@@ -440,22 +442,45 @@ export const CANCEL_REASONS = {
  */
 const typedNorm = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[\u2018\u2019\u02bc`\u00b4]/gu, "'").replace(/\s+/gu, ' ').trim();
 export const TYPED_CANCEL_RULES = [
-  ['keep', /\bkeep (it|my call|the call|my time|the time|the booking|my booking)\b|\b(do not|don'?t|dont|please don'?t) cancel\b|\bnever ?mind\b|\bno,? (wait|leave it)\b|\bstill (want|keen on) (it|the call)\b/u],
+  // review 21 Oct: "never mind" keeps only on its own (or "never mind, keep it"); a bare "No" / "Wait" / "I changed my mind" keeps
+  ['keep', /\bkeep (it|my call|the call|my time|the time|the booking|my booking)\b|\b(do not|don'?t|dont|please don'?t) cancel\b|^(oh,? |ok,? |okay,? )?never ?mind( then)?[\s.!,]*$|\bnever ?mind,? keep\b|\bno,? (wait|leave it)\b|\bstill (want|keen on) (it|the call)\b|^(no|nope|wait|hold on|actually,? no|please don'?t|don'?t|(i'?ve |i have |i )?changed my mind)[\s.!,]*$/u],
   ['different_time', /\b(different|another|other|new|later|earlier) (time|day|date|slot)\b|\bresched|\bmove (it|my call|the call)\b|\bchange the (time|day|date)\b/u],
   ['went_wrong', /\bsomething went wrong\b|\bwent wrong\b/u],
   ['not_ready', /\bnot ready\b/u],
   ['sorted_cover', /\b(sorted|found|bought|took out) (out )?(my |the |a )?(own )?(cover|policy|insurance)\b|\balready (sorted|covered|insured)\b/u],
   ['not_expected', /\b(didn'?t|did not|wasn'?t|was not) expect/u],
 ];
+// Review 21 Oct: "I can't keep it" / "never mind, cancel it" read as keep. A negated keep or a plain cancel command skips the keep rule.
+const NEG_KEEP = /\b(can'?t|cannot|can not|won'?t|unable to|not able to|couldn'?t|can no longer) (keep|make)\b|\bnot (going to|gonna) make\b/u;
+const cancelCmd = (t) => /\bcancel/u.test(t) && !/\b(do not|don'?t|dont|not|never|no need to) cancel/u.test(t);
 export function typedCancelReason(text) {
   const t = typedNorm(text);
-  for (const [code, re] of TYPED_CANCEL_RULES) if (re.test(t)) return { code };
+  const skipKeep = NEG_KEEP.test(t) || cancelCmd(t);
+  for (const [code, re] of TYPED_CANCEL_RULES) if (!(code === 'keep' && skipKeep) && re.test(t)) return { code };
   // A question or a day / time without the word "cancel" is not a reason to cancel (e.g. "Is Thursday possible?" typed after
   // tapping "I need a different time", whose reschedule card W07 sends without W10): show the times, never cancel on it.
   if (!/\bcancel/u.test(t) && TYPED_TIME_ASK.test(t)) return { code: 'different_time' };
   return { code: 'other' };
 }
-const TYPED_TIME_ASK = /\?|\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\btomorrow\b|\bnext week\b|\b\d{1,2}(:\d{2})?\s*(am|pm|h)\b|\b\d{1,2}:\d{2}\b/u;
+// review 21 Oct: a time preference ("Mornings are better", "after work", "later this week") is a time ask too
+const TYPED_TIME_ASK = /\?|\b(mon|tues|wednes|thurs|fri|satur|sun)day\b|\btomorrow\b|\bnext week\b|\b\d{1,2}(:\d{2})?\s*(am|pm|h)\b|\b\d{1,2}:\d{2}\b|\b(mornings?|afternoons?|evenings?|lunch ?time|weekends?)\b|\b(after|before) work\b|\b(later|earlier) (today|this week|in the week)\b|\bthis week\b/u;
+/**
+ * Review 21 Oct 2026 (smoke #12 follow-up): does this typed reply, while the wait is open, go to W10 as the reason?
+ * A wait opened by the card itself (via 'card') takes only a reply that names a reason, says keep / a time, or plainly asks to
+ * cancel; anything else ("ok", "Thanks", "My husband handles it") goes to Lindi's normal path as before #12, so an unclear
+ * reply never cancels. After an explicit "Another reason" tap (via 'other', or a wait written before via existed) the text is
+ * the reason, as before. An acknowledgement alone, or a method ("a WhatsApp call instead"), is never a reason: Lindi answers.
+ */
+const TYPED_ACK = /^(ok(ay)?|k|thanks?|thank you|thx|cool|sure|great|noted|alright|got it)[\s.!,]*(thanks?|thank you)?[\s.!]*$|^[\p{Extended_Pictographic}\s]+$/u;
+const TYPED_METHOD = /\b(teams|zoom|google meet|whatsapp (call|video)|video call|phone call|by phone|on the phone|call me (on|instead))\b/u;
+export function takesTypedReason(text, via = 'other') {
+  const t = typedNorm(text);
+  if (!t || TYPED_ACK.test(t)) return false;
+  if (TYPED_METHOD.test(t) && !cancelCmd(t)) return false;
+  if (typedCancelReason(t).code !== 'other') return true;
+  if (via !== 'card') return true;
+  return cancelCmd(t) || NEG_KEEP.test(t);
+}
 /** Ops that end the typed-reason wait when they arrive while it is open (the client left the card another way). */
 export const WAIT_KEEP_OPS = new Set(['cancel_ask', 'cancel_other', 'cancel_problem', 'cancel', 'keep', 'cancel_reason_stale', 'move_effects']);
 export const clearsReasonWait = (op, lead = {}) => !!(lead && lead.conv_state && lead.conv_state.cancel_reason_pending) && !WAIT_KEEP_OPS.has(op);
@@ -517,7 +542,8 @@ export const cancelProblemWa = (booking = {}, lead = {}) => toWa(lead.phone, { t
 export const cancelOtherWa = (booking = {}, lead = {}) => toWa(lead.phone, { type: 'buttons', body: cancelLine('other_ask', lead, booking), buttons: [[`cancel_yes:${booking.id}`, 'Just cancel it'], [`keep_it:${booking.id}`, 'Keep my call']] });
 /** conv_state while W10 waits for the typed reason: 30 minutes, this booking only. */
 export const CANCEL_REASON_WAIT_MS = 30 * 60_000;
-export const cancelReasonPending = (booking = {}, nowMs = Date.now()) => ({ booking_id: String(booking.id), until: new Date(nowMs + CANCEL_REASON_WAIT_MS).toISOString() });
+// via: 'card' = opened by the cancel card itself, 'other' = the "Another reason" tap (W07 reads it with takesTypedReason)
+export const cancelReasonPending = (booking = {}, nowMs = Date.now(), via = 'other') => ({ booking_id: String(booking.id), until: new Date(nowMs + CANCEL_REASON_WAIT_MS).toISOString(), via: via === 'card' ? 'card' : 'other' });
 /** The typed reason counts only for that booking, while the wait is open. */
 export function typedReasonValid(lead = {}, booking = {}, nowMs = Date.now()) {
   const p = lead.conv_state && lead.conv_state.cancel_reason_pending;

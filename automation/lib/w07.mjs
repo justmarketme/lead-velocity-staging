@@ -14,6 +14,7 @@ import { decide, DEFER_TOPICS, FAQ_TOPICS, INTENTS, ALL_TOPICS } from '../../con
 import { LINES, fill, fixedLines } from '../../conversation/lines.mjs';
 import { isPulseLine } from '../../conversation/pulse.mjs';
 import { checkEmail } from './w05.mjs';
+import { takesTypedReason } from './w10.mjs';
 
 export const WORKFLOW = 'W07';
 // The CTWA ad pre-fill: "book a 30-minute call with an adviser" since 18 Oct 2026 (Jono); "check my life cover" before, still accepted.
@@ -210,8 +211,10 @@ function routeCore(msg, ctx) {
   // Smoke #12 (21 Oct 2026): the wait now opens with the card itself, so it is read more often. Safety first: distress, asking
   // for a person, a complaint or a claim problem is never taken as a cancel reason (it goes to Lindi's normal path).
   const safety = pend ? prefilter(String(msg.text || '')) : {};
+  // Review 21 Oct: a wait the card itself opened (via 'card') takes only a reply that names a reason, keep ("No", "Wait"), a
+  // time or a plain cancel; an acknowledgement, a method or anything unclear goes to Lindi (lib/w10.mjs takesTypedReason).
   if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs
-    && !safety.distress && !safety.person && !safety.complaint && !safety.claim_problem) {
+    && !safety.distress && !safety.person && !safety.complaint && !safety.claim_problem && takesTypedReason(msg.text, pend.via)) {
     return { route: 'W10', reason: 'typed cancel reason', delegate: { to: 'W10', action: 'cancel_reason_text', actions: ['cancel_reason_text'], booking_id: pend.booking_id || null } };
   }
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };

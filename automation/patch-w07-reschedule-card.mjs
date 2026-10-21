@@ -71,5 +71,20 @@ if (!has(FLAG)) {
   changed = true;
 }
 
+// Review 21 Oct 2026 (smoke #12 follow-up): the cancel card's "I need a different time" row is reschedule:<booking>, answered
+// HERE with the card (W10 never runs), so W10 cannot end the cancel card's typed-reason wait. The client chose a new time: end
+// it beside the send, so a later typed reply is never read as a cancel reason.
+const ENDWAIT = 'End typed-reason wait (reschedule card, W07)';
+if (!has(ENDWAIT)) {
+  const [x, y] = node(IN).position || [0, 0];
+  wf.nodes.push({ id: 'w07-resched-endwait', name: ENDWAIT, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: [x, y - 160], credentials: node(FLAG).credentials,
+    alwaysOutputData: true, onError: 'continueRegularOutput', parameters: { operation: 'executeQuery',
+      query: "-- The client picked \"a different time\" (reschedule card): the cancel card's typed-reason wait ends here.\n" +
+        "UPDATE public.leads l SET conv_state = l.conv_state - 'cancel_reason_pending', updated_at = now()\n WHERE l.id = $1::uuid AND l.conv_state ? 'cancel_reason_pending'\nRETURNING l.id;",
+      options: { queryReplacement: "={{ [ ($json.lead && $json.lead.id) || '00000000-0000-0000-0000-000000000000' ] }}" } } });
+  wf.connections[IF].main[0].push({ node: ENDWAIT, type: 'main', index: 0 });
+  changed = true;
+}
+
 if (changed) writeFileSync(FILE, JSON.stringify(wf, null, 2) + (raw.endsWith('\n') ? '\n' : ''));
 console.log('patch-w07-reschedule-card:', changed ? 'changed' : 'already');
