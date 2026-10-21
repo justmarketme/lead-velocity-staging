@@ -103,6 +103,12 @@ export function createMockApi(opts: { booked?: boolean; log?: MockLog } = {}): S
         return { kind: "taken", slots };
       }
       const s = slots.find((x) => x.start === body.slot_start) ?? slots[0];
+      // like W05 (smoke #1, 21 Oct 2026): a phone call needs no email and is booked at once (confirmed on WhatsApp); Teams is
+      // held until the email link is tapped
+      if (body.method === "phone") {
+        booking = { start: s.start, end: s.end, method: body.method, held: false };
+        return { kind: "booked", info: { booking_id: "demo-1", start: s.start, end: s.end, method: body.method } };
+      }
       booking = { start: s.start, end: s.end, method: body.method, held: true };
       return { kind: "held", info: { booking_id: "demo-1", start: s.start, end: s.end, method: body.method, verify: "email" } };
     },

@@ -20,7 +20,8 @@ export interface SlotsData { slots: Slot[]; tz?: string; methods?: string[]; adv
 export interface BookBody { slot_start: string; method: string; email?: string; email_confirmed?: true; guest_email?: string; request_id: string; context: { source: "start_page" } }
 export interface BookedInfo { booking_id?: string; start: string; end: string; method: string; join_url?: string; ics_url?: string; verify?: string }
 
-type Fail = { kind: "expired" } | { kind: "error" };
+/** `message`: what the page shows for a failed booking call (bookErrorText), so a refusal is never silent. */
+type Fail = { kind: "expired" } | { kind: "error"; message?: string };
 export type StartResult = { kind: "ok"; data: StartData } | Fail;
 export type AdviserResult = ({ kind: "ok" } & AdviserReply) | Fail;
 export type ContactResult = { kind: "ok" } | { kind: "invalid"; field: "call_number" | "alt_number" } | Fail;
@@ -58,20 +59,44 @@ const str = (x: unknown) => (typeof x === "string" && x.trim() ? x.trim() : null
 /** Only an https image URL is ever put in an <img>. */
 const photo = (x: unknown) => { const v = str(x); return v && /^https:\/\/[^\s"'<>]+$/i.test(v) ? v : null; };
 
+/** Smoke #1 (21 Oct 2026): a refused booking was silent (a phone booking's 422 email_required set the Teams email field's
+    error, which the number step never shows). Every failed /book or /start/move now shows a line: the server's own `message`
+    when it sends one, else a plain sentence for its error code, else the generic one. */
+const BOOK_ERRORS: Record<string, string> = {
+  email_required: "We couldn't book this call online. Message us on WhatsApp and we'll book it for you.",
+  method_not_supported: "Your adviser doesn't offer this kind of call. Please go back and pick the other option.",
+  already_booked: "You already have a call booked. Use the link in your WhatsApp messages to move it.",
+  held_awaiting_email: "You already have a time waiting for you. Tap the link in your email to confirm it first.",
+  opted_out: "You asked us to stop messaging you, so we can't book this call. Message us on WhatsApp to start again.",
+  fallback_whatsapp: "We couldn't book this online. Message us on WhatsApp and we'll find you a time.",
+};
+export const GENERIC_ERROR = "Something went wrong.";
+export function bookErrorText(code: unknown, message?: unknown): string {
+  const m = str(message);
+  if (m && m.length <= 240) return m;
+  return (typeof code === "string" && BOOK_ERRORS[code]) || GENERIC_ERROR;
+}
+const failed = (body: any): { kind: "error"; message?: string } => {
+  const message = bookErrorText(body?.fallback === "whatsapp" ? "fallback_whatsapp" : body?.error_code ?? body?.error, body?.message);
+  return message === GENERIC_ERROR ? { kind: "error" } : { kind: "error", message };
+};
+
 /** Maps a /book response to what the page shows (pure; unit tested). */
 export function interpretBook(status: number, body: any): BookResult {
   if (isAuth(status)) return { kind: "expired" };
-  if (status === 409 || body?.error === "slot_taken") {
+  const code = typeof body?.error === "string" ? body.error : null;
+  if (code === "slot_taken" || (status === 409 && !code)) {
     const list = isSlotList(body?.slots) ? body.slots : isSlotList(body?.next) ? body.next : null;
     return { kind: "taken", slots: list };
   }
-  if (status === 422 || (typeof body?.error === "string" && body.error.startsWith("email_"))) return { kind: "email" };
+  // an email the server refused: the Teams step marks its field; the phone step (no email field) shows bookErrorText (Start.tsx)
+  if ((code && code.startsWith("email_")) || (status === 422 && !code)) return { kind: "email" };
   if (ok2xx(status) && body && typeof body.start === "string") {
     const info: BookedInfo = { booking_id: body.booking_id, start: body.start, end: body.end, method: body.method, join_url: body.join_url, ics_url: body.ics_url, verify: body.verify };
     if (body.booked === true) return { kind: "booked", info };
     if (body.held === true) return { kind: "held", info };
   }
-  return { kind: "error" };
+  return failed(body);
 }
 
 /** The adviser card values: name, firm and FSP are required; bio and photo are optional (null shows no bio line / initials). */
@@ -102,7 +127,7 @@ export function interpretMove(status: number, body: any): MoveResult {
   if (status === 400 || body?.error === "invalid") return { kind: "invalid" };
   const b = body?.booking;
   if (ok2xx(status) && body?.ok === true && b && typeof b.start === "string") return { kind: "moved", booking: { start: b.start, end: b.end, method: b.method, ...(typeof b.held === "boolean" ? { held: b.held } : {}) } };
-  return { kind: "error" };
+  return failed(body);
 }
 
 /** The move: a switch to a phone call whose number is not confirmed stores the numbers (POST /start/contact) first. */
