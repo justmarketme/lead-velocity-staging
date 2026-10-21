@@ -334,7 +334,7 @@ test("v4b12: after Lindi's reply while /start/ is pending, W07 sends the Start h
   assert.equal(W07.nodes.find((n) => n.name === 'Send Start here again (W07)').parameters.workflowId.value, 'smc-whatsapp-send');
   const env = { ...sids({ smc_start_cta: 'HXcta' }), LEAD_TOKEN_SECRET: SECRET };
   const s = { msg: { wamid: 'SMa1', from: '+27820000001' }, adviser_first: 'Mark', handoff: false,
-    lead: { id: '11111111-2222-4333-8444-555555555555', phone: '+27820000001', conv_state: { state: 'start_page' } } };
+    lead: { id: '11111111-2222-4333-8444-555555555555', phone: '+27820000001', broker_id: 'b1', conv_state: { state: 'start_page' } } };
   const run = (x) => runCode(W07, 'Start here again plan (W07)', { json: {}, env, refs: { 'Anything to send?': x } });
   const a = await run(s);
   const i = a.json.start_again.interactive;
@@ -351,4 +351,23 @@ test("v4b12: after Lindi's reply while /start/ is pending, W07 sends the Start h
   const sub = await runCode(W07, 'SUB input (Send Start here again (W07))', { json: a.json });
   assert.equal(sub.json.record, true); assert.equal(sub.json.correlation, 'W07:start_again:SMa1');
   assert.equal(S.decide(S.normalise(sub.json), {}, { ...env, DRY_RUN_SENDS: 'true' }).action, 'dry');
+});
+
+// Smoke test 21 Oct 2026 (#8): an unrouted lead (no broker yet: every /start/-pending lead) got
+// "Tap below to pick your time with your." because preStep's fallback 'your adviser' was cut to its first word.
+test('#8 Start here again: no routed broker or the fallback phrase -> "with your adviser."; a routed broker -> his first name', async () => {
+  const env = { ...sids({ smc_start_cta: 'HXcta' }), LEAD_TOKEN_SECRET: SECRET };
+  const lead = { id: '11111111-2222-4333-8444-555555555555', phone: '+27820000001', conv_state: { state: 'start_page' } };
+  const body = (o) => P.startAgainPlan({ token: 'lt1.abc', env, ...o }).send.interactive.body.text;
+  for (const adviser_first of ['your adviser', 'Your adviser', '', null]) {
+    assert.equal(body({ lead, adviser_first }), 'Tap below to pick your time with your adviser.', String(adviser_first));
+  }
+  // a name only when a broker is routed
+  assert.equal(body({ lead, adviser_first: 'Mark' }), 'Tap below to pick your time with your adviser.', 'no broker_id: no name');
+  assert.equal(body({ lead: { ...lead, broker_id: 'b1' }, adviser_first: 'Mark Smith' }), 'Tap below to pick your time with Mark.');
+  assert.equal(body({ lead: { ...lead, broker_id: 'b1' }, adviser_first: 'your adviser' }), 'Tap below to pick your time with your adviser.');
+  // through the real W07 node, with what the Route node really hands it for an unrouted lead
+  const s = { msg: { wamid: 'SMa8', from: '+27820000001' }, adviser_first: 'your adviser', handoff: false, broker: { id: null, contact_person: null }, lead };
+  const a = await runCode(W07, 'Start here again plan (W07)', { json: {}, env, refs: { 'Anything to send?': s } });
+  assert.equal(a.json.start_again.interactive.body.text, 'Tap below to pick your time with your adviser.');
 });

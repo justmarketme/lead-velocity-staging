@@ -361,7 +361,10 @@ export function startAgainPlan({ lead = {}, adviser_first = '', handoff = false,
   if (handoff) return { skip: 'handoff' }; // a person has the conversation now: no link on top of the handoff line
   if (!token || !TOKEN_SAFE.test(String(token))) return { skip: 'no_lead_token' };
   if (providerOf(env) === 'twilio' && !contentSids(env)[START_CTA_KEY]) return { skip: 'twilio_cta_content_missing' };
-  const who = firstWordOf(adviser_first) || 'your adviser';
+  // smoke test 21 Oct 2026 (#8): a name only when a broker is routed; W07's no-broker fallback 'your adviser' is no name
+  // (its first word gave "pick your time with your.")
+  const named = lead.broker_id && !/^\s*your adviser\s*$/iu.test(String(adviser_first || '')) ? firstWordOf(adviser_first) : '';
+  const who = named || 'your adviser';
   return { send: { messaging_product: 'whatsapp', recipient_type: 'individual', to: String(lead.phone).replace(/\D/g, ''), type: 'interactive', interactive: { type: 'cta_url',
     header: { type: 'image', image: { link: START_CTA_HEADER } }, body: { text: `Tap below to pick your time with ${who}.` },
     action: { name: 'cta_url', parameters: { display_text: START_CTA_BUTTON, url: `${START_PAGE_LINK}${token}` } } } } };
