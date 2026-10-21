@@ -28,8 +28,10 @@ export function WhatsAppCta({ ctx, className = "btn", children }: { ctx: ChatCon
 }
 
 /** Desktop only (hidden on touch screens and narrow windows): pick a time on SortMyCover's own /start/ page. Phones stay
-    WhatsApp-first. `via` (where the visitor came from) is added at click time, so server and client render the same HTML. */
+    WhatsApp-first. `via` (where the visitor came from) is added at click time, so server and client render the same HTML.
+    Not on will CTAs: /start/ has no times for a will, it only hands over to WhatsApp, so the button promised what it did not do. */
 export function StartCta({ ctx, className = "btn btn-secondary", children }: { ctx: ChatContext; className?: string; children?: ReactNode }) {
+  if (ctx.wills) return null;
   return (
     <a href={startHref(ctx)} className={`${className} desk-only`} onClick={(e) => { try { e.currentTarget.href = startHref(ctx, sourceTag(attribution(), document.referrer)); } catch { /* keep the plain link */ } }}>
       {children ?? "Pick a time"}

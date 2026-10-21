@@ -282,6 +282,11 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(home).toMatch(/<a href="https:\/\/sortmycover\.co\.za\/start\/\?ref=w-home"[^>]*desk-only/);
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/app\.cal\.com/);
   });
+  it("no will CTA offers 'Pick a time' (21 Oct 2026): /start/ only hands a will over to WhatsApp, so no page links to for=wills", () => {
+    for (const p of pages) expect(p.html, p.rel).not.toMatch(/for=wills/);
+    // the wills pages still have their WhatsApp CTA
+    expect(pages.find((p) => p.rel === "wills/index.html")!.html).toMatch(/href="https:\/\/wa\.me\/[^"]*Ref%20w-wills"/);
+  });
   it("no public page names or links the will provider (Jono, 18 Oct 2026: named only on WhatsApp)", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/capital\s*legacy|capitallegacy|FSP 43826/i);
     // nor any shipped script or file: the provider's identity is internal (config/will-provider.internal.json)
