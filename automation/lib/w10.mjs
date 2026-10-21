@@ -132,7 +132,11 @@ export const cancelNeedsConfirm = (source) => source === 'text';
 /** The reason a classified cancel carries: a reason tap, or the typed "Another reason" ({ code:'other', text, typed }). */
 export function cancelReasonOf(input = {}) {
   const d = input.delegate || {};
-  if (d.action === 'cancel_reason_text') return { code: 'other', text: String((input.msg && input.msg.text) || '').slice(0, 500), typed: true };
+  if (d.action === 'cancel_reason_text') {
+    const text = String((input.msg && input.msg.text) || '').slice(0, 500);
+    const t = typedCancelReason(text);
+    return { code: t.code === 'keep' ? 'keep' : t.code, text, typed: true };
+  }
   const r = parseCancelReason((input.msg && (input.msg.payload || input.msg.list_id)) || '');
   return r ? { code: r.code } : null;
 }
@@ -170,10 +174,12 @@ export function parseSlotPayload(p) {
 
 /** classifyOp(input) -> op for the W10 switch. input = { route, msg, delegate, source, outcome } */
 export function classifyOp(input) {
+  if (input.source === 'W10' && input.move_effects) return 'move_effects'; // smoke #11: W10's own async half of a move
   if (input.source === 'W12' && input.outcome === 'rescheduled') return 'broker_rescheduled';
   const d = input.delegate || {};
   if (d.action === 'cancel_confirm') return 'cancel_ask';     // typed "cancel" -> the cancel card (reasons)
-  if (d.action === 'cancel_reason_text') return 'cancel';     // the typed "Another reason" (W07, cancel_reason_pending)
+  // a typed reply while the cancel card waits (W07, cancel_reason_pending): matched to the card's rows (smoke #12)
+  if (d.action === 'cancel_reason_text') { const t = typedCancelReason((input.msg && input.msg.text) || ''); return t.code === 'keep' ? 'keep' : CANCEL_REASONS[t.code].typed_action; }
   if (d.action === 'change_method') return 'change_method';
   if (d.action === 'no_call') return 'no_call';     // W07 intent: "I don't want a call" / "No thanks" (C1A b)
   if (d.action === 'reschedule' || d.action === 'reschedule_slots') return 'offer';
@@ -411,14 +417,44 @@ export const pageOwnsSlotTaken = (source) => source === 'W39';
 const requireCjs = createRequire(import.meta.url);
 const WB = requireCjs('./wa-banner.cjs');
 export const CANCEL_HEADER = 'cancel';
+// typed_action (smoke #12): the op for the same reason TYPED in reply to the card. "Another reason" typed is the reason itself
+// (cancel with the text), never a second "please type it" ask.
 export const CANCEL_REASONS = {
-  different_time: { title: 'I need a different time', action: 'offer' },
-  not_ready: { title: "I'm not ready yet", action: 'cancel' },
-  sorted_cover: { title: "I've sorted my cover", description: "I've already sorted my cover", action: 'cancel' },
-  not_expected: { title: "I didn't expect a call", action: 'cancel' },
-  went_wrong: { title: 'Something went wrong', action: 'cancel_problem' },
-  other: { title: 'Another reason', action: 'cancel_other' },
+  different_time: { title: 'I need a different time', action: 'offer', typed_action: 'offer' },
+  not_ready: { title: "I'm not ready yet", action: 'cancel', typed_action: 'cancel' },
+  sorted_cover: { title: "I've sorted my cover", description: "I've already sorted my cover", action: 'cancel', typed_action: 'cancel' },
+  not_expected: { title: "I didn't expect a call", action: 'cancel', typed_action: 'cancel' },
+  went_wrong: { title: 'Something went wrong', action: 'cancel_problem', typed_action: 'cancel_problem' },
+  other: { title: 'Another reason', action: 'cancel_other', typed_action: 'cancel' },
 };
+
+/**
+ * Smoke #12 (21 Oct 2026): a reason TYPED in reply to the cancel card ("I'm not ready yet", the row's own title) went back to the
+ * intent model, came back as "cancel" and re-sent the same card, so a client who types could never cancel. The card now opens
+ * the typed-reason wait (conv_state.cancel_reason_pending, 30 min, this booking) and W07 hands the next free text here.
+ * Safety first: STOP and distress / a person / a complaint never get here (W07 routes them before the wait), and "keep it" /
+ * "don't cancel" is read BEFORE any cancel reason, so a typed "actually keep my call" never cancels. Then a different time
+ * (-> the times, not a cancel), "something went wrong" (-> hello@ + Keep / Cancel it), the three plain reasons, else the text
+ * itself is the "Another reason" (code other, the text stored as evidence).
+ * -> { code: 'keep' | <CANCEL_REASONS key> }
+ */
+const typedNorm = (s) => String(s || '').normalize('NFKC').toLowerCase().replace(/[\u2018\u2019\u02bc`\u00b4]/gu, "'").replace(/\s+/gu, ' ').trim();
+export const TYPED_CANCEL_RULES = [
+  ['keep', /\bkeep (it|my call|the call|my time|the time|the booking|my booking)\b|\b(do not|don'?t|dont|please don'?t) cancel\b|\bnever ?mind\b|\bno,? (wait|leave it)\b|\bstill (want|keen on) (it|the call)\b/u],
+  ['different_time', /\b(different|another|other|new|later|earlier) (time|day|date|slot)\b|\bresched|\bmove (it|my call|the call)\b|\bchange the (time|day|date)\b/u],
+  ['went_wrong', /\bsomething went wrong\b|\bwent wrong\b/u],
+  ['not_ready', /\bnot ready\b/u],
+  ['sorted_cover', /\b(sorted|found|bought|took out) (out )?(my |the |a )?(own )?(cover|policy|insurance)\b|\balready (sorted|covered|insured)\b/u],
+  ['not_expected', /\b(didn'?t|did not|wasn'?t|was not) expect/u],
+];
+export function typedCancelReason(text) {
+  const t = typedNorm(text);
+  for (const [code, re] of TYPED_CANCEL_RULES) if (re.test(t)) return { code };
+  return { code: 'other' };
+}
+/** Ops that end the typed-reason wait when they arrive while it is open (the client left the card another way). */
+export const WAIT_KEEP_OPS = new Set(['cancel_ask', 'cancel_other', 'cancel_problem', 'cancel', 'keep', 'cancel_reason_stale', 'move_effects']);
+export const clearsReasonWait = (op, lead = {}) => !!(lead && lead.conv_state && lead.conv_state.cancel_reason_pending) && !WAIT_KEEP_OPS.has(op);
 export const SMC_HELLO = 'hello@sortmycover.co.za';
 export const CANCEL_COPY = {
   card: 'We understand{first}, plans change. Before I cancel your call on {date} at {time}, can you tell me why? If it\'s something we can sort out, we\'d love to help.',
@@ -515,9 +551,33 @@ export function rebookRequest(j = {}) {
 export const w09Rebuild = (bk = {}, newStart = '') => ({ op: 'rebuild', booking_id: String(bk.id), idempotency_key: `w09:rebuild:${bk.id}:${newStart}` });
 /** W09 cancel_all after a cancel. */
 export const w09CancelAll = (bk = {}) => ({ op: 'cancel_all', booking_id: String(bk.id), idempotency_key: `w09:cancel_all:${bk.id}` });
-/** W05 update_method after a method change (W05 PATCHes the Outlook event, Teams link, client email). */
-export function w05UpdateMethod(bk = {}, method = null) {
-  const req = { op: 'update_method', booking_id: String(bk.id), method };
+/**
+ * W05 update_method after a method change (W05 PATCHes the Outlook event, Teams link, client email). Smoke #3: W05 owns the
+ * change. W10 no longer saves the method itself and no longer tells the client first; it hands W05 the one lead message
+ * (notifyWa), which W05 sends only after the change is saved.
+ */
+export function w05UpdateMethod(bk = {}, method = null, notifyWa = null) {
+  const req = { op: 'update_method', booking_id: String(bk.id), method, ...(notifyWa && notifyWa.to ? { notify_wa: notifyWa } : {}) };
   const chk = parseW05Sub(req);
   return chk.op === 'update_method' ? { ok: true, req } : { ok: false, reason: chk.reason, req };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Smoke #11 (21 Oct 2026): a move on /start/ took 7-10 s (W04 is_free, the row, a second token refresh, the Graph PATCH, W09
+// re-plan, the adviser notice, the client email), and the page gives up at 10 s, so the client saw "Something went wrong"
+// although the call had moved. W39 waits only for what decides the answer: the claim, the W04 re-check and the row moved in
+// place. Everything that follows a moved row runs in W10's own second execution (op move_effects, not waited for), which gets
+// the decided move and the booking as it was before (old time for the notices) in its input. Same nodes, same order.
+// ---------------------------------------------------------------------------------------------------------------
+/** j = the "Decide move" item of a moved row -> W10's own sub-call input for the effects. */
+export function moveEffectsRequest(j = {}) {
+  const bk = j.bk || {};
+  return { source: 'W10', move_effects: { origin_source: j.source || null, d: j.d || null, new_start: j.new_start, new_end: j.new_end, rebooked_after_no_show: !!j.rebooked_after_no_show,
+    before: { appointment_date: bk.appointment_date, ends_at: bk.ends_at, status: bk.status, reschedule_count: bk.reschedule_count } },
+  booking: { id: String(bk.id) }, lead: { id: (j.ld && j.ld.id) || bk.client_id || null }, idempotency_key: `w10:move_effects:${bk.id}:${j.new_start}` };
+}
+/** In the effects execution: the "Merge context" item (row reloaded, already at the new time) -> the "Decide move" item shape. */
+export function moveEffectsItem(m = {}) {
+  const e = m.move_effects || {};
+  return { ...m, source: e.origin_source || null, bk: { ...(m.bk || {}), ...(e.before || {}) }, d: e.d, new_start: e.new_start, new_end: e.new_end, rebooked_after_no_show: !!e.rebooked_after_no_show };
 }

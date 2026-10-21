@@ -714,3 +714,139 @@ test('v4b21: W09 rebuild / cancel_all and W05 update_method get their documented
     assert.deepEqual(into, [req], `${target} is fed only by its request node`);
   }
 });
+
+// ============================================================================================
+// Smoke test 21 Oct 2026 (checklist SMOKE-TEST-SMC-2026-10-21.md): #3, #11, #12, #40 (patch-w10-smoke-c3.mjs)
+// ============================================================================================
+const C3 = WF.connections; const c3outs = (n, i = 0) => ((C3[n] && C3[n].main[i]) || []).map((t) => t.node);
+const c3into = (target) => Object.entries(C3).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === target))).map(([k]) => k).sort();
+const c3node = (n) => WF.nodes.find((x) => x.name === n);
+
+test('#12 a reason TYPED after the cancel card is read as the reason (keep first), never the card again', () => {
+  const typed = (text) => ({ delegate: { action: 'cancel_reason_text' }, msg: { text } });
+  // live exec 11685: "I'm not ready yet" (the row's own title, typed) came back as cancel_ask and re-sent the card
+  for (const [text, op, code] of [
+    ["I'm not ready yet", 'cancel', 'not_ready'], ['I’m not ready yet', 'cancel', 'not_ready'],
+    ["I've sorted my cover", 'cancel', 'sorted_cover'], ['Already sorted thanks', 'cancel', 'sorted_cover'],
+    ["I didn't expect a call", 'cancel', 'not_expected'],
+    ['I need a different time', 'offer', 'different_time'], ['Can we do another day?', 'offer', 'different_time'],
+    ['Something went wrong', 'cancel_problem', 'went_wrong'],
+    ['Keep my call', 'keep', 'keep'], ['Actually keep it', 'keep', 'keep'], ["Don't cancel, I'm not ready to lose it", 'keep', 'keep'], ['never mind', 'keep', 'keep'],
+    ['My husband handles it', 'cancel', 'other'], ["I don't have cover yet", 'cancel', 'other'],
+  ]) {
+    assert.equal(R.classifyOp(typed(text)), op, text);
+    assert.equal(R.cancelReasonOf(typed(text)).code, code, text);
+    assert.equal(R.cancelReasonOf(typed(text)).typed, true);
+  }
+  assert.notEqual(R.classifyOp(typed("I'm not ready yet")), 'cancel_ask', 'never the card again');
+  // the reason and the text are both kept as evidence; the closing line is the reason's own
+  assert.deepEqual(R.reasonParams(R.cancelReasonOf(typed("I'm not ready yet"))), ['not_ready', "I'm not ready yet"]);
+  assert.match(R.reasonDelegate(R.cancelReasonOf(typed("I'm not ready yet")), ld(), cBkLive()).body, /^No problem, Anele\. Your call on Wed 21 Oct at 10:00 is cancelled\./);
+  // taps are unchanged
+  assert.equal(R.classifyOp({ msg: { list_id: 'cancel_reason:other:bk_C1' } }), 'cancel_other');
+  assert.equal(R.classifyOp({ delegate: { action: 'cancel_confirm' } }), 'cancel_ask');
+});
+
+test('#12 W10.json: the card opens the 30-min typed-reason wait; any other op ends it; the Merge context sets both', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  assert.equal(R.clearsReasonWait('cancel_ask', ld({ conv_state: { cancel_reason_pending: { booking_id: 'bk_C1' } } })), false);
+  for (const op of ['offer', 'pick', 'change_method', 'no_call']) assert.equal(R.clearsReasonWait(op, ld({ conv_state: { cancel_reason_pending: { booking_id: 'bk_C1' } } })), true, op);
+  for (const op of ['cancel', 'keep', 'cancel_other', 'cancel_problem', 'move_effects']) assert.equal(R.clearsReasonWait(op, ld({ conv_state: { cancel_reason_pending: { booking_id: 'bk_C1' } } })), false, `${op}: its own node clears or sets it`);
+  assert.equal(R.clearsReasonWait('offer', ld()), false, 'no wait: nothing to clear');
+  const merge = async (j) => (await runCode(WF, 'Merge context', { json: { id: 'bk_C1', client_id: 'l1', status: 'booked', appointment_date: '2026-10-21T08:00:00Z', ends_at: '2026-10-21T08:30:00Z', conv_state: j.cs || {} }, refs: { 'Classify op': j.in } })).json;
+  const card = await merge({ in: { op: 'cancel_ask', delegate: { action: 'cancel_confirm' } } });
+  assert.equal(JSON.parse(card.cancel_wait).booking_id, 'bk_C1');
+  assert.ok(Date.parse(JSON.parse(card.cancel_wait).until) - Date.now() > 29 * 60_000, '30 minutes');
+  const left = await merge({ in: { op: 'offer' }, cs: { cancel_reason_pending: { booking_id: 'bk_C1', until: '2099-01-01T00:00:00Z' } } });
+  assert.deepEqual([left.cancel_wait, left.clear_wait], ['', true]);
+  // wiring: Merge context -> Op AND the wait IF -> one UPDATE (open with $2, end with '')
+  const IFN = 'Typed-reason wait change? (card opens it, other ops end it)'; const PGN = 'Typed-reason wait (open for the card / end it)';
+  assert.deepEqual(c3outs('Merge context'), ['Op', IFN]);
+  assert.match(c3node(IFN).parameters.conditions.conditions[0].leftValue, /\$json\.op === 'cancel_ask' \|\| \$json\.clear_wait === true/);
+  assert.deepEqual([c3outs(IFN, 0), c3outs(IFN, 1)], [[PGN], []]);
+  assert.match(c3node(PGN).parameters.query, /jsonb_build_object\('cancel_reason_pending', \$2::jsonb\)/);
+  assert.match(c3node(PGN).parameters.query, /ELSE l\.conv_state - 'cancel_reason_pending' END/);
+  assert.equal(c3node(PGN).onError, 'continueRegularOutput');
+  assert.deepEqual(checkSql(workflowSql(WF).filter((x) => x.node === PGN)), []);
+});
+
+test('#3 W10 change_method: no save and no message here; the one message rides to W05, which sends it after the change', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  assert.equal(c3node('Save method'), undefined, 'W10 no longer writes the method before W05 has changed Outlook');
+  assert.deepEqual(c3outs('Method result', 0), ['Method lead message (one message)']);
+  assert.deepEqual(c3outs('Method lead message (one message)'), ['Has WhatsApp payload + live?', 'W05 request (update_method)']);
+  const w5 = c3node('W05 update event method (Teams link / body)');
+  assert.equal(w5.parameters.options.waitForSubWorkflow, true, 'W39 re-reads the booking after W10: W05 has finished by then');
+  const b = { ...bk({ id: '22222222-2222-4222-8222-222222222222', method: 'phone' }) };
+  const dec = { bk: b, ld: ld(), br: { ...BR, methods_supported: ['teams', 'phone'] }, method: 'teams', delegate: null, d: R.changeMethod(b, ld({ email: 'a@protonmail.com', email_status: 'mx_ok' }), { methods_supported: ['teams', 'phone'] }, 'teams') };
+  assert.equal(dec.d.action, 'change');
+  const msg = (await runCode(WF, 'Method lead message (one message)', { refs: { 'Decide method change': dec } })).json;
+  assert.equal(msg.wa, null, 'nothing sent before W05 changed it');
+  assert.equal(msg.w05_notify.text.body, "I'll change it to Teams.");
+  const req = (await runCode(WF, 'W05 request (update_method)', { json: msg, refs: { 'Decide method change': dec } })).map((x) => x.json);
+  assert.deepEqual(req, [{ op: 'update_method', booking_id: b.id, method: 'teams', notify_wa: msg.w05_notify }]);
+  const W5 = await import('../lib/w05.mjs');
+  assert.deepEqual(W5.parseSub(req[0]).notify_wa, msg.w05_notify, 'W05 accepts and keeps it');
+  // a reject still answers at once (lead_lines + the adviser's methods); W05 is not called
+  const rej = { ...dec, method: 'zoom', d: R.changeMethod(b, ld(), { methods_supported: ['teams', 'phone'] }, 'zoom') };
+  const rm = (await runCode(WF, 'Method lead message (one message)', { refs: { 'Decide method change': rej } })).json;
+  assert.equal(rm.wa.type, 'interactive');
+  assert.deepEqual(await runCode(WF, 'W05 request (update_method)', { json: rm, refs: { 'Decide method change': rej } }), []);
+});
+
+test('#11 W10 move: the waited execution ends once the row moved; Graph, W09, timeline and notices run in W10\'s own second execution', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  const MER = 'Move effects request (w10.moveEffectsRequest)'; const ME = '-> W10 move effects (not waited)'; const MEC = 'Move effects context (w10.moveEffectsItem)';
+  assert.deepEqual(c3outs('Moved? (else slot taken in the last second)', 0), [MER]);
+  assert.deepEqual(c3outs(MER), [ME]);
+  assert.equal(c3node(ME).parameters.workflowId.value, 'smc-w10'); assert.equal(c3node(ME).parameters.options.waitForSubWorkflow, false);
+  const op = c3node('Op'); const ix = op.parameters.rules.values.findIndex((r) => r.outputKey === 'move_effects');
+  assert.deepEqual(c3outs('Op', ix), [MEC]); assert.deepEqual(c3outs(MEC), ['Graph target (move)']);
+  assert.deepEqual(c3into('Graph target (move)'), [MEC], 'nothing else starts the effects');
+  // the effect nodes read the effects context, never the waited execution's Decide move
+  for (const n of ['Graph PATCH event (same event id)', 'Graph PATCH event (howzit@ shared calendar)', 'SMC client email (moved)', 'W09 request (rebuild, move)']) {
+    const s = JSON.stringify(c3node(n).parameters); assert.ok(s.includes(MEC) && !s.includes('Decide move'), n);
+  }
+  // round trip: the request carries what the effects need; the effects run rebuilds the Decide move item (old time for the notices)
+  const before = bk({ id: 'bk_M', appointment_date: '2026-10-23T08:30:00Z', ends_at: '2026-10-23T09:00:00Z', reschedule_count: 0 });
+  const d = R.applyReschedule(before, { start: '2026-10-26T09:00:00Z', end: '2026-10-26T09:30:00Z' }, { now_ms: Date.parse('2026-10-21T12:00:00Z'), free: true, initiated_by: 'lead', after_meeting: false, idempotency_key: 'k', seen_keys: new Set() });
+  const decide = { source: 'W39', bk: before, ld: ld(), br: BR, brand: { code: 'SMC' }, d, new_start: '2026-10-26T09:00:00Z', new_end: '2026-10-26T09:30:00Z', rebooked_after_no_show: false };
+  const req = (await runCode(WF, MER, { refs: { 'Decide move (w10.applyReschedule)': decide } })).json;
+  assert.equal(R.classifyOp(req), 'move_effects');
+  assert.deepEqual([req.booking.id, req.lead.id, req.source], ['bk_M', L03.lead_id, 'W10']);
+  assert.equal(JSON.stringify(req).includes('access_token'), false);
+  const reloaded = { ...req, op: 'move_effects', bk: { ...before, appointment_date: '2026-10-26T09:00:00Z', ends_at: '2026-10-26T09:30:00Z', reschedule_count: 1 }, ld: ld(), br: BR, brand: { code: 'SMC' } };
+  const ctx = (await runCode(WF, MEC, { refs: { 'Merge context': reloaded } })).json;
+  assert.deepEqual([ctx.source, ctx.d.action, ctx.bk.appointment_date, ctx.new_start, ctx.bk.id], ['W39', 'move', '2026-10-23T08:30:00Z', '2026-10-26T09:00:00Z', 'bk_M']);
+  // the moved notices are built from it exactly as before (old -> new time)
+  const msgs = (await runCode(WF, 'Lead + broker messages (moved)', { refs: { [MEC]: ctx } })).map((x) => x.json);
+  assert.match(msgs[0].wa.text.body, /^Done\. Your call with Mark is now Mon 26 Oct, 11:00\.$/);
+  assert.match(msgs[1].email.body, /moved their call from Fri 23 Oct, 10:30 to Mon 26 Oct, 11:00/);
+  // the after-meeting rebooking (still in the waited execution) keeps reading Decide move
+  assert.deepEqual(await runCode(WF, 'Lead + broker messages (moved)', { refs: { 'Decide move (w10.applyReschedule)': { ...decide, d: { action: 'new_booking' } } } }), []);
+});
+
+test('#11 /start/ move retry: the same request_id is the same W10 key, claimed once (a retry moves nothing twice and re-reads the row)', async () => {
+  const W39 = await import('../lib/w39.mjs');
+  const lead39 = { id: 'l39', brand_id: 'b', opted_out_at: null };
+  const booking39 = { id: 'bk39', appointment_date: '2026-10-23T08:30:00Z', status: 'booked', method: 'phone' };
+  const now = Date.parse('2026-10-21T12:00:00Z');
+  const req = W39.parseMove({ slot_start: '2026-10-26T09:00:00Z', request_id: 'req-move-0001' }, now);
+  const a = W39.moveRequest({ lead: lead39, booking: booking39, req, now }); const b2 = W39.moveRequest({ lead: lead39, booking: booking39, req, now });
+  assert.equal(a.w10.idempotency_key, 'w39:move:l39:req-move-0001'); assert.equal(a.w10.idempotency_key, b2.w10.idempotency_key);
+  assert.match(c3node('Claim reschedule key (idempotency)').parameters.options.queryReplacement, /'w10:' \+ \(\$json\.idempotency_key/);
+  assert.match(c3node('Claim reschedule key (idempotency)').parameters.query, /ON CONFLICT \(idempotency_key\) DO NOTHING/);
+  // second call: the claim returns no row -> replay (no move, no notices); W39 re-reads the moved row -> 200 moved
+  const d = R.applyReschedule(bk(), { start: '2026-10-26T09:00:00Z', end: '2026-10-26T09:30:00Z' }, { now_ms: now, free: true, idempotency_key: 'k', seen_keys: new Set(['k']) });
+  assert.equal(d.action, 'replay');
+  assert.deepEqual(W39.moveAnswer({ plan: a, after: { id: 'bk39', appointment_date: '2026-10-26T09:00:00Z', ends_at: '2026-10-26T09:30:00Z', method: 'phone', status: 'booked' } }).status, 200);
+});
+
+test('#40 W10 move in place: conv_state.state rescheduling -> booked in the same statement', () => {
+  const q = c3node('Move booking in place (re-check overlap + buffer)').parameters.query;
+  assert.match(q, /cs AS \(\n\s+UPDATE public\.leads l SET conv_state = l\.conv_state \|\| jsonb_build_object\('state', 'booked'\)/);
+  assert.match(q, /WHERE l\.id = mv\.client_id AND l\.conv_state->>'state' = 'rescheduling'/);
+  assert.match(q, /SELECT mv\.id, mv\.graph_event_id, mv\.reschedule_count FROM mv;$/);
+  assert.match(q, /mv AS \(\nUPDATE public\.appointments a[\s\S]*WHERE a\.id = \$1::uuid AND chk\.free AND a\.status IN \('booked','confirmed'\)/, 'the row still moves only when free and live');
+  assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /Move booking in place/.test(x.node))), []);
+});

@@ -151,3 +151,20 @@ test('21 Oct 2026: W28 last resort ({lead_id, body, last_resort}) is its own sub
   assert.deepEqual(items[0].json.wa, { messaging_product: 'whatsapp', to: '27820000001', type: 'text', text: { body: 'Which day suits you?' } });
   assert.equal(items[0].json.record, true);
 });
+
+// Smoke test 21 Oct 2026 (#12): the cancel card itself now opens the typed-reason wait, so it is read more often. Safety first:
+// STOP, distress, asking for a person, a complaint or a claim problem typed while it is open never becomes a cancel reason.
+test('#12 typed-reason wait: safety words go first (STOP -> W15; distress / person / complaint / claim problem -> the normal path, never a cancel)', () => {
+  const pending = { booking_id: BK, until: new Date(NOW + 10 * 60_000).toISOString() };
+  const c = ctx({ lead: lead({ conv_state: { state: 'booked', cancel_reason_pending: pending } }) });
+  assert.equal(routeInbound(msg({ text: 'STOP' }), c).route, 'W15');
+  for (const text of ['Can I speak to a real person please', 'I want to make a complaint about this', "I feel like ending it all, I can't go on", 'The insurer refused my claim']) {
+    const r = routeInbound(msg({ text }), c);
+    assert.notEqual(r.route, 'W10', text); assert.equal(r.delegate, undefined, text);
+  }
+  // an ordinary typed reason (the row's own title) still goes to W10, which reads it as that reason
+  const r = routeInbound(msg({ text: "I'm not ready yet" }), c);
+  assert.equal(r.route, 'W10');
+  assert.equal(classifyOp({ msg: { text: "I'm not ready yet" }, delegate: r.delegate }), 'cancel');
+  assert.equal(classifyOp({ msg: { text: 'Keep my call' }, delegate: r.delegate }), 'keep');
+});
