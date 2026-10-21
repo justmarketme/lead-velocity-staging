@@ -120,3 +120,17 @@ test('21 Oct 2026 (KG): "Can I cancel" with a live booking after the phone hand-
   assert.ok(decide('start_page', { intent: 'cancel' }, {}, {}).actions.includes('close_unbooked'));
   assert.deepEqual(decide('opted_out', { intent: 'cancel' }, {}, { booking }).actions, ['human_review']);
 });
+
+test('21 Oct 2026: distress or "a person" from a number with no lead -> handoff_pre_consent (no consent form); W07 wires it to the ops alert only', () => {
+  const noLead = { lead: null, broker_numbers: new Set(), ops_numbers: new Set() };
+  assert.equal(routeInbound(msg({ text: 'My husband passed away last week and I dont know what to do' }), noLead).route, 'handoff_pre_consent');
+  assert.equal(routeInbound(msg({ text: 'Can I please speak to a real person' }), noLead).route, 'handoff_pre_consent');
+  assert.equal(routeInbound(msg({ text: 'Hi I saw your ad' }), noLead).route, 'W03');
+  assert.equal(routeInbound(msg({ text: 'STOP' }), noLead).route, 'W15', 'STOP still wins');
+  const route = W07.nodes.find((n) => n.name === 'Route');
+  const i = route.parameters.rules.values.findIndex((r) => r.outputKey === 'handoff_pre_consent');
+  assert.ok(i >= 0);
+  const target = W07.connections.Route.main[i][0].node;
+  assert.deepEqual(W07.connections[target].main[0].map((e) => e.node), ['Live send? (alert)'], 'only the ops alert, never a reply or the never-silent fallback');
+  assert.match(W07.nodes.find((n) => n.name === target).parameters.jsCode, /ops_alert/);
+});

@@ -534,7 +534,7 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   // 2026-10-11 (verify gate): a typed email address -> save + smc-email-verify issue + one reply
   // 2026-10-19: W10-bound items pass the reschedule card check first (patch-w07-reschedule-card.mjs; not a card -> -> W10)
   // 2026-10-20 (D5): W35 (lead pulse) and W32 (ops decisions) retired; their rule outputs only log
-  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], W35: ['Paused / opted out: log only'], W32_decision: ['Paused / opted out: log only'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
+  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], W35: ['Paused / opted out: log only'], W32_decision: ['Paused / opted out: log only'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'], handoff_pre_consent: ['Pre-consent handoff: alert ops (nothing to the person)'] }); // 2026-10-21: distress / person before consent -> ops alert only
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });

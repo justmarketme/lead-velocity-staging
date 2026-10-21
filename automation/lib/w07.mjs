@@ -151,6 +151,13 @@ function routeCore(msg, ctx) {
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.
   if (STOP_WORDS.test(msg.text || '') || (msg.text && prefilter(msg.text).stop)) return { route: 'W15', reason: 'STOP' };
+  // 21 Oct 2026 (Jono): a person in distress, or asking for a person, from a number with no lead yet is never sent the
+  // consent form. A person is alerted (red / amber) and nothing automated is sent (patch-w07-preconsent-handoff.mjs).
+  if (!ctx.lead && msg.text && !msg.payload && !msg.list_id) {
+    const p = prefilter(msg.text);
+    if (p.distress) return { route: 'handoff_pre_consent', reason: 'distress before consent', severity: 'red' };
+    if (p.person) return { route: 'handoff_pre_consent', reason: 'asked for a person before consent', severity: 'amber' };
+  }
   if (!ctx.lead) return msg.referral || CTWA_OPENER_RE.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
   // 19 Oct 2026: every message from an opted-out lead goes to W15 and nowhere else (never Lindi, never another sender).
   // W15 decides (lib/w15.mjs followupOf): a stop_why:<code> reason is stored, stop_undo:changed_mind gets its one reply,

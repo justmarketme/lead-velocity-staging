@@ -799,6 +799,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "handoff_pre_consent",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s19",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "handoff_pre_consent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -3389,6 +3411,20 @@
           "waitForSubWorkflow": true
         }
       }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// handoff_pre_consent: lib/w07.mjs routeInbound. One ops_alert per ops number; the person gets nothing automated.\nconst out = [];\n$input.all().forEach((it, i) => {\n  const red = String(it.json.reason || '').startsWith('distress'); // the Route node carries route + reason only\n  const from = String((it.json.msg && it.json.msg.from) || ''); // full number: the team must be able to reply to someone with no lead yet\n  for (const t of [$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean)) {\n    out.push({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [\n      { type: 'body', parameters: [\n        { type: 'text', text: 'New WhatsApp, ' + (red ? 'distress' : 'asked for a person') + ' (no consent yet): ' + from },\n        { type: 'text', text: 'now' },\n        { type: 'text', text: red ? 'Red: reply personally, nothing automated was sent' : 'Waiting for a person, nothing automated was sent' },\n        { type: 'text', text: 'Reply from the SortMyCover WhatsApp' } ] },\n      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'console' }] } ] } } }, pairedItem: { item: i } });\n  }\n});\nreturn out;"
+      },
+      "id": "w07-preconsent-handoff",
+      "name": "Pre-consent handoff: alert ops (nothing to the person)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        760
+      ]
     }
   ],
   "connections": {
@@ -3682,6 +3718,13 @@
         [
           {
             "node": "Email reply plan (w07.emailReplyPlan + MX)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pre-consent handoff: alert ops (nothing to the person)",
             "type": "main",
             "index": 0
           }
@@ -4787,6 +4830,17 @@
         [
           {
             "node": "Send Start here again (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-consent handoff: alert ops (nothing to the person)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (alert)",
             "type": "main",
             "index": 0
           }
