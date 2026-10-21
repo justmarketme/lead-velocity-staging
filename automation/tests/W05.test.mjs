@@ -1234,3 +1234,42 @@ test('v4b15 adviser notice: a start-page lead shows income + topics (or "Prep an
   assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.alt_number, l\.income_band,/);
   assert.match(WF5.nodes.find((x) => x.name === 'Load booking for method change').parameters.query, /l\.income_band, l\.conv_state, l\.routing_reason,/);
 });
+
+// ============================================================================================
+// Smoke test 21 Oct 2026 (#37): /book refreshed the broker's Microsoft token twice (W04 is_free, then W04 graph_token).
+// ============================================================================================
+test('#37 /book: the is_free re-check hands back its Microsoft token and the Outlook create reuses it (one refresh per booking)', async () => {
+  const { runCode: run } = await import('./_n8ncode.mjs');
+  const WF4 = JSON.parse(readFileSync(new URL('../W04.json', import.meta.url), 'utf8'));
+  const now = Date.parse('2026-10-21T12:00:00Z');
+  // W04: only an is_free sub-call that asks for it gets the token, never an HTTP answer
+  assert.equal(W4.subcallInput({ op: 'is_free', broker_id: 'b1', start: '2026-10-22T08:00:00Z', want_token: true }).want_token, true);
+  assert.equal(W4.subcallInput({ op: 'is_free', broker_id: 'b1', start: '2026-10-22T08:00:00Z' }).want_token, undefined);
+  const tok = { ok: true, access_token: 'AT-1', expires_at: new Date(now + 3600e3).toISOString() };
+  assert.deepEqual(W4.reusableToken({ op: 'is_free', want_token: true }, tok), { access_token: 'AT-1', expires_at: tok.expires_at });
+  for (const [req, t] of [[{ op: 'is_free' }, tok], [{ op: 'list', want_token: true }, tok], [{ op: 'is_free', want_token: true }, { ok: false }]]) assert.equal(W4.reusableToken(req, t), null);
+  const compute = async (x) => (await run(WF4, 'Compute (w04.respond)', { json: x, refs: { 'Token plan (w04.planToken)': { tok } } }))[0].json;
+  const res = { next: 'respond', result: { free: true, next_slots: [] } };
+  assert.deepEqual((await compute({ lane: 'sub', req: { op: 'is_free', want_token: true }, plan: res })).body, { free: true, next_slots: [], access_token: 'AT-1', expires_at: tok.expires_at });
+  assert.deepEqual((await compute({ lane: 'sub', req: { op: 'is_free' }, plan: res })).body, { free: true, next_slots: [] }, 'W10 / others: no token');
+  assert.equal(JSON.stringify(await compute({ lane: 'http', req: { op: 'is_free', want_token: true }, plan: { next: 'respond', result: { status: 200, body: { slots: [] } } } })).includes('AT-1'), false);
+  // W05: the re-check asks for it on the broker calendar only
+  const isFree = { op: 'is_free', broker_id: 'b1', start: 's', end: 'e' };
+  assert.deepEqual((await run(WF5, 'is_free input', { json: { dec: { is_free: isFree, plan: { route: 'graph' } } } }))[0].json, { ...isFree, want_token: true });
+  assert.deepEqual((await run(WF5, 'is_free input', { json: { dec: { is_free: isFree, plan: { route: 'shared' } } } }))[0].json, isFree);
+  // a good token (> 5 min left) skips W04 graph_token; otherwise the old path
+  const C = WF5.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const IFN = 'Re-check token still good? (#37: no second refresh)';
+  assert.deepEqual(outs('Broker calendar (graph)?', 0), [IFN]);
+  assert.deepEqual([outs(IFN, 0), outs(IFN, 1)], [['Event body'], ['graph_token input']]);
+  assert.deepEqual(outs('graph_token input'), ['W04 graph_token (waits)']); assert.deepEqual(outs('W04 graph_token (waits)'), ['Event body']);
+  assert.equal(W5.recheckToken({ access_token: 'AT-1', expires_at: new Date(now + 301e3).toISOString() }, now), 'AT-1');
+  assert.equal(W5.recheckToken({ access_token: 'AT-1', expires_at: new Date(now + 299e3).toISOString() }, now), null, 'about to expire: refresh');
+  assert.equal(W5.recheckToken({ free: true }, now), null);
+  const dec = { ctx: ctx5({ lane: 'sub', broker: ownCal({ methods_supported: ['teams', 'phone'] }) }), dec: { plan: { lead_id: 'lead_test_L02', broker_id: broker().broker_id, start: '2026-10-22T08:00:00.000Z', end: '2026-10-22T08:30:00.000Z', method: 'phone', idempotency_key: 'k1', route: 'graph' } } };
+  const far = { free: true, access_token: 'AT-RECHECK', expires_at: new Date(Date.now() + 3600e3).toISOString() };
+  const body = async (refs) => (await run(WF5, 'Event body', { refs: { 'Decide (w05.decide + MX)': dec, ...refs } }))[0].json;
+  assert.equal((await body({ 'W04 is_free (re-check, waits)': far })).access_token, 'AT-RECHECK', 'no second refresh');
+  assert.equal((await body({ 'W04 is_free (re-check, waits)': far, 'W04 graph_token (waits)': { access_token: 'AT-FRESH' } })).access_token, 'AT-FRESH');
+  assert.equal((await body({ 'W04 is_free (re-check, waits)': far })).event.subject, 'SortMyCover call – Sipho – Phone');
+});

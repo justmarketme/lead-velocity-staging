@@ -253,6 +253,15 @@ export function planToken(res, nowMs = Date.now()) {
 }
 
 /**
+ * #37: the access token an is_free re-check used, handed back only to a sub-call that asked for it (want_token: W05 /book,
+ * which creates the Outlook event next). tok = planToken(). -> { access_token, expires_at } | null. Never in an HTTP answer.
+ */
+export function reusableToken(req = {}, tok = null) {
+  if (!req || req.op !== 'is_free' || req.want_token !== true || !tok || tok.ok !== true || !tok.access_token) return null;
+  return { access_token: tok.access_token, expires_at: tok.expires_at };
+}
+
+/**
  * getSchedule request. ASSUMPTION (no web check; 4.6 names `calendar/getSchedule`): delegated token ->
  * POST https://graph.microsoft.com/v1.0/me/calendar/getSchedule with this body, and the header
  * Prefer: outlook.timezone="Africa/Johannesburg" so scheduleItems come back in SAST.
@@ -372,6 +381,8 @@ export function subcallInput(j = {}) {
   if (op === 'is_free') {
     if (!j.start) return { op: 'reject', reason: 'start missing', lead_id };
     out.start = j.start; out.end = j.end || null;
+    // #37 (smoke 21 Oct 2026): W05 /book asks for the token this re-check used, so its Outlook create needs no second refresh
+    if (j.want_token === true) out.want_token = true;
   }
   return out;
 }

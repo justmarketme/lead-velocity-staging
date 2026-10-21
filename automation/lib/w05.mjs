@@ -563,6 +563,20 @@ export function insertBlocked(rows = [], row, bufferMinutes = 15) {
   return rows.some((x) => x.broker_id === row.broker_id && (LIVE.has(x.status) || x.status === HELD) && x.id !== row.finalize_booking_id && ms(x.appointment_date) < e && s < ms(x.ends_at));
 }
 
+// ---------------------------------------------------------------- #37: one Microsoft token per booking request
+/** The is_free re-check asks W04 for its access token too (want_token, broker calendar only), so the event create reuses it. */
+export const TOKEN_REUSE_MIN_S = 300;
+/**
+ * Smoke #37 (21 Oct 2026): /book refreshed the broker's Microsoft token twice (W04 is_free, then W04 graph_token for the
+ * create). The is_free answer now carries the token it just used; the create reuses it while it has more than 5 minutes
+ * left, else W05 asks W04 graph_token as before. free = the W04 is_free answer. -> the access token or null.
+ */
+export function recheckToken(free, nowMs = Date.now()) {
+  if (!free || typeof free.access_token !== 'string' || !free.access_token) return null;
+  const exp = Date.parse(free.expires_at || '');
+  return Number.isFinite(exp) && exp - nowMs > TOKEN_REUSE_MIN_S * 1000 ? free.access_token : null;
+}
+
 // ---------------------------------------------------------------- Microsoft Graph event (modelled; ASSUMPTION)
 /**
  * Is the client invited by the broker's own Outlook? True when the event goes into his connected calendar (plan route
