@@ -87,3 +87,35 @@ describe("mobile menu marks and keeps focus (21 Oct 2026)", () => {
     expect(document.activeElement).toBe(menu().querySelector("summary"));
   });
 });
+
+describe("mobile menu: first load and keyboard (21 Oct 2026 review)", () => {
+  it("a menu opened before the app hydrates (native <details>) stays open; the next route change still closes it", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { hydrateRoot } = await import("react-dom/client");
+    const tree = () => h(MemoryRouter, { initialEntries: ["/"] }, h(Nav), h(Header));
+    const pre = document.createElement("div");
+    pre.innerHTML = renderToString(tree());
+    document.body.appendChild(pre);
+    const d = pre.querySelector("details.menu") as HTMLDetailsElement;
+    d.open = true; // tapped while the page was still loading
+    let r!: Root;
+    act(() => { r = hydrateRoot(pre, tree()); });
+    expect(d.open).toBe(true);
+    act(() => go("/about/"));
+    expect(d.open).toBe(false);
+    act(() => r.unmount());
+    pre.remove();
+  });
+
+  it("closes when keyboard focus tabs out of it, not when focus moves between its own links", () => {
+    open();
+    const out = document.createElement("button");
+    document.body.appendChild(out);
+    const focusout = (from: Element, to: Element) => act(() => { from.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: to })); });
+    focusout(item("Cover types"), item("Learn"));
+    expect(menu().open).toBe(true);
+    focusout(item("Contact"), out);
+    expect(menu().open).toBe(false);
+    out.remove();
+  });
+});

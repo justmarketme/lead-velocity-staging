@@ -72,14 +72,17 @@ function Progress() {
 
 /** Mobile menu: a native <details>, so it works without JavaScript. The header stays mounted across client-side navigation,
     so the open state would survive a route change: close it on every route change, on a tap on any of its links (the current
-    page included), on Escape and on a tap outside it. NavLink marks the current section (aria-current), as on the desktop nav. */
+    page included), on Escape, on a tap outside it and when keyboard focus leaves it (the open panel would cover what has focus).
+    NavLink marks the current section (aria-current), as on the desktop nav. */
 function MobileMenu() {
   const menu = useRef<HTMLDetailsElement>(null);
   const { pathname, hash } = useLocation();
+  const first = useRef(true);
   const close = () => { if (menu.current) menu.current.open = false; };
   /** The page already open: nothing changes page, so focus would stay on a link inside the closed menu; it goes to the Menu button. */
   const tapped = (p: string) => { close(); if (p === pathname) menu.current?.querySelector("summary")?.focus(); };
-  useEffect(close, [pathname, hash]);
+  // not on first load: a menu opened before the page finished loading (native <details>) must not snap shut under the finger
+  useEffect(() => { if (first.current) { first.current = false; return; } close(); }, [pathname, hash]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || !menu.current?.open) return;
@@ -87,9 +90,14 @@ function MobileMenu() {
       menu.current.querySelector("summary")?.focus();
     };
     const onDown = (e: PointerEvent) => { if (menu.current?.open && !menu.current.contains(e.target as Node)) close(); };
+    // focus moved to something outside the menu (no relatedTarget: the window lost focus, or a tap on nothing focusable; the tap
+    // outside is handled above)
+    const onOut = (e: FocusEvent) => { const to = e.relatedTarget as Node | null; if (to && !menu.current?.contains(to)) close(); };
+    const el = menu.current;
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onDown);
-    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+    el?.addEventListener("focusout", onOut);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); el?.removeEventListener("focusout", onOut); };
   }, []);
   return (
     <details ref={menu} className="menu xl:hidden">
