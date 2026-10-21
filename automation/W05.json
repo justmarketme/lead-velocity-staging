@@ -2144,7 +2144,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, guest_drop: !!em.guest_drop, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst dns = require('dns').promises;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst mx = {};\nconst dom = L.emailDomain(req.email || (x.lead && x.lead.email_verified !== true ? x.lead.email : '') || '');\nif (dom && !L.MX_KNOWN.has(dom)) { try { const r = await Promise.race([dns.resolveMx(dom), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[dom] = Array.isArray(r) && r.length > 0; } catch (e) { mx[dom] = false; } }\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, mx, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, guest_drop: !!em.guest_drop, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];"
       }
     },
     {
@@ -2438,45 +2438,52 @@
     },
     {
       "id": "n84",
-      "name": "Save method",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
+      "name": "After method PATCH (w05.afterMethodPatch)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         720,
         2000
       ],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "WITH gd AS (\n  UPDATE public.lead_activities g SET payload = (g.payload - 'guest_email') || jsonb_build_object('dropped_at', now())\n   WHERE $5 = 'true' AND g.idempotency_key = 'w05:guest:' || $1 AND g.payload ? 'guest_email'\n  RETURNING g.id)\nUPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END, updated_at = now() WHERE id = $1::uuid RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status, p.guest_drop ? 'true' : 'false']; })() }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "alwaysOutputData": true
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nconst r = L.afterMethodPatch($input.first().json, p.plan, p.booking.id, p.booking.broker_id);\nreturn [{ json: { ok: r.ok, join_url: r.join_url, alert: r.alert } }];"
+      }
     },
     {
       "id": "n85",
-      "name": "Method invite?",
-      "type": "n8n-nodes-base.code",
+      "name": "Method patched?",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         960,
         2000
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
       }
     },
     {
       "id": "n86",
-      "name": "ask_email input (method)",
+      "name": "Method PATCH alert",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -2485,17 +2492,83 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $json.ask }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst r = $input.first().json;\nreturn r.alert ? [{ json: { ...r.alert, lead_id: $('Plan method change (w05.planUpdateMethod)').first().json.lead_id || null } }] : [];"
       }
     },
     {
       "id": "n87",
+      "name": "Method change message (after the change)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        2000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\n// W10's one lead message for this change (\"I'll change it to Teams.\"), sent only now that the change is saved\nconst q = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn q.notify_wa ? [{ json: { kind: 'wa', to: 'lead', lead_id: p.lead_id || null, wa: q.notify_wa } }] : [];"
+      }
+    },
+    {
+      "id": "n88",
+      "name": "Save method",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        2000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH gd AS (\n  UPDATE public.lead_activities g SET payload = (g.payload - 'guest_email') || jsonb_build_object('dropped_at', now())\n   WHERE $5 = 'true' AND g.idempotency_key = 'w05:guest:' || $1 AND g.payload ? 'guest_email'\n  RETURNING g.id)\nUPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4,\n       join_url = CASE WHEN $2 = 'teams' THEN COALESCE(NULLIF($6, ''), CASE WHEN method = 'teams' THEN join_url END)\n                       WHEN $2 IN ('zoom','meet') THEN join_url ELSE NULL END, updated_at = now()\n WHERE id = $1::uuid AND status IN ('booked','confirmed') RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; let j = ''; try { j = $('After method PATCH (w05.afterMethodPatch)').first().json.join_url || ''; } catch (e) { j = ''; } return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status, p.guest_drop ? 'true' : 'false', j]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n89",
+      "name": "Method invite?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
+      }
+    },
+    {
+      "id": "n90",
+      "name": "ask_email input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $json.ask }];"
+      }
+    },
+    {
+      "id": "n91",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
-        2000
+        480,
+        2200
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -2513,86 +2586,8 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n88",
-      "name": "Bounce prompt (w05.bounceEffect)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1680,
-        2000
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((it) => it.json.id).map((it) => L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }).send).filter(Boolean).map((send) => ({ json: send }));"
-      }
-    },
-    {
-      "id": "n89",
-      "name": "-> WhatsApp Send (invite bounce)",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.1,
-      "position": [
-        0,
-        2200
-      ],
-      "parameters": {
-        "source": "database",
-        "workflowId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "smc-whatsapp-send",
-          "cachedResultName": "WhatsApp Send"
-        },
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      }
-    },
-    {
-      "id": "n90",
-      "name": "Every 5 min: release unverified holds",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        240,
-        2200
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 5
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "n91",
-      "name": "Release held slots past verify_by (+ timeline)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        480,
-        2200
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "-- A HELD slot (pending_verification) whose email was not verified by verify_by (min(+24 h, start - 2 h)) is released for\n-- everyone. Nothing reached the broker (no calendar event, no notice), so nothing is undone there.\nWITH r AS (\n  UPDATE public.appointments a SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND a.verify_by <= now()\n  RETURNING a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.method),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified'), now(), 'w05:hold_released:' || r.id::text\n    FROM r\n  ON CONFLICT (idempotency_key) DO NOTHING)\nSELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phone, l.language\n  FROM r JOIN public.leads l ON l.id = r.client_id\n WHERE l.opted_out_at IS NULL;",
-        "options": {}
-      },
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "alwaysOutputData": true
-    },
-    {
       "id": "n92",
-      "name": "Rebook nudge (w05.holdReleased)",
+      "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -2601,12 +2596,12 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((i) => i.json && i.json.id && i.json.phone).map((i) => ({ json: L.holdReleased(i.json) }));"
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((it) => it.json.id).map((it) => L.bounceEffect(it.json, { now: Date.now(), last_inbound_ms: Date.parse(it.json.last_inbound_at || '') }).send).filter(Boolean).map((send) => ({ json: send }));"
       }
     },
     {
       "id": "n93",
-      "name": "-> WhatsApp Send (booking_hold_released)",
+      "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
@@ -2628,12 +2623,90 @@
     },
     {
       "id": "n94",
+      "name": "Every 5 min: release unverified holds",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1200,
+        2200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n95",
+      "name": "Release held slots past verify_by (+ timeline)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        2200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- A HELD slot (pending_verification) whose email was not verified by verify_by (min(+24 h, start - 2 h)) is released for\n-- everyone. Nothing reached the broker (no calendar event, no notice), so nothing is undone there.\nWITH r AS (\n  UPDATE public.appointments a SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND a.verify_by <= now()\n  RETURNING a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.method),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified'), now(), 'w05:hold_released:' || r.id::text\n    FROM r\n  ON CONFLICT (idempotency_key) DO NOTHING)\nSELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phone, l.language\n  FROM r JOIN public.leads l ON l.id = r.client_id\n WHERE l.opted_out_at IS NULL;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n96",
+      "name": "Rebook nudge (w05.holdReleased)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn $input.all().filter((i) => i.json && i.json.id && i.json.phone).map((i) => ({ json: L.holdReleased(i.json) }));"
+      }
+    },
+    {
+      "id": "n97",
+      "name": "-> WhatsApp Send (booking_hold_released)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        2400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n98",
       "name": "Email client from SortMyCover (smc-client-email)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
-        2200
+        240,
+        2400
       ],
       "parameters": {
         "method": "POST",
@@ -2666,13 +2739,13 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n95",
+      "id": "n99",
       "name": "Email adviser from SortMyCover (smc-email-send)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1440,
-        2200
+        480,
+        2400
       ],
       "parameters": {
         "method": "POST",
@@ -2709,13 +2782,13 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n96",
+      "id": "n100",
       "name": "Client email result (w05.clientEmailResult)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        2200
+        720,
+        2400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2723,17 +2796,17 @@
       }
     },
     {
-      "id": "n97",
+      "id": "n101",
       "name": "Method client email (SortMyCover)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        960,
         2400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.smc_email ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: p.smc_email } }] : [];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\n// smoke #3: the Teams join link the PATCH answer gave (the plan was built before it existed)\nlet j = null; try { j = $('After method PATCH (w05.afterMethodPatch)').first().json.join_url || null; } catch (e) { j = null; }\nconst e = p.smc_email && j && p.smc_email.method === 'teams' ? { ...p.smc_email, join_url: j } : p.smc_email;\nreturn e ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: e } }] : [];"
       }
     },
     {
@@ -2789,8 +2862,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1000,
-        2200
+        40,
+        2400
       ],
       "parameters": {
         "conditions": {
@@ -2822,8 +2895,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        2360
+        240,
+        2560
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2836,8 +2909,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1240,
-        2200
+        280,
+        2400
       ],
       "parameters": {
         "conditions": {
@@ -2869,8 +2942,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        2360
+        480,
+        2560
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -3792,7 +3865,7 @@
       "main": [
         [
           {
-            "node": "Save method",
+            "node": "After method PATCH (w05.afterMethodPatch)",
             "type": "main",
             "index": 0
           }
@@ -3825,7 +3898,45 @@
       "main": [
         [
           {
+            "node": "After method PATCH (w05.afterMethodPatch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After method PATCH (w05.afterMethodPatch)": {
+      "main": [
+        [
+          {
+            "node": "Method patched?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Method PATCH alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method patched?": {
+      "main": [
+        [
+          {
             "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method PATCH alert": {
+      "main": [
+        [
+          {
+            "node": "-> W22 Alerts",
             "type": "main",
             "index": 0
           }
@@ -3842,6 +3953,11 @@
           },
           {
             "node": "Method client email (SortMyCover)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Method change message (after the change)",
             "type": "main",
             "index": 0
           }
@@ -3864,6 +3980,17 @@
         [
           {
             "node": "Live send? (Email client from SortMyCover (smc-client-email))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method change message (after the change)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
             "type": "main",
             "index": 0
           }

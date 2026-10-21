@@ -240,7 +240,10 @@ export function parseSub(j = {}, env = {}, nowMs = Date.now()) {
     if (!j.booking_id) return rej('booking_id missing');
     const method = normMethod(j.method);
     if (!METHODS.includes(method)) return rej('method missing or unknown');
-    return { op: 'update_method', booking_id: String(j.booking_id), method, email: INVITE_METHODS.has(method) && j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true, idempotency_key: keyOk(j.idempotency_key) ? j.idempotency_key : `w05:method:${j.booking_id}:${method}` };
+    // notify_wa (smoke #3, 21 Oct 2026): the one lead message W10 built for this change; W05 sends it only after the change is
+    // saved (Graph PATCH ok, or no event to patch), never before
+    const notify = j.notify_wa && typeof j.notify_wa === 'object' && typeof j.notify_wa.to === 'string' && j.notify_wa.to ? { notify_wa: j.notify_wa } : {};
+    return { op: 'update_method', booking_id: String(j.booking_id), method, email: INVITE_METHODS.has(method) && j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true, idempotency_key: keyOk(j.idempotency_key) ? j.idempotency_key : `w05:method:${j.booking_id}:${method}`, ...notify };
   }
   if (j.op === 'finalize') {
     // smc-email-verify after the lead verified the email: turn the lead's held slot into a booking (W05 "Load held slot").
@@ -1038,10 +1041,18 @@ export function planUpdateMethod(ctx = {}) {
   if (!b.methods_supported.includes(req.method)) return { action: 'reject', reason: 'method_not_offered' };
   let email = null; let status = null;
   if (INVITE_METHODS.has(req.method)) {
-    const raw = req.email || (lead.email && lead.email_purpose === 'meeting_invite' && lead.email_status !== 'bounced' ? lead.email : null);
-    const chk = raw ? checkEmail(raw, { acceptTypo: !!req.email_confirmed, hasMx: mxFrom(ctx.mx) }) : { ok: false };
-    if (!chk.ok) return { action: 'ask_email', ask_email: { op: 'ask_email', lead_id: lead.id, method: req.method, booking_id: booking.id, reason: 'change_method' } };
-    email = chk.email; status = req.email && lead.email_status === 'bounced' ? 'corrected' : chk.status;
+    // Smoke #3 (21 Oct 2026): the lead's VERIFIED email (the link was clicked, so it receives mail) is used as is. It used to go
+    // through checkEmail without the DNS answer, so any domain outside the offline 10-domain list (protonmail.com, a work
+    // domain) was judged no_mx and the client was asked again for an email they had already given. Other addresses are
+    // checked with the real MX answer the 'Plan method change' node passes in ctx.mx.
+    const verified = lead.email_verified === true && !!lead.email && lead.email_status !== 'bounced' && (!req.email || sameEmail(req.email, lead.email));
+    if (verified) { email = String(lead.email).trim().toLowerCase(); status = lead.email_status || 'mx_ok'; }
+    else {
+      const raw = req.email || (lead.email && lead.email_purpose === 'meeting_invite' && lead.email_status !== 'bounced' ? lead.email : null);
+      const chk = raw ? checkEmail(raw, { acceptTypo: !!req.email_confirmed, hasMx: mxFrom(ctx.mx) }) : { ok: false };
+      if (!chk.ok) return { action: 'ask_email', ask_email: { op: 'ask_email', lead_id: lead.id, method: req.method, booking_id: booking.id, reason: 'change_method' } };
+      email = chk.email; status = req.email && lead.email_status === 'bounced' ? 'corrected' : chk.status;
+    }
   }
   const p = { start: iso(ms(booking.appointment_date)), end: iso(ms(booking.ends_at)), method: req.method, email, email_status: status, idempotency_key: booking.idempotency_key || booking.id, booked_via: booking.booked_via,
     guest_email: req.method === 'teams' && booking.guest_email ? String(booking.guest_email) : null }; // a PATCHed attendee list keeps the guest
@@ -1058,6 +1069,30 @@ export function planUpdateMethod(ctx = {}) {
     lead_update: email ? { email, email_status: status, email_purpose: 'meeting_invite' } : {},
     plan: p,
   };
+}
+
+/**
+ * Smoke #3 (21 Oct 2026): the Graph PATCH answer of a method change (n8n fullResponse, neverError) -> { ok, join_url, alert }.
+ * ok = 2xx: only then is the change saved and the lead told (W05 'Method patched?'). The Teams join link comes from the
+ * PATCH answer (the updated event: onlineMeeting.joinUrl, as afterEvent reads a create), so a phone -> Teams change gets the
+ * link the /j/<booking> redirect and the reminders need. A failed PATCH saves nothing (Outlook and the CRM stay the same)
+ * and is a red W22 alert; a Teams event with no link in the answer is saved and flagged amber.
+ */
+export function afterMethodPatch(res, p = {}, bookingId = null, brokerId = null) {
+  const r = res || {};
+  const body = r.body && typeof r.body === 'object' ? r.body : {};
+  const code = Number(r.statusCode || (body.id ? 200 : 0));
+  const ok = code >= 200 && code < 300 && !r.error;
+  const join = ok && p.method === 'teams' ? ((body.onlineMeeting && body.onlineMeeting.joinUrl) || body.onlineMeetingUrl || null) : null;
+  const base = { scope: `booking:${bookingId || 'unknown'}`, source: 'W05', broker_id: brokerId || null };
+  const alert = !ok
+    ? { ...base, signal_key: 'calendar_event_update_failed', severity: 'red', what: `Outlook event not changed to ${TITLE_LABEL[p.method] || p.method} for booking ${bookingId || '?'} (${code ? `HTTP ${code}` : 'no response'}${body.error && body.error.code ? ` ${body.error.code}` : ''})`,
+      impact: 'The call keeps its old method in Outlook and the CRM; the client has not been told about the change', first_action: 'Reconnect the calendar or change the method in Outlook by hand, then tell the client' }
+    : p.method === 'teams' && !join
+      ? { ...base, signal_key: 'teams_join_url_missing', severity: 'amber', what: `Booking ${bookingId || '?'} changed to Teams but Outlook returned no join link`,
+        impact: 'The /j/ link in the reminders will not open the meeting', first_action: 'Copy the Teams link from the Outlook event into appointments.join_url' }
+      : null;
+  return { ok, join_url: join, alert };
 }
 
 /**
