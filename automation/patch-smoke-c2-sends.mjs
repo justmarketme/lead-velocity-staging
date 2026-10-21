@@ -1,6 +1,7 @@
 // automation/patch-smoke-c2-sends.mjs - smoke test 21 Oct 2026 (checklist SMOKE-TEST-SMC-2026-10-21.md), send layer:
 //  #6 W08 "Send close line": the CLOSE_UNBOOKED line goes past the suppression row "Save tap result" wrote a moment
 //     before it (bypass_suppression, the same rule as W15's one STOP confirmation). Only this node; the nudges keep the gate.
+//     Review 21 Oct: only when THIS tap wrote the row (suppressed > 0); a second "No thanks" keeps the gate.
 //  #7 W07 / W08 "Store outbound": the row's status comes from the send result. A send smc-whatsapp-send refused or that
 //     failed (suppressed, not allow-listed, provider error) is 'failed' with the reason and no id; only a DRY_RUN_SENDS
 //     stand-in (no send attempted) carries a dry:<...> id. communications_status_check allows pending|sent|delivered|
@@ -27,7 +28,15 @@ function swap(n, key, from, to) {
 
 // ---------------------------------------------------------------- W08
 const w8 = load('W08.json');
-swap(node(w8.wf, 'SUB input (Send close line)'), 'jsCode', 'record: true, caller: "W08", bypass_suppression: false,', 'record: true, caller: "W08", bypass_suppression: true,');
+// review 21 Oct: only the tap that wrote the row (Save tap result suppressed > 0) bypasses; a repeat "No thanks" never does
+const CLOSE_BYPASS = `record: true, caller: "W08", bypass_suppression: (Number($('Save tap result').item.json.suppressed) > 0) === true,`;
+{
+  const n = node(w8.wf, 'SUB input (Send close line)');
+  for (const from of ['record: true, caller: "W08", bypass_suppression: true,', 'record: true, caller: "W08", bypass_suppression: false,']) {
+    if (n.parameters.jsCode.includes(from)) n.parameters.jsCode = n.parameters.jsCode.replace(from, CLOSE_BYPASS);
+  }
+  if (!n.parameters.jsCode.includes(CLOSE_BYPASS)) throw new Error('"SUB input (Send close line)": expected text not found (the JSON changed; update this patch)');
+}
 const s8 = node(w8.wf, 'Store outbound');
 swap(s8, 'query', "template_name, template_category, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'system', 'W08', $7, $8, $9::jsonb)",
   "template_name, template_category, metadata, failed_reason)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, $10, NULLIF($4, ''), $5::uuid, $6::uuid, 'system', 'W08', $7, $8, $9::jsonb, NULLIF($11, ''))");

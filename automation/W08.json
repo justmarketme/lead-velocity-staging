@@ -607,7 +607,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// lib/wa-route.cjs: \"Send close line\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W08\", bypass_suppression: true,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W08:Send close line:\" + exec + ':' + idx,\n} };"
+        "jsCode": "// lib/wa-route.cjs: \"Send close line\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W08\", bypass_suppression: (Number($('Save tap result').item.json.suppressed) > 0) === true,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W08:Send close line:\" + exec + ':' + idx,\n} };"
       }
     }
   ],

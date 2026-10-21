@@ -131,9 +131,18 @@ test('#6 W03: only the consent "No thanks" close line bypasses suppression', asy
 });
 
 test('#6 W08: the CLOSE_UNBOOKED line bypasses suppression; the nudges do not', async () => {
-  const close = await runCode(W08, 'SUB input (Send close line)', { json: { wa: { to: '27821234567', type: 'text', text: { body: 'bye' } } } });
+  // review 21 Oct: only the tap whose "Save tap result" wrote the suppression row goes past it
+  const close = await runCode(W08, 'SUB input (Send close line)', { json: { wa: { to: '27821234567', type: 'text', text: { body: 'bye' } } }, refs: { 'Save tap result': { updated: 1, suppressed: 1 } } });
   assert.equal(close.json.bypass_suppression, true);
   assert.equal((await sub(close.json, { suppressed: true })).action, 'send');
+  // a second "No thanks" (double tap, an older message) or a number suppressed before (complaint / STOP / NCC row): the insert
+  // conflicts (suppressed = 0), so the gate holds and no second goodbye goes past the objection
+  for (const saved of [{ updated: 1, suppressed: 0 }, { updated: 1, suppressed: '0' }, { updated: 0, suppressed: 0 }]) {
+    const again = await runCode(W08, 'SUB input (Send close line)', { json: { wa: { to: '27821234567', type: 'text', text: { body: 'bye' } } }, refs: { 'Save tap result': saved } });
+    assert.equal(again.json.bypass_suppression, false, JSON.stringify(saved));
+    assert.notEqual((await sub(again.json, { suppressed: true })).action, 'send');
+  }
+  assert.equal((await runCode(W08, 'SUB input (Send close line)', { json: { wa: { to: '27821234567', type: 'text', text: { body: 'bye' } } }, refs: { 'Save tap result': { updated: 1, suppressed: '1' } } })).json.bypass_suppression, true, 'postgres count as text');
   assert.match(node(W08, 'SUB input (Send WhatsApp)').parameters.jsCode, /bypass_suppression: false,/, 'nudges keep the suppression gate');
 });
 
