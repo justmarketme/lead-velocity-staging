@@ -198,4 +198,10 @@ describe("FAQ", () => {
     for (const f of [...SITE_FAQ, ...CAMPAIGN_FAQ]) for (const [re, label] of BANNED) expect(f.a + f.q, `${f.id}: ${label}`).not.toMatch(re);
     expect(CAMPAIGN_FAQ.find((f) => f.id === "who-pays")!.a).toMatch(/SortMyCover takes no commission/);
   });
+  it("no question is asked twice (/faq/ showed 'How long is the call?' with two answers)", () => {
+    for (const list of [SITE_FAQ, CAMPAIGN_FAQ, WILLS_FAQ]) {
+      const qs = list.map((f) => f.q);
+      expect(qs.filter((q, i) => qs.indexOf(q) !== i)).toEqual([]);
+    }
+  });
 });
