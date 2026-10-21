@@ -355,7 +355,9 @@ export function planActions(decision, ctx) {
   }
   // 4.11 disclosure: the first free-text reply carries DISCLOSE (W06's intro card already named the practice + FSP)
   if (!ctx.disclosed && (plan.prefix.length || plan.suffix.length || plan.reply_actions.length || plan.delegate.some((d) => ONE_MESSAGE[d.to]?.(d)))) {
-    plan.prefix.unshift(ctx.adviser_first ? L.DISCLOSE : L.DISCLOSE_PRE_ROUTE);
+    // smoke test 21 Oct 2026 (#9): chosen by broker_id (adviser_first is never empty: preStep falls back to 'your adviser'),
+    // and a routed lead with no first name gets the nameless line ("Hi , I'm Lindi" before).
+    plan.prefix.unshift(!ctx.lead?.broker_id ? L.DISCLOSE_PRE_ROUTE : first ? L.DISCLOSE : L.DISCLOSE_NO_NAME);
     plan.discloses = true;
   }
   if (decision.actions.length === 1 && decision.actions[0] === 'none') plan.send = false;
@@ -806,7 +808,7 @@ export function applyModelReply(plan, reply, ctx = {}) {
   const vars = plan.vars || {};
   const mentionsLindi = /\bLindi\b/u.test(r);
   const isSafety = (x, filled) => SAFETY_KEYS.some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
-  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_NO_NAME', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
   if (one) {
     const lines = one.lead_lines || [];
     const disc = !ctx.disclosed && !mentionsLindi ? lines.filter((x) => isDisclose(x, true)) : [];

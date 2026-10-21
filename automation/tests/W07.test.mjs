@@ -921,3 +921,35 @@ test('never silent: every fallback also alerts Jono (gated), without the number 
   const send = wf.nodes.find((n) => n.name === 'Never silent: notify Jono (EMMA /api/notify)');
   assert.equal(send.parameters.url, 'https://emmadoesit.cloud/api/notify');
 });
+
+// Smoke test 21 Oct 2026 (#9): an unrouted lead with no name got "Hi , I'm Lindi from SortMyCover, here to book your call
+// with your adviser." (Afrikaans: "... met your adviser te bespreek"): preStep's fallback 'your adviser' is always truthy, so
+// DISCLOSE_PRE_ROUTE could never be chosen. The line is chosen by broker_id, and a routed lead with no name gets DISCLOSE_NO_NAME.
+test('#9 disclosure: no broker -> DISCLOSE_PRE_ROUTE; broker + name -> DISCLOSE; broker, no name -> DISCLOSE_NO_NAME (en + af)', () => {
+  const nlu = { intent: 'question', topics: ['call_content'], slots: {}, confidence: 0.9 };
+  const plan = (leadOver, lang = 'en') => {
+    const ld = mkLead(L01, { conv_state: { state: 'start_page' }, ...leadOver });
+    const p = W.preStep({ text: 'how long is the call?' }, ld, ld.broker_id ? BROKER_ROW : {});
+    const d = decide('start_page', nlu, p.pre, {});
+    return W.planActions(d, { lead: ld, booking: null, pre: p.pre, nlu, now_ms: NOON, lang, state: 'start_page', wamid: 'w9', disclosed: false, adviser_first: p.adviser_first, faq: FAQ_MAP, text_store: p.text_store });
+  };
+  for (const lang of ['en', 'af']) {
+    const V = LINES[lang];
+    assert.equal(plan({ broker_id: null, first_name: null }, lang).prefix[0], V.DISCLOSE_PRE_ROUTE, lang);
+    assert.equal(plan({ broker_id: null, first_name: 'Lerato' }, lang).prefix[0], V.DISCLOSE_PRE_ROUTE, `${lang}: unrouted, named`);
+    assert.equal(plan({ first_name: 'Lerato' }, lang).prefix[0], V.DISCLOSE, `${lang}: routed + named`);
+    assert.equal(plan({ first_name: null }, lang).prefix[0], V.DISCLOSE_NO_NAME, `${lang}: routed, no name`);
+    assert.equal(plan({ first_name: '  ' }, lang).prefix[0], V.DISCLOSE_NO_NAME, `${lang}: routed, blank name`);
+  }
+  const txt = (o, lang) => { const p = plan(o, lang); return [...p.prefix].map((l) => fill(l, p.vars)).join(' '); };
+  assert.ok(txt({ broker_id: null, first_name: null }, 'en').startsWith("Hi, I'm Lindi from SortMyCover, here to book your call with an adviser."));
+  assert.ok(txt({ first_name: null }, 'en').startsWith(`Hi, I'm Lindi from SortMyCover, here to book your call with ${BROKER_ROW.contact_person.split(' ')[0]}.`));
+  for (const lang of ['en', 'af']) for (const o of [{ broker_id: null, first_name: null }, { first_name: null }]) {
+    const t = txt(o, lang);
+    assert.doesNotMatch(t, /Hi ,|Hallo ,|your adviser|\{/u, `${lang} ${JSON.stringify(o)}: ${t}`);
+  }
+  // Lindi's own reply keeps the fixed intro when it does not introduce herself (applyModelReply knows the new line too)
+  const p = plan({ first_name: null });
+  W.applyModelReply(p, 'The call takes about 30 minutes.', { disclosed: false });
+  assert.deepEqual(p.prefix, [LINES.en.DISCLOSE_NO_NAME]);
+});

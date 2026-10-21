@@ -21,6 +21,8 @@ export const LINES = {
     MEDIA_NOT_OPENED: "I can't open photos or files in this chat, so please keep it for your call with {adviser_first}.",
     // 4.11 disclosure on first free-text contact (approved chat replay, 21:15).
     DISCLOSE: "Hi {first_name}, I'm Lindi from SortMyCover, here to book your call with {adviser_first}. You can ask for a person at any time.",
+    // The same disclosure when the lead has no first name (WhatsApp profile without one). Smoke test 21 Oct 2026: "Hi , I'm Lindi".
+    DISCLOSE_NO_NAME: "Hi, I'm Lindi from SortMyCover, here to book your call with {adviser_first}. You can ask for a person at any time.",
     // Disclosure before an adviser is routed (CTWA consent step, no adviser named yet).
     DISCLOSE_PRE_ROUTE: "Hi, I'm Lindi from SortMyCover, here to book your call with an adviser. You can ask for a person at any time.",
     // 4.12 commitment ask (NHS: writing the details down yourself -> 18% fewer missed appointments).
@@ -116,6 +118,7 @@ export const LINES = {
     BANK_WARNING: "Vir jou veiligheid, moet asseblief nie bank- of kaartbesonderhede in hierdie klets stuur nie.",
     MEDIA_NOT_OPENED: "Ek kan nie foto's of lêers in hierdie klets oopmaak nie, so hou dit asseblief vir jou oproep met {adviser_first}.",
     DISCLOSE: "Hallo {first_name}, ek is Lindi van SortMyCover, hier om jou oproep met {adviser_first} te bespreek. Jy kan enige tyd vra om met 'n mens te praat.",
+    DISCLOSE_NO_NAME: "Hallo, ek is Lindi van SortMyCover, hier om jou oproep met {adviser_first} te bespreek. Jy kan enige tyd vra om met 'n mens te praat.",
     DISCLOSE_PRE_ROUTE: "Hallo, ek is Lindi van SortMyCover, hier om jou oproep met 'n adviseur te bespreek. Jy kan enige tyd vra om met 'n mens te praat.",
     COMMIT_ASK: "Kan jy asseblief die datum en tyd van jou oproep terugstuur sodat ek weet dit is in jou dagboek?",
     COMMIT_OK: "Perfek, dit is ook in {adviser_first} se dagboek.",
