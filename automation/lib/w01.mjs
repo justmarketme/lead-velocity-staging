@@ -16,6 +16,7 @@
 //             CAPI Lead payload (consent gate, no email), first-touch call to W06, public response body
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { inMarketingHours } from './contact-hours.mjs';
 
 const require = createRequire(import.meta.url);
 const LT = require('../security/lead-token.js');
@@ -736,15 +737,16 @@ export function startHere(row, secret, nowMs = Date.now()) {
 
 /**
  * The ONE budget reminder (decided 2026-10-05): no tap within 3 h of the first qualify_budget -> the same template once
- * more, never inside lead quiet hours (20:00-08:00 SAST, same window as W08; a reminder due then goes at 08:00), then
+ * more, only inside the marketing contact hours (lib/contact-hours.mjs, same rule as W08: Mon-Fri 08:00-20:00, Sat 09:00-13:00,
+ * never Sunday or a public holiday; a reminder due outside them goes at the next sweep inside them, smoke test #13), then
  * nothing. The reminder sets retention_delete_after = reminder + 24 h: a lead who never taps is never handed over and is
  * deleted on the same 24-h rule as an out-of-band lead, counted from the reminder (a tap in time qualifies the lead and
  * W03 clears the date). Marked before sending (conv_state.budget_reminded_at): a duplicate is worse than a miss.
  */
 export const BUDGET_REMINDER_H = 3;
-export const BUDGET_REMINDER_QUIET = { from: 20, to: 8 };
 export const NO_TAP_RETENTION_H = 24;
-const inQuiet = (t) => { const h = new Date(t + 2 * H).getUTCHours(); return h >= BUDGET_REMINDER_QUIET.from || h < BUDGET_REMINDER_QUIET.to; };
+/** Outside the marketing contact hours (lib/contact-hours.mjs): W01's lead sends wait for the next sweep inside them. */
+const inQuiet = (t) => !inMarketingHours(t);
 export function budgetReminder(lead, nowMs = Date.now()) {
   const cs = lead && lead.conv_state || {};
   if (!lead || lead.origin !== 'lead_ad' || lead.routing_reason !== 'held_budget_pending' || cs.state !== 'q_budget') return null;
@@ -894,7 +896,7 @@ export function lowBudgetHandoff(lead) {
  * Low-budget sweep, close half: a tier-C lead nobody took within LOW_BUDGET_HOLD_DAYS of capture is closed politely, like an
  * unbooked close (stage unbooked_closed, routing_reason low_budget_no_taker, conv_state closed_unbooked). It is a real lead,
  * not out of band: no 24-h deletion, the normal retention clock (last_contact_at, CONTRACTS I-38d) applies. One message
- * (template lead_low_budget_closed), never in lead quiet hours (20:00-08:00 SAST: the 08:00 sweep picks it up).
+ * (template lead_low_budget_closed), only inside the contact hours (lib/contact-hours.mjs: the next sweep inside them picks it up).
  */
 export function lowBudgetClose(lead, nowMs = Date.now()) {
   if (!lead || !lead.id || lead.broker_id || lead.routing_reason !== 'held_low_budget') return null;

@@ -14,15 +14,18 @@
 //  - Every job is sent at most once: idempotency key w09:{booking_id}:{touch}:{at}. A moved booking has new times and
 //    therefore new keys; W09 `rebuild` cancels the unsent old ones. what_to_expect and intro media go once per lead
 //    lineage (never repeated after a reschedule or a rebooking).
-//  - Quiet hours 20:00-08:00 SAST (lib/wa.mjs, same as W08): a touch due then waits to 08:00. reminder_10m is
-//    meeting-bound and exempt (the broker set the meeting time). A shifted touch that would land on top of the
-//    meeting reminders is dropped (reminder_2h carries the details).
+//  - Quiet hours 20:00-08:00 SAST (lib/wa.mjs): a touch due then waits to 08:00. reminder_10m is meeting-bound and
+//    exempt (the broker set the meeting time). A shifted touch that would land on top of the meeting reminders is
+//    dropped (reminder_2h carries the details). These are reminders for a call the person booked, not marketing: whether
+//    they follow the marketing contact hours instead (no Sunday, holiday or Saturday afternoon; W08 does) is ONE setting,
+//    lib/contact-hours.mjs BOOKING_REMINDERS_USE_MARKETING_HOURS (false until Jono decides, smoke test #13).
 //  - Cancellable: W10 cancel / W13 / W15 `cancel_all`; W07 / W15 `pause` (resumed only by a human, `resume`).
 //  - Stops at send time on: opt-out or suppression, booking no longer live or moved, meeting started, message budget.
 //  - Every send Meta accepts updates leads.last_contact_at (CONTRACTS.md I-38d).
 import { LINES, fill } from '../../conversation/lines.mjs';
 import { METHOD_LABEL } from './w10.mjs';
 import { MIN, H, D, ms, iso, inQuiet, outOfQuiet, dateLabel, timeLabel, firstName, templateMessage, textMessage, audioMessage, nowFrom, touchesLastContact } from './wa.mjs';
+import { BOOKING_REMINDERS_USE_MARKETING_HOURS, inMarketingHours, nextMarketingTime } from './contact-hours.mjs';
 export { MIN, H, D, iso, nowFrom, touchesLastContact };
 
 export const ONCE_PER_LINEAGE = new Set(['what_to_expect', 'intro_media', 'intro_media_voice']);
@@ -33,6 +36,15 @@ export const LIVE = new Set(['booked', 'confirmed']);
 export const TEMPLATES = ['what_to_expect', 'intro_media', 'intro_media_voice', 'reminder_24h', 'prep_nudge', 'reminder_2h', 'reminder_10m'];
 export const PAUSE_REASONS = new Set(['sensitive', 'human_handoff', 'opt_out']);
 const ONLINE = new Set(['teams', 'zoom', 'meet']);
+
+/**
+ * The hours rule for booking reminders: { closed(t), next(t) }. Default = the setting BOOKING_REMINDERS_USE_MARKETING_HOURS
+ * (lib/contact-hours.mjs): false -> quiet hours 20:00-08:00 every day; true -> the marketing contact hours.
+ */
+export function reminderHours(useMarketingHours = BOOKING_REMINDERS_USE_MARKETING_HOURS) {
+  return useMarketingHours ? { closed: (t) => !inMarketingHours(t), next: nextMarketingTime } : { closed: inQuiet, next: outOfQuiet };
+}
+const HOURS = reminderHours();
 
 /** Which intro media template a broker can send in the lead's language: video first (4.12), voice as fallback. */
 export function mediaTemplate(lead = {}, broker = {}) {
@@ -55,7 +67,7 @@ export const introAt = (T0, M) => (T0 + INTRO_DELAY <= M - 2 * H ? T0 + INTRO_DE
  * reminderPlan({ bookingId, start, bookedAt, lead, broker, alreadySent }) -> { compressed, jobs:[{touch, template, at, key}] }
  * bookedAt = when the booking (or its last move) happened. alreadySent = touches already sent in this lead's lineage.
  */
-export function reminderPlan({ bookingId, start, bookedAt, lead: l = {}, broker: b = {}, alreadySent = [] }) {
+export function reminderPlan({ bookingId, start, bookedAt, lead: l = {}, broker: b = {}, alreadySent = [], hours = HOURS }) {
   if (l.opted_out_at) return { compressed: false, jobs: [] };
   const T0 = ms(bookedAt);
   const M = ms(start);
@@ -71,8 +83,8 @@ export function reminderPlan({ bookingId, start, bookedAt, lead: l = {}, broker:
   ].filter(Boolean);
   const jobs = raw
     .map(([touch, tpl, t]) => {
-      if (QUIET_EXEMPT.has(touch) || !inQuiet(t)) return [touch, tpl, t, false];
-      return [touch, tpl, outOfQuiet(t), true];
+      if (QUIET_EXEMPT.has(touch) || !hours.closed(t)) return [touch, tpl, t, false];
+      return [touch, tpl, hours.next(t), true];
     })
     // a touch pushed out of quiet hours must still land before the meeting reminders, or it is dropped
     .filter(([touch, , t, shifted]) => !shifted || t < M - (touch === 'reminder_2h' ? 30 * MIN : 2 * H))
@@ -153,7 +165,7 @@ export const tapBookingId = (msg = {}) => String(msg.payload || '').split(':').s
  * job = { touch, template, at, start }; ctx = { booking: { status, appointment_date }, lead: { opted_out_at },
  *       suppressed, paused, outbound_count }
  */
-export function dueAction(job, ctx, now) {
+export function dueAction(job, ctx, now, hours = HOURS) {
   const bk = ctx.booking || {};
   if (ctx.lead?.opted_out_at || ctx.suppressed) return { action: 'skip', reason: 'opted_out' };
   if (ctx.paused) return { action: 'skip', reason: 'paused' };
@@ -162,8 +174,8 @@ export function dueAction(job, ctx, now) {
   if (job.start && ms(job.start) !== M) return { action: 'skip', reason: 'booking_moved' };
   if (now >= M) return { action: 'skip', reason: 'meeting_started' };
   if (job.touch !== 'reminder_10m' && now >= M - 10 * MIN) return { action: 'skip', reason: 'too_late' };
-  if (!QUIET_EXEMPT.has(job.touch) && inQuiet(now)) {
-    const at = outOfQuiet(now);
+  if (!QUIET_EXEMPT.has(job.touch) && hours.closed(now)) {
+    const at = hours.next(now);
     return at < M - (job.touch === 'reminder_2h' ? 30 * MIN : 2 * H) ? { action: 'defer', at: iso(at) } : { action: 'skip', reason: 'quiet_hours' };
   }
   if ((ctx.outbound_count ?? 0) >= MAX_LEAD_MESSAGES && !ESSENTIAL.has(job.touch)) return { action: 'skip', reason: 'message_budget' };

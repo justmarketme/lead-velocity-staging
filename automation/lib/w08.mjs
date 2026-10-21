@@ -12,8 +12,11 @@
 //  - Template-only outside the 24-h customer-service window. Inside it the same words go as a session
 //    interactive message (no template fee), with the same two buttons.
 //  - Stops at once on: live booking, opted out, suppressed, handoff, "No thanks", closed stage.
-//  - ASSUMPTION: quiet hours 20:00-08:00 SAST - a nudge due then waits to 08:00 (CTWA: never past the 72-h window,
-//    so a CTWA nudge that would be pushed past it is skipped).
+//  - Contact hours (smoke test #13, 21 Oct 2026; was an ASSUMPTION of quiet hours 20:00-08:00 every day): nudges are direct
+//    marketing, so they follow the CPA s12 / Reg 4 hours in lib/contact-hours.mjs: Mon-Fri 08:00-20:00, Sat 09:00-13:00,
+//    never Sunday or a public holiday (data/za-public-holidays.json). A nudge due outside them moves to the next allowed
+//    time, at least MIN_NUDGE_GAP after the previous nudge (CTWA: never past the 72-h window, so a stall nudge pushed past
+//    it is skipped and the last Start here nudge goes at the latest allowed moment inside it).
 //  - ASSUMPTION: close = 24 h after the last nudge (so a tap on the last nudge still books).
 //  - Idempotency: lead_activities.idempotency_key = w08:{lead_id}:{touch}; INSERT ... ON CONFLICT DO NOTHING
 //    RETURNING id, and only a returned row is sent. A scheduler that fires twice sends once.
@@ -26,8 +29,8 @@
 //    /start/#lt=<token> button: welcome, then video (Mark's hello), then adviser. Covers "never opened the page" and
 //    "opened it and left without booking" alike (routing on the page writes broker_id but books nothing).
 import { LINES } from '../../conversation/lines.mjs';
+import { inMarketingHours, nextMarketingTime, latestMarketingTimeBefore } from './contact-hours.mjs';
 export const H = 3600_000;
-const SAST = 2 * H;
 export const OFFSETS = {
   unbooked: [{ touch: 'unbooked_nudge_2h', after: 2 * H }, { touch: 'unbooked_nudge_24h', after: 24 * H }, { touch: 'unbooked_nudge_72h', after: 72 * H }],
   ctwa_stall: [{ touch: 'unbooked_nudge_2h', after: 1 * H }, { touch: 'unbooked_nudge_24h', after: 20 * H }, { touch: 'unbooked_nudge_72h', after: 68 * H }],
@@ -46,7 +49,8 @@ export function isStartPending(lead) {
 }
 export const CLOSE_AFTER_LAST = 24 * H;
 export const CTWA_WINDOW = 72 * H;
-export const QUIET = { from: 20, to: 8 };
+/** Two nudges that both move to the same opening (a weekend, a holiday) go at least this far apart, never together. */
+export const MIN_NUDGE_GAP = 6 * H;
 export const MAX_LEAD_MESSAGES = 12; // 4.6 cost design
 const STALL_STATES = new Set(['consent_pending', 'q_age', 'q_bond', 'q_dependants', 'q_budget', 'q_budget_clarify']);
 const CLOSED = new Set(['unbooked_closed', 'opted_out', 'disqualified', 'booked', 'confirmed', 'attended', 'no_show', 'dispositioned', 'replacement_due']);
@@ -57,23 +61,11 @@ export function track(lead) {
   return lead.origin === 'ctwa' && STALL_STATES.has(state) ? 'ctwa_stall' : 'unbooked';
 }
 
-/** Shift a time out of quiet hours to 08:00 SAST. */
-export function outOfQuiet(t) {
-  const d = new Date(t + SAST);
-  const h = d.getUTCHours();
-  if (h >= QUIET.to && h < QUIET.from) return t;
-  const base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + (h >= QUIET.from ? 1 : 0), QUIET.to, 0) - SAST;
-  return base;
-}
+/** Shift a time into the contact hours (lib/contact-hours.mjs): t itself when allowed, else the next opening. */
+export const outOfQuiet = (t) => nextMarketingTime(t);
 
-/** The latest moment at or before t that is outside quiet hours (19:30 SAST the evening before, when t is at night). */
-export function latestDaytimeBefore(t) {
-  const d = new Date(t + SAST);
-  const h = d.getUTCHours();
-  if (h >= QUIET.to && h < QUIET.from) return t;
-  const dayShift = h < QUIET.to ? -1 : 0;
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + dayShift, QUIET.from - 1, 30) - SAST;
-}
+/** The latest moment at or before t inside the contact hours (19:30 on a weekday, 12:30 on a Saturday, when t is outside). */
+export const latestDaytimeBefore = (t) => latestMarketingTimeBefore(t);
 
 /** The plan for one lead: [{touch, due_ms}] + close_ms. Pure. */
 export function nurturePlan(lead) {
@@ -84,12 +76,14 @@ export function nurturePlan(lead) {
   const t0 = restart ?? Date.parse(tr.startsWith('start') ? (lead.start_sent_at || lead.created_at) : lead.first_message_at);
   const steps = [];
   for (const s of OFFSETS[tr]) {
-    const due = outOfQuiet(t0 + s.after);
+    const prev = steps.length ? steps[steps.length - 1].due_ms : null;
+    let due = outOfQuiet(t0 + s.after);
+    if (prev !== null && due < prev + MIN_NUDGE_GAP) due = outOfQuiet(prev + MIN_NUDGE_GAP);
     if (tr === 'ctwa_stall' && due >= t0 + CTWA_WINDOW) continue; // never spend outside the free entry window on a stall nudge
     if (tr === 'start_ctwa' && due >= t0 + CTWA_WINDOW) {
       // quiet hours pushed it past the free window: send at the latest daytime moment inside it instead (if still after the last)
       const back = latestDaytimeBefore(t0 + CTWA_WINDOW - 30 * 60_000);
-      if (back > (steps.length ? steps[steps.length - 1].due_ms + 6 * H : t0)) steps.push({ touch: s.touch, due_ms: back });
+      if (back > (prev !== null ? prev + MIN_NUDGE_GAP : t0)) steps.push({ touch: s.touch, due_ms: back });
       continue;
     }
     steps.push({ touch: s.touch, due_ms: due });
@@ -140,7 +134,7 @@ export function due(lead, ctx, now_ms) {
     return now_ms >= p.close_ms ? { action: 'close', reason: 'sequence finished', idempotency_key: `w08:${lead.id}:close` } : { action: 'wait' };
   }
   if (now_ms < next.due_ms) return { action: 'wait', touch: next.touch, due_ms: next.due_ms };
-  if (new Date(now_ms + SAST).getUTCHours() >= QUIET.from || new Date(now_ms + SAST).getUTCHours() < QUIET.to) return { action: 'wait', reason: 'quiet hours' };
+  if (!inMarketingHours(now_ms)) return { action: 'wait', reason: 'contact hours', due_ms: outOfQuiet(now_ms) };
   return { action: 'send', touch: next.touch, ...message(lead, ctx, next.touch, now_ms), idempotency_key: `w08:${lead.id}:${next.touch}${cyc}`, restart: Boolean(p.restart_ms) };
 }
 
