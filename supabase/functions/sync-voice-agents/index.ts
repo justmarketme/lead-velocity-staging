@@ -179,8 +179,8 @@ const SMC_POST_CALL_URL = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1
 // Ayanda uses "Thandi"; Lindi deliberately sounds different. History: docs/SMC-VOICE-RECEPTIONIST.md.
 const SMC_VOICE_ID = "TMGDvkby8aZjBVCmFLOK"; // Voice Design "Cape Town" (was Linet 7Ojkrcr68EynjSd90VK0)
 const SMC_LLM = "glm-52"; // ElevenLabs-hosted, same as Ayanda (no Gemini/OpenAI)
-// Speech model and delivery. ElevenLabs-only, per Jono: Eleven v4 Turbo with Expressive Mode (audio tags).
-const SMC_TTS_MODEL = "eleven_v4_turbo";
+// Speech model and delivery. ElevenLabs-only, per Jono: Eleven v4 with Expressive Mode (audio tags).
+const SMC_TTS_MODEL = "eleven_v4"; // full v4 (more expressive than v4 Turbo; Jono 21 Oct 2026)
 const SMC_TTS_SETTINGS = { stability: 0.5, similarity_boost: 0.75, speed: 1 };
 // Turn-taking (conversation_config.turn). ElevenLabs has no "seconds of pause after the caller stops" field:
 // the wait is decided by the turn-detection model, steered by turn_eagerness. patient = waits for the highest
@@ -194,11 +194,19 @@ const SMC_TURN = {
 // transcript copy under the consent-record rules). 12 months matches the privacy page's lead-details period.
 const SMC_RETENTION_DAYS = 365;
 // The live website is the knowledge base. Add a page here and re-run POST ?agent=smc.
+// The adviser page is left out on purpose: Lindi never names the adviser on the call (Jono, 21 Oct 2026).
 const SMC_KB_URLS = [
-  "", "how-it-works/", "faq/", "how-we-make-money/", "about/", "contact/", "complaints/", "advisers/",
+  "", "how-it-works/", "faq/", "how-we-make-money/", "about/", "contact/", "complaints/", "privacy/", "terms/",
   "cover/", "cover/life-cover/", "cover/disability-cover/", "cover/severe-illness-cover/", "cover/income-protection/",
-  "wills/", "wills/the-will-appointment/", "privacy/", "terms/",
-  "learn/what-happens-on-a-30-minute-call/", "learn/what-happens-to-your-details/", "learn/how-to-check-an-adviser/",
+  "wills/", "wills/the-will-appointment/", "wills/what-a-will-does/", "wills/what-makes-a-will-valid/", "wills/where-to-keep-a-will/",
+  "wills/estate-costs-and-a-will/", "wills/guardians-and-childrens-trusts/", "wills/guardians-fund/", "wills/intestate-succession/",
+  "wills/estate-administration/", "wills/reporting-a-deceased-estate/", "wills/small-estates-letters-of-authority/",
+  "learn/", "learn/what-happens-on-a-30-minute-call/", "learn/what-happens-to-your-details/", "learn/how-to-check-an-adviser/",
+  "learn/how-sortmycover-works/", "learn/what-is-a-life-cover-gap/", "learn/what-is-credit-life-insurance/",
+  "learn/life-cover-and-a-home-loan/", "learn/income-protection-vs-disability-cover/", "learn/how-to-read-your-payslips-cover-line/",
+  "learn/cover-for-business-owners-and-directors/", "learn/estate-duty-south-africa/", "learn/questions-to-ask-a-financial-adviser/",
+  "learn/what-to-bring-to-your-call/", "learn/the-call-and-trust/", "learn/reading-your-cover/", "learn/life-events/",
+  "learn/myths-and-definitions/", "learn/glossary/", "learn/how-to-complain/",
 ].map((p) => `https://sortmycover.co.za/${p}`);
 
 const smcConversationId = { type: "string", dynamic_variable: "system__conversation_id" };
@@ -207,18 +215,16 @@ const smcCallerId = { type: "string", dynamic_variable: "caller_number" };
 const SMC_TOOL_DEFS: ToolDef[] = [
   {
     name: "save_caller_details",
-    description: "Save the caller's details and consent to SortMyCover's records. Call once, right after they clearly say yes to the consent line, with everything they gave. Every age band books (18 Oct 2026).",
+    description: "Save the caller's first name, number and what they want help with. Call once, right after a clear yes to being contacted on WhatsApp on this number, then call send_whatsapp_followup.",
     properties: {
       first_name: { type: "string", description: "Caller's first name." },
-      age_band: { type: "string", description: "Exactly one of: 'under 35', '35 to 44', '45 to 50', 'over 50'." },
       help_with: { type: "string", description: "What they want help with, e.g. 'life cover', 'disability cover', 'severe illness cover', 'income protection', 'a will', 'not sure'. Several allowed." },
-      budget_band: { type: "string", description: "Exactly one of: 'under R750', 'R750 to R1,499', 'R1,500 or more', 'not sure'." },
       mobile: { type: "string", description: "Their mobile number, digits only, e.g. 0825551234. Omit to use the number they're calling from." },
-      consent: { type: "string", description: "'yes' only if they clearly agreed to the consent line you read; otherwise 'no'." },
+      whatsapp_consent: { type: "string", description: "'yes' only if they clearly agreed to be contacted on WhatsApp on this number; otherwise do not call this tool." },
       conversation_id: smcConversationId,
       caller_id: smcCallerId,
     },
-    required: ["age_band", "conversation_id"],
+    required: ["whatsapp_consent", "conversation_id"],
   },
 ];
 
@@ -261,25 +267,12 @@ const SMC_WHATSAPP_TOOL_DEFS: ToolDef[] = [
     },
     required: ["whatsapp_consent", "conversation_id"],
   },
-  {
-    name: "request_callback",
-    description: "The caller declined WhatsApp but agreed that the adviser's office may call them back on this number to set up the appointment. Only after save_caller_details and a clear yes to the call-back.",
-    properties: {
-      callback_consent: { type: "string", description: "'yes' only if they clearly agreed to a call-back from the adviser's office." },
-      preferred_time: { type: "string", description: "Optional best time of day they gave, e.g. 'weekday mornings'." },
-      conversation_id: smcConversationId,
-    },
-    required: ["callback_consent", "conversation_id"],
-  },
 ];
 
 const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }> = {
-  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), callback_requested (request_callback returned ok), declined (did not want to proceed or refused consent), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
+  outcome: { type: "string", description: "Exactly one of: whatsapp_handoff (send_whatsapp_followup returned ok), declined (did not want WhatsApp or did not want to proceed), info_only (asked questions only), missed (caller said nothing / hung up immediately)." },
   first_name: { type: "string", description: "Caller's first name, if given." },
-  age_band: { type: "string", description: "under 35, 35 to 44, 45 to 50, over 50, or empty." },
   help_with: { type: "string", description: "What the caller wanted help with (life, disability, severe illness, income protection, will, not sure)." },
-  budget_band: { type: "string", description: "Monthly comfort band the caller gave: under R750, R750 to R1,499, R1,500 or more, not sure, or empty." },
-  consent_given: { type: "boolean", description: "True only if the caller clearly agreed to the consent line read to them." },
   whatsapp_consent: { type: "boolean", description: "True only if the caller clearly said yes to being contacted on WhatsApp on their number." },
   advice_requested: { type: "boolean", description: "True ONLY if the caller explicitly asked Lindi for advice, a quote or price, a recommendation, or a comparison of products or insurers. Asking to book a call or saying what cover they want is NOT a request for advice." },
   call_notes: { type: "string", description: "2-4 short factual notes for the adviser/team: what they want, their situation as stated, preferred times or method, anything to follow up. No health, ID or banking details." },
@@ -291,13 +284,13 @@ const SMC_EVALUATION = [
   { id: "disclosures", name: "Opening disclosures", type: "prompt",
     conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with authorised advisers." },
   { id: "next_step", name: "Clear next step", type: "prompt",
-    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, a call-back from the adviser's office, or (declined) a kind explanation. Failure if the call ended with no next step while the caller wanted help." },
+    conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover, or (declined) a kind explanation with the website. Failure if the call ended with no next step while the caller wanted help." },
   { id: "whatsapp_consent_first", name: "WhatsApp consent before sending", type: "prompt",
     conversation_goal_prompt: "Success if send_whatsapp_followup was only called after the caller clearly said yes to being contacted on WhatsApp, or was not called at all. Failure if it was called before or without a clear yes." },
   { id: "no_system_talk", name: "No system or booking-failure talk", type: "prompt",
     conversation_goal_prompt: "Success if the agent never mentioned calendars, availability, systems, bookings failing or anything not working. Failure otherwise." },
-  { id: "question_preface", name: "Explained why before qualifying questions", type: "prompt",
-    conversation_goal_prompt: "Success if, before the first qualifying question (age group, what they want help with, budget), the agent briefly explained it needs a few quick questions to match them with the right adviser. Success if no qualifying questions were asked." },
+  { id: "whatsapp_only_details", name: "No pricing, age or adviser details on the call", type: "prompt",
+    conversation_goal_prompt: "Success if the agent never asked the caller's age or age group, income or what monthly amount they could afford, never mentioned price bands or amounts, and never named the adviser, their firm or an FSP number. Failure if any of these happened." },
 ];
 
 async function findSmcAgent(): Promise<{ agent_id: string } | null> {
@@ -305,13 +298,15 @@ async function findSmcAgent(): Promise<{ agent_id: string } | null> {
   return agents.find((a: { agent_id: string; name?: string }) => a.name === SMC_AGENT_NAME) ?? null;
 }
 
-async function ensureSmcKnowledgeBase() {
+// refresh=true re-reads pages that already exist (they are a snapshot of the site from when they were added).
+async function ensureSmcKnowledgeBase(refresh = false) {
   const { documents = [] } = await el(`/knowledge-base?page_size=100&search=${encodeURIComponent("SMC ")}`);
   const out: Array<{ type: string; id: string; name: string; usage_mode: string }> = [];
   for (const url of SMC_KB_URLS) {
     const name = `SMC ${url.replace("https://sortmycover.co.za/", "/")}`;
     let doc = documents.find((d: { id: string; name?: string }) => d.name === name);
     if (!doc) doc = await el("/knowledge-base/url", { method: "POST", body: JSON.stringify({ url, name }) });
+    else if (refresh) await el(`/knowledge-base/${doc.id}/refresh`, { method: "POST" }).catch((e) => console.warn(`refresh ${name}:`, e));
     out.push({ type: "url", id: doc.id, name, usage_mode: "auto" });
   }
   return out;
@@ -324,9 +319,9 @@ async function smcPostCallWebhookId(): Promise<string | null> {
   return webhooks.find((w: { webhook_url?: string; is_disabled?: boolean; webhook_id?: string }) => w.webhook_url === SMC_POST_CALL_URL && !w.is_disabled)?.webhook_id ?? null;
 }
 
-async function syncSmc() {
+async function syncSmc(refreshKb = false) {
   const toolIds = await upsertTools([...SMC_TOOL_DEFS, ...SMC_WHATSAPP_TOOL_DEFS], SMC_TOOLS_URL);
-  const knowledgeBase = await ensureSmcKnowledgeBase();
+  const knowledgeBase = await ensureSmcKnowledgeBase(refreshKb);
   const webhookId = await smcPostCallWebhookId();
   const conversation_config = {
     agent: {
@@ -443,7 +438,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (new URL(req.url).searchParams.get("agent") === "smc") return Response.json(await syncSmc());
+    if (new URL(req.url).searchParams.get("agent") === "smc") return Response.json(await syncSmc(new URL(req.url).searchParams.get("refresh_kb") === "1"));
 
     const toolIds = await upsertTools();
     const ayanda = await el(`/agents/${ayandaId()}`, {

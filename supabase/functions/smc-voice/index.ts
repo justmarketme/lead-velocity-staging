@@ -18,16 +18,15 @@
 // communications rows with metadata.kind 'smc_voice_callback'; the lead timeline gets lead_activities rows.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { localZaFormat, normalizeEmail, normalizeZaPhone } from "../_shared/spoken.ts";
-import { SMC_WHATSAPP_CONSENT_ASK, smcCallbackFirstMessage, smcConsentRecord } from "../_shared/smc_receptionist_persona.ts";
+import { SMC_WHATSAPP_CONSENT_ASK, smcCallbackFirstMessage } from "../_shared/smc_receptionist_persona.ts";
 import {
-  ageBand, budgetBand, callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow, IN_CRITERIA,
-  dialedWithin24h, leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
+  callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, elevenSignatureOk, helpTopics, inCallWindow,
+  countsTowardCap, dialedWithin24h, leadInterest, MAX_AUTO_CALLBACKS_PER_24H, mintLeadToken, MISSED_MAX_SECS, nextCallWindow, sastIso, spokenSast,
   transcriptText, twilioSignature, twilioSignatureOk, userTurns,
 } from "../_shared/smc_voice_lib.ts";
 
 const BASE = "https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-voice";
 const SMC_BRAND_ID = "6e532b05-984f-4906-90a0-a5257cde328c";
-const SMC_BROKER_ID = "306062a1-c271-4ae1-8b1e-bb9aed10a5f6"; // Mark Weston, Oracle Private Wealth
 const SMC_NUMBER = "+27600156480";
 const N8N = "https://n8n.sortmycover.co.za/webhook";
 const START_HERE_SID = "HXd261ab8c34bc33734af725679ec0b825"; // smc_start_here (approved UTILITY, Start here -> /start/#lt=)
@@ -144,7 +143,7 @@ async function scheduleCallback(db: SupabaseClient, caller: string | null, misse
     .eq("channel", "call").eq("workflow", WORKFLOW).eq("recipient_contact", phone).gte("created_at", since)
     .contains("metadata", { kind: "smc_voice_callback" });
   if ((recent ?? []).some((r: { metadata?: { for_call?: string } | null }) => r.metadata?.for_call === missedCallKey)) return { scheduled: false, why: "already_scheduled" };
-  if ((recent ?? []).length >= MAX_AUTO_CALLBACKS_PER_24H) return { scheduled: false, why: "callback_cap_24h" };
+  if ((recent ?? []).filter((r: { metadata?: { state?: string; dialed_at?: string } | null }) => countsTowardCap(r.metadata)).length >= MAX_AUTO_CALLBACKS_PER_24H) return { scheduled: false, why: "callback_cap_24h" };
   const due = callbackDueAt(Date.now());
   const { data, error } = await db.from("communications").insert({
     channel: "call", direction: "outbound", workflow: WORKFLOW, brand_id: SMC_BRAND_ID, lead_id: lead?.id ?? null,
@@ -368,70 +367,51 @@ async function verifyConversation(conversationId: unknown): Promise<string | nul
   return null;
 }
 
-async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient, test: boolean) {
+// The call collects only first name, number and topic, after a clear yes to WhatsApp (Jono, 21 Oct 2026). No age, budget,
+// adviser name or sharing consent on the call: the lead is saved unrouted and the /start/ page (adviser card, named
+// consent) and W01 route it, the same as any unrouted WhatsApp lead.
+async function saveCallerDetails(p: Record<string, unknown>, db: SupabaseClient, _test: boolean) {
   const conv = String(p.conversation_id);
-  const age = ageBand(p.age_band);
-  if (!age) return fail("missing_age", "Ask which age group they're in: under 35, 35 to 44, 45 to 50, or over 50.");
-  if (!IN_CRITERIA.has(age)) {
-    // A band outside IN_CRITERIA (none since 18 Oct 2026: every age books): nothing is stored on a lead (POPIA minimality).
-    return json({ ok: true, out_of_criteria: true, say: "Explain kindly that SortMyCover's advisers only take people aged 35 to 50 at the moment, suggest they speak to any FSCA-authorised adviser directly, thank them and close. Do not collect anything else." });
-  }
-  if (String(p.consent ?? "").toLowerCase() !== "yes") return fail("no_consent", "Nothing was saved. Read the consent line and only call this tool once they clearly say yes.");
+  if (String(p.whatsapp_consent ?? "").toLowerCase() !== "yes") return fail("no_whatsapp_consent", "Nothing was saved. Ask permission to contact them on WhatsApp on this number, and only call this after a clear yes.");
   const firstName = String(p.first_name ?? "").trim().split(/\s+/)[0]?.slice(0, 40);
   if (!firstName) return fail("missing_name", "Ask for their first name.");
   const phone = normalizeZaPhone(p.mobile) ?? normalizeZaPhone(p.caller_id);
   if (!phone || !/^\+27[6-8]\d{8}$/.test(phone)) return fail("missing_mobile", "Ask for their South African mobile number (it starts with 06, 07 or 08) and read it back.");
   const topics = helpTopics(p.help_with);
   const { reasons, product_interest } = leadInterest(topics);
-  const wills = product_interest === "wills";
-  const budget = budgetBand(p.budget_band);
   const now = new Date().toISOString();
-  const voice = { channel: "voice", conversation_id: conv, help_with: topics, help_with_said: String(p.help_with ?? "").slice(0, 200), budget_said: String(p.budget_band ?? "").slice(0, 60), captured_at: now };
+  const voice = { channel: "voice", conversation_id: conv, help_with: topics, help_with_said: String(p.help_with ?? "").slice(0, 200), whatsapp_consent_at: now, captured_at: now };
 
   const existing = await findLeadByPhone(db, phone);
   let leadId: string;
   let created = false;
-  if (existing && !existing.opted_out_at) {
+  if (existing?.opted_out_at) return fail("opted_out", "This number asked SortMyCover not to contact it. Don't send anything; thank them and say they can book on sortmycover.co.za if they change their mind.");
+  if (existing) {
     leadId = existing.id;
     const { error } = await db.from("leads").update({
-      first_name: existing.first_name || firstName, age_band: age, ...(budget ? { budget_band: budget } : {}),
-      reasons: reasons.length ? reasons : null, conv_state: { ...(existing.conv_state ?? {}), voice },
-      last_contact_at: now,
+      first_name: existing.first_name || firstName, reasons: reasons.length ? reasons : null,
+      conv_state: { ...(existing.conv_state ?? {}), voice }, last_contact_at: now,
     }).eq("id", leadId);
     if (error) console.error("lead update:", error.message);
   } else {
-    if (existing?.opted_out_at) return fail("opted_out", "This number asked SortMyCover not to contact it. Don't book; thank them and say they can book on sortmycover.co.za if they change their mind.");
-    // Test leads are never routed (routing would reserve a slot on the adviser's paid order), and neither is anyone
-    // while the adviser is switched off (Jono, 20 Oct 2026: the phone follows the same switch as ad leads). An
-    // unrouted caller is handed to WhatsApp, where the /start/ page discloses the adviser and W01 routes.
-    const route = !wills && !test && await adviserLive(db);
     const { data, error } = await db.from("leads").insert({
-      brand_id: SMC_BRAND_ID, broker_id: route ? SMC_BROKER_ID : null, routed_at: route ? now : null,
-      routing_reason: route ? "voice_named_consent" : null,
-      origin: "manual", source: "other", current_status: "New", is_synthetic: test,
-      first_name: firstName, phone, age_band: age, budget_band: budget, reasons: reasons.length ? reasons : null, product_interest,
-      consent_text: smcConsentRecord(wills ? "wills" : "cover"), consent_text_version: "smc-voice-v1", consent_mode: "named",
-      consent_at: now, consent_source: "voice_call", line_type: "mobile", language: "en",
-      conv_state: { voice, help_with: topics.join(",") }, notes: `Voice call (SortMyCover, Lindi). Wants help with: ${topics.join(", ")}.`,
-    }).select("id, broker_id, routing_reason").single();
+      brand_id: SMC_BRAND_ID, broker_id: null, origin: "manual", source: "other", current_status: "New", is_synthetic: _test,
+      first_name: firstName, phone, reasons: reasons.length ? reasons : null, product_interest,
+      consent_mode: null, consent_source: "voice_call", line_type: "mobile", language: "en",
+      conv_state: { voice, help_with: topics.join(",") }, notes: `Voice call (SortMyCover, Lindi). Wants help with: ${topics.join(", ")}. Agreed to WhatsApp contact.`,
+    }).select("id").single();
     if (error || !data) {
       console.error("lead insert:", error?.message);
-      return fail("save_failed", "Don't mention any problem. Carry on: ask permission to WhatsApp them, then use send_whatsapp_followup (or request_callback if they prefer a call).");
+      return fail("save_failed", "Don't mention any problem. Carry on: call send_whatsapp_followup with whatsapp_consent 'yes'.");
     }
     leadId = data.id;
     created = true;
   }
   await activity(db, leadId, "voice_details_captured",
-    `Lindi captured details on a call: ${firstName}, age ${age}, help with ${topics.join(", ")}, budget ${budget ?? "not sure"}; consent read and agreed.`,
-    { conversation_id: conv, age_band: age, budget_band: budget, help_with: topics, consent: "yes", created }, `smcvoice:details:${conv}`);
-  return json({ ok: true, saved: true, next: "whatsapp_consent", phone_spoken: localZaFormat(phone),
-    say: "Saved. Now explain the appointment is set up on WhatsApp and ask permission to WhatsApp them on this number. Only after a clear yes, confirm the number and call send_whatsapp_followup with whatsapp_consent 'yes'. If they say no, offer an adviser call-back (request_callback)." });
-}
-
-/** The phone's adviser takes new leads only when his row is active and routing is on (the switch W01 reads). */
-async function adviserLive(db: SupabaseClient): Promise<boolean> {
-  const { data } = await db.from("brokers").select("active, routing_on").eq("id", SMC_BROKER_ID).maybeSingle();
-  return !!(data?.active && data?.routing_on);
+    `Lindi captured details on a call: ${firstName}, help with ${topics.join(", ")}; agreed to WhatsApp contact.`,
+    { conversation_id: conv, help_with: topics, whatsapp_consent_at: now, created }, `smcvoice:details:${conv}`);
+  return json({ ok: true, saved: true, next: "send_whatsapp_followup", phone_spoken: localZaFormat(phone),
+    say: "Saved. Now call send_whatsapp_followup with whatsapp_consent 'yes'." });
 }
 
 async function leadTokenFor(db: SupabaseClient, conv: string) {
@@ -503,7 +483,7 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
   const conv = String(p.conversation_id);
   // POPIA: an explicit yes to "may we WhatsApp you on this number" before anything is sent.
   if (String(p.whatsapp_consent ?? "").toLowerCase() !== "yes") {
-    return fail("no_whatsapp_consent", "Nothing was sent. Ask: 'Do I have your permission to contact you on WhatsApp on this number?' and only call this again after a clear yes, with whatsapp_consent 'yes'. If they say no, offer an adviser call-back.");
+    return fail("no_whatsapp_consent", "Nothing was sent. Ask: 'Do I have your permission to contact you on WhatsApp on this number?' and only call this again after a clear yes, with whatsapp_consent 'yes'. If they say no, tell them they can book on sortmycover.co.za.");
   }
   const consentAt = new Date().toISOString();
   const leadId = await leadForConversation(db, conv);
@@ -554,7 +534,7 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
     await activity(db, lead.id, "voice_whatsapp_handoff", `Caller agreed to WhatsApp contact (${consentAt}); Lindi handed the conversation to WhatsApp (smc_${tpl.name} ${sid ? "sent" : "FAILED"}).`,
       { conversation_id: conv, message_sid: sid, error: sendError, dry_run: test, whatsapp_consent_at: consentAt }, `smcvoice:wa:${conv}`);
   }
-  if (!sid) return fail("send_failed", "Don't mention any failure. Say the adviser's office will be in touch on this number during office hours to set up the appointment, and close warmly.");
+  if (!sid) return fail("send_failed", "Don't mention any failure. Say the SortMyCover team will be in touch on this number, and close warmly.");
   return json({ ok: true, sent_to: localZaFormat(phone), say: startToken
     ? "WhatsApp sent from SortMyCover. Tell them: in a moment they'll get a WhatsApp from SortMyCover; tapping Start here in it lets them pick a time that suits them."
     : "WhatsApp sent from SortMyCover." });

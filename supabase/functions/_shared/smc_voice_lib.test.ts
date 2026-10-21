@@ -1,7 +1,7 @@
 // deno test supabase/functions/_shared/smc_voice_lib.test.ts
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
-  ageBand, budgetBand, callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, dialedWithin24h, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
+  ageBand, budgetBand, callbackClosedActivity, callbackDueAt, callContactAt, classifyOutcome, countsTowardCap, dialedWithin24h, elevenSignatureOk, helpTopics, IN_CRITERIA, inCallWindow, leadInterest,
   mintLeadToken, nextCallWindow, sastIso, twilioSignature, twilioSignatureOk,
 } from "./smc_voice_lib.ts";
 
@@ -40,6 +40,14 @@ Deno.test("dial-time cap: another callback dialled to the number in the last 24 
   assert(!dialedWithin24h([dialed("a", "2026-10-18T07:59:00")], "b", now), "older than 24 h");
   assert(!dialedWithin24h([dialed("b", "2026-10-19T07:00:00")], "b", now), "itself does not count");
   assert(!dialedWithin24h([{ id: "a", metadata: {} }, { id: "c", metadata: null }], "b", now), "never dialled");
+});
+
+Deno.test("schedule-time cap ignores callbacks cancelled before any dial", () => {
+  assert(!countsTowardCap({ state: "cancelled" }), "cancelled while callbacks were off");
+  assert(countsTowardCap({ state: "cancelled", dialed_at: "2026-10-21T09:05:00Z" }), "dialled, then closed");
+  assert(countsTowardCap({ state: "scheduled" }), "still queued");
+  assert(countsTowardCap({ state: "done", dialed_at: "2026-10-21T09:05:00Z" }));
+  assert(countsTowardCap(null));
 });
 
 Deno.test("answers map onto the CRM's constrained columns", () => {
@@ -100,11 +108,13 @@ Deno.test("twilioSignature round-trips through twilioSignatureOk", async () => {
   assertEquals(await twilioSignatureOk("other", "https://x.test/twiml", params, sig), false);
 });
 
-Deno.test("every age group books (Jono, 18 Oct 2026): no band is out of criteria; the persona still asks the age, never turns it away", async () => {
+Deno.test("phone call is WhatsApp-only (Jono, 21 Oct 2026): no age, budget, adviser name or FSP on the call", async () => {
   for (const b of ["lt35", "35_44", "45_50", "51plus"]) assert(IN_CRITERIA.has(b), b);
-  const persona = await Deno.readTextFile(new URL("./smc_receptionist_persona.ts", import.meta.url));
-  assert(persona.includes("Which age group are you in: under 35, 35 to 44, 45 to 50, or over 50?"));
-  assert(!/only take 35 to 50|out of criteria/i.test(persona));
+  const { SMC_PROMPT, SMC_FIRST_MESSAGE, smcCallbackFirstMessage } = await import("./smc_receptionist_persona.ts");
+  const spoken = SMC_PROMPT + SMC_FIRST_MESSAGE + smcCallbackFirstMessage("Thandi");
+  assert(!/Which age group|under R750|R1,500|Mark Weston|Oracle|28418|FSP number \d|43826/.test(spoken));
+  assert(smcCallbackFirstMessage(null).includes("We noticed we missed your call"));
+  assert(SMC_PROMPT.includes("Never ask their age or age group"));
 });
 
 Deno.test("why WhatsApp (Jono, 18 Oct 2026): one spoken sentence in the consent ask; no price words, no AI", async () => {

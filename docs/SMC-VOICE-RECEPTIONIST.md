@@ -13,9 +13,9 @@ Built 13 Oct 2026. Merged into `release/smc-nurture` (with Ayanda's tools and Ei
 | Voices tried | Previous: Claire `gsm4lUH9bnZ3pjR1Pw7w` (13-14 Oct; one-line rollback), Cheyenne `atf1ppeJGCYFBlCLZ26e`. Heard and rejected: Mel `hPCkcWzRwKvb97383AaN`, Sim `Sy7d8PNbkbjIJxf1li2K`, Ramona `NPuwPNKx2XCQDddfkHN4`. Candidates from the 14 Oct search, all in the workspace voice library and rendered with the live model in `C:/tmp/lindi-voices-v2/`: Positiva `sVA93IA0GbmJsFel9ltt` ("softly British" per its description), Katlego `GWxVpgZHEljuUpLKSxHI`, Amara `fFAtoTPtP0TtMyhbR3L9` ("African-British"), and three Voice Design voices (Joburg professional `eaR3SwFMDXOxBS1aCJ8S`, Cape Town warm `TMGDvkby8aZjBVCmFLOK`, Durban friendly `atEQ0UqumDXWz7uRSDsP`). Ayanda uses Thandi `BcpjRWrYhDBHmOnetmBl`, so the two sound different. |
 | Turn-taking | `conversation_config.turn` (`SMC_TURN` in sync-voice-agents): `turn_eagerness` patient, `spelling_patience` auto, `speculative_turn` off, `turn_model` turn_v3, `turn_timeout` 10 s. ElevenLabs has no "pause in seconds" field: the wait after the caller stops is decided by the turn model, steered by `turn_eagerness`. `turn_timeout` is how long she waits in silence before "Are you still there?", not the normal gap. The caller can still interrupt her (`interruption` client event stays on). The persona also has a "Turn-taking and patience" section. |
 | Recording | Calls are recorded and kept at ElevenLabs (`record_voice` true, `retention_days` 365, then deleted there). The CRM keeps the transcript (and its own copy of the consent record). See "Call recordings" below. |
-| TTS | Eleven v4 Turbo (`eleven_v4_turbo`), Expressive Mode on, stability 0.5 / similarity 0.75 / speed 1.0 (`SMC_TTS_SETTINGS`), `ulaw_8000` in and out, ElevenLabs text normalisation |
+| TTS | Eleven v4 (`eleven_v4`, full model since 21 Oct 2026), Expressive Mode on, stability 0.5 / similarity 0.75 / speed 1.0 (`SMC_TTS_SETTINGS`), `ulaw_8000` in and out, ElevenLabs text normalisation |
 | LLM | `glm-52`, hosted by ElevenLabs (no Gemini or OpenAI), temperature 0.3 |
-| Knowledge base | 20 live sortmycover.co.za pages, added by URL with RAG (documents named `SMC /…`) |
+| Knowledge base | The live sortmycover.co.za content pages (cover, wills, learn; not `/advisers/`), added by URL with RAG (documents named `SMC /…`). `POST ?agent=smc&refresh_kb=1` re-reads pages already added |
 | Opening line | SortMyCover; the call is recorded and transcribed; no financial advice; books a free call with a licensed adviser |
 
 ## How a call flows
@@ -56,7 +56,7 @@ Built 13 Oct 2026. Merged into `release/smc-nurture` (with Ayanda's tools and Ei
 
 ## Change the persona, voice or tools
 
-1. Edit `supabase/functions/_shared/smc_receptionist_persona.ts`. It holds the prompt, opening line, callback opener, consent lines and the adviser's name/FSP. The voice, LLM, KB pages, tools, data collection and evaluation live in the SMC section of `supabase/functions/sync-voice-agents/index.ts`.
+1. Edit `supabase/functions/_shared/smc_receptionist_persona.ts`. It holds the prompt, opening line, callback opener and WhatsApp consent ask. Since 21 Oct 2026 the call never names the adviser, never reads a sharing consent and never asks age or budget: it saves name, number and topic after a yes to WhatsApp, unrouted, and the WhatsApp /start/ flow does the rest. The voice, LLM, KB pages, tools, data collection and evaluation live in the SMC section of `supabase/functions/sync-voice-agents/index.ts`.
 2. Deploy and push:
    ```
    npx supabase functions deploy sync-voice-agents --project-ref cmsylaupctrbsvzrgzwy --use-api
@@ -64,7 +64,7 @@ Built 13 Oct 2026. Merged into `release/smc-nurture` (with Ayanda's tools and Ei
    ```
    (`$SERVICE_ROLE_JWT` comes from `npx supabase projects api-keys --project-ref cmsylaupctrbsvzrgzwy`.) The push is idempotent. Adding new KB pages takes about 7 seconds each, so if the first run times out at 150 seconds, run it again. Plain `POST` (no `?agent=`) still syncs only Ayanda and Einstein.
 3. Code changes to the call logic go in `supabase/functions/smc-voice/index.ts` and `supabase/functions/_shared/smc_voice_lib.ts`. Run the tests with `npx deno test supabase/functions/_shared/smc_voice_lib.test.ts`, then deploy with `npx supabase functions deploy smc-voice --project-ref cmsylaupctrbsvzrgzwy --use-api --no-verify-jwt`.
-4. A new adviser means updating `SMC_ADVISER` (persona) and `SMC_BROKER_ID` (smc-voice).
+4. A new adviser needs no change here: the phone never names or routes to one.
 
 ## Call recordings
 

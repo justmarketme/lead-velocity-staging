@@ -69,6 +69,15 @@ export function dialedWithin24h(others: { id: string; metadata?: { dialed_at?: s
   return others.some((o) => o.id !== selfId && !!o.metadata?.dialed_at && nowMs - Date.parse(o.metadata.dialed_at) < 24 * 3600_000);
 }
 
+/**
+ * Schedule-time cap: a callback counts towards the 24 h limit unless it was cancelled without ever being dialled
+ * (e.g. while SMC_CALLBACKS_ENABLED was off). Without this, a missed call during an "off" spell blocked the next
+ * real callback to that number for a day (KG's test, 21 Oct 2026).
+ */
+export function countsTowardCap(metadata?: { state?: string; dialed_at?: string } | null): boolean {
+  return !(metadata?.state === "cancelled" && !metadata?.dialed_at);
+}
+
 /** "2026-10-14T10:00:00+02:00"-style SAST string, for logs and CRM notes. */
 export function sastIso(ms: number): string {
   return new Date(ms + SAST_OFFSET_MS).toISOString().replace(/\.\d{3}Z$/, "+02:00");
