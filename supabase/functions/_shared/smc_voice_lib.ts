@@ -4,10 +4,11 @@
 export const SAST_OFFSET_MS = 2 * 3600_000; // Africa/Johannesburg, no DST
 
 // SA public holidays (Public Holidays Act, Sunday rule applied), copied from
-// data/za-public-holidays.json, which W04 also uses. Add new years there and here.
+// data/za-public-holidays.json, which W04 also uses. Add new years and gazetted days (2026-11-04 election day) there and
+// here: automation/tests/contact-hours.test.mjs fails when the two lists differ.
 export const ZA_HOLIDAYS = new Set([
   "2026-01-01", "2026-03-21", "2026-04-03", "2026-04-06", "2026-04-27", "2026-05-01", "2026-06-16", "2026-08-09",
-  "2026-08-10", "2026-09-24", "2026-12-16", "2026-12-25", "2026-12-26", "2027-01-01", "2027-03-21", "2027-03-22",
+  "2026-08-10", "2026-09-24", "2026-11-04", "2026-12-16", "2026-12-25", "2026-12-26", "2027-01-01", "2027-03-21", "2027-03-22",
   "2027-03-26", "2027-03-29", "2027-04-27", "2027-05-01", "2027-06-16", "2027-08-09", "2027-09-24", "2027-12-16",
   "2027-12-25", "2027-12-26", "2027-12-27",
 ]);

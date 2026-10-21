@@ -18,6 +18,7 @@ Deno.test("CPA window: weekdays 08:00-20:00 (last start 19:45), Saturday 09:00-1
   assert(!inCallWindow(sast("2026-10-17T12:50:00")));
   assert(!inCallWindow(sast("2026-10-18T10:00:00"))); // Sun
   assert(!inCallWindow(sast("2026-12-16T10:00:00"))); // Day of Reconciliation (Wed)
+  assert(!inCallWindow(sast("2026-11-04T10:00:00"))); // local government elections (Wed), a public holiday
 });
 
 Deno.test("next window rolls over evenings, weekends and holidays", () => {
@@ -25,6 +26,7 @@ Deno.test("next window rolls over evenings, weekends and holidays", () => {
   assertEquals(sastIso(nextCallWindow(sast("2026-10-17T13:30:00"))), "2026-10-19T08:00:00+02:00"); // Sat pm -> Mon
   assertEquals(sastIso(nextCallWindow(sast("2026-10-18T09:00:00"))), "2026-10-19T08:00:00+02:00"); // Sun -> Mon
   assertEquals(sastIso(nextCallWindow(sast("2026-12-15T22:00:00"))), "2026-12-17T08:00:00+02:00"); // skips 16 Dec
+  assertEquals(sastIso(nextCallWindow(sast("2026-11-03T20:30:00"))), "2026-11-05T08:00:00+02:00"); // skips 4 Nov (election day)
   assertEquals(sastIso(nextCallWindow(sast("2026-12-24T19:50:00"))), "2026-12-28T08:00:00+02:00"); // 25 Fri, 26 Sat holidays, 27 Sun
   assertEquals(sastIso(nextCallWindow(sast("2026-10-17T07:00:00"))), "2026-10-17T09:00:00+02:00"); // Sat opens 09:00
 });
