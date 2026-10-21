@@ -61,6 +61,9 @@ $$ insert into cron.job(jobname, schedule, command) values (job_name, schedule, 
    on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning jobid $$;
 create or replace function cron.unschedule(job_name text) returns boolean language sql as
 $$ with d as (delete from cron.job where jobname = job_name returning 1) select exists (select 1 from d) $$;
+-- pg_cron also has unschedule(job_id bigint) (20261021150200_unschedule_legacy_appointment_reminders.sql calls it by jobid)
+create or replace function cron.unschedule(job_id bigint) returns boolean language sql as
+$$ with d as (delete from cron.job where jobid = job_id returning 1) select exists (select 1 from d) $$;
 -- pg_net stand-in: net.http_post exists so a function or cron command that names it compiles and runs; nothing leaves the container.
 create schema if not exists net;
 create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb,
