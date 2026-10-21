@@ -82,6 +82,16 @@ describe("evidence ledger", () => {
     for (const e of (evidence as Record<string, string>[]).filter((x) => x.status === "verified")) expect(e.checked, `${e.id}.checked`).toMatch(/^\d{4}-\d\d-\d\d$/);
   });
   it("unique ids", () => { const ids = (evidence as { id: string }[]).map((e) => e.id); expect(new Set(ids).size).toBe(ids.length); });
+  it("sources link their final URLs, not aliases that redirect (link check, 21 Oct 2026)", () => {
+    const urls = (evidence as { id: string; url?: string }[]).filter((e) => e.url).map((e) => [e.id, e.url!] as const);
+    const ALIASES = [/\/\/www\.smartaboutmoney\.co\.za\//, /what-illness-does-my/, /\/\/www\.gov\.za\/node\/\d/, /gov\.za\/services\/end-life\//, /cliffedekkerhofmeyr\.com\/news\//];
+    for (const [id, u] of urls) for (const re of ALIASES) expect(u, id).not.toMatch(re);
+  });
+  it("the Wills Act source is the amended Justice text (s2(3) and s4A), not acts.co.za (timed out) or the unamended 1953 Gazette", () => {
+    const e = (evidence as { id: string; url: string; publisher: string }[]).find((x) => x.id === "act-wills-act")!;
+    expect(e.url).toBe("https://www.justice.gov.za/legislation/acts/1953-07.pdf");
+    expect(e.publisher).toMatch(/Justice/);
+  });
 });
 
 describe("glossary", () => {
