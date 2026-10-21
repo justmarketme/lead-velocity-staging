@@ -126,9 +126,12 @@
 .card-link b { display: block; font-size: 19px; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--sm-charcoal); }
 .card-link span { display: block; margin-top: 6px; color: #56606a; font-size: 15px; line-height: 1.6; }
 /* breadcrumb = the eyebrow line of the page head (same as the home hero eyebrow) */
-.breadcrumb { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sm-charcoal); margin: 0 0 18px; line-height: 1.8; }
-.crumb-rule { display: inline-block; vertical-align: middle; width: 28px; height: 3px; border-radius: 2px; margin: -2px 12px 0 0; background: var(--sm-amber); transform-origin: 0 50%; }
-.breadcrumb a { color: var(--sm-charcoal); text-decoration: none; padding: 14px 0; } /* inline padding: a 44px tap area with no change to the line */
+/* 44px tap rows: flex rows that wrap, so a wrapped trail's rows sit 44px apart and no link's tap area covers the one above it
+   (inline padding did, on phones); the margins take back the extra 22px, so a one-row trail sits where the 21.6px line did */
+.breadcrumb { display: flex; flex-wrap: wrap; align-items: center; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sm-charcoal); margin: -11px 0 7px; line-height: 1.8; }
+.breadcrumb > span:not(.crumb-rule) { display: inline-flex; align-items: center; }
+.crumb-rule { display: inline-block; flex: none; vertical-align: middle; width: 28px; height: 3px; border-radius: 2px; margin: -2px 12px 0 0; background: var(--sm-amber); transform-origin: 0 50%; }
+.breadcrumb a { display: inline-flex; align-items: center; min-height: 44px; color: var(--sm-charcoal); text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; text-decoration-color: var(--sm-amber); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .crumb-sep { margin: 0 8px; color: var(--sm-amber); }
 

@@ -60,8 +60,12 @@ describe("tap targets of 44px or more", () => {
     for (const sel of [".hx-how-link", ".hx-panel-copy ul a"]) expect(value(home, sel, "min-height"), sel).toBe("44px");
     expect(value(index, ".home-text-link", "min-height")).toBe("44px");
   });
-  it("breadcrumb links: 14px inline padding around the 12px text", () => {
-    expect(value(index, ".breadcrumb a", "padding")).toBe("14px 0");
+  it("breadcrumb links: 44px tall in wrapping flex rows, with no vertical padding that would reach into the row above", () => {
+    expect(value(index, ".breadcrumb", "display")).toBe("flex");
+    expect(value(index, ".breadcrumb", "flex-wrap")).toBe("wrap");
+    expect(value(index, ".breadcrumb a", "display")).toBe("inline-flex");
+    expect(value(index, ".breadcrumb a", "min-height")).toBe("44px");
+    for (const k of ["padding", "padding-top", "padding-bottom", "padding-block"]) expect(value(index, ".breadcrumb a", k), k).toBeUndefined();
   });
   it("'Full wording' grows by 3px only, so it never covers the consent tick-box label above it", () => {
     expect(value(index, ".chat-more summary", "padding")).toBe("3px 0");
