@@ -60,6 +60,8 @@ export const LINES = {
     SAME_METHOD: "Same as before, by {method}?",
     // reply.md fallbacks (W04/W10 interactive bodies and W07 when a draft is dropped). Fixed, pre-approved (I-35e).
     SLOTS_INTRO: "Here are the next open times with {adviser_first}.",
+    // W28 last resort (booking-flow-endpoint.md ladder step 4): no open times to list, so W07 asks for a day. Never says why.
+    ASK_DAY: "Which day would suit you for your call with {adviser_first}, and roughly what time? I'll find you a time that works.",
     RESCHED_INTRO: "No problem, here are some other times.",
     CANCEL_CONFIRM_Q: "Do you want me to cancel your call on {date} at {time}?",
     CANCEL_DONE: "Done, your call is cancelled. If you'd like another time later, just say.",
@@ -140,6 +142,7 @@ export const LINES = {
     CONFIRM_THANKS: "Dankie, {first_name}, jy is bevestig. As jy môre 'n salarisstrokie of jou huidige polisskedule byderhand het, help dit, maar dit is nie nodig nie.",
     SAME_METHOD: "Dieselfde as voorheen, per {method}?",
     SLOTS_INTRO: "Hier is die volgende oop tye met {adviser_first}.",
+    ASK_DAY: "Watter dag sal jou pas vir jou oproep met {adviser_first}, en ongeveer hoe laat? Ek kry vir jou 'n tyd wat werk.",
     RESCHED_INTRO: "Geen probleem nie, hier is 'n paar ander tye.",
     CANCEL_CONFIRM_Q: "Wil jy hê ek moet jou oproep op {date} om {time} kanselleer?",
     CANCEL_DONE: "Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net.",

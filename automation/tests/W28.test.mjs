@@ -279,3 +279,23 @@ test('I-39k 10-slot list carries the W04/W07 delegate body in its one body; with
   assert.equal(af.interactive.body.text, `${LINES.af.SLOTS_INTRO.replace('{adviser_first}', 'Mark')} ${LINES.af.TZ}`);
   assert.equal(af.interactive.action.sections[0].rows.length, 10, 'still one interactive message with the list');
 });
+
+// Smoke test 21 Oct 2026 ("reported but not confirmed": W28 last resort sends an empty body). With no open times W28 handed W07
+// { lead_id, body: null, last_resort: true }; W07's sender drops an empty body, so the lead got nothing at all. W28 now writes
+// the "ask for a day" line (lines.mjs ASK_DAY, the lead's language), and W07 sends it as one session text.
+test('W28 last resort ("ask for a day"): a real text body reaches W07, which sends exactly one message', async () => {
+  const { runCode } = await import('./_n8ncode.mjs');
+  const { LINES, fill } = await import('../../conversation/lines.mjs');
+  const W07 = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const leadRow = (language) => ({ lead_id: 'L1', phone: '+27600000921', brand_id: 'b', opted_out_at: null, language, first_name: null, broker_id: 'B1', adviser_name: 'Mark Smith', adviser_first_name: 'Mark' });
+  for (const [language, w04] of [['en', { fallback: 'whatsapp', slots: [] }], ['af', { slots: [] }], [null, {}]]) {
+    const [out] = await runCode(WF, 'Build 10-slot list', { items: [w04], refs: { 'Load lead for list': leadRow(language), 'Called by W06/W07/W10/W22': { op: 'send_list', lead_id: 'L1' } } });
+    assert.equal(out.json.last_resort, true);
+    const want = fill(LINES[language === 'af' ? 'af' : 'en'].ASK_DAY, { adviser_first: 'Mark' });
+    assert.equal(out.json.body, want, String(language));
+    const sent = await runCode(W07, 'W28 last resort: build the message', { items: [{ id: 'L1', phone: '+27600000921', broker_id: 'B1' }], refs: { 'Sub-call from? (W03 forward / W05)': out.json } });
+    assert.equal(sent.length, 1, 'one message, never silence');
+    assert.equal(sent[0].json.wa.text.body, want);
+  }
+  assert.doesNotMatch(LINES.en.ASK_DAY, /calendar|system|error|free|AI\b/i, 'never mentions a calendar problem (standing rule)');
+});

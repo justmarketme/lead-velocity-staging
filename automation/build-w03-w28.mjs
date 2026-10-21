@@ -13,7 +13,7 @@ const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
-const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
+const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, ASK_DAY: L.ASK_DAY, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -458,7 +458,11 @@ const spread = (slots, n) => { const by = new Map(); for (const s of slots) { co
 const l = $('Load lead for list').first().json;
 const w04 = $input.first().json || {};
 let delegate = null; try { delegate = $('Called by W06/W07/W10/W22').first().json.delegate || null; } catch (e) { delegate = null; }   // I-39k
-if (w04.fallback || !(w04.slots || []).length) return [{ json: { lead_id: l.lead_id, body: null, last_resort: true } }];   // ladder step 4: W07 asks for a day
+// ladder step 4: W07 asks for a day. The body is the ASK_DAY line itself (21 Oct 2026: it was null and W07 sent nothing).
+if (w04.fallback || !(w04.slots || []).length) {
+  const AL = LINES[l.language === 'af' ? 'af' : 'en'];
+  return [{ json: { lead_id: l.lead_id, body: AL.ASK_DAY.replace('{adviser_first}', l.adviser_first_name || 'your adviser'), last_resort: true } }];
+}
 const body = EP.listFallback({ adviser_name: l.adviser_name, adviser_first_name: l.adviser_first_name }, w04.slots, spread, l.phone, { delegate, lead: { language: l.language, first_name: l.first_name }, lines: LINES });
 return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body, last_resort: false } }];`));
   n.push(ifTrue('Have slots?', [1100, 520], '={{ !$json.last_resort }}'));

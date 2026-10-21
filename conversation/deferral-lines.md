@@ -83,6 +83,7 @@ Budget amounts appear only in these fixed, tap-only lists (they are our qualifyi
 | Key | English | Afrikaans | When |
 |---|---|---|---|
 | `SLOTS_INTRO` | Here are the next open times with {adviser_first}. | Hier is die volgende oop tye met {adviser_first}. | reply.md fallback for send_slots/offer_slots; body of the W04 10-slot list (I-35e). |
+| `ASK_DAY` | Which day would suit you for your call with {adviser_first}, and roughly what time? I'll find you a time that works. | Watter dag sal jou pas vir jou oproep met {adviser_first}, en ongeveer hoe laat? Ek kry vir jou 'n tyd wat werk. | W28 last resort (booking-flow-endpoint.md ladder step 4): W04 returned no open times, so W07 sends this one session text instead of a list. Never says why (no calendar wording). Added 21 Oct 2026: before it W28 passed an empty body and the lead got nothing. |
 | `RESCHED_INTRO` | No problem, here are some other times. | Geen probleem nie, hier is 'n paar ander tye. | reply.md fallback for reschedule/reschedule_slots; body of the W10 list (+ SAME_METHOD buttons if stored). |
 | `CANCEL_CONFIRM_Q` | Do you want me to cancel your call on {date} at {time}? | Wil jy hê ek moet jou oproep op {date} om {time} kanselleer? | reply.md fallback for cancel_confirm; W10 buttons Yes, cancel / Keep it. |
 | `CANCEL_DONE` | Done, your call is cancelled. If you'd like another time later, just say. | Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net. | W10 after Yes, cancel. One rebook offer, button See open times. |
