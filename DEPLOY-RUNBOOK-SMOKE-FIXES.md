@@ -127,6 +127,7 @@ If several workflows must roll back, re-publish all of them first. Then, only if
   - W07 cancel-wait routing (#12 and review)
   - review: W08 restarted nudges always land before W10's 96 h C1A decision
   - review: typed cancel reasons are stored redacted
+  - #1 (lib/w05.mjs `decide`: a /start/ phone booking needs no email, also for a desktop web lead; booked at once, confirmed on WhatsApp; Teams unchanged). Post-check: `ssh -n emma-vps 'grep -c "isStartPageLead(lead)))" /opt/leadvelocity-n8n/repo/automation/lib/w05.mjs'` shows `1`.
 - **Command** (Git Bash, from `C:\tmp\lv-smoke-fixes`): `automation/emma-vps/deploy.sh fix/smc-smoke-2026-10-21`
 - **Pre-check:** `git -C /c/tmp/lv-smoke-fixes status --short` is clean (deploy.sh ships committed files only), and step 5 is done.
 - **Post-check:** `ssh -n emma-vps 'grep -c takesTypedReason /opt/leadvelocity-n8n/repo/automation/lib/w07.mjs; docker ps --format "{{.Names}} {{.Status}}" | grep lv-n8n-n8n'` shows `1` and `Up`. `curl -s -o /dev/null -w "%{http_code}\n" https://n8n.sortmycover.co.za/healthz` returns 200.
@@ -271,8 +272,8 @@ Deploy from `C:\tmp\lv-smoke-fixes`. Rollback means redeploying the same functio
 - **Rollback:** `npx vercel promote <previous production URL> --yes`. Record it before deploying; the last known one is `lead-velocity-staging-p6p8w96n3`.
 
 ### Step 21. Site sortmycover.co.za (`/start/` page)
-- **Fixes:** review of #11 and #3. A move or method change whose answer times out (the page allows 10 s) re-reads the booking. If the booking is already at the chosen time and method, the page shows the success screen instead of "Something went wrong". This covers W10 now waiting for W05's whole method change.
-- **Command:** in a checkout of the **current live site source** with commit `c7234e6` cherry-picked (the live site carries other site fixes; do not deploy this branch's `sites/` alone), run in `sites/sortmycover`: `npm run verify`, then `npm run pack -- smc-site.zip`. Upload it through the hPanel File Browser, `PATCH .../api/resources/public_html/smc-site.zip?action=unarchive&destination=/public_html&override=true` (retry on a 500), delete the zip, and flush the CDN (hPanel > Performance > CDN).
+- **Fixes:** #1 (commit `a31f635`: a refused booking or move shows a line, the server's message or a plain sentence for its code, never nothing; the dev mock books phone like W05). Review of #11 and #3. A move or method change whose answer times out (the page allows 10 s) re-reads the booking. If the booking is already at the chosen time and method, the page shows the success screen instead of "Something went wrong". This covers W10 now waiting for W05's whole method change.
+- **Command:** in a checkout of the **current live site source** with commits `c7234e6` and `a31f635` cherry-picked (the live site carries other site fixes; do not deploy this branch's `sites/` alone), run in `sites/sortmycover`: `npm run verify`, then `npm run pack -- smc-site.zip`. Upload it through the hPanel File Browser, `PATCH .../api/resources/public_html/smc-site.zip?action=unarchive&destination=/public_html&override=true` (retry on a 500), delete the zip, and flush the CDN (hPanel > Performance > CDN).
 - **Pre-check:** `npm run verify` is green in that checkout (437+ tests), and `npm run pack` prints the index hash.
 - **Post-check:** `node scripts/smoke-smc.mjs --expect-index <hash>` (repo root, read-only) passes. A move on /start/ with a synthetic booked lead shows "moved".
 - **Rollback:** re-upload the previous pack (Hostinger backup `site-backup-*` or the last zip), then flush the CDN.
