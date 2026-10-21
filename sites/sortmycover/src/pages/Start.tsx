@@ -40,6 +40,8 @@ type Screen =
   | { k: "moved" };
 
 const SHOW_ROWS = 8;
+/** history.state flag on the one guard entry (see "the phone's own Back" in StartFlow). */
+const BACK_GUARD = "smcBack";
 const EMAIL_ERR = "That address doesn't look complete. Could you check it and send it again?";
 const NUMBER_ERR = "Please enter a South African number, like 082 123 4567.";
 const WA = waLink(site.whatsapp_number);
@@ -430,6 +432,32 @@ function StartFlow() {
   let body: ReactNode;
   const backTo = step === "number" && moving ? "move" : step ? prevStep(step) : null;
   const backLink = step && backTo ? <button type="button" className="st-back" onClick={() => back(step)} disabled={busy}>‹ Back</button> : null;
+
+  /* ---------- the phone's own Back (Android Back, a swipe back) ----------
+     One history entry guards a step that shows "‹ Back" (email, number, income, topics), and the browser's Back runs the same
+     back(step), so prevStep stays the one rule. Leaving such a step for a screen without "‹ Back" (Booked, All set, age, time, Move
+     your call...) drops the guard again: Back never reaches a step before the booking, and from any other screen it leaves the
+     page as before. While a call is in flight (busy) the press is held (the guard goes straight back), so a booking is never cut off. */
+  const guarded = !!(step && backTo);
+  const dropping = useRef(false);
+  const pushGuard = () => history.pushState({ ...history.state, [BACK_GUARD]: 1 }, "");
+  useEffect(() => {
+    const has = !!history.state?.[BACK_GUARD];
+    if (guarded && !has) pushGuard();
+    else if (!guarded && has) { dropping.current = true; history.back(); }
+  }, [guarded, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onPop = useRef(() => {});
+  onPop.current = () => {
+    if (dropping.current) { dropping.current = false; if (guarded && !history.state?.[BACK_GUARD]) pushGuard(); return; }
+    if (!step || !backTo) return;
+    if (busy) pushGuard();
+    else back(step);
+  };
+  useEffect(() => {
+    const h = () => onPop.current();
+    window.addEventListener("popstate", h);
+    return () => window.removeEventListener("popstate", h);
+  }, []);
   const errorBox = (
     <div className="st-live" aria-live="polite">
       {err && <div className="st-error"><p>Something went wrong.</p><button type="button" className="st-retry" onClick={err.retry} disabled={busy}>Try again</button></div>}
