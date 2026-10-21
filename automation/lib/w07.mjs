@@ -144,6 +144,9 @@ export function convStatePatch(plan = {}, { disclosed_after = false, now_iso = n
   return p;
 }
 
+/** An inbound with nothing in it for Lindi: no text, tap, list row, media, Flow reply or ad referral (#34). */
+export const isEmptyInbound = (msg = {}) => !String(msg.text || '').trim() && !msg.payload && !msg.list_id && !msg.media && !msg.flow_response && !msg.referral;
+
 export function routeInbound(msg, ctx = {}) {
   const r = routeCore(msg, ctx);
   if (msg.origin === 'w03' && r.route === 'W03') {
@@ -178,6 +181,9 @@ function routeCore(msg, ctx) {
   // W15 decides (lib/w15.mjs followupOf): a stop_why:<code> reason is stored, stop_undo:changed_mind gets its one reply,
   // a typed CANCEL releases a kept booking; anything else is stored by nobody and answered by nobody.
   if (ctx.lead.opted_out_at) return { route: 'W15', reason: 'stop_followup' };
+  // Smoke test 21 Oct 2026 (#34): nothing to answer (blank text, a location share: no text, tap, media or Flow reply) -> no route
+  // matches, so the Route switch's fallback (the log-only no-op) takes it: no model call, no Start here card.
+  if (isEmptyInbound(msg)) return { route: 'ignore_empty', reason: 'no content (blank text or a location share)' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
   // 18 Oct 2026 (Jono): the email is confirmed by the link only. No code is offered any more, so a typed 6-digit number is

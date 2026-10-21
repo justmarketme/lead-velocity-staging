@@ -978,3 +978,33 @@ test('#18 receipt status only moves forward (pure rule + the W07 "Status receipt
   const sqlRule = (from, to) => { const m = new RegExp(`WHEN '${to}' THEN coalesce\\(status, 'pending'\\) IN \\(([^)]*)\\)`).exec(q); return !!m && m[1].split(',').map((s) => s.trim().replace(/'/g, '')).includes(from == null ? 'pending' : from); };
   for (const from of [null, 'pending', 'sent', 'delivered', 'read', 'failed', 'received']) for (const to of ['sent', 'delivered', 'read', 'failed']) assert.equal(sqlRule(from, to), may(from, to), `${from} -> ${to}`);
 });
+
+// Smoke test 21 Oct 2026 (#34): a blank message / a location share (Twilio: Body "" + Latitude/Longitude, NumMedia 0; exec
+// 11599) went to Lindi's model ("Hey, are you still there?") and then the Start here card again. No content -> nothing.
+test('#34 an inbound with no content (blank text, location share) never reaches Lindi: route ignore_empty -> the log-only branch', async () => {
+  const { normaliseTwilioInbound } = await import('../lib/wa-provider.mjs');
+  const lead = mkLead(L01, { conv_state: { state: 'start_page' } });
+  const c = { lead, broker_numbers: new Set(), ops_numbers: new Set(), has_live_booking: false };
+  const tw = (p) => normaliseTwilioInbound({ MessageSid: 'SMe1', From: 'whatsapp:+27600000921', To: 'whatsapp:+27600156480', NumMedia: '0', ...p })[0].msg;
+  const meta = (m) => W.normaliseInbound(wa(m))[0];
+  for (const [label, m] of [['twilio blank', tw({ Body: '' })], ['twilio spaces', tw({ Body: '   ' })], ['twilio location', tw({ Body: '', Latitude: '-26.1', Longitude: '28.0', MessageType: 'location' })],
+    ['meta location', meta({ type: 'location', location: { latitude: -26.1, longitude: 28.0 } })], ['meta blank text', meta({ type: 'text', text: { body: '' } })]]) {
+    for (const state of ['start_page', 'unbooked', 'booked', 'q_age']) {
+      const r = W.routeInbound(m, { ...c, lead: { ...lead, conv_state: { state } } });
+      assert.equal(r.route, 'ignore_empty', `${label} / ${state}: ${JSON.stringify(r)}`);
+    }
+  }
+  // the Route switch has no output for it: the fallback is the log-only no-op (no model, no Start here card, no never-silent)
+  const route = WF.nodes.find((n) => n.name === 'Route');
+  assert.equal(route.parameters.rules.values.some((v) => v.outputKey === 'ignore_empty'), false);
+  assert.equal(route.parameters.options.fallbackOutput, 'extra');
+  const fb = WF.connections.Route.main[route.parameters.rules.values.length].map((e) => e.node);
+  assert.deepEqual(fb, ['Paused / opted out: log only']);
+  assert.equal(WF.nodes.find((n) => n.name === fb[0]).type, 'n8n-nodes-base.noOp');
+  // anything with content still flows: a caption-less photo (media), a tap, a typed word, STOP; opted out -> W15; no lead -> W03
+  assert.equal(W.routeInbound(tw({ Body: '', NumMedia: '1', MediaContentType0: 'image/jpeg', MediaUrl0: 'https://api.twilio.com/x' }), c).route, 'nlu');
+  assert.equal(W.routeInbound(tw({ Body: 'hi' }), c).route, 'nlu');
+  assert.equal(W.routeInbound(tw({ Body: 'STOP' }), c).route, 'W15');
+  assert.equal(W.routeInbound(tw({ Body: '' }), { ...c, lead: { ...lead, opted_out_at: '2026-10-21T10:00:00Z' } }).route, 'W15');
+  assert.equal(W.routeInbound(tw({ Body: '' }), { ...c, lead: null }).route, 'W03');
+});
