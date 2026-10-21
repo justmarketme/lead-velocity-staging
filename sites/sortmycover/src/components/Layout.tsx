@@ -63,6 +63,35 @@ function Progress() {
   return <ReadProgress key={pathname} />;
 }
 
+/** Mobile menu: a native <details>, so it works without JavaScript. The header stays mounted across client-side navigation,
+    so the open state would survive a route change: close it on every route change, on a tap on any of its links (the current
+    page included), on Escape and on a tap outside it. */
+function MobileMenu() {
+  const menu = useRef<HTMLDetailsElement>(null);
+  const { pathname, hash } = useLocation();
+  const close = () => { if (menu.current) menu.current.open = false; };
+  useEffect(close, [pathname, hash]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !menu.current?.open) return;
+      close();
+      menu.current.querySelector("summary")?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (menu.current?.open && !menu.current.contains(e.target as Node)) close(); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, []);
+  return (
+    <details ref={menu} className="menu xl:hidden">
+      <summary aria-label="Menu">Menu</summary>
+      <nav aria-label="Main (mobile)" className="menu-panel">
+        {NAV.map(([t, p]) => <Link key={p} to={p} className="nav-link" onClick={close}>{t}</Link>)}
+      </nav>
+    </details>
+  );
+}
+
 export function Header() {
   const ctx = contextFor(useLocation().pathname);
   return (
@@ -75,13 +104,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           {/* one label element: the button's flex gap would otherwise split "Chat on" from "WhatsApp" */}
           <WhatsAppCta ctx={ctx} className="btn btn-sm"><span><span className="hidden sm:inline">Chat on&nbsp;</span>WhatsApp</span></WhatsAppCta>
-          {/* Mobile menu: native <details>, works without JavaScript */}
-          <details className="menu xl:hidden">
-            <summary aria-label="Menu">Menu</summary>
-            <nav aria-label="Main (mobile)" className="menu-panel">
-              {NAV.map(([t, p]) => <Link key={p} to={p} className="nav-link">{t}</Link>)}
-            </nav>
-          </details>
+          <MobileMenu />
         </div>
       </div>
     </header>
