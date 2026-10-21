@@ -219,6 +219,24 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*a%20will%20consultant[^"]*Ref%20w-book-will"/);
     expect(pages.some((p) => p.rel === "book/thanks/index.html")).toBe(false);
   });
+  it("every WhatsApp link carries the page's opener and Ref, content links included (21 Oct 2026: a bare wa.me link lost the source)", () => {
+    let n = 0;
+    for (const p of pages) for (const [, href] of p.html.matchAll(/href="(https:\/\/wa\.me\/[^"]*)"/g)) {
+      n++;
+      expect(href, p.rel).toMatch(/^https:\/\/wa\.me\/27600156480\?text=Hi%20Lindi[^"]*Ref%20[a-z0-9-]+/);
+    }
+    expect(n).toBeGreaterThan(100);
+    // the guides' "message SortMyCover on WhatsApp" link uses each guide's own ref, not one hard-coded opener
+    for (const [slug, ref] of [["life-cover-and-a-home-loan", "w-learn-bond"], ["income-protection-vs-disability-cover", "w-learn-income"], ["cover-for-business-owners-and-directors", "w-learn-owner"], ["questions-to-ask-a-financial-adviser", "w-learn-adviser"]]) {
+      const h = pages.find((p) => p.rel === `learn/${slug}/index.html`)!.html;
+      const link = /<a href="(https:\/\/wa\.me\/[^"]*)">\+27 60 015 6480<\/a>/.exec(h);
+      expect(link?.[1], slug).toMatch(/\?text=Hi%20Lindi/);
+      expect(link?.[1].endsWith(`Ref%20${ref}`), slug).toBe(true);
+    }
+    // home: "Questions? WhatsApp <number>" is a link that opens the chat (ref w-home), wording unchanged
+    const home = pages.find((p) => p.rel === "index.html")!.html;
+    expect(home).toMatch(/Questions\? (<!-- -->)?WhatsApp <a class="underline" href="https:\/\/wa\.me\/27600156480\?text=[^"]*Ref%20w-home">\+27 60 015 6480<\/a> or email/);
+  });
   it("privacy and terms are signed off (17 Oct 2026): no DRAFT mark, indexable; the PAIA placeholder stays DRAFT and noindex", () => {
     for (const r of ["privacy", "terms"]) {
       const h = pages.find((p) => p.rel === `${r}/index.html`)!.html;
