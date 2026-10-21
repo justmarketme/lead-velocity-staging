@@ -63,7 +63,7 @@ config/            site.json (n8n base, pixel id, identity, will_provider), cons
 src/routes.tsx     the single route table (router, pre-render, sitemap, tests)
 src/pages/         one file per page; Campaign.tsx is the one-page-one-goal template
 src/content/       meta/<slug>.ts + articles/<slug>.ts (two files per article), glossary.ts, hubs, legal/*.html (ported privacy and terms text)
-src/components/    Layout, Footer (identity block), Quiz, Booking, Interactive (Motion components), ui/button.tsx
+src/components/    Layout, Footer (FOOTER-v3 line + Legal & disclosures link; full identity on /legal/), Quiz, Booking, Interactive (Motion components), ui/button.tsx
 src/lib/           pixel.ts (opt-in Meta Pixel), api.ts (n8n client), quiz.ts (pure logic), head.tsx, jsonld.ts, motion.ts
 src/build/         redirects.ts, seo.ts (sitemap, robots), hosts.ts (vercel.json + .htaccess generators), wording.ts (compliance scan)
 vercel.json        GENERATED. hostinger/.htaccess GENERATED. (npm run build rewrites them; tests fail on drift.)
@@ -89,7 +89,7 @@ Host label = angle slug = n8n `angle` = file `/_c/<slug>/`. `config/angles.json`
 
 ## Motion
 
-Free MIT `motion` 14.1.0, pinned. Code-split: only routes that use it download it (static legal pages do not; `Layout` loads it on demand and skips privacy, terms and PAIA). No `animateView`, no `animateLayout` (28 KB brotli, and a layout engine we do not need), and none of the paid Motion+ pieces. Every effect is skipped under `prefers-reduced-motion` and leaves content fully visible; only opacity and transform change (no layout shift); no exit animation is longer than 90 ms; nothing loops.
+Free MIT `motion` 14.1.0, pinned. Code-split: only routes that use it download it (static legal pages do not; `Layout` loads it on demand and skips privacy, terms, PAIA and Legal & disclosures: `NO_MOTION` in `src/lib/motion.ts`). No `animateView`, no `animateLayout` (28 KB brotli, and a layout engine we do not need), and none of the paid Motion+ pieces. Every effect is skipped under `prefers-reduced-motion` and leaves content fully visible; only opacity and transform change (no layout shift); no exit animation is longer than 90 ms; nothing loops.
 
 | # | Interaction | Where | Motion API |
 |---|---|---|---|
@@ -97,17 +97,18 @@ Free MIT `motion` 14.1.0, pinned. Code-split: only routes that use it download i
 | 2 | Connector line that draws while you scroll (vertical on phones, horizontal from 768px) | the three steps | `scroll` with `target` and `offset` |
 | 3 | Reading-progress bar on articles | `ArticlePage` | `scroll` |
 | 4 | Subtle hero parallax (transform only) and a diary that fills in, with the tick drawn by SVG `pathLength` | Home hero (decorative, `aria-hidden`, plays once) | `scroll`, `animate`, `stagger` |
-| 5 | Spring hover and press feedback on buttons and cards | everywhere except legal pages | `spring` (sampled into a CSS `linear()` easing so the small mini `animate` plays it), `hover`, `press` |
+| 5 | Spring hover and press feedback on buttons and cards | everywhere except legal pages | `animate` (mini) with `type: spring` (a hand-sampled `linear()` string passed as `ease` was silently dropped by mini animate until 21 Oct 2026; `tests/spring-fix.test.ts`), `hover`, `press` |
 | 6 | Quiz: step slide-in, short exit, animated progress bar, option pulse, validation shake | `Quiz` | `useAnimate` from `motion/react-mini`, `animate` |
 | 7 | Smooth FAQ accordion on native `<details>` (answers stay in the HTML) | FAQ, campaign FAQ | `animate` (height) |
 | 8 | Sticky "Book my adviser call" bar, appearing once you are past the hero and hiding at the footer | apex pages except book and legal | `inView` (sentinel), `spring`, `animate` |
 | 9 | Glossary filter | Glossary | none (state only; `hidden`) |
+| 10 | Footer: a yellow hairline draws in and the brand column and link groups settle up 18px once per visit (only when the footer starts below the fold; never the legal row or a disclosure); CSS underline wipe on links; phone groups glide open with a spring chevron; magnetic WhatsApp button on a mouse | apex footer (not legal pages, not campaign footers) | `inView` (arm + play), `animate` (mini, `type: spring`), `stagger`; `footerMotion` in `pageMotion.ts`, `footerGroupToggle` in `motion.ts` |
 
 Verified in Chrome at 390 and 1280 wide, with and without reduced motion (see "Checks run").
 
 ## Compliance behaviour built in
 
-Footer identity block on every page including campaign hosts; "not a financial services provider" line; flat-fee explanation scoped to SortMyCover; CTA "Book my adviser call"; cost line "The call costs you nothing."; no ratings, testimonials, counters, "2 to 4x salary" or price anywhere; consent unticked, with the 18+ statement inside it; ad-measurement consent separate, optional and unticked, Pixel inert until given, opt-out cookie on `.sortmycover.co.za`, Global Privacy Control respected; out-of-band answers exit client-side with nothing sent or saved; no output computed from answers. The wording scan in `src/build/wording.ts` runs over every rendered page and fails the build tests on "free", "best", "independent", "we check/sort/review/arrange/match", "you should" and similar.
+Every footer (apex and campaign hosts) carries FOOTER-v3, "SortMyCover is not a financial services provider and gives no financial advice.", and links Legal & disclosures (`/legal/`), which holds the full company identity (ECT Act s43; S31 restated 21 Oct 2026, see docs/SPEC-RECONCILIATION.md). The identity sentence "It is a trading name of Lead Velocity (Pty) Ltd." is off by Jono's decision and returns with `company.footer_identity: true`; flat-fee explanation scoped to SortMyCover; CTA "Book my adviser call"; cost line "The call costs you nothing."; no ratings, testimonials, counters, "2 to 4x salary" or price anywhere; consent unticked, with the 18+ statement inside it; ad-measurement consent separate, optional and unticked, Pixel inert until given, opt-out cookie on `.sortmycover.co.za`, Global Privacy Control respected; out-of-band answers exit client-side with nothing sent or saved; no output computed from answers. The wording scan in `src/build/wording.ts` runs over every rendered page and fails the build tests on "free", "best", "independent", "we check/sort/review/arrange/match", "you should" and similar.
 
 ## Checks run (10 Oct 2026)
 
@@ -160,7 +161,7 @@ JS + CSS downloaded per route (gzip): `/` 87.9 KB, `/book/` 90.5 KB, `/how-it-wo
 - `config/site.json` still has `env: "staging"`, empty `pixel_id`, `domain_verification`, `turnstile_sitekey`, `whatsapp_number`. The thank-you pages say "from the SortMyCover WhatsApp number" until `whatsapp_number` is set.
 - n8n: accept the contract differences above; list CORS origins; make W01 respect `consent_ads`; the no-JS 303 targets.
 - Privacy, Terms and PAIA are ported with compliance edits but remain DRAFT and `noindex`. The PAIA manual itself does not exist (the page is a placeholder with the Information Officer route). Remove the DRAFT notes and flip `indexable` in `src/routes.tsx` after sign-off.
-- Directors' names are not in the footer (rule S31 asks for them; none are in the repo to copy, and none are invented).
+- Directors' names are not on `/legal/` yet: `company.directors` is empty (none are in the repo to copy, and none are invented). The Directors row is hidden while the list is empty, the staging build prints a warning and a production build fails. Owner Jono: done when `/legal/` lists the directors exactly as on the CIPC record.
 - `public/og-image.png` and the manifest tagline come from the holding site and carry "Sort your cover. 30 minutes. A real adviser." Replace the image; the manifest description was left unchanged.
 - Wave 2 and 3 articles (17 titles) are not written. The Learn index and the four hub pages exist; they list only published articles.
 - No reviewer on any article (none verified), no testimonials, no counters, no `sameAs` profiles.
