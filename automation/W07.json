@@ -2145,6 +2145,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "w28_last_resort",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "f1",
+                    "leftValue": "={{ String($json.last_resort === true) }}",
+                    "rightValue": "true",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -3425,6 +3447,66 @@
         220,
         760
       ]
+    },
+    {
+      "id": "w07-w28-lr-load",
+      "name": "W28 last resort: load lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false,
+      "position": [
+        1580,
+        1560
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id, l.phone, l.brand_id, l.broker_id FROM public.leads l WHERE l.id = $1::uuid AND l.opted_out_at IS NULL AND l.phone IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id || '00000000-0000-0000-0000-000000000000'] }}"
+        }
+      }
+    },
+    {
+      "id": "w07-w28-lr-build",
+      "name": "W28 last resort: build the message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One session text per lead; the body is W28's own \"ask for a day\" text. No lead / opted out -> nothing (load returned no row).\nconst src = $('Sub-call from? (W03 forward / W05)').all();\nreturn $input.all().filter((it) => it.json && it.json.id).map((it, i) => {\n  const s = (src.find((x) => x.json.lead_id === it.json.id) || src[0]).json;\n  const to = String(it.json.phone).replace(/\\D/g, '');\n  const body = String(s.body || '').slice(0, 1000);\n  return { json: { kind: 'prebuilt', wa: { messaging_product: 'whatsapp', to, type: 'text', text: { body } }, to, record: true, caller: 'W07',\n    bypass_suppression: false, phone_number_id: null, lead_id: it.json.id, broker_id: it.json.broker_id || null,\n    correlation: 'W07:w28_last_resort:' + it.json.id + ':' + body.length } };\n}).filter((x) => x.json.wa.text.body);"
+      }
+    },
+    {
+      "id": "w07-w28-lr-send",
+      "name": "W28 last resort: send (smc-whatsapp-send)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2100,
+        1560
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
     }
   ],
   "connections": {
@@ -4183,6 +4265,13 @@
         ],
         [
           {
+            "node": "W28 last resort: load lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Contact start (call methods only)",
             "type": "main",
             "index": 0
@@ -4841,6 +4930,28 @@
         [
           {
             "node": "Live send? (alert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W28 last resort: load lead": {
+      "main": [
+        [
+          {
+            "node": "W28 last resort: build the message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W28 last resort: build the message": {
+      "main": [
+        [
+          {
+            "node": "W28 last resort: send (smc-whatsapp-send)",
             "type": "main",
             "index": 0
           }

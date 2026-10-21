@@ -134,3 +134,20 @@ test('21 Oct 2026: distress or "a person" from a number with no lead -> handoff_
   assert.deepEqual(W07.connections[target].main[0].map((e) => e.node), ['Live send? (alert)'], 'only the ops alert, never a reply or the never-silent fallback');
   assert.match(W07.nodes.find((n) => n.name === target).parameters.jsCode, /ops_alert/);
 });
+
+test('21 Oct 2026: W28 last resort ({lead_id, body, last_resort}) is its own sub-call route -> load lead -> one session text via smc-whatsapp-send', async () => {
+  const sub = W07.nodes.find((n) => n.name === 'Sub-call from? (W03 forward / W05)');
+  const keys = sub.parameters.rules.values.map((r) => r.outputKey);
+  assert.deepEqual(keys, ['w03_forward', 'w28_last_resort']);
+  const outs = W07.connections['Sub-call from? (W03 forward / W05)'].main;
+  assert.equal(outs.length, keys.length + 1, 'rules + fallback');
+  assert.deepEqual(outs[1].map((e) => e.node), ['W28 last resort: load lead']);
+  assert.deepEqual(outs[2].map((e) => e.node), ['Contact start (call methods only)'], 'the W05 contact path is still the fallback');
+  assert.match(W07.nodes.find((n) => n.name === 'W28 last resort: load lead').parameters.query, /opted_out_at IS NULL/);
+  assert.equal(W07.connections['W28 last resort: build the message'].main[0][0].node, 'W28 last resort: send (smc-whatsapp-send)');
+  const items = await runCode(W07, 'W28 last resort: build the message', { items: [{ id: 'L1', phone: '+27820000001', broker_id: 'B1' }],
+    refs: { 'Sub-call from? (W03 forward / W05)': { lead_id: 'L1', body: 'Which day suits you?', last_resort: true } } });
+  assert.equal(items.length, 1);
+  assert.deepEqual(items[0].json.wa, { messaging_product: 'whatsapp', to: '27820000001', type: 'text', text: { body: 'Which day suits you?' } });
+  assert.equal(items[0].json.record, true);
+});
