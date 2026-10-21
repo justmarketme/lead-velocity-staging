@@ -9,11 +9,16 @@
 //   POST ?agent=smc → only the SortMyCover receptionist: find-or-create the agent by
 //          name, upsert its smc-voice tools + website knowledge base, PATCH prompt,
 //          voice, LLM, data collection, evaluation and its post-call webhook.
+//   GET|POST ?agent=smc-chat → DRY RUN ONLY: reads Lindi's WhatsApp twin (smc-lindi-chat's agent) and returns how it
+//          differs from the config in code (prompt, LLM, knowledge base, data collection, evaluations, overrides).
+//          Changes nothing at ElevenLabs.
 //
 //   curl -X POST -H "Authorization: Bearer $SERVICE_ROLE_JWT" \
 //     https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/sync-voice-agents
 import { AYANDA_FIRST_MESSAGE, AYANDA_PROMPT } from "../_shared/ayanda_persona.ts";
-import { SMC_AGENT_NAME, SMC_FIRST_MESSAGE, SMC_PROMPT } from "../_shared/smc_receptionist_persona.ts";
+import {
+  SMC_AGENT_NAME, SMC_CHAT_AGENT_ID, SMC_CHAT_AGENT_NAME, SMC_CHAT_BASE_PROMPT, SMC_FIRST_MESSAGE, SMC_PROMPT,
+} from "../_shared/smc_receptionist_persona.ts";
 
 const EL = "https://api.elevenlabs.io/v1/convai";
 const EINSTEIN_AGENT_ID = "agent_2501m4s6nhfveywrvw9961va7sp3";
@@ -294,11 +299,14 @@ const SMC_DATA_COLLECTION: Record<string, { type: string; description: string }>
   call_notes: { type: "string", description: "2-4 short factual notes for the adviser/team: what they want, their situation as stated, preferred times or method, anything to follow up. No health, ID or banking details." },
 };
 
-const SMC_EVALUATION = [
+export const SMC_EVALUATION = [
   { id: "no_advice", name: "No financial advice", type: "prompt",
     conversation_goal_prompt: "Success if the agent never gave financial, insurance, tax or legal advice, never recommended, ranked or compared products or insurers, and never quoted or estimated premiums or cover amounts; and, when asked for any of that, declined and offered the 30-minute adviser call. Failure otherwise." },
   { id: "disclosures", name: "Opening disclosures", type: "prompt",
-    conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover, that the call is recorded and transcribed, and (on inbound calls) that it gives no financial advice and books calls with authorised advisers." },
+    conversation_goal_prompt: "Success if the agent's opening said it is SortMyCover and that the call is recorded and transcribed, and, on an inbound call only, also that it gives no financial advice and sets up calls with authorised advisers. " +
+      "How to tell a callback (we are returning the caller's missed call): the agent's first message says it is returning their call, for example \"We noticed we missed your call, so I'm just returning it\" or \"returning your call\", or the call_type is callback. " +
+      "On a callback the no-advice line is not required: SortMyCover and the recorded-and-transcribed line are enough. " +
+      "If the caller spoke over the opening, the same lines said at the start of the agent's next turn count. Failure otherwise." },
   { id: "next_step", name: "Clear next step", type: "prompt",
     conversation_goal_prompt: "Success if the caller ended with a clear next step: a WhatsApp from SortMyCover; or, if they said no to WhatsApp, a call-back from the SortMyCover team on a confirmed number (never presented as the adviser calling); or (declined both) a kind explanation with the website. Failure if the call ended with no next step while the caller wanted help." },
   { id: "callback_consent_first", name: "Call-back offered once, only after a no to WhatsApp", type: "prompt",
@@ -407,6 +415,77 @@ async function syncSmc(refreshKb = false) {
   };
 }
 
+// ------------------------------------------------------------------ Lindi on WhatsApp (text-only twin): dry-run drift check
+
+/** What the twin should hold. Each W07 turn is its own one-message session with the full prompt as an override, so per-session
+ *  data collection and the phone-call evaluations only produce false "failure" scores: both are empty on purpose. */
+export function smcChatDesired() {
+  return {
+    name: SMC_CHAT_AGENT_NAME,
+    first_message: "",
+    prompt: SMC_CHAT_BASE_PROMPT,
+    llm: SMC_LLM,
+    text_only: true,
+    knowledge_base: SMC_KB_URLS.map((url) => `SMC ${url.replace("https://sortmycover.co.za/", "/")}`),
+    data_collection: [] as string[],
+    evaluation: [] as string[],
+    // smc-lindi-chat overrides these three on every turn, so the agent must allow them.
+    overrides: { prompt: true, first_message: true, text_only: true },
+  };
+}
+
+/** The slice of a live agent that smcChatDiff reads. */
+interface ElChatAgent {
+  name?: string;
+  conversation_config?: {
+    agent?: { first_message?: string; prompt?: { prompt?: string; llm?: string; knowledge_base?: { name?: string }[] } };
+    conversation?: { text_only?: boolean };
+  };
+  platform_settings?: {
+    data_collection?: Record<string, unknown>;
+    evaluation?: { criteria?: { id?: string }[] };
+    overrides?: { conversation_config_override?: { agent?: { prompt?: { prompt?: boolean }; first_message?: boolean }; conversation?: { text_only?: boolean } } };
+  };
+}
+
+type Drift = { field: string; live: unknown; desired: unknown };
+
+const sortedKeys = (o: unknown): unknown =>
+  Array.isArray(o) ? o.map(sortedKeys)
+  : o && typeof o === "object" ? Object.fromEntries(Object.keys(o).sort().map((k) => [k, sortedKeys((o as Record<string, unknown>)[k])]))
+  : o;
+const same = (a: unknown, b: unknown) => JSON.stringify(sortedKeys(a)) === JSON.stringify(sortedKeys(b));
+
+/** Field-by-field difference between the live twin and smcChatDesired(); [] when in sync. Read-only. */
+export function smcChatDiff(live: ElChatAgent, desired = smcChatDesired()): Drift[] {
+  const a = live.conversation_config?.agent ?? {};
+  const ps = live.platform_settings ?? {};
+  const out: Drift[] = [];
+  const check = (field: string, l: unknown, d: unknown) => { if (!same(l, d)) out.push({ field, live: l, desired: d }); };
+  check("name", live.name ?? null, desired.name);
+  check("first_message", a.first_message ?? "", desired.first_message);
+  if ((a.prompt?.prompt ?? "") !== desired.prompt) {
+    out.push({ field: "prompt", live: String(a.prompt?.prompt ?? "").slice(0, 200), desired: desired.prompt.slice(0, 200) });
+  }
+  check("llm", a.prompt?.llm ?? null, desired.llm);
+  check("text_only", live.conversation_config?.conversation?.text_only ?? false, desired.text_only);
+  const kb = (a.prompt?.knowledge_base ?? []).map((d) => String(d.name ?? ""));
+  const missing = desired.knowledge_base.filter((n) => !kb.includes(n));
+  const extra = kb.filter((n) => !desired.knowledge_base.includes(n));
+  if (missing.length || extra.length) out.push({ field: "knowledge_base", live: { count: kb.length, extra }, desired: { count: desired.knowledge_base.length, missing } });
+  check("data_collection", Object.keys(ps.data_collection ?? {}).sort(), desired.data_collection);
+  check("evaluation", (ps.evaluation?.criteria ?? []).map((c) => c.id ?? null), desired.evaluation);
+  const o = ps.overrides?.conversation_config_override;
+  check("overrides", { prompt: o?.agent?.prompt?.prompt === true, first_message: o?.agent?.first_message === true, text_only: o?.conversation?.text_only === true }, desired.overrides);
+  return out;
+}
+
+async function smcChatDryRun() {
+  const live = await el(`/agents/${SMC_CHAT_AGENT_ID}`);
+  const diff = smcChatDiff(live);
+  return { agent_id: SMC_CHAT_AGENT_ID, dry_run: true, in_sync: diff.length === 0, diff, changed: "nothing (dry run)" };
+}
+
 function isServiceRole(req: Request): boolean {
   const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   try {
@@ -417,9 +496,11 @@ function isServiceRole(req: Request): boolean {
   }
 }
 
-Deno.serve(async (req) => {
+if (import.meta.main) Deno.serve(async (req) => {
   if (!isServiceRole(req)) return new Response("forbidden", { status: 403 });
   try {
+    // ?agent=smc-chat → the WhatsApp twin, dry run only (GET or POST): never PATCHes.
+    if (new URL(req.url).searchParams.get("agent") === "smc-chat") return Response.json(await smcChatDryRun());
     // ?el=/convai/... → raw ElevenLabs v1 passthrough (admin tooling: voice library search,
     // simulate-conversation tests, workspace settings, voice design and sample renders). The key never leaves
     // this function. Binary-safe: audio comes back byte for byte with ElevenLabs' own content type.

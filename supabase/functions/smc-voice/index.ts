@@ -33,6 +33,8 @@ const START_HERE_SID = "HXd261ab8c34bc33734af725679ec0b825"; // smc_start_here (
 const QUALIFY_BUDGET_SID = "HX5a0030506140a58a86e8611f15a5af64"; // smc_qualify_budget (approved UTILITY)
 const BUDGET_TAP_IDS = ["budget_under_500", "budget_500_750", "budget_750_1250", "budget_1250_1499", "budget_1500_plus"];
 const WORKFLOW = "smc-voice";
+// lead_optins.consent_version for a WhatsApp yes given on a call (the words asked are SMC_WHATSAPP_CONSENT_ASK).
+const VOICE_WHATSAPP_CONSENT_VERSION = "CONSENT-VOICE-WHATSAPP-v1";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const json = (body: unknown, status = 200) =>
@@ -40,6 +42,12 @@ const json = (body: unknown, status = 200) =>
 const fail = (error: string, say: string, extra: Record<string, unknown> = {}) => json({ ok: false, error, say, ...extra });
 const xml = (body: string) => new Response(`<?xml version="1.0" encoding="UTF-8"?>${body}`, { headers: { "Content-Type": "text/xml" } });
 const SORRY = "<Response><Say>Sorry, SortMyCover can't take your call right now. We'll call you back shortly, or you can WhatsApp us on this number.</Say><Hangup/></Response>";
+
+/** Work that must finish but must not hold up the response (Supabase Edge Runtime keeps the worker alive for it). */
+function background(work: Promise<unknown>) {
+  const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  rt?.waitUntil?.(work);
+}
 
 // This function is deployed with verify_jwt = false (Twilio and ElevenLabs can't send a Supabase JWT), so the
 // gateway never checks a signature, and reading "role" out of an unverified JWT payload is forgeable. Admin
@@ -281,12 +289,16 @@ async function twiml(req: Request, db: SupabaseClient) {
   } catch (e) {
     console.error("smc-voice twiml:", e);
     if (!isCallback) {
+      // The sorry message goes back first: register-call can already have used 11 s of Twilio's 15 s webhook limit, so the
+      // call record and the callback are written after the response (one live /twiml took 13.2 s when they were awaited).
       const phone = normalizeZaPhone(caller);
-      await upsertCallRecord(db, p.CallSid, {
-        direction: "inbound", sender_type: "client", recipient_type: "system", author: "lead", recipient_contact: phone ?? caller ?? "unknown",
-        status: "failed", failed_reason: String(e).slice(0, 300), content: "Call could not be connected to the voice agent.",
-      }, { call_sid: p.CallSid, missed: true, outcome: "missed", tags: { brand: "sortmycover", source: "voice", outcome: "missed" }, started_at: new Date().toISOString() });
-      await scheduleCallback(db, caller, p.CallSid, "agent_unavailable");
+      background((async () => {
+        await upsertCallRecord(db, p.CallSid, {
+          direction: "inbound", sender_type: "client", recipient_type: "system", author: "lead", recipient_contact: phone ?? caller ?? "unknown",
+          status: "failed", failed_reason: String(e).slice(0, 300), content: "Call could not be connected to the voice agent.",
+        }, { call_sid: p.CallSid, missed: true, outcome: "missed", tags: { brand: "sortmycover", source: "voice", outcome: "missed" }, started_at: new Date().toISOString() });
+        await scheduleCallback(db, caller, p.CallSid, "agent_unavailable");
+      })().catch((err) => console.error("smc-voice twiml: missed-call record:", err)));
     }
     return xml(SORRY);
   }
@@ -311,7 +323,7 @@ async function amd(req: Request, db: SupabaseClient) {
     if (!res.ok) console.error("smc-voice amd hangup:", res.status, (await res.text()).slice(0, 200));
     else await res.body?.cancel();
   }
-  return new Response("", { status: 204 });
+  return new Response(null, { status: 204 }); // a 204 must have a null body: "" throws in Deno (500 on every verdict)
 }
 
 async function status(req: Request, db: SupabaseClient) {
@@ -541,6 +553,14 @@ async function sendWhatsappFollowup(p: Record<string, unknown>, db: SupabaseClie
       whatsapp_consent: { given: true, at: consentAt, source: "voice_call", wording: SMC_WHATSAPP_CONSENT_ASK } },
   });
   if (lead) {
+    // Opt-in provenance (append-only, one row per consent): the CRM's Opt-ins panel reads lead_optins, not conv_state.
+    // channel 'voice_call' needs migration 20261021120000_lead_optins_voice_call.sql; until then the insert is refused
+    // and only logged, and the consent stays recorded on the communications row and conv_state as before.
+    const { error: optinError } = await db.from("lead_optins").insert({
+      lead_id: lead.id, brand_id: SMC_BRAND_ID, channel: "voice_call", consent_version: VOICE_WHATSAPP_CONSENT_VERSION,
+      consent_text: SMC_WHATSAPP_CONSENT_ASK, received_at: consentAt, recorded_by: "smc-voice",
+    });
+    if (optinError) console.error("lead_optins voice_call:", optinError.message);
     const cs = await convState(db, lead.id);
     // Only on a real send: a failed Start here card must not start W08 nudges about a link they never got.
     await db.from("leads").update({ conv_state: { ...cs, ...(startToken && sid && !test ? { state: "start_page" } : {}), whatsapp_consent: { given: true, at: consentAt, source: "voice_call", conversation_id: conv } } }).eq("id", lead.id);
@@ -736,12 +756,12 @@ async function postCall(req: Request, db: SupabaseClient) {
 
 // ------------------------------------------------------------------------------------------- router
 
-Deno.serve(async (req) => {
+/** The router. `db` is injectable for the Deno tests; the deployed function always uses the service-role client. */
+export async function handle(req: Request, db: SupabaseClient = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"))): Promise<Response> {
   const parts = new URL(req.url).pathname.split("/").filter(Boolean);
   const at = parts.indexOf("smc-voice");
   const route = parts.slice(at + 1);
   if (route[0] !== "recording" && req.method !== "POST") return json({ error: "POST only" }, 405);
-  const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
   try {
     switch (route[0]) {
       case "recording": return await recording(req);
@@ -812,4 +832,6 @@ Deno.serve(async (req) => {
     if (route[0] === "tools") return fail("internal", "Don't mention any problem. Tell them the SortMyCover team will be in touch on this number, and close warmly.");
     return json({ error: "internal" }, 500);
   }
-});
+}
+
+if (import.meta.main) Deno.serve((req) => handle(req));

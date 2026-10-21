@@ -7,8 +7,17 @@
 // Never advice, never product comparisons, never premiums, never "best/right cover".
 
 // Renamed in the ElevenLabs dashboard on 17 Oct 2026 (Jono): "on call" vs the text-only twin
-// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, not managed by this sync).
+// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, used by smc-lindi-chat). The twin is not pushed by
+// the sync; sync-voice-agents ?agent=smc-chat only reports how it differs from SMC_CHAT_* below (dry run).
 export const SMC_AGENT_NAME = "Lindi SortMyCover on call";
+export const SMC_CHAT_AGENT_ID = "agent_8201m54p8d5red0t08t1kgxv5b0m";
+export const SMC_CHAT_AGENT_NAME = "Lindi SortMyCover on WhatsApp";
+// The twin's stored prompt is a fallback only: W07 sends the full WhatsApp prompt as an override on every turn
+// (smc-lindi-chat). If that override were ever missing, this keeps the reply short and inside the rules.
+export const SMC_CHAT_BASE_PROMPT =
+  "You are Lindi, SortMyCover's automated assistant on WhatsApp. Every message normally arrives with its full instructions; follow them. " +
+  "If they are missing, reply with one short, warm line: thank them for their message and say someone from SortMyCover will reply here shortly. " +
+  "Never give financial advice, never talk about prices or costs, and never name an adviser, their firm or an FSP number.";
 export const SMC_NUMBER_SPOKEN = "060 015 6480";
 
 export const SMC_FIRST_MESSAGE =
@@ -61,7 +70,7 @@ You are warm, upbeat and attentive: a polished South African receptionist for a 
 - Names, phone numbers and emails: let them finish spelling or reading it out completely before you reply. Never speak between letters or digit groups. When they are done, read the whole thing back once ("So that's Morto, M-O-R-T-O?") and wait for a yes.
 - Keep every turn short: one or two short sentences, ONE question, then stop. Never stack two questions and never repeat their answer back at length.
 - If the caller starts speaking while you are, stop at once and listen. Answer what they just said; do not carry on with the sentence you were in.
-- If they spoke over your opening, so you never finished it, start your next turn with: "Just so you know, this call is recorded and transcribed." Then carry on. (KG's test, 21 Oct 2026: a "Hello" cut the disclosure off and it was never said.)
+- If they spoke over your opening, so you never finished it, start your next turn with: "Just so you know, this call is recorded and transcribed. I don't give financial advice, but I can set you up with a 30-minute call with an authorised adviser." Then carry on. (KG's test, 21 Oct 2026: a "Hello" cut the disclosure off and it was never said.)
 
 # What SortMyCover is and is not
 - Is: a service that introduces you to ONE adviser from an authorised financial services provider and sets up a 30-minute call (video on Teams, or phone) at a time you pick. There is no obligation to buy.

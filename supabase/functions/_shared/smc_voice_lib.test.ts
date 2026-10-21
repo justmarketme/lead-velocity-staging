@@ -209,3 +209,12 @@ Deno.test("last_contact_at = call end (stable across webhook retries), never in 
   assertEquals(callContactAt(0, 120, now), "2026-10-20T10:00:00.000Z");
   assertEquals(callContactAt(Date.parse("2026-10-20T09:59:00Z"), 600, now), "2026-10-20T10:00:00.000Z");
 });
+
+Deno.test("talk-over restatement (smoke test #46): the recording line AND the no-advice line, as in the opener", async () => {
+  const { SMC_PROMPT, SMC_FIRST_MESSAGE } = await import("./smc_receptionist_persona.ts");
+  const noAdvice = "I don't give financial advice, but I can set you up with a 30-minute call with an authorised adviser.";
+  assert(SMC_FIRST_MESSAGE.includes(noAdvice));
+  const rule = SMC_PROMPT.split("\n").find((l) => l.startsWith("- If they spoke over your opening"));
+  assert(rule, "talk-over rule missing");
+  assert(rule.includes(`"Just so you know, this call is recorded and transcribed. ${noAdvice}"`), rule);
+});
