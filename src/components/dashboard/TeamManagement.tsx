@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { TIERS, ALL_PLANS, planByName, zar } from "@/lib/pricing";
 import { supabase } from "@/integrations/supabase/client";
-import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   Card,
   CardContent,
@@ -41,6 +40,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { BrokerWithQuota } from "@/types/groupA-broker";
 import { getErrorMessage } from "@/lib/groupA-errors";
+import { newBrokerRow, quotaPercent } from "@/lib/teamBroker";
 import {
   Dialog,
   DialogContent,
@@ -65,7 +65,6 @@ const TeamManagement = () => {
     tier: TIERS[0].name,
     portalType: "Lead Growth", // New: Distinguish between generating leads vs dialing their book
     isLeadLoading: true,
-    leadQuota: TIERS[0].committed_leads,
     tempPassword: "",
   });
 
@@ -124,17 +123,7 @@ const TeamManagement = () => {
       if (authData.user) {
         const { error: brokerError } = await supabase
           .from("brokers")
-          .insert({
-            user_id: authData.user.id,
-            firm_name: formData.firmName,
-            contact_person: formData.contactPerson,
-            email: formData.email,
-            tier: formData.tier,
-            portal_type: formData.portalType, // Map to new field
-            is_lead_loading: formData.isLeadLoading,
-            lead_quota: formData.leadQuota,
-            status: 'Active'
-          } as TablesInsert<'brokers'>); // lead_quota is not in the generated types (see report)
+          .insert(newBrokerRow(formData, authData.user.id));
 
         if (brokerError) throw brokerError;
 
@@ -252,7 +241,10 @@ const TeamManagement = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredBrokers.map((broker) => (
+                  {filteredBrokers.map((broker) => {
+                    const quota = broker.lead_quota ?? planByName(broker.tier ?? "")?.committed_leads ?? 0;
+                    const pct = quotaPercent(broker.leads_used, quota);
+                    return (
                     <tr key={broker.id} className="hover:bg-white/5 transition-colors group">
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
@@ -280,13 +272,13 @@ const TeamManagement = () => {
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1.5 w-32">
                           <div className="flex justify-between text-[10px] font-bold text-slate-400">
-                            <span>{broker.leads_used || 0} / {broker.lead_quota}</span>
-                            <span>{Math.round(((broker.leads_used || 0) / broker.lead_quota) * 100)}%</span>
+                            <span>{broker.leads_used || 0} / {quota}</span>
+                            <span>{pct}%</span>
                           </div>
                           <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-primary"
-                              style={{ width: `${Math.min(100, ((broker.leads_used || 0) / broker.lead_quota) * 100)}%` }}
+                              style={{ width: `${pct}%` }}
                             />
                           </div>
                         </div>
@@ -297,7 +289,8 @@ const TeamManagement = () => {
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -345,10 +338,7 @@ const TeamManagement = () => {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase text-slate-500">Service Tier</Label>
-                <Select value={formData.tier} onValueChange={v => {
-                  const quota = planByName(v)?.committed_leads ?? formData.leadQuota;
-                  setFormData({ ...formData, tier: v, leadQuota: quota });
-                }}>
+                <Select value={formData.tier} onValueChange={v => setFormData({ ...formData, tier: v })}>
                   <SelectTrigger className="bg-slate-900 border-white/10">
                     <SelectValue />
                   </SelectTrigger>
@@ -364,7 +354,7 @@ const TeamManagement = () => {
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500">Lead Target Quota</Label>
               <div className="flex items-center gap-3">
-                <Input value={formData.leadQuota} onChange={e => setFormData({ ...formData, leadQuota: parseInt(e.target.value) || 0 })} type="number" className="bg-slate-900 border-white/10 flex-1" />
+                <Input value={planByName(formData.tier)?.committed_leads ?? 0} readOnly type="number" className="bg-slate-900 border-white/10 flex-1" />
                 <Badge variant="outline" className="text-[10px] h-9 border-white/5 bg-white/5 px-3">
                   {formData.portalType === 'Lead Growth' ? 'Monthly Lead Tokens' : 'Monthly Records Capability'}
                 </Badge>
