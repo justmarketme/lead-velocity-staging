@@ -29,6 +29,8 @@ const W07 = load('W07.json'); const SUB = load('SUB-whatsapp-send.json'); const 
 const { directWaSends } = await import('../lib/wa-route.cjs').then((m) => m.default || m);
 
 const LEAD = '+27600000123'; const SENDER = '+27600000100'; // synthetic SA numbers only
+// a live-send case needs a fake number OUTSIDE +27 60 000 xxxx: the sender dry-runs that range (smoke test #16, 21 Oct 2026)
+const LIVE_LEAD = '+27820000123';
 const SIDS = {
   broker_intro_booked: 'HXintro', booking_confirmed: 'HXbc', reminder_2h: 'HXr2', broker_intro_slots_v2: 'HXv2',
   smc_session_buttons_2: 'HXb2', smc_session_buttons_3: 'HXb3', smc_session_list_3: 'HXl3', 'flow:1234567890': 'HXflow',
@@ -181,7 +183,7 @@ test('every in-scope workflow sends through smc-whatsapp-send (no direct Graph /
 
 test('a routed send node: the adapter turns the body the workflow built into a prebuilt sub input; the sub returns the id shape callers read', async () => {
   const W09 = load('W09.json');
-  const [adapter] = await Promise.all([runCode(W09, 'SUB input (Send WhatsApp)', { json: { send: { wa: { messaging_product: 'whatsapp', to: LEAD.slice(1), type: 'text', text: { body: 'See you soon' } } } } })]);
+  const [adapter] = await Promise.all([runCode(W09, 'SUB input (Send WhatsApp)', { json: { send: { wa: { messaging_product: 'whatsapp', to: LIVE_LEAD.slice(1), type: 'text', text: { body: 'See you soon' } } } } })]);
   assert.deepEqual([adapter.json.kind, adapter.json.record, adapter.json.caller, adapter.json.wa.text.body], ['prebuilt', false, 'W09', 'See you soon']);
   assert.match(adapter.json.correlation, /^W09:Send WhatsApp:/);
   assert.equal(W09.nodes.find((n) => n.name === 'Send WhatsApp').parameters.options.waitForSubWorkflow, true);
@@ -199,9 +201,9 @@ test('a routed send node: the adapter turns the body the workflow built into a p
 });
 
 test('prebuilt sends: suppression still applies (W15 STOP confirmation alone bypasses it); DRY_RUN_SENDS returns a dry id', () => {
-  const n = S.normalise({ kind: 'prebuilt', wa: { to: LEAD, type: 'text', text: { body: 'x' } }, correlation: 'c1', record: true });
+  const n = S.normalise({ kind: 'prebuilt', wa: { to: LIVE_LEAD, type: 'text', text: { body: 'x' } }, correlation: 'c1', record: true });
   assert.equal(S.decide(n, { suppressed: true }, ENV).reason, 'suppressed');
-  const stop = S.normalise({ kind: 'prebuilt', wa: { to: LEAD, type: 'text', text: { body: 'You will get no more messages.' } }, correlation: 'c2', bypass_suppression: true });
+  const stop = S.normalise({ kind: 'prebuilt', wa: { to: LIVE_LEAD, type: 'text', text: { body: 'You will get no more messages.' } }, correlation: 'c2', bypass_suppression: true });
   assert.equal(S.decide(stop, { suppressed: true }, ENV).action, 'send');
   const dry = S.decide(n, {}, { ...ENV, DRY_RUN_SENDS: 'true' });
   assert.deepEqual([dry.action, S.result(dry).messages[0].id], ['dry', 'dry:c1']);
