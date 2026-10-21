@@ -41,6 +41,7 @@
 .hx-h2{font-size:clamp(32px,4.2vw,56px);line-height:1.02;letter-spacing:-.04em;margin:6px 0 32px;max-width:18ch}
 .hx-tabs{position:relative;display:flex;gap:4px;padding:6px;border-radius:999px;background:#f0f1f2;width:max-content;max-width:100%;overflow-x:auto;scrollbar-width:none;margin-bottom:22px}
 .hx-tabs::-webkit-scrollbar{display:none}
+.hx-tabs[data-more="true"]{-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent);mask-image:linear-gradient(90deg,#000 80%,transparent)}
 .hx-pill{position:absolute;top:6px;bottom:6px;left:0;border-radius:999px;background:var(--sm-charcoal);box-shadow:0 8px 18px #1f293333}
 .hx-tabs [role=tab]{position:relative;z-index:1;border:0;background:none;font:inherit;font-weight:800;font-size:15px;padding:12px 20px;border-radius:999px;color:var(--sm-charcoal);cursor:pointer;white-space:nowrap;min-height:44px;transition:color .2s}
 .hx-tabs [role=tab][aria-selected=true]{color:#fff}
