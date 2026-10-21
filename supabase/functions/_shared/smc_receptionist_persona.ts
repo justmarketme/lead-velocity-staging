@@ -7,8 +7,17 @@
 // Never advice, never product comparisons, never premiums, never "best/right cover".
 
 // Renamed in the ElevenLabs dashboard on 17 Oct 2026 (Jono): "on call" vs the text-only twin
-// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, not managed by this sync).
+// "Lindi SortMyCover on WhatsApp" (agent_8201m54p8d5red0t08t1kgxv5b0m, used by smc-lindi-chat). The twin is not pushed by
+// the sync; sync-voice-agents ?agent=smc-chat only reports how it differs from SMC_CHAT_* below (dry run).
 export const SMC_AGENT_NAME = "Lindi SortMyCover on call";
+export const SMC_CHAT_AGENT_ID = "agent_8201m54p8d5red0t08t1kgxv5b0m";
+export const SMC_CHAT_AGENT_NAME = "Lindi SortMyCover on WhatsApp";
+// The twin's stored prompt is a fallback only: W07 sends the full WhatsApp prompt as an override on every turn
+// (smc-lindi-chat). If that override were ever missing, this keeps the reply short and inside the rules.
+export const SMC_CHAT_BASE_PROMPT =
+  "You are Lindi, SortMyCover's automated assistant on WhatsApp. Every message normally arrives with its full instructions; follow them. " +
+  "If they are missing, reply with one short, warm line: thank them for their message and say someone from SortMyCover will reply here shortly. " +
+  "Never give financial advice, never talk about prices or costs, and never name an adviser, their firm or an FSP number.";
 export const SMC_NUMBER_SPOKEN = "060 015 6480";
 
 export const SMC_FIRST_MESSAGE =
