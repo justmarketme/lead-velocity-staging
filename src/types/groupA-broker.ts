@@ -9,7 +9,7 @@ export type BrokerOnboardingRow = Tables<"broker_onboarding_responses"> & {
   office_address?: string | null;
 };
 
-/** brokers row plus quota columns that exist in production but are missing from the generated types. */
+/** brokers row plus optional quota fields. public.brokers has no lead_quota / leads_used columns (checked live 21 Oct 2026); the quota comes from the plan. */
 export type BrokerWithQuota = Tables<"brokers"> & {
   lead_quota?: number | null;
   leads_used?: number | null;
