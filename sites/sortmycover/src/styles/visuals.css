@@ -109,13 +109,17 @@
 .prose-sm .toc-list a{color:#4a5560;text-decoration:none;font-weight:600;border:0;background:none}
 .prose-sm .toc-list a:hover,.prose-sm .toc-list a[aria-current]{color:var(--sm-charcoal)}
 .prose-sm .toc-list a[aria-current]{font-weight:800}
-.toc-ind{position:absolute;left:-2px;top:0;width:2px;height:0;background:var(--sm-amber);border-radius:2px;will-change:transform,height}
+.prose-sm .toc-list .toc-ind{position:absolute;left:-2px;top:0;width:2px;height:0;padding:0;background:var(--sm-amber);border-radius:2px;will-change:transform,height}
 .toc:not(.toc-live) .toc-ind{display:none}
 .toc-live .toc-box{box-shadow:0 14px 30px -18px rgb(31 41 51 / .35)}
 @media (max-width:1239px){
   .prose-sm .toc.toc-live{position:sticky;top:calc(var(--toc-top,64px) + 8px);z-index:30;margin-left:-4px;margin-right:-4px}
   .toc-live:not(.toc-on) .toc-box{visibility:hidden}
   .toc-live .toc-list{max-height:55vh;overflow:auto}
+  /* deep links and Back land clear of the pinned box: added to html's 72px scroll-padding = 130px, where a tap in the box lands;
+     more (e.g. 132px) would pass the tracker line and name the section above. Not scoped to .toc-live: a first-load fragment
+     scroll runs before pageMotion adds it */
+  .prose-sm h2[id^="s-"]{scroll-margin-top:58px}
 }
 @media (min-width:1240px){
   .prose-sm .toc{position:fixed;top:var(--toc-top,92px);left:max(20px,calc(50% - 360px - 256px));width:216px;margin:0;z-index:20}
