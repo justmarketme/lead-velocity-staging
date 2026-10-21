@@ -149,7 +149,9 @@ function openerGreeting(op, profileName) {
   const first = String(profileName || '').trim().split(/\s+/)[0].replace(/[^\p{L}' -]/gu, '').slice(0, 30);
   const hi = first ? `Hi ${first}, I'm Lindi` : "Hi, I'm Lindi";
   // Jono, 17 Oct 2026: no "AI assistant" wording; Lindi introduces herself as SortMyCover's (same as the W07 fallbacks)
-  return `${hi} from SortMyCover. Thanks for getting in touch about ${op.topic}. If it's something else, just tell me.`;
+  // smoke test 21 Oct 2026 (#36): the topic is the person's own words; "my" is echoed as "your" (greeting only, the topic is stored as typed)
+  const topic = String(op.topic || '').replace(/\bmy\b/giu, 'your');
+  return `${hi} from SortMyCover. Thanks for getting in touch about ${topic}. If it's something else, just tell me.`;
 }
 
 /**

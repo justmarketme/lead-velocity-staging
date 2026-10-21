@@ -423,8 +423,8 @@ test('opener from an unknown number: lead stored at once with the opener consent
   assert.equal(s.length, 1, 'one message');
   assert.equal(s[0].message.type, 'list');
   assert.match(s[0].message.body, /^Hi Thabo, I'm Lindi from SortMyCover\. /);
-  assert.equal(/AI/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
-  assert.match(s[0].message.body, /Thanks for getting in touch about cover for my family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
+  assert.equal(/\bAI\b/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
+  assert.match(s[0].message.body, /Thanks for getting in touch about cover for your family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
   assert.equal(r.thread.stage, 'q_age');
   assert.equal(r.thread.lead_id, 'lead_opener_1');
 });
@@ -578,7 +578,7 @@ test('start page ON: a website opener greets, then the call-to-action (wills ope
   const s = sends(r.actions);
   assert.equal(s.length, 1);
   assert.equal(s[0].message.type, 'cta_url');
-  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for my family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
   assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'start_page', topic: 'cover for my family', ref: 'a06' });
   assert.equal(r.thread.stage, 'start_page');
   const w = W3.step(null, msg(OPENER('a will', 'Capital Legacy', 'b02')), ctx);
@@ -790,4 +790,12 @@ test('#2 W07 -> W03 hand-off keeps the profile name from msg: consent says the n
     assert.equal(r.actions.find((a) => a.kind === 'insert_lead').row.first_name, null, JSON.stringify(odd));
   }
   assert.equal(W3.cleanName('  Thabo 🙂 Mokoena '), 'Thabo Mokoena');
+});
+
+// Smoke test 21 Oct 2026 (#36): the opener's topic is the person's words ("cover for my family"); echoed back as-is it read
+// as if Lindi had a family. The greeting swaps "my" for "your"; the stored topic (conv_state.topic) stays their words.
+test('#36 opener greeting: "my" in the topic becomes "your" in the greeting only', () => {
+  assert.equal(W3.openerGreeting({ topic: 'cover for my family' }, 'Thabo'), "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.");
+  assert.match(W3.openerGreeting({ topic: 'My income' }, ''), /about your income\./);
+  assert.match(W3.openerGreeting({ topic: 'life cover for mylene' }, ''), /about life cover for mylene\./, 'whole word only');
 });
