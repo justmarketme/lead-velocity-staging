@@ -107,7 +107,7 @@ export function interpretMove(status: number, body: any): MoveResult {
 
 /** The move: a switch to a phone call whose number is not confirmed stores the numbers (POST /start/contact) first. */
 export async function runMove(
-  api: Pick<StartApi, "postContact" | "move">,
+  api: Pick<StartApi, "postContact" | "move"> & Partial<Pick<StartApi, "getStart">>,
   o: { contact: { call_number: string | null; alt_number?: string } | null; move: MoveBody; contactId: string },
 ): Promise<MoveResult | { kind: "contact"; field: "call_number" | "alt_number" }> {
   if (o.contact) {
@@ -115,7 +115,15 @@ export async function runMove(
     if (c.kind === "invalid") return { kind: "contact", field: c.field };
     if (c.kind !== "ok") return c;
   }
-  return api.move(o.move);
+  const r = await api.move(o.move);
+  // Smoke #11 / #3 (21 Oct 2026): the move, or a method change that waits for the Outlook change, can pass the 10 s budget
+  // although it was made. A timeout / 5xx re-reads the booking: already at the chosen time (and method) -> done, never a
+  // false "Something went wrong" that makes the client move it twice.
+  if (r.kind !== "error" || !api.getStart) return r;
+  const s = await api.getStart().catch(() => null);
+  const b = s && s.kind === "ok" ? s.data.booking : null;
+  if (b && Date.parse(b.start) === Date.parse(o.move.slot_start) && (!o.move.method || b.method === o.move.method)) return { kind: "moved", booking: b };
+  return r;
 }
 
 export function interpretContact(status: number, body: any): ContactResult {

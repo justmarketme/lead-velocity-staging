@@ -398,6 +398,26 @@ describe("reschedule: Move your call (#lt=...&move=1)", () => {
     expect(r2).toMatchObject({ kind: "moved" });
     expect(log.calls.slice(-1)).toEqual(["move"]);
   }, 15000);
+  // review 21 Oct (#11 / #3): the move (and a method change, which now waits for the Outlook change) can pass the page's 10 s
+  // budget although the change was made. A timeout / 5xx re-reads the booking and shows success when it already matches.
+  it("a move that times out re-reads the booking: done -> moved; not done -> the error as before", async () => {
+    const want = { start: "2026-10-27T09:00:00+02:00", end: "2026-10-27T09:30:00+02:00", method: "teams" };
+    const startWith = (b: object | null) => async () => ({ kind: "ok", data: { booking: b } } as any);
+    const failing = { postContact: async () => ({ kind: "ok" }) as any, move: async () => ({ kind: "error" }) as any };
+    const body = moveBody("2026-10-27T07:00:00Z", "teams", "m9");
+    const done = await runMove({ ...failing, getStart: startWith({ ...want, held: false }) }, { contact: null, move: body, contactId: "c9" });
+    expect(done).toEqual({ kind: "moved", booking: { ...want, held: false } });
+    for (const b of [{ ...want, method: "phone", held: false }, { ...want, start: "2026-10-23T08:30:00+02:00", held: false }, null]) {
+      expect(await runMove({ ...failing, getStart: startWith(b) }, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "error" });
+    }
+    expect(await runMove({ ...failing, getStart: async () => ({ kind: "error" }) as any }, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "error" });
+    expect(await runMove(failing, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "error" });
+    // a refused move (taken / invalid / expired) is never re-read
+    let reads = 0;
+    const taken = { ...failing, move: async () => ({ kind: "taken", slots: null }) as any, getStart: async () => { reads++; return { kind: "ok", data: { booking: want } } as any; } };
+    expect(await runMove(taken, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "taken", slots: null });
+    expect(reads).toBe(0);
+  });
   it("maps /start/move replies like /book", () => {
     const b = { start: "2026-10-24T14:00:00+02:00", end: "2026-10-24T14:30:00+02:00", method: "teams" };
     expect(interpretMove(200, { ok: true, booking: b })).toEqual({ kind: "moved", booking: b });
