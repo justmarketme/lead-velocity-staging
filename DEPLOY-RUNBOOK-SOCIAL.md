@@ -1,6 +1,6 @@
 # Deploy runbook: Lindi on Facebook and Instagram (W40 Social replies)
 
-Branch `feat/smc-social-lindi` (worktree `C:\tmp\lv-social`), on top of `fix/smc-smoke-2026-10-21` @ `b65b8f0` (the smoke-fix
+Branch `feat/smc-social-lindi` (worktree `C:\tmp\lv-social`), on top of `fix/smc-smoke-2026-10-21` @ `fa856c4` (the smoke-fix
 release being deployed on 21 Oct 2026). Plan: `Desktop\EMMA\checklist\SOCIAL-AUDIT-LINDI-SMC-2026-10-21.md` sections 3 to 5
 (Jono's go, 21 Oct 2026: "Social apply 21 profile fixes, yes").
 
@@ -39,9 +39,9 @@ channel to live.
 ## Offline evidence (21 Oct 2026, this worktree)
 
 - `LV_TEST_PG=off node --test automation/tests/*.test.mjs`: 1028 pass, 0 fail, 10 skipped (the local-Postgres tests) of
-  1038; `social.test.mjs` 22/22. With Docker Postgres on (this laptop): 1035 pass; the 2 failures
-  (`broker-consent-change.local`, `quiz-v2-band.local`) are Docker-harness issues in files this branch does not touch
-  (pg_cron not available in the throwaway image; a W05 hold timing assertion), compared against the base branch.
+  1038; `social.test.mjs` 22/22. With Docker Postgres on (this laptop, rebased on `fa856c4`): 1036 pass, 1 fail of 1038;
+  the one failure (`W13-claim-tx.local`, concurrency under the parallel Docker run) passes 2/2 when run alone and touches
+  no file in this branch.
 - `node evals/run.mjs --dry-run`: PASS (FAIS 100%; `fais.social_route` 68/68, `fais.social_lines` 29/29).
 - media 35/35, scripts 25/25, templates 66 checked / 0 errors, tasks.json valid. Not run: landing Playwright / axe and the
   site build (no landing or site source changed).
