@@ -742,7 +742,7 @@ test('W12.json: tick reads portal rows without a w12:outcome claim; they and the
   assert.equal(c.row.booking_id, 'bkg_p'); assert.equal(rest.length, 0, 'the no-show inside its reach window waits');
   const src = (await runCode(WF, 'Claim source', { json: c })).json;
   assert.deepEqual(evalParam(WF, CL, 'options.queryReplacement', { json: src }),
-    ['lead_p', 'brand_smc', BK.broker_id, 'bkg_p', 'attended', 'portal', 'attended', 'none', false, 'attended', 'dispositioned']);
+    ['lead_p', 'brand_smc', BK.broker_id, 'bkg_p', 'attended', 'portal', 'attended', 'none', false, 'attended', 'dispositioned', 'attended']); // #40: + conv_state.state
   assert.deepEqual((await claimed(c)).map((x) => x.fu).sort(), ['capi_hold', 'send', 'w29']);
   assert.deepEqual(await claimed(c, false), [], 'claim lost: nothing sent');
 });
@@ -778,4 +778,27 @@ test('v4b16: "Yes, we spoke" while the outcome is open -> one short reply (claim
   const q = WF.nodes.find((n) => n.name === 'Meeting state (ended, no outcome yet)').parameters.query;
   assert.match(q, /'w12:reach_thanks:' \|\| a\.id::text\) AS sent_reach_thanks/);
   assert.match(q, /AS reach_at/);
+});
+
+// Smoke test 21 Oct 2026 (#40): a lead that rescheduled and then attended kept conv_state.state 'rescheduling' (W12 wrote the
+// stage, never the conversation state), so the after-call deferral line (conversation/logic.mjs, state attended) never fired.
+test('#40 W12 outcome moves conv_state.state on (attended / no_show / broker_no_show), never over opted_out or handoff', () => {
+  assert.deepEqual(R.CONV_STATE_AFTER_OUTCOME, { attended: 'attended', no_show: 'no_show', broker_no_show: 'broker_no_show' });
+  const row = (outcome) => R.outcomeRow({ outcome, lead_reach_check: 'none', dispute_status: 'none' }, { now: ms(PEND) });
+  assert.deepEqual(['attended', 'no_show', 'broker_no_show', 'rescheduled'].map((o) => row(o).conv_state), ['attended', 'no_show', 'broker_no_show', null]);
+  // the claim path (portal marks, W11 auto-attended) carries it as its 12th parameter, even when the stage is not written
+  const c = R.portalResolution(prow(), pat(10));
+  assert.equal(R.claimParams(c)[11], 'attended');
+  const auto = R.autoAttendedResolution({ ...prow(), outcome: 'attended' });
+  assert.deepEqual([R.claimParams(auto)[10], R.claimParams(auto)[11]], [null, 'attended'], 'W11 wrote the stage; the state still moves');
+  assert.equal(R.claimParams(R.portalResolution(prow({ outcome: 'rescheduled', disposition_code: null }), pat(20)))[11], null);
+  const node = (n) => WF.nodes.find((x) => x.name === n).parameters;
+  const GUARD = /COALESCE\(conv_state->>'state', ''\) NOT IN \('opted_out', 'handoff'\)/;
+  const ins = node('Insert outcome + appointment + stage + timeline');
+  assert.match(ins.query, /conv_state = CASE WHEN \$14::text IS NOT NULL AND COALESCE\(conv_state->>'state', ''\) NOT IN \('opted_out', 'handoff'\) THEN COALESCE\(conv_state, '\{\}'::jsonb\) \|\| jsonb_build_object\('state', \$14::text\) ELSE conv_state END/);
+  assert.match(ins.options.queryReplacement, /o\.lead_stage, o\.conv_state \|\| null\]/);
+  const claim = node('Claim W12 follow-ups (w12:outcome, once per booking)');
+  assert.match(claim.query, GUARD); assert.match(claim.query, /\(\$11 IS NOT NULL OR \$12 IS NOT NULL\)/);
+  assert.match(node('Apply KG not_attended (outcome -> no_show, audit activity)').query, /jsonb_build_object\('state', 'no_show'\)/);
+  assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /Insert outcome|Claim W12|KG not_attended/.test(x.node))), []);
 });
