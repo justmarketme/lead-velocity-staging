@@ -16,12 +16,14 @@ let footerShown = false;
 export const resetFooterMotion = () => { footerShown = false; };
 
 /** Offsets a below-the-fold element now and springs it home when it scrolls in. The element stays fully visible throughout
-    (transform only); a failsafe puts it home after 2.5 s whatever the observer does. */
-function settleOnEnter(el: HTMLElement, from: string, opts: { amount?: number; delay?: number; stiffness?: number; damping?: number } = {}): Off {
+    (transform only); a failsafe puts it home after 2.5 s whatever the observer does. `to` is the element's CSS rest transform
+    (default none): an element centred with translate(-50%,-50%) must spring to that, not to none, or it drifts off centre and
+    snaps back when the inline style is cleared. */
+export function settleOnEnter(el: HTMLElement, from: string, opts: { amount?: number; delay?: number; stiffness?: number; damping?: number; to?: string } = {}): Off {
   if (el.getBoundingClientRect().top < (window.innerHeight || 800)) return () => {};
   el.style.transform = from;
   let done = false;
-  const home = () => { if (done) return; done = true; stop(); window.clearTimeout(t); animate(el, { transform: [from, "none"] }, springTo(opts.stiffness ?? 260, opts.damping ?? 24, { delay: opts.delay ?? 0 })).finished.then(clear, clear); };
+  const home = () => { if (done) return; done = true; stop(); window.clearTimeout(t); animate(el, { transform: [from, opts.to ?? "none"] }, springTo(opts.stiffness ?? 260, opts.damping ?? 24, { delay: opts.delay ?? 0 })).finished.then(clear, clear); };
   const clear = () => { el.style.transform = ""; };
   const stop = inView(el, () => { home(); return undefined; }, { amount: opts.amount ?? 0.35 });
   const t = window.setTimeout(home, 2500);
@@ -134,7 +136,7 @@ function vizMotion(main: HTMLElement): Off {
   // links and the money line draw in; the who-does-what join runs vertically on a phone
   main.querySelectorAll<HTMLElement>(".mf-line").forEach((l, i) => offs.push(drawOnEnter(l, "x", 0.1 + i * 0.12)));
   main.querySelectorAll<HTMLElement>(".viz-join-line").forEach((l) => offs.push(drawOnEnter(l, narrow() ? "y" : "x", 0.15)));
-  main.querySelectorAll<HTMLElement>(".mf-x").forEach((x, i) => offs.push(settleOnEnter(x, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { amount: 0.6, delay: 0.25 + i * 0.12, stiffness: 420, damping: 18 })));
+  main.querySelectorAll<HTMLElement>(".mf-x").forEach((x, i) => offs.push(settleOnEnter(x, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { amount: 0.6, delay: 0.25 + i * 0.12, stiffness: 420, damping: 18, to: "translate(-50%,-50%)" })));
   main.querySelectorAll<HTMLElement>(".viz-split .viz-card").forEach((c, i) => offs.push(settleOnEnter(c, narrow() ? "translateY(26px)" : `translateX(${i ? 28 : -28}px)`, { amount: 0.3, delay: i * 0.08 })));
 
   // checking an adviser: the progress line follows the scroll, the cards step in, the tick draws itself
@@ -297,10 +299,13 @@ export function pageMotion(main: HTMLElement): Off {
 
 /** Footer arrival (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): a yellow hairline draws left to right and the brand column and
     the three link groups settle up 18px with a soft spring, once per visit, and only when the footer starts below the fold. Two
-    observers: one arms (offsets) the footer 320px before it arrives, one plays it at 12% visible; play before arming does nothing,
-    so a visitor who jumps straight to the footer never sees a snap-down. A 4 s failsafe from arming always puts everything home.
+    observers: one arms (offsets) the footer while it is within 320px below the viewport and disarms it if the visitor scrolls back
+    away; one plays it at 12% visible. Play before arming does nothing, so a visitor who jumps straight to the footer never sees a
+    snap-down. A 4 s failsafe from arming guards a visible footer: it plays the arrival if the footer is on screen, and otherwise
+    only checks again (offsets on an off-screen footer harm nobody), so a slow reader still sees the arrival when it scrolls in.
     Touches only [data-f-settle] and .f-rule (never .f-base or a [data-disclosure]); transform only; the footer's WhatsApp button
     is magnetic on a mouse. */
+export const FOOTER_FAILSAFE_MS = 4000;
 export function footerMotion(footer: HTMLElement): Off {
   if (prefersReducedMotion() || !footer) return () => {};
   const offs: Off[] = [magnetic(footer, ".site-footer .f-cta")];
@@ -311,6 +316,8 @@ export function footerMotion(footer: HTMLElement): Off {
     let fail = 0;
     const clearItems = () => items.forEach((i) => { i.style.transform = ""; });
     const clearRule = () => { rule.style.transform = ""; };
+    const onScreen = () => footer.getBoundingClientRect().top < window.innerHeight;
+    const disarm = () => { armed = false; window.clearTimeout(fail); clearItems(); clearRule(); };
     const play = () => {
       if (!armed || footerShown) return;
       footerShown = true;
@@ -320,17 +327,23 @@ export function footerMotion(footer: HTMLElement): Off {
         animate(items, { transform: ["translateY(18px)", "none"] }, { type: spring, visualDuration: 0.55, bounce: 0.12, delay: stagger(0.07, { startDelay: 0.08 }) }).finished.then(clearItems, clearItems);
       } catch { clearItems(); clearRule(); }
     };
+    const failsafe = () => { if (footerShown) return; if (onScreen()) { play(); clearItems(); clearRule(); } else fail = window.setTimeout(failsafe, FOOTER_FAILSAFE_MS); };
     offs.push(inView(footer, () => {
-      if (armed || footerShown) return undefined;
-      // already on screen when the observer first reports: never offset what the visitor can see
-      if (footer.getBoundingClientRect().top < window.innerHeight) { footerShown = true; return undefined; }
-      armed = true;
-      items.forEach((i) => { i.style.transform = "translateY(18px)"; });
-      rule.style.transform = "scaleX(0)";
-      fail = window.setTimeout(() => { play(); clearItems(); clearRule(); }, 4000);
-      return undefined;
+      if (footerShown) return undefined; // one-shot from here: unobserve
+      // already on screen when it (re)arms, e.g. a jump straight to the footer: never offset what the visitor can see
+      if (!armed && onScreen()) { footerShown = true; return undefined; }
+      if (!armed) {
+        armed = true;
+        items.forEach((i) => { i.style.transform = "translateY(18px)"; });
+        rule.style.transform = "scaleX(0)";
+        window.clearTimeout(fail);
+        fail = window.setTimeout(failsafe, FOOTER_FAILSAFE_MS);
+      }
+      // returning a function keeps observing: the visitor scrolled back away before it played, so put the footer home and re-arm later
+      return () => { if (!footerShown) disarm(); };
     }, { margin: "0px 0px 320px 0px" }));
-    offs.push(inView(footer, () => { play(); return undefined; }, { amount: 0.12 }));
+    // keeps observing until it has played (a play before arming is ignored, not used up)
+    offs.push(inView(footer, () => { play(); return footerShown ? undefined : () => {}; }, { amount: 0.12 }));
     offs.push(() => { window.clearTimeout(fail); if (!footerShown || armed) { clearItems(); clearRule(); } });
   }
   return () => offs.forEach((o) => o());

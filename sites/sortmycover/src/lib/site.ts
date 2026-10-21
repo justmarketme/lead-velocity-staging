@@ -10,6 +10,12 @@ export const company = cfg.company as Omit<typeof cfg.company, "directors" | "se
   codes_of_conduct: string[];
   footer_identity: boolean;
 };
+/** True once config/site.json company.directors holds the names as on the CIPC record. Until then no page may promise that /legal/
+    lists the directors: /legal/ hides the Directors row while the list is empty, and a link must not promise what the page does not
+    show (CPA s41; reviewer finding, 21 Oct 2026). */
+export const HAS_DIRECTORS = company.directors.length > 0;
+/** What /legal/ shows about the company, in words, for copy that links there ("Its ... are on Legal & disclosures"). */
+export const LEGAL_PAGE_LISTS = HAS_DIRECTORS ? "registration number, directors and addresses" : "registration number and addresses";
 export const consentCfg = consent;
 export const strs = strings;
 

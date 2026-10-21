@@ -116,9 +116,10 @@ describe.skipIf(!have)("pre-rendered output", () => {
   // Rule S31 (identity block in every footer) is reversed by Jono's decision (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 2): the
   // registration number and address moved to /legal/, which every footer links to (ECT Act s43). The positive identity checks moved
   // to the /legal/ test below; this test now also guards that the footers stay slim.
-  it("footer line, contact, Legal & disclosures link and opt-out on every page", () => {
+  // 404.html is no longer exempt (reviewer finding, 21 Oct 2026): it renders the same apex Footer, and some hosts serve it on a
+  // campaign host, so the no-advice line and the /legal/ link must be guarded there too.
+  it("footer line, contact, Legal & disclosures link and opt-out on every page, 404 included", () => {
     for (const p of pages) {
-      if (p.rel === "404.html") continue;
       const v = visible(p.html);
       expect(v, p.rel).toContain(FOOTER_V3);
       expect(v, p.rel).toContain("SortMyCover is not a financial services provider and gives no financial advice");
@@ -145,6 +146,37 @@ describe.skipIf(!have)("pre-rendered output", () => {
     // #codes is published only when there is something to list; no "None" claim
     if (!site.company.codes_of_conduct.length) expect(h).not.toContain('id="codes"');
     for (const d of new JSDOM(h).window.document.querySelectorAll("main section")) expect(d.hasAttribute("data-disclosure")).toBe(true);
+  });
+  // Reviewer finding, 21 Oct 2026: /legal/ hides the Directors row while company.directors is empty, so no copy that points to
+  // /legal/ may promise directors (About, the FAQ scam answer, the /legal/ description, FAQPage JSON-LD).
+  it.skipIf(site.company.directors.length > 0)("while company.directors is empty, no page promises directors next to a /legal/ link", () => {
+    for (const p of pages) {
+      const doc = new JSDOM(p.html).window.document;
+      for (const el of doc.querySelectorAll("p, li, dd, td")) {
+        if (el.querySelector('a[href$="/legal/"]') || /Legal & disclosures/.test(el.textContent || "")) expect(el.textContent, p.rel).not.toMatch(/\bdirectors\b/i);
+      }
+      for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
+        if (/Legal & disclosures|\/legal\//.test(s.textContent || "")) for (const m of (s.textContent || "").match(/"text":"[^"]*Legal & disclosures[^"]*"/g) || []) expect(m, p.rel).not.toMatch(/\bdirectors\b/i);
+      }
+    }
+    const legal = pages.find((p) => p.rel === "legal/index.html")!.html;
+    expect(meta(legal, /<meta name="description" content="([^"]+)"/)).not.toMatch(/directors/i);
+    expect(visible(pages.find((p) => p.rel === "about/index.html")!.html)).toContain("Its registration number and addresses are on Legal & disclosures");
+  });
+  // the copy above only routes visitors to /legal/ and the privacy notice; the guide links both (it used to name them unlinked)
+  it("the 'how SortMyCover works' guide links Legal & disclosures and the privacy notice where it names them", () => {
+    const h = pages.find((p) => p.rel === "learn/how-sortmycover-works/index.html")!.html;
+    expect(h).toMatch(/href="\/legal\/"[^>]*>Legal &amp; disclosures<\/a>/);
+    expect(h).toMatch(/href="\/privacy\/"[^>]*>privacy notice<\/a>/);
+  });
+  // /legal/ is its own page module: /privacy/, /terms/ and /paia/ do not preload the company card's Visuals chunk or its code
+  it("only /legal/ (of the legal pages) downloads the Visuals chunk", () => {
+    const pre = (rel: string) => [...pages.find((p) => p.rel === rel)!.html.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g)].map((m) => m[1]);
+    for (const rel of ["privacy/index.html", "terms/index.html", "paia/index.html"]) {
+      expect(pre(rel).filter((f) => /^(Visuals|Disclosures)-/.test(f)), rel).toEqual([]);
+      expect(pre(rel).some((f) => /^Legal-/.test(f)), rel).toBe(true);
+    }
+    expect(pre("legal/index.html").some((f) => /^Disclosures-/.test(f))).toBe(true);
   });
   // left visible in the output while the gap is open: Jono supplies the directors' names as on the CIPC record
   it.skipIf(site.company.directors.length === 0)("/legal/ lists the directors (ECT Act s43(1)(f))", () => {
@@ -222,7 +254,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
         expect(d.closest("[data-f-settle]"), p.rel + " disclosure inside a footer settle target").toBeNull();
         expect(d.querySelector("[data-f-settle]"), p.rel + " footer settle target inside a disclosure").toBeNull();
       }
-      expect(doc.querySelector("footer [data-disclosure]") || p.rel === "404.html", p.rel + " footer disclosure").toBeTruthy();
+      expect(doc.querySelector("footer [data-disclosure]"), p.rel + " footer disclosure").toBeTruthy(); // 404 included (same apex Footer)
     }
     expect(disclosures).toBeGreaterThan(100);
   });
@@ -238,14 +270,14 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(FOOTER_V3.startsWith("SortMyCover is not a financial services provider")).toBe(true);
     if (site.company.footer_identity) expect(FOOTER_V3).toContain("trading name of Lead Velocity (Pty) Ltd");
     else expect(FOOTER_V3).not.toContain("Lead Velocity");
-    for (const p of pages) { if (p.rel === "404.html") continue; expect(visible(footerHtml(p.html)), p.rel).toContain(FOOTER_V3); }
+    for (const p of pages) expect(visible(footerHtml(p.html)), p.rel).toContain(FOOTER_V3); // 404 included
     const v2 = site.disclosure_statement;
     expect(v2.startsWith("SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers.")).toBe(true);
     expect(v2.endsWith("You must be 18 or older.")).toBe(true);
     expect(pages.filter((p) => visible(p.html).includes(v2)).map((p) => p.rel)).toEqual(["legal/index.html"]);
   });
   it("no page states the fee as flat, monthly or the same (spec C.1 item 5), and none says 30-day cycle", () => {
-    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/flat|30-day cycle|the same whether|flat monthly/i);
+    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/\bflat\b|30-day cycle|the same whether|flat monthly/i);
   });
   it("booking is on WhatsApp only (Jono, 17 Oct 2026): no booking form on any page; /book/ opens WhatsApp for cover and for a will", () => {
     const home = pages.find((p) => p.rel === "index.html")!.html;
@@ -303,7 +335,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(AI);
     // the adviser is "authorised" (FSCA wording), never "licensed", as in the ads, Lindi's WhatsApp copy and the phone script
-    const LICENSED = /licensed (financial )?advis[eo]rs?/i;
+    const LICENSED = /\blicensed (financial )?advis[eo]rs?\b/i;
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(LICENSED);
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(LICENSED);
     // no price wording anywhere a client sees it (Jono, 16 Oct 2026)

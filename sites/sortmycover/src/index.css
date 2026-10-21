@@ -145,7 +145,7 @@
 .faq-item summary { cursor: pointer; padding: 20px 0; min-height: 52px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .faq-item summary::after { content: ""; flex: none; width: 12px; height: 12px; border-right: 3px solid var(--sm-amber); border-bottom: 3px solid var(--sm-amber); transform: rotate(45deg) translateY(-3px); transition: transform 0.2s; }
 .faq-item[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
-.faq-body { overflow: hidden; }
+/* no overflow clip at rest (it cut the focus ring of links in an answer); toggleDetails clips only while the height glides */
 .faq-body > div { padding: 0 0 20px; color: #45505a; font-size: 17px; line-height: 1.7; }
 .faq-body p { margin: 0 0 10px; }
 
@@ -377,6 +377,14 @@ legend { padding: 0; width: 100%; }
 .page-body{padding-top:8px;padding-bottom:clamp(48px,7vw,88px)}
 .prose-sm>:first-child{margin-top:0}
 .prose-sm dt{font-size:20px;letter-spacing:-.02em}
+/* /legal/ company record: small muted labels over strong values, one hairline-separated row per pair, label | value from 480px
+   (the generic glossary dt above is 20px, bigger than its value) */
+.prose-sm .legal-dl{display:grid;margin:20px 0 8px;border-bottom:1px solid var(--sm-border)}
+.prose-sm .legal-dl>div{display:grid;gap:2px;padding:12px 0;border-top:1px solid var(--sm-border)}
+.prose-sm .legal-dl dt{font-size:13px;line-height:1.4;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--sm-text-muted)}
+.prose-sm .legal-dl dd{margin:0;font-size:18px;line-height:1.5;font-weight:600;color:var(--sm-charcoal);overflow-wrap:anywhere}
+@media(min-width:480px){.prose-sm .legal-dl>div{grid-template-columns:minmax(0,200px) minmax(0,1fr);column-gap:20px;align-items:baseline}}
+.prose-sm p.legal-updated{font-size:14px;color:var(--sm-text-muted)}
 
 /* ------------------------------------------------------------------ WhatsApp-first CTAs + chat widget (17 Oct 2026) ----- */
 .btn-wa svg{flex:none}
@@ -407,7 +415,11 @@ legend { padding: 0; width: 100%; }
 .chat-go{width:100%}
 .chat-go[aria-disabled=true]{opacity:.55}
 .chat-fine{margin:0;font-size:12px;line-height:1.5;color:var(--sm-text-muted);text-align:center}
-.chat-privacy{text-align:left}
+/* visible Privacy notice link: in the tick label's text column (20px box + 10px gap), a 24px-tall target (WCAG 2.5.8), and the
+   "Full wording" under it drops its -6px tuck so the two targets keep a clear gap */
+.chat-privacy{text-align:left;margin-left:30px}
+.chat-privacy a{display:inline-flex;align-items:center;min-height:24px;text-decoration:underline;text-underline-offset:3px}
+.chat-privacy+.chat-more{margin-top:0}
 .chat-backdrop{display:none}
 @media(max-width:640px){
   .chat-launch{width:60px;padding:0;justify-content:center;transition:transform .25s,visibility .25s}

@@ -13,7 +13,8 @@
 
 .f-top { display: grid; gap: 28px; }
 .f-brand { display: grid; gap: 14px; align-content: start; }
-.f-brand .logo { color: #fff; min-height: 44px; }
+/* start, not the grid default stretch: only the wordmark is the Home link (no full-width tap area or focus box) */
+.f-brand .logo { color: #fff; min-height: 44px; justify-self: start; }
 .f-promise { color: #e4e7ea; font-size: 15px; line-height: 1.5; max-width: 34ch; }
 .f-cta { width: 100%; min-height: 52px; }
 .site-footer .f-cta { color: var(--sm-accent-text); justify-content: center; }
@@ -25,13 +26,17 @@
 .f-group > summary::-webkit-details-marker { display: none; }
 .f-chev { width: 16px; height: 16px; color: #fff; flex: none; }
 .f-group[open] .f-chev { transform: rotate(180deg); }
-.f-links { overflow: hidden; padding-bottom: 8px; }
+/* no overflow clip at rest: it cut the focus ring of every group link. toggleDetails clips only while the height glides. */
+.f-links { padding-bottom: 8px; }
 .f-links a { color: #e4e7ea; }
 
 .f-base { margin-top: 28px; display: grid; gap: 12px; }
 .f-line { font-size: 13px; color: #c3c8ce; line-height: 1.55; }
 .f-legal { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
 .f-legal .f-optout { grid-column: 1 / -1; }
+/* Legal & disclosures leads the row in white (spec section 4): with the identity sentence off it is the footer's only route to the
+   company identity (ECT s43). Both footers. */
+.site-footer .f-legal li:first-child a { color: #fff; font-weight: 700; }
 
 /* campaign footer: no groups, the legal row wraps */
 .site-footer-campaign { margin-top: 0; }

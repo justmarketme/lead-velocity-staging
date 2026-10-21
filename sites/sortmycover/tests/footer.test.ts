@@ -63,10 +63,12 @@ describe("pre-render (no JavaScript, crawlers, dist tests)", () => {
     expect(doc.querySelector(".f-base [data-f-settle]")).toBeNull();
     expect(doc.querySelector(".f-legal a")!.textContent).toBe("Legal & disclosures");
   });
-  it("Jono's override: no Lead Velocity in the footer while company.footer_identity is off; the identity sentence returns with the switch", () => {
-    expect(site.company.footer_identity).toBe(false);
-    expect(FOOTER_LINE).toBe("SortMyCover is not a financial services provider and gives no financial advice.");
-    expect(html).not.toContain("Lead Velocity");
+  // Follows the switch (reviewer finding, 21 Oct 2026): turning company.footer_identity on in config/site.json must stay a one-line
+  // change, so these assertions branch on it like dist.test does instead of pinning it off. The "on" state is rendered below.
+  it("Jono's override: Lead Velocity appears in the footer only while company.footer_identity is on (off by his decision)", () => {
+    const NO_ADVICE = "SortMyCover is not a financial services provider and gives no financial advice.";
+    expect(FOOTER_LINE).toBe(site.company.footer_identity ? `${NO_ADVICE} It is a trading name of Lead Velocity (Pty) Ltd.` : NO_ADVICE);
+    expect((html.match(/Lead Velocity/g) || []).length).toBe(site.company.footer_identity ? 1 : 0);
     expect(html).not.toContain("2025/637858/07");
   });
 });
@@ -77,7 +79,10 @@ describe("phone (under 640px)", () => {
     footerTop = 2000;
     mount(h(Footer));
     expect(groups().map((d) => d.open)).toEqual([false, false, false]);
-    for (const d of groups()) expect(d.querySelector("summary")!.tabIndex).toBe(0);
+    for (const d of groups()) {
+      expect(d.querySelector("summary")!.tabIndex).toBe(0);
+      expect(d.querySelector("summary")!.hasAttribute("aria-disabled")).toBe(false);
+    }
   });
   it("footer already in view (short pages: 404, thanks): the groups stay open, no shift in view", () => {
     media({ phone: true });
@@ -118,6 +123,8 @@ describe("640px and up", () => {
     expect(groups().map((d) => d.open)).toEqual([true, true, true]);
     for (const d of groups()) {
       expect(d.querySelector("summary")!.tabIndex).toBe(-1);
+      // announced as unavailable in browse mode, not as an expanded button that does nothing (reviewer finding, 21 Oct 2026)
+      expect(d.querySelector("summary")!.getAttribute("aria-disabled")).toBe("true");
       const e = click(d.querySelector("summary")!);
       expect(e.defaultPrevented).toBe(true);
       expect(d.open).toBe(true);
@@ -149,7 +156,7 @@ describe("campaign footer", () => {
     for (const [, href] of links) expect(href).toMatch(/^https:\/\/sortmycover\.co\.za\//);
     expect(f.textContent).toContain("+27 10 976 5618");
     expect(f.querySelector("details, .f-cta, [data-f-settle]")).toBeNull();
-    expect(f.textContent).not.toContain("Lead Velocity");
+    expect((f.textContent!.match(/Lead Velocity/g) || []).length).toBe(site.company.footer_identity ? 1 : 0); // follows the switch
   });
   it("wills landings: no fee line and no How we make money link", () => {
     media();
@@ -157,5 +164,30 @@ describe("campaign footer", () => {
     const f = host.querySelector("footer")!;
     expect(f.querySelectorAll("[data-disclosure]")).toHaveLength(1);
     expect(f.textContent).not.toMatch(/Advisers pay|How we make money/);
+  });
+});
+
+describe("company.footer_identity switched on (one line in config/site.json)", () => {
+  it("FOOTER_LINE ends with the identity sentence and both footers name Lead Velocity exactly once", async () => {
+    vi.resetModules();
+    const real = ((await vi.importActual<any>("../config/site.json")).default) as typeof site;
+    vi.doMock("../config/site.json", () => ({ default: { ...real, company: { ...real.company, footer_identity: true } } }));
+    try {
+      const React = await import("react");
+      const { renderToString: render } = await import("react-dom/server");
+      const { MemoryRouter: Router } = await import("react-router-dom");
+      const lib = await import("../src/lib/site");
+      const F = await import("../src/components/Footer");
+      expect(lib.FOOTER_LINE).toBe("SortMyCover is not a financial services provider and gives no financial advice. It is a trading name of Lead Velocity (Pty) Ltd.");
+      for (const el of [F.Footer, F.CampaignFooter]) {
+        const out = render(React.createElement(Router, { initialEntries: ["/"] }, React.createElement(el)));
+        expect((out.match(/Lead Velocity/g) || []).length, el.name).toBe(1);
+        expect(out, el.name).toContain(lib.FOOTER_LINE);
+        expect(out, el.name).not.toContain("2025/637858/07");
+      }
+    } finally {
+      vi.doUnmock("../config/site.json");
+      vi.resetModules();
+    }
   });
 });

@@ -72,3 +72,33 @@ describe("tap targets of 44px or more", () => {
     expect(value(index, ".chat-more summary", "margin")).toBe("-3px 0");
   });
 });
+
+/* Reviewer findings on the footer / Legal & disclosures build (21 Oct 2026). */
+describe("footer, chat consent and /legal/ layout", () => {
+  const footer = src("styles/footer.css");
+  it("no overflow clip at rest on the footer group lists or FAQ answers: it cut the links' focus rings (toggleDetails clips only while gliding)", () => {
+    for (const media of ["", "@media(min-width:640px)", "@media(min-width:1024px)"]) expect(value(footer, ".f-links", "overflow", media), media).toBeUndefined();
+    expect(value(index, ".faq-body", "overflow")).toBeUndefined();
+  });
+  it("the footer wordmark sits at the start of its grid cell: only the wordmark is the Home link", () => {
+    expect(value(footer, ".f-brand .logo", "justify-self")).toBe("start");
+  });
+  it("Legal & disclosures leads the legal row in white and bold (spec section 4)", () => {
+    expect(value(footer, ".site-footer .f-legal li:first-child a", "color")).toBe("#fff");
+    expect(value(footer, ".site-footer .f-legal li:first-child a", "font-weight")).toBe("700");
+  });
+  it("chat panel: the Privacy notice link is in the tick label's column, a 24px target, with clear space above 'Full wording'", () => {
+    expect(value(index, ".chat-privacy", "margin-left")).toBe("30px");
+    expect(value(index, ".chat-privacy a", "min-height")).toBe("24px");
+    expect(value(index, ".chat-privacy+.chat-more", "margin-top")).toBe("0");
+  });
+  it("/legal/ company record: small muted labels over 18px values, one bordered row per pair, label | value from 480px", () => {
+    expect(value(index, ".prose-sm .legal-dl dt", "font-size")).toBe("13px");
+    expect(value(index, ".prose-sm .legal-dl dd", "font-size")).toBe("18px");
+    expect(value(index, ".prose-sm .legal-dl>div", "border-top")).toMatch(/^1px solid/);
+    expect(value(index, ".prose-sm .legal-dl>div", "grid-template-columns", "@media(min-width:480px)")).toBe("minmax(0,200px) minmax(0,1fr)");
+  });
+  it("the 'Last updated' footnote beats the .prose-sm p body size", () => {
+    expect(value(index, ".prose-sm p.legal-updated", "font-size")).toBe("14px");
+  });
+});

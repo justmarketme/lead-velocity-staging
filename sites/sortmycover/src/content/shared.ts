@@ -1,5 +1,5 @@
 import type { FaqItem } from "./types";
-import {FEE_LINE, NO_COMMISSION, NOT_FSP_LINE, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, provider, site} from "@/lib/site";
+import {FEE_LINE, HAS_DIRECTORS, NO_COMMISSION, NOT_FSP_LINE, company, PROVIDER_COST_LINE, PROVIDER_ROLE_LINE, provider, site} from "@/lib/site";
 
 export const HOW_STEPS = [
   { title: "Say hi to Lindi on WhatsApp", body: "Lindi, SortMyCover’s booking assistant, asks what you would like help with and a few short questions." },
@@ -47,7 +47,8 @@ export const HOME_FAQ: FaqItem[] = [
 
 export const SITE_FAQ: FaqItem[] = [
   ...HOME_FAQ,
-  { id: "scam", q: "Is this a scam?", a: "Fair question. SortMyCover is a trading name of Lead Velocity (Pty) Ltd, registration 2025/637858/07. The directors, address, phone and email are on our [Legal & disclosures](/legal/) page, and the adviser’s FSP number can be checked on the FSCA register before you speak to them. Nobody is asked for ID numbers, bank details or payment." },
+  // "directors" only once /legal/ lists them (HAS_DIRECTORS): the link must not promise what the page does not show (CPA s41)
+  { id: "scam", q: "Is this a scam?", a: `Fair question. SortMyCover is a trading name of ${company.legal_name}, registration ${company.registration}. The ${HAS_DIRECTORS ? "directors, address" : "address"}, phone and email are on our [Legal & disclosures](/legal/) page, and the adviser’s FSP number can be checked on the FSCA register before you speak to them. Nobody is asked for ID numbers, bank details or payment.` },
   { id: "why-number", q: "Why WhatsApp?", a: "Lindi books the call there: she sends the adviser’s details and the times to choose from, and reminds you before the call. The call itself can be by video, WhatsApp or phone." },
   { id: "choose", q: "Can I choose my adviser?", a: "You are introduced to one adviser. You can check them on the FSCA register, and you decide after the call whether to go further." },
   { id: "insurer", q: "Is SortMyCover an insurer?", a: "No. SortMyCover is not a financial services provider. It does not sell cover, give advice, compare products or quote premiums. It introduces you to an adviser, who can." },

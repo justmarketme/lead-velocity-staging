@@ -112,7 +112,9 @@ export function CheckSteps() {
   );
 }
 
-/** The company's legal identity as a card. Used on /legal/ (moved from /about/, FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21). */
+/** The company's legal identity as a card. Used on /legal/ (moved from /about/, FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21). No address
+    row: the table under it gives the physical address and the address for service, so the card would make it three times in the
+    first screen (reviewer finding, 21 Oct 2026). */
 export function CompanyCard() {
   return (
     <figure className="viz viz-company" data-viz="company">
@@ -125,7 +127,6 @@ export function CompanyCard() {
           <div><dt>Registration</dt><dd>{company.registration}</dd></div>
           {company.directors.length > 0 && <div><dt>Directors</dt><dd>{company.directors.join(", ")}</dd></div>}
           <div><dt>Information Officer reg.</dt><dd>{company.information_officer_registration}</dd></div>
-          <div><dt>Address</dt><dd>{company.address_lines.join(", ")}</dd></div>
         </dl>
       </div>
     </figure>

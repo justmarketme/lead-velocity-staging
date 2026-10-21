@@ -131,18 +131,32 @@ export function popIn(el: Element) {
   animate(el, { transform: ["translateY(14px) scale(0.98)", "translateY(0px) scale(1)"], opacity: [0, 1] }, springTo(460, 30));
 }
 
-/* ---- (e) smooth <details> (FAQ) ---- */
-/** Smooth open/close for a native <details> (content stays in the HTML for crawlers and no-JS). */
+/* ---- (e) smooth <details> (FAQ, footer groups) ---- */
+/** Details whose close glide is running (d.open stays true until it ends): the running height animation. */
+const closing = new WeakMap<HTMLDetailsElement, { cancel(): void }>();
+/** True while `d` is gliding shut (it still reports open). */
+export const isClosing = (d: HTMLDetailsElement) => closing.has(d);
+/** Smooth open/close for a native <details> (content stays in the HTML for crawlers and no-JS). The body is clipped (overflow
+ *  hidden) only while its height glides, so at rest nothing cuts the focus ring of a link inside it. A tap during the close glide
+ *  reopens from the current height instead of closing a second time. */
 export function toggleDetails(d: HTMLDetailsElement, body: HTMLElement, e: { preventDefault(): void }) {
   if (prefersReducedMotion()) return; // native instant toggle
   e.preventDefault();
-  if (d.open) {
+  const rest = () => { body.style.height = ""; body.style.overflow = ""; };
+  body.style.overflow = "hidden";
+  if (d.open && !closing.has(d)) {
     const h = body.offsetHeight;
-    animate(body, { height: [`${h}px`, "0px"] }, { duration: 0.2, ease: "easeOut" }).finished.then(() => { d.open = false; body.style.height = ""; }, () => { d.open = false; body.style.height = ""; });
+    const a = animate(body, { height: [`${h}px`, "0px"] }, { duration: 0.2, ease: "easeOut" });
+    closing.set(d, a);
+    // a reopen tap replaced this glide (closing no longer maps to it): leave the details open
+    const done = () => { if (closing.get(d) !== a) return; closing.delete(d); d.open = false; rest(); };
+    a.finished.then(done, done);
   } else {
+    const reopen = closing.delete(d); // mid-close: glide back up from where it is (a single keyframe starts from the current height)
     d.open = true;
     const h = body.scrollHeight;
-    animate(body, { height: ["0px", `${h}px`] }, { duration: 0.26, ease: "easeOut" }).finished.then(() => { body.style.height = ""; }, () => { body.style.height = ""; });
+    const a = animate(body, { height: reopen ? `${h}px` : ["0px", `${h}px`] }, { duration: 0.26, ease: "easeOut" });
+    a.finished.then(rest, rest);
   }
 }
 
@@ -159,15 +173,19 @@ export function watchInView(el: Element, onChange: (visible: boolean) => void): 
 }
 
 /** Footer group on a phone (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): the list glides open or shut (toggleDetails), the
- *  chevron spring-rotates and, on open, the links cascade down 6px. Transform only on the chevron and links; no opacity anywhere.
+ *  chevron spring-rotates and, on a fresh open, the links cascade down 6px. Transform only on the chevron and links; no opacity.
+ *  The open state is read BEFORE toggleDetails (on close it keeps d.open true for 0.2s), and a group that is gliding shut counts as
+ *  closed, so a second tap during the close reopens it. The chevron animates to a single target: mini animate stops the running
+ *  rotation and starts from its current angle (no snap back to a start keyframe on an interrupting tap).
  *  Reduced motion: toggleDetails returns early (native instant toggle) and the chevron comes from CSS `details[open] .f-chev`. */
 export function footerGroupToggle(d: HTMLDetailsElement, list: HTMLElement, chev: Element, e: { preventDefault(): void }) {
-  const wasOpen = d.open; // read BEFORE toggleDetails: on close it keeps d.open true for 0.2s
+  const fresh = !d.open; // fully closed: the links cascade in
+  const opening = fresh || isClosing(d);
   toggleDetails(d, list, e);
   if (prefersReducedMotion()) return;
   const clr = () => { (chev as HTMLElement).style.transform = ""; };
-  animate(chev, { transform: wasOpen ? ["rotate(180deg)", "rotate(0deg)"] : ["rotate(0deg)", "rotate(180deg)"] }, { type: spring, visualDuration: 0.3, bounce: 0.25 }).finished.then(clr, clr);
-  if (!wasOpen) {
+  animate(chev, { transform: opening ? "rotate(180deg)" : "rotate(0deg)" }, { type: spring, visualDuration: 0.3, bounce: 0.25 }).finished.then(clr, clr);
+  if (fresh) {
     const lis = Array.from(list.querySelectorAll<HTMLElement>("li"));
     const c = () => lis.forEach((l) => { l.style.transform = ""; });
     if (lis.length) animate(lis, { transform: ["translateY(-6px)", "none"] }, { duration: 0.3, delay: stagger(0.03), ease: [0.22, 1, 0.36, 1] }).finished.then(c, c);

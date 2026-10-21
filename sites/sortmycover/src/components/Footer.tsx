@@ -33,7 +33,8 @@ const Chevron = () => (
 
 /** Open/closed behaviour for the groups (pre-rendered open, so no-JS visitors and crawlers see every link). Under 640px they close
     after mount, but only when the footer starts below the fold (no shift in view on short pages). From 640px they are held open:
-    summaries leave the tab order and a capture listener stops any click (mouse, keyboard, screen reader) from collapsing them. */
+    summaries leave the tab order, are marked aria-disabled, and a capture listener stops any click (mouse, keyboard, screen
+    reader) from collapsing them. */
 export function useFooterGroups(ref: React.RefObject<HTMLElement>) {
   useEffect(() => {
     const footer = ref.current;
@@ -48,10 +49,14 @@ export function useFooterGroups(ref: React.RefObject<HTMLElement>) {
         const below = footer.getBoundingClientRect().top > window.innerHeight;
         for (const d of groups()) {
           if (below) d.open = false;
-          d.querySelector("summary")!.tabIndex = 0;
+          const sum = d.querySelector("summary")!;
+          sum.tabIndex = 0;
+          sum.removeAttribute("aria-disabled");
         }
       } else {
-        for (const d of groups()) { d.open = true; d.querySelector("summary")!.tabIndex = -1; }
+        // aria-disabled: a screen reader's browse mode still reaches the summary; it is announced as unavailable, not as a button
+        // that does nothing
+        for (const d of groups()) { d.open = true; const sum = d.querySelector("summary")!; sum.tabIndex = -1; sum.setAttribute("aria-disabled", "true"); }
         if (!held) { footer.addEventListener("click", hold, true); held = true; }
       }
     };

@@ -2,6 +2,9 @@
 /* Footer motion (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6), with Motion mocked: the arrival plays once per visit, only when
    armed below the fold, never offsets what is on screen, never touches opacity, .f-base or a disclosure, and always comes home.
    footerGroupToggle reads the open state before toggling, so the chevron goes to 0deg on close. */
+/* Reviewer findings, 21 Oct 2026: the failsafe no longer spends the arrival off screen (it plays only on a visible footer and the arm
+   observer re-arms); the chevron animates to one target (no snap back to a start keyframe on an interrupting tap); a tap during the
+   close glide reopens the group; the list is clipped only while it glides (the clip cut the links' focus rings). */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type View = { el: Element; cb: () => unknown; opts: any };
@@ -19,7 +22,7 @@ vi.mock("motion", () => ({
 }));
 
 import { spring } from "motion";
-import { footerMotion, resetFooterMotion } from "../src/lib/pageMotion";
+import { FOOTER_FAILSAFE_MS, footerMotion, resetFooterMotion, settleOnEnter } from "../src/lib/pageMotion";
 import { footerGroupToggle } from "../src/lib/motion";
 
 let top = 2000;
@@ -128,12 +131,50 @@ describe("footerMotion: arrival", () => {
     for (const i of settleItems(f)) expect(i.style.transform).toBe("");
   });
 
-  it("the 4 s failsafe from arming puts everything home, even if the play observer never fires", () => {
+  // Changed on purpose (reviewer finding, 21 Oct 2026): the failsafe used to play the arrival 4 s after arming wherever the footer
+  // was, so a slow reader of the last half-screen never saw it (it ran off screen, once per visit). It now guards a VISIBLE footer.
+  it("the 4 s failsafe plays the arrival and puts everything home when the footer is on screen, even if the play observer never fires", () => {
     const f = footer();
     footerMotion(f);
     arm().cb();
-    vi.advanceTimersByTime(4000);
+    top = 500; // on screen, but the play observer never reported
+    vi.advanceTimersByTime(FOOTER_FAILSAFE_MS);
+    expect(calls.some((c) => Array.isArray(c.el))).toBe(true);
     for (const i of [...settleItems(f), f.querySelector<HTMLElement>(".f-rule")!]) expect(i.style.transform).toBe("");
+  });
+  it("the failsafe does not use the arrival up off screen: a slow reader still sees it when the footer scrolls in", () => {
+    const f = footer();
+    footerMotion(f);
+    arm().cb(); // footer within 320px below the viewport, still off screen
+    vi.advanceTimersByTime(FOOTER_FAILSAFE_MS * 3); // a long read of the last half-screen
+    expect(calls).toHaveLength(0);
+    top = 500;
+    play().cb();
+    expect(calls.some((c) => Array.isArray(c.el) && c.kf.transform[0] === "translateY(18px)")).toBe(true);
+  });
+  it("scrolling back away before it plays puts the footer home, and the arrival re-arms on the way back", () => {
+    const f = footer();
+    footerMotion(f);
+    const leave = arm().cb() as () => void;
+    expect(typeof leave).toBe("function"); // keeps observing
+    leave();
+    for (const i of [...settleItems(f), f.querySelector<HTMLElement>(".f-rule")!]) expect(i.style.transform).toBe("");
+    vi.advanceTimersByTime(FOOTER_FAILSAFE_MS * 2);
+    expect(calls).toHaveLength(0);
+    arm().cb(); // back within 320px
+    for (const i of settleItems(f)) expect(i.style.transform).toBe("translateY(18px)");
+    top = 500;
+    play().cb();
+    expect(calls.length).toBeGreaterThan(0);
+  });
+  it("a play report before arming is ignored, not used up: the play observer keeps observing until it has played", () => {
+    const f = footer();
+    footerMotion(f);
+    expect(typeof play().cb()).toBe("function");
+    arm().cb();
+    top = 500;
+    expect(play().cb()).toBeUndefined(); // played: stop observing
+    expect(calls.length).toBeGreaterThan(0);
   });
 
   it("cleanup before it plays restores the rest state", () => {
@@ -171,7 +212,9 @@ describe("footerGroupToggle (phone accordion)", () => {
     footerGroupToggle(d, list, chev, e);
     expect(e.preventDefault).toHaveBeenCalled();
     const c = calls.find((x) => x.el === chev)!;
-    expect(c.kf.transform).toEqual(["rotate(180deg)", "rotate(0deg)"]);
+    // one target, so mini animate starts from the chevron's current angle (was ["rotate(180deg)", "rotate(0deg)"], which snapped back
+    // to 180deg when a second tap interrupted the turn; reviewer finding, 21 Oct 2026)
+    expect(c.kf.transform).toBe("rotate(0deg)");
     expect(c.opts).toMatchObject({ type: spring, visualDuration: 0.3, bounce: 0.25 });
     expect(calls.some((x) => Array.isArray(x.el))).toBe(false); // no cascade on close
     chev.style.transform = "rotate(90deg)"; // mid-flight
@@ -184,10 +227,38 @@ describe("footerGroupToggle (phone accordion)", () => {
     const { d, list, chev } = group(false);
     footerGroupToggle(d, list, chev, { preventDefault() {} });
     expect(d.open).toBe(true);
-    expect(calls.find((x) => x.el === chev)!.kf.transform).toEqual(["rotate(0deg)", "rotate(180deg)"]);
+    expect(calls.find((x) => x.el === chev)!.kf.transform).toBe("rotate(180deg)"); // one target (see the close test)
     const lis = calls.find((x) => Array.isArray(x.el))!;
     expect(lis.el).toHaveLength(2);
     expect(lis.kf).toEqual({ transform: ["translateY(-6px)", "none"] });
+  });
+  it("a tap during the close glide reopens the group (it does not close it a second time) and the chevron turns back from where it is", async () => {
+    const { d, list, chev } = group(true);
+    footerGroupToggle(d, list, chev, { preventDefault() {} }); // close: d.open stays true for the glide
+    expect(d.open).toBe(true);
+    calls.length = 0;
+    footerGroupToggle(d, list, chev, { preventDefault() {} }); // second tap ~150ms in
+    expect(calls.find((x) => x.el === chev)!.kf.transform).toBe("rotate(180deg)");
+    expect(calls.find((x) => x.el === list)!.kf.height).toMatch(/^\d+px$/); // one keyframe: from the current height
+    expect(calls.some((x) => Array.isArray(x.el))).toBe(false); // no link cascade on a reopen
+    settle(); // the superseded close glide finishes
+    await vi.runAllTimersAsync();
+    expect(d.open).toBe(true);
+  });
+  it("the list is clipped only while it glides (the clip cut the links' focus rings at rest)", async () => {
+    const { d, list, chev } = group(true);
+    expect(list.style.overflow).toBe("");
+    footerGroupToggle(d, list, chev, { preventDefault() {} });
+    expect(list.style.overflow).toBe("hidden");
+    settle();
+    await vi.runAllTimersAsync();
+    expect(list.style.overflow).toBe("");
+    expect(list.style.height).toBe("");
+    footerGroupToggle(d, list, chev, { preventDefault() {} }); // open again
+    expect(list.style.overflow).toBe("hidden");
+    settle();
+    await vi.runAllTimersAsync();
+    expect(list.style.overflow).toBe("");
   });
   it("reduced motion: the native toggle (no preventDefault, no animation)", () => {
     media({ reduce: true });
@@ -196,5 +267,22 @@ describe("footerGroupToggle (phone accordion)", () => {
     footerGroupToggle(d, list, chev, e);
     expect(e.preventDefault).not.toHaveBeenCalled();
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("settleOnEnter", () => {
+  it("springs a centred element to its CSS rest transform, not to none (the money-flow x-mark no longer drifts 12px off centre)", () => {
+    const el = document.createElement("span");
+    document.body.appendChild(el);
+    el.getBoundingClientRect = () => ({ top: 2000, bottom: 2024, left: 0, right: 24, width: 24, height: 24, x: 0, y: 2000, toJSON() {} }) as DOMRect;
+    settleOnEnter(el, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { to: "translate(-50%,-50%)" });
+    views[views.length - 1].cb();
+    expect(calls[0].kf.transform).toEqual(["translate(-50%,-50%) scale(1.6) rotate(-45deg)", "translate(-50%,-50%)"]);
+    calls.length = 0;
+    const other = document.createElement("div");
+    other.getBoundingClientRect = el.getBoundingClientRect;
+    settleOnEnter(other, "translateY(26px)");
+    views[views.length - 1].cb();
+    expect(calls[0].kf.transform).toEqual(["translateY(26px)", "none"]); // default unchanged
   });
 });

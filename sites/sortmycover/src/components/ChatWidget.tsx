@@ -8,6 +8,7 @@ import { useLocation } from "react-router-dom";
 import { CHAT_EVENT, CONSENT_TEXT, WA_LABEL, openChat, sourceTag, startHref, waHref, type ChatContext } from "@/lib/whatsapp";
 import { APEX, consentCfg, provider } from "@/lib/site";
 import { attribution, grantAds, hasConsent, track } from "@/lib/pixel";
+import { NO_MOTION, popIn } from "@/lib/motion";
 
 /** WhatsApp glyph (Simple Icons, CC0). */
 export function WaIcon({ size = 20 }: { size?: number }) {
@@ -66,6 +67,8 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
   const recipient = c.wills ? "wills" : "adviser";
   const agreed = agreedFor === recipient;
   const { pathname } = useLocation();
+  const path = useRef(pathname); // read by the open effect without re-running it on a page change
+  path.current = pathname;
 
   const release = useCallback(() => { for (const el of inerted.current) el.removeAttribute("inert"); inerted.current = []; }, []);
   const show = useCallback((next: ChatContext | null) => {
@@ -125,10 +128,8 @@ export default function ChatWidget({ base }: { base: ChatContext }) {
     if (!open) return;
     setAdsBefore(hasConsent());
     close.current?.focus();
-    if (panel.current && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
-      const el = panel.current;
-      import("@/lib/motion").then((m) => m.popIn(el));
-    }
+    // the static legal pages (NO_MOTION) play no motion at all, the panel's pop-in included; popIn itself checks reduced motion
+    if (panel.current && !NO_MOTION.test(path.current)) popIn(panel.current);
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") hide(); };
     document.addEventListener("keydown", esc);
     return () => document.removeEventListener("keydown", esc);
