@@ -282,6 +282,14 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(home).toMatch(/<a href="https:\/\/sortmycover\.co\.za\/start\/\?ref=w-home"[^>]*desk-only/);
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/app\.cal\.com/);
   });
+  it("chat panel on phones (21 Oct 2026): its height fits the visible screen with the toolbars showing (100svh after the 100vh fallback), and the close button is a 44px target", () => {
+    const css = walk(path.join(dist, "assets")).filter((f) => f.endsWith(".css")).map((f) => fs.readFileSync(f, "utf8")).join("\n");
+    const panel = /\.chat-panel\{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(panel).toMatch(/max-height:calc\(100vh - 110px\);max-height:calc\(100svh - 110px\)/);
+    const x = /\.chat-x\{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(Number(/width:(\d+)px/.exec(x)?.[1])).toBeGreaterThanOrEqual(44);
+    expect(Number(/height:(\d+)px/.exec(x)?.[1])).toBeGreaterThanOrEqual(44);
+  });
   it("no will CTA offers 'Pick a time' (21 Oct 2026): /start/ only hands a will over to WhatsApp, so no page links to for=wills", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/for=wills/);
     // the wills pages still have their WhatsApp CTA
