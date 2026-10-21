@@ -1127,7 +1127,7 @@ test('W05 /start/ v4 guest: Teams -> phone sends the guest ONE change email, the
   assert.match(WF5.nodes.find((x) => x.name === 'Save method').parameters.query, /payload = \(g\.payload - 'guest_email'\)/);
 });
 
-test('W05 /start/ v4 phone: a WhatsApp-proven lead books a phone call with no email at once (no hold, no client email); Teams still held; a desktop web lead keeps the email rule', async () => {
+test('W05 /start/ v4 phone: a WhatsApp-proven lead books a phone call with no email at once (no hold, no client email); Teams still held; a desktop /start/ phone call needs no email either (smoke #1)', async () => {
   const req = (k, over = {}) => ({ slot_start: '2026-10-14T10:30:00+02:00', method: 'phone', email: null, booked_via: 'page', idempotency_key: k, ...over });
   for (const proven of [{ origin: 'ctwa' }, { wa_verified: true }, { verified_at: '2026-10-12T09:00:00+02:00' }]) {
     const lead = startLead({ email: null, email_verified: false, ...proven });
@@ -1146,11 +1146,21 @@ test('W05 /start/ v4 phone: a WhatsApp-proven lead books a phone call with no em
   assert.equal(W5.decide(ctx5({ lead: startLead({ origin: 'ctwa' }), req: req('pt', { method: 'teams' }) })).body.error_code, 'email_required');
   const pt = W5.decide(ctx5({ lead: startLead({ origin: 'ctwa' }), req: req('pt2', { method: 'teams', email: 'sipho@gmail.com' }) }));
   assert.deepEqual([pt.plan.hold, pt.plan.hold_for], [true, 'email']);
-  // desktop web lead (origin page, never messaged us): phone needs the email, then is held for the link
-  const web = startLead({ routing_reason: 'start_page_pending', conv_state: { state: 'start_page', via: 'start_page' } });
-  assert.equal(W5.decide(ctx5({ lead: web, req: req('pw') })).body.error_code, 'email_required');
-  const pw = W5.decide(ctx5({ lead: web, req: req('pw2', { email: 'sipho@gmail.com' }) }));
-  assert.deepEqual([pw.plan.hold, pw.plan.hold_for], [true, 'email']);
+  // smoke #1 (21 Oct 2026): a desktop web lead (origin page, never messaged us) books a phone call on /start/ with NO email
+  // (contract v4 step 2b: no email on the phone path); the confirmation goes on WhatsApp to the number from step 0
+  const web = startLead({ email: null, email_verified: false, routing_reason: 'start_page_pending', conv_state: { state: 'start_page', via: 'start_page' } });
+  const pw = W5.decide(ctx5({ lead: web, req: req('pw') }));
+  assert.deepEqual([pw.action, pw.plan && pw.plan.hold, pw.plan && pw.plan.email], ['check', false, null], JSON.stringify(pw.body || {}));
+  const fw = W5.finish(ctx5({ lead: { ...web, brand_code: 'SMC' }, broker: ownCal() }), pw.plan, bkOf('bk-pw', pw.plan), { ok: true, graph_event_id: 'AAMk' });
+  assert.equal(fw.client_email, null, 'no email on the phone path');
+  assert.equal(fw.lead_wa.template.name, 'booking_confirmed', 'confirmed on WhatsApp');
+  // an email sent anyway on the phone path is still verified by the link (held), and Teams still needs the email + the link
+  const pw2 = W5.decide(ctx5({ lead: web, req: req('pw2', { email: 'sipho@gmail.com' }) }));
+  assert.deepEqual([pw2.plan.hold, pw2.plan.hold_for], [true, 'email']);
+  assert.equal(W5.decide(ctx5({ lead: web, req: req('pwt', { method: 'teams' }) })).body.error_code, 'email_required');
+  // a WhatsApp call still needs a proven WhatsApp number; a non-start-page web lead keeps the email rule
+  assert.equal(W5.decide(ctx5({ lead: web, req: req('pwc', { method: 'whatsapp_call' }) })).body.error_code, 'email_required');
+  assert.equal(W5.decide(ctx5({ req: req('pwn') })).body.error_code, 'email_required');
   // the LOAD feeds the proof + the alt number
   assert.match(WF5.nodes.find((x) => x.name === 'Load lead, broker, replay, live booking').parameters.query, /l\.call_number, l\.alt_number,[\s\S]*l\.email_verified, l\.wa_verified, l\.verified_at,/);
   // the offline adapter end to end: 201 booked, nothing held
@@ -1159,6 +1169,11 @@ test('W05 /start/ v4 phone: a WhatsApp-proven lead books a phone call with no em
   sys.st.leads.set(id, { id, origin: 'ctwa', first_name: 'Ayanda', mobile: '+27600000123', age_band: '35_44', budget_band: null, conv_state: { via: 'start_page' }, email_verified: false, consent_ads_at: null });
   const r = await sys.book({ lead_id: id, slot_start: '2026-10-14T10:30:00+02:00', method: 'phone', booked_via: 'page', request_id: 'req-ctwa-phone-1' }, '2026-10-12T11:40:00+02:00', { verify: false });
   assert.equal(r.http_status, 201, JSON.stringify(r.body)); assert.equal(r.body.booked, true); assert.equal(r.body.held, undefined);
+  // smoke #1: the desktop web lead end to end (POST /book phone, no email): 201 booked, not 422 email_required
+  const wid = 'lead_web_phone';
+  sys.st.leads.set(wid, { id: wid, origin: 'page', first_name: 'Naledi', mobile: '+27600000124', age_band: '35_44', budget_band: null, routing_reason: 'start_page_pending', conv_state: { via: 'start_page' }, email_verified: false, consent_ads_at: null });
+  const rw = await sys.book({ lead_id: wid, slot_start: '2026-10-14T09:00:00+02:00', method: 'phone', booked_via: 'page', request_id: 'req-web-phone-1' }, '2026-10-12T11:40:00+02:00', { verify: false });
+  assert.equal(rw.http_status, 201, JSON.stringify(rw.body)); assert.equal(rw.body.booked, true); assert.equal(rw.body.held, undefined);
 });
 
 test('W05 /start/ v4: a start-page booking gets booking_confirmed from W05 (no W06 card, no W07 number ask) and stamps the first touch; other bookings unchanged', () => {

@@ -396,8 +396,10 @@ export function decide(ctx = {}) {
   // 2026-10-11 verify gate: an unverified lead needs an email for EVERY method (the verification), invite methods always
   const verifiedBefore = lead.email_verified === true;
   // /start/ v4 (Jono, 2026-10-19): a phone / WhatsApp call for a lead whose WhatsApp number is PROVEN (the lead messaged us)
-  // needs no email and is not held for one. Desktop web leads (origin page, never messaged) keep the email + link rule.
-  const noEmailCall = CALL_METHODS.has(method) && waProven(lead) && !req.email;
+  // needs no email and is not held for one. Smoke #1 (21 Oct 2026): a /start/ PHONE call needs no email either, also for a
+  // desktop web lead that never messaged us (contract v4 step 2b "NO email on the phone path"; the confirmation goes on
+  // WhatsApp to the step 0 number). A WhatsApp call still needs a proven number; other web leads keep the email + link rule.
+  const noEmailCall = CALL_METHODS.has(method) && !req.email && (waProven(lead) || (method === 'phone' && isStartPageLead(lead)));
   if (INVITE_METHODS.has(method) || (!verifiedBefore && !noEmailCall) || req.email) {
     const raw = req.email || (!http && lead.email && lead.email_status !== 'bounced' && (lead.email_purpose === 'meeting_invite' || verifiedBefore) ? lead.email : null);
     if (!raw) {
