@@ -46,6 +46,8 @@
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .skip { position: absolute; left: -999px; top: 0; z-index: 60; background: var(--sm-amber); color: var(--sm-accent-text); padding: 12px 16px; font-weight: 800; }
 .skip:focus { left: 0; }
+/* focus moves to <main> on every page change (Layout ScrollToTop) and from the skip link: no ring around the whole page */
+#main:focus { outline: none; }
 
 /* ------------------------------------------------------------------ brand ---------------------------------------------- */
 .logo { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; display: inline-flex; align-items: baseline; text-decoration: none; }
@@ -53,7 +55,9 @@
 .tick svg { width: 68%; height: 68%; }
 
 /* ------------------------------------------------------------------ layout --------------------------------------------- */
-.wrap { max-width: 1080px; margin-inline: auto; padding-inline: 16px; }
+/* landscape notch / Dynamic Island phones: the side insets (viewport-fit=cover). Not .wrap-narrow: its centred 720px column already
+   clears the notch, and the inset would count twice. */
+.wrap { max-width: 1080px; margin-inline: auto; padding-inline: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .wrap-narrow { max-width: 720px; margin-inline: auto; padding-inline: 16px; }
 .site-header { position: sticky; top: 0; z-index: 40; background: var(--sm-charcoal); color: var(--sm-off-white); }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
@@ -61,7 +65,9 @@
 .nav-link:hover, .nav-link[aria-current="page"] { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
 .menu summary { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-weight: 800; border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 999px; font-size: 15px; }
 .menu[open] summary { background: rgba(255, 255, 255, 0.1); }
-.menu-panel { position: absolute; left: 0; right: 0; top: 100%; background: var(--sm-charcoal); border-top: 1px solid rgba(255, 255, 255, 0.12); padding: 8px 16px 16px; box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3); }
+/* max-height: the panel scrolls on small and landscape phones instead of cutting off the last links; 60px = .site-header .bar
+   min-height (the panel hangs below it); the 100vh line is the fallback for browsers without dvh */
+.menu-panel { position: absolute; left: 0; right: 0; top: 100%; background: var(--sm-charcoal); border-top: 1px solid rgba(255, 255, 255, 0.12); padding: 8px 16px 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3); max-height: calc(100vh - 120px); max-height: calc(100dvh - 60px - env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior: contain; }
 .menu-panel .nav-link { display: flex; font-size: 17px; padding: 0 4px; }
 
 .hero-band { background: var(--sm-charcoal); color: var(--sm-off-white); position: relative; overflow: hidden; }

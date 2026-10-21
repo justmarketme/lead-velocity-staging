@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigationType } from "react-router-dom";
 import ChatWidget, { WhatsAppCta } from "./ChatWidget";
 import { contextFor } from "@/lib/whatsapp";
 import { Wordmark } from "./Brand";
@@ -13,14 +13,21 @@ const NO_MOTION = /^\/(privacy|terms|paia)\//;
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
+  const type = useNavigationType();
   const first = useRef(true);
+  const shown = useRef(pathname);
   useEffect(() => {
     // first load: the browser already placed the pre-rendered page; resetting here would yank a reader who started scrolling
     // before the app finished loading back to the top
     if (first.current) { first.current = false; return; }
+    // a new page: keyboard and screen-reader focus moves to its content (the link that had it is gone, or hidden in the closed menu)
+    if (shown.current !== pathname) document.getElementById("main")?.focus({ preventScroll: true });
+    shown.current = pathname;
+    // Back / Forward: the browser restores the reader's place on the page they return to
+    if (type === "POP") return;
     if (hash) { document.getElementById(hash.slice(1))?.scrollIntoView(); return; }
     window.scrollTo(0, 0);
-  }, [pathname, hash]);
+  }, [pathname, hash]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
@@ -65,11 +72,13 @@ function Progress() {
 
 /** Mobile menu: a native <details>, so it works without JavaScript. The header stays mounted across client-side navigation,
     so the open state would survive a route change: close it on every route change, on a tap on any of its links (the current
-    page included), on Escape and on a tap outside it. */
+    page included), on Escape and on a tap outside it. NavLink marks the current section (aria-current), as on the desktop nav. */
 function MobileMenu() {
   const menu = useRef<HTMLDetailsElement>(null);
   const { pathname, hash } = useLocation();
   const close = () => { if (menu.current) menu.current.open = false; };
+  /** The page already open: nothing changes page, so focus would stay on a link inside the closed menu; it goes to the Menu button. */
+  const tapped = (p: string) => { close(); if (p === pathname) menu.current?.querySelector("summary")?.focus(); };
   useEffect(close, [pathname, hash]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -86,7 +95,7 @@ function MobileMenu() {
     <details ref={menu} className="menu xl:hidden">
       <summary aria-label="Menu">Menu</summary>
       <nav aria-label="Main (mobile)" className="menu-panel">
-        {NAV.map(([t, p]) => <Link key={p} to={p} className="nav-link" onClick={close}>{t}</Link>)}
+        {NAV.map(([t, p]) => <NavLink key={p} to={p} className="nav-link" onClick={() => tapped(p)}>{t}</NavLink>)}
       </nav>
     </details>
   );
