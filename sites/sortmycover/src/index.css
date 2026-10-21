@@ -57,6 +57,7 @@
 .wrap-narrow { max-width: 720px; margin-inline: auto; padding-inline: 16px; }
 .site-header { position: sticky; top: 0; z-index: 40; background: var(--sm-charcoal); color: var(--sm-off-white); }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
+.site-header .logo { padding-block: 10px; } /* a 44px+ tap area, still inside the 60px bar */
 .nav-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 9px; white-space: nowrap; font-size: 15px; font-weight: 500; color: #e4e7ea; text-decoration: none; border-radius: 8px; }
 .nav-link:hover, .nav-link[aria-current="page"] { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
 .menu summary { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-weight: 800; border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 999px; font-size: 15px; }
@@ -121,7 +122,7 @@
 /* breadcrumb = the eyebrow line of the page head (same as the home hero eyebrow) */
 .breadcrumb { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sm-charcoal); margin: 0 0 18px; line-height: 1.8; }
 .crumb-rule { display: inline-block; vertical-align: middle; width: 28px; height: 3px; border-radius: 2px; margin: -2px 12px 0 0; background: var(--sm-amber); transform-origin: 0 50%; }
-.breadcrumb a { color: var(--sm-charcoal); text-decoration: none; }
+.breadcrumb a { color: var(--sm-charcoal); text-decoration: none; padding: 14px 0; } /* inline padding: a 44px tap area with no change to the line */
 .breadcrumb a:hover { text-decoration: underline; text-decoration-color: var(--sm-amber); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .crumb-sep { margin: 0 8px; color: var(--sm-amber); }
 
@@ -335,12 +336,12 @@ legend { padding: 0; width: 100%; }
 /* white cards: the dark-card colours above (#d3d7dc, #c3c8ce, yellow text) fail contrast on white; muted is 5.8:1, charcoal for the kicker (no yellow text on light) */
 .smc-home .svc-fine{color:var(--sm-text-muted)}.smc-home .svc-kicker{color:var(--sm-charcoal)}
 .smc-home .svc-list{display:flex;flex-wrap:wrap;gap:4px 12px}
-.smc-home .svc-list a{min-height:31px}
+.smc-home .svc-list a{min-height:44px}
 .home-editorial{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(25px,5vw,80px);align-items:center;margin-bottom:28px}
 .home-editorial>img{width:100%;height:390px;object-fit:cover;border-radius:22px}
 .home-editorial>div{padding:20px 0}.home-editorial h2,.home-section-heading{font-size:clamp(30px,4vw,52px);line-height:1.08;letter-spacing:-.035em;max-width:14ch}
 .home-editorial p:not(.eyebrow){font-size:17px;line-height:1.65;max-width:42ch;margin:20px 0}
-.home-text-link{font-weight:800;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:6px}
+.home-text-link{font-weight:800;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:6px;display:inline-flex;align-items:center;min-height:44px}
 .home-editorial-reverse>img{order:2}.home-editorial-reverse>div{order:1}
 .home-guide-grid{margin-top:28px}
 .home-how-photo{position:relative;overflow:hidden;border-radius:22px;height:310px;margin:25px 0 32px}
@@ -392,7 +393,8 @@ legend { padding: 0; width: 100%; }
 .chat-check.is-missing input{outline:2px solid var(--err);outline-offset:2px}
 .chat-check-opt{color:#56606a;font-size:13px}
 .chat-more{margin:-6px 0 0 30px;font-size:12px;color:var(--sm-text-muted)}
-.chat-more summary{cursor:pointer;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:3px;width:max-content}
+.chat-more summary{cursor:pointer;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:3px;width:max-content;padding:3px 0;margin:-3px 0}
+/* 3px, not more: a bigger hit area would reach up over the consent tick-box label just above */
 .chat-more p{margin:6px 0 0;line-height:1.5}
 .chat-more a{text-decoration:underline;text-underline-offset:3px}
 .chat-err{margin:0;color:var(--err);font-size:13px;font-weight:800}

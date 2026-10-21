@@ -120,6 +120,9 @@
      more (e.g. 132px) would pass the tracker line and name the section above. Not scoped to .toc-live: a first-load fragment
      scroll runs before pageMotion adds it */
   .prose-sm h2[id^="s-"]{scroll-margin-top:58px}
+  /* 44px+ tap rows on phones (the li padding moves into the link); the fixed wide rail keeps its height */
+  .prose-sm .toc-list li{padding:0}
+  .prose-sm .toc-list a{display:block;padding:12px 0}
 }
 @media (min-width:1240px){
   .prose-sm .toc{position:fixed;top:var(--toc-top,92px);left:max(20px,calc(50% - 360px - 256px));width:216px;margin:0;z-index:20}
