@@ -107,3 +107,16 @@ test('a question with a side "reschedule" label never moves a booked call (KG, 2
   // before a booking, a side "book" still offers times (harmless)
   assert.ok(decide('booking', { intent: 'question', secondary_intents: ['book'], topics: [], slots: {}, confidence: 0.9 }, {}, {}).actions.some((a) => /slots/.test(a)));
 });
+
+test('21 Oct 2026 (KG): "Can I cancel" with a live booking after the phone hand-off (state start_page) is a cancel, never a nurture close', async () => {
+  const { decide } = await import('../../conversation/logic.mjs');
+  const booking = { status: 'booked', time: '14:00' };
+  for (const state of ['start_page', 'q_age', 'consent_pending', 'unbooked', 'booking', 'closed_unbooked']) {
+    const d = decide(state, { intent: 'cancel', confidence: 0.9 }, {}, { booking });
+    assert.ok(d.actions.includes('cancel_confirm'), `${state}: ${d.actions}`);
+    assert.ok(!d.actions.includes('close_unbooked'), state);
+  }
+  // no live booking: the nurture close stays; opted out / handoff are never overridden by a booking
+  assert.ok(decide('start_page', { intent: 'cancel' }, {}, {}).actions.includes('close_unbooked'));
+  assert.deepEqual(decide('opted_out', { intent: 'cancel' }, {}, { booking }).actions, ['human_review']);
+});

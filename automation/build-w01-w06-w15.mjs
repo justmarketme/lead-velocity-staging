@@ -821,7 +821,9 @@ return [{ json: { e, ctx, plan } }];`));
   INSERT INTO public.suppression (mobile_hash, source, brand_id, lead_id, note)
   SELECT public.smc_hash_contact($1), 'stop', NULL, $2::uuid, $3
    WHERE $1 IS NOT NULL AND $1 <> ''
-  ON CONFLICT (mobile_hash, source) DO NOTHING
+  ON CONFLICT (mobile_hash, brand_id) WHERE mobile_hash IS NOT NULL DO UPDATE
+     SET source = 'stop', lead_id = COALESCE(EXCLUDED.lead_id, suppression.lead_id), note = EXCLUDED.note
+   WHERE suppression.source <> 'stop'   -- an earlier objection/no-consent row becomes the STOP (21 Oct 2026: it used to crash on suppression_mobile_uidx)
   RETURNING id),
 claim AS (SELECT (EXISTS (SELECT 1 FROM sup) OR $1 IS NULL OR $1 = '') AS ok),
 upd AS (
