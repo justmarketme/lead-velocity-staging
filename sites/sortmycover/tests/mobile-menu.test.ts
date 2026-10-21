@@ -66,3 +66,24 @@ describe("mobile menu closes", () => {
     expect(menu().open).toBe(false);
   });
 });
+
+describe("mobile menu marks and keeps focus (21 Oct 2026)", () => {
+  const current = () => [...menu().querySelectorAll("a")].filter((a) => a.getAttribute("aria-current") === "page").map((a) => a.textContent);
+
+  it("marks the current section, as the desktop nav does", () => {
+    expect(current()).toEqual([]);
+    act(() => go("/learn/"));
+    expect(current()).toEqual(["Learn"]);
+    act(() => go("/learn/how-to-check-an-adviser/"));
+    expect(current()).toEqual(["Learn"]);
+  });
+
+  it("a tap on the page already open puts focus on the Menu button, not on a link hidden in the closed menu", () => {
+    act(() => go("/learn/"));
+    open();
+    item("Learn").focus();
+    act(() => item("Learn").dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 })));
+    expect(menu().open).toBe(false);
+    expect(document.activeElement).toBe(menu().querySelector("summary"));
+  });
+});
