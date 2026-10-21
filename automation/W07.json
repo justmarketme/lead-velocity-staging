@@ -3532,6 +3532,20 @@
           "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || '00000000-0000-0000-0000-000000000000' ] }}"
         }
       }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W09 pause contract (CONTRACTS.md): { op: 'pause', lead_id, reason }. A sensitive hand-off (distress) pauses every unsent\n// reminder for the lead; only a person resumes them (console, op 'resume').\nconst e = $json.plan.escalation || {};\nreturn { json: { op: 'pause', lead_id: e.lead_id || ($json.lead && $json.lead.id) || null, reason: 'sensitive', source: 'W07' } };"
+      },
+      "id": "w07-w09-pause-input",
+      "name": "W09 pause input (op pause, sensitive)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1120
+      ]
     }
   ],
   "connections": {
@@ -4054,7 +4068,7 @@
       "main": [
         [
           {
-            "node": "-> W09 pause",
+            "node": "W09 pause input (op pause, sensitive)",
             "type": "main",
             "index": 0
           }
@@ -4982,6 +4996,17 @@
         [
           {
             "node": "W28 last resort: send (smc-whatsapp-send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W09 pause input (op pause, sensitive)": {
+      "main": [
+        [
+          {
+            "node": "-> W09 pause",
             "type": "main",
             "index": 0
           }

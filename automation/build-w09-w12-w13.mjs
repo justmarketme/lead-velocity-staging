@@ -95,10 +95,13 @@ ON CONFLICT (idempotency_key) DO NOTHING;`,
 const rejectNode = (wf, pos, idExpr) => pg('Log subcall_rejected (CONTRACTS: never guessed)', pos,
   `INSERT INTO public.lead_activities (${ACTIVITY_COLS})
 SELECT x.lead_id, x.brand_id, x.broker_id, '${wf}', 'system', 'subcall_rejected', $3::jsonb, now(), NULL
-  FROM (SELECT COALESCE($1::uuid, a.client_id) AS lead_id, a.brand_id, a.broker_id
+  FROM (SELECT COALESCE($1::uuid, a.client_id) AS lead_id, COALESCE(a.brand_id, l.brand_id) AS brand_id, a.broker_id
           FROM (SELECT 1) one
-          LEFT JOIN public.appointments a ON a.id = $2::uuid) x
- WHERE x.lead_id IS NOT NULL OR x.broker_id IS NOT NULL;`,
+          LEFT JOIN public.appointments a ON a.id = $2::uuid
+          LEFT JOIN public.leads l ON l.id = COALESCE($1::uuid, a.client_id)) x
+ -- n8n_app may only write brand rows (RLS "smc n8n_app brand rows"): the brand comes from the booking, else the lead
+ -- (21 Oct 2026: a lead with no booking left brand_id NULL, the insert failed RLS and W22 sent a red WhatsApp alert)
+ WHERE (x.lead_id IS NOT NULL OR x.broker_id IS NOT NULL) AND x.brand_id IS NOT NULL;`,
   `={{ [${idExpr}.lead_id || null, ${idExpr}.booking_id || null, JSON.stringify({ missing: $json.missing, asked_op: $json.asked_op || null, source: $json.source || null })] }}`);
 
 const finish = (id, name, notes, tags) => {

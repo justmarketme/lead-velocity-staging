@@ -121,3 +121,27 @@ test('W05: a calendar-event failure on a synthetic lead booking goes to W22 mark
   assert.equal(W5.finish(ctx(false), p, bk, fail).alert.synthetic, undefined);
   assert.equal(W22.normalise(W5.finish(ctx(true), p, bk, fail).alert).synthetic, true);
 });
+
+// Live proof run (21 Oct 2026, +27600000926 distress): the escalation was logged and "Alert ops" built nothing, but W07's
+// "-> W09 pause" passed the plan item (no `op`), W09 rejected it, its rejection row had no brand and failed RLS, and the failed
+// run made W22 send a red WhatsApp to Jono. W07 now sends the W09 pause contract; W09/W12/W13 log a rejection with the lead's brand.
+test('W07 -> W09 pause: the sensitive hand-off sends { op: pause, lead_id, reason: sensitive }, which W09 accepts', async () => {
+  const W9 = await import('../lib/w09.mjs');
+  const IN = 'W09 pause input (op pause, sensitive)';
+  assert.deepEqual(W07.connections['Pause reminders? (sensitive)'].main[0].map((c) => c.node), [IN]);
+  assert.deepEqual(W07.connections[IN].main[0].map((c) => c.node), ['-> W09 pause']);
+  const lead = LEAD(SYN);
+  const [x] = [await runCode(W07, IN, { json: { lead, plan: { pause_reminders: true, escalation: { lead_id: lead.id } }, msg: { from: SYN } } })];
+  assert.deepEqual(x.json, { op: 'pause', lead_id: lead.id, reason: 'sensitive', source: 'W07' });
+  assert.equal(W9.classifyOp(x.json), 'pause');
+  assert.deepEqual(W9.validateInput('pause', x.json), { ok: true });
+});
+
+test('W09 / W12 / W13 subcall_rejected row takes the brand from the booking, else the lead, and never writes a brand-less row (n8n_app RLS)', () => {
+  for (const n of ['W09', 'W12', 'W13']) {
+    const q = wf(n).nodes.find((x) => x.name === 'Log subcall_rejected (CONTRACTS: never guessed)').parameters.query;
+    assert.match(q, /COALESCE\(a\.brand_id, l\.brand_id\) AS brand_id/, n);
+    assert.match(q, /LEFT JOIN public\.leads l ON l\.id = COALESCE\(\$1::uuid, a\.client_id\)/, n);
+    assert.match(q, /AND x\.brand_id IS NOT NULL;$/, n);
+  }
+});
