@@ -426,7 +426,7 @@ RETURNING id;`,
   ON CONFLICT (booking_id) DO NOTHING
   RETURNING id, booking_id, lead_id, broker_id),
 ap AS (UPDATE public.appointments SET status = $12, updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),
-st AS (UPDATE public.leads SET stage = COALESCE($13, stage), updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
+st AS (UPDATE public.leads SET stage = COALESCE($13, stage), conv_state = CASE WHEN $14::text IS NOT NULL AND COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', $14::text) ELSE conv_state END, updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
 tl AS (
   INSERT INTO public.lead_activities (${ACTIVITY_COLS})
   SELECT o.lead_id, $4::uuid, $3::uuid, 'W12', 'system', 'outcome_recorded', jsonb_build_object('booking_id', o.booking_id::text, 'outcome', $5::text, 'auto_marked', $9::boolean, 'unconfirmed', $10::boolean, 'reach', $6::text), now(), 'w12:outcome:' || o.booking_id::text
@@ -445,7 +445,7 @@ two AS (
    WHERE $10::boolean AND (SELECT count(*) FROM public.outcomes x WHERE x.broker_id = o.broker_id AND x.unconfirmed AND x.marked_at > now() - interval '30 days') + 1 >= 2
   RETURNING id)
 SELECT o.id AS outcome_id FROM o;`,
-    "={{ (() => { const x = $json; const r = x.row; const o = x.o; return [r.booking_id, r.lead_id, r.broker_id, r.brand_id, x.r.outcome, o.lead_reach_check, o.marked_via, o.marked_at, o.auto_marked, o.unconfirmed, o.dispute_status, o.appointment_status, o.lead_stage]; })() }}");
+    "={{ (() => { const x = $json; const r = x.row; const o = x.o; return [r.booking_id, r.lead_id, r.broker_id, r.brand_id, x.r.outcome, o.lead_reach_check, o.marked_via, o.marked_at, o.auto_marked, o.unconfirmed, o.dispute_status, o.appointment_status, o.lead_stage, o.conv_state || null]; })() }}");
   link(writeQ, ins, 0);
   const fu = code('Follow-ups (w12.followUps)', [10, 1], IMPORT('w12') +
 `const out = [];
@@ -490,8 +490,8 @@ d AS (UPDATE public.outcomes SET dispute_status = 'open', updated_at = now()
        WHERE booking_id = $4::uuid AND $9::boolean AND dispute_status = 'none' AND EXISTS (SELECT 1 FROM c) RETURNING id),
 ap AS (UPDATE public.appointments SET status = $10, updated_at = now()
         WHERE id = $4::uuid AND $10 IS NOT NULL AND EXISTS (SELECT 1 FROM c) RETURNING id),
-st AS (UPDATE public.leads SET stage = $11, updated_at = now()
-        WHERE id = $1::uuid AND $11 IS NOT NULL AND EXISTS (SELECT 1 FROM c) RETURNING id)
+st AS (UPDATE public.leads SET stage = COALESCE($11, stage), conv_state = CASE WHEN $12::text IS NOT NULL AND COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', $12::text) ELSE conv_state END, updated_at = now()
+        WHERE id = $1::uuid AND ($11 IS NOT NULL OR $12 IS NOT NULL) AND EXISTS (SELECT 1 FROM c) RETURNING id)
 SELECT c.id FROM c;`,
     '={{ $json.params }}');
   const claimFu = code('Claimed follow-ups (w12.claimedFollowUps)', [10, 4], IMPORT('w12') +
@@ -635,7 +635,7 @@ o AS (
    WHERE booking_id = $1::uuid AND outcome = 'attended' AND EXISTS (SELECT 1 FROM k)
   RETURNING id, booking_id, lead_id, brand_id, broker_id, marked_at),
 ap AS (UPDATE public.appointments SET status = 'no_show', updated_at = now() WHERE id IN (SELECT booking_id FROM o) RETURNING id),
-st AS (UPDATE public.leads SET stage = 'no_show', updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
+st AS (UPDATE public.leads SET stage = 'no_show', conv_state = CASE WHEN COALESCE(conv_state->>'state', '') NOT IN ('opted_out', 'handoff') THEN COALESCE(conv_state, '{}'::jsonb) || jsonb_build_object('state', 'no_show') ELSE conv_state END, updated_at = now() WHERE id IN (SELECT lead_id FROM o) RETURNING id),
 tl AS (
   INSERT INTO public.lead_activities (${ACTIVITY_COLS})
   SELECT o.lead_id, o.brand_id, o.broker_id, 'W12', 'system', 'outcome_kg_not_attended', jsonb_build_object('booking_id', o.booking_id::text, 'from', 'attended', 'to', 'no_show', 'nh', 'NH-62', 'decided_by', $2::text), now(), 'w12:kg_not_attended:' || o.booking_id::text

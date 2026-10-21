@@ -190,7 +190,7 @@ ins AS (
   INSERT INTO public.leads (id, brand_id, origin, source, is_synthetic, created_at, first_name, phone, line_type, language,
                             age_band, budget_band, bond, dependants, work_cover, method_pref, angle, product_interest, email, email_purpose, email_status,
                             consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,
-                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,
+                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id, ref,
                             utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,
                             broker_id, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)
   SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,
@@ -198,7 +198,7 @@ ins AS (
          j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle', j->>'product_interest',
          j->>'email', j->>'email_purpose', j->>'email_status',
          j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,
-         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',
+         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id', j->>'ref',
          j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',
          (j->>'broker_id')::uuid, (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',
          (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz, j->'conv_state'

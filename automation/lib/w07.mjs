@@ -207,7 +207,11 @@ function routeCore(msg, ctx) {
   // cancel_reason_pending, 30 min, that booking) the lead's next free text goes to W10 as the reason (lib/w10.mjs classifyOp).
   const pend = ctx.lead.conv_state && ctx.lead.conv_state.cancel_reason_pending;
   const nowMs = Number.isFinite(ctx.now_ms) ? ctx.now_ms : Date.now();
-  if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs) {
+  // Smoke #12 (21 Oct 2026): the wait now opens with the card itself, so it is read more often. Safety first: distress, asking
+  // for a person, a complaint or a claim problem is never taken as a cancel reason (it goes to Lindi's normal path).
+  const safety = pend ? prefilter(String(msg.text || '')) : {};
+  if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs
+    && !safety.distress && !safety.person && !safety.complaint && !safety.claim_problem) {
     return { route: 'W10', reason: 'typed cancel reason', delegate: { to: 'W10', action: 'cancel_reason_text', actions: ['cancel_reason_text'], booking_id: pend.booking_id || null } };
   }
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };

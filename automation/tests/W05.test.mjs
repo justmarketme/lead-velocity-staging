@@ -1257,3 +1257,126 @@ test('#2 W05 lib: no first name -> "there" to the client, "your client" to the a
   assert.match(W5.inviteMail(named, p, { id: 'b-n' }, { ok: true }).message.body.content, /^Hi Sipho,\n/);
   assert.equal(W5.brokerNotice(named, p).vars[1], 'Sipho');
 });
+
+// ============================================================================================
+// Smoke test 21 Oct 2026 (#37): /book refreshed the broker's Microsoft token twice (W04 is_free, then W04 graph_token).
+// ============================================================================================
+test('#37 /book: the is_free re-check hands back its Microsoft token and the Outlook create reuses it (one refresh per booking)', async () => {
+  const { runCode: run } = await import('./_n8ncode.mjs');
+  const WF4 = JSON.parse(readFileSync(new URL('../W04.json', import.meta.url), 'utf8'));
+  const now = Date.parse('2026-10-21T12:00:00Z');
+  // W04: only an is_free sub-call that asks for it gets the token, never an HTTP answer
+  assert.equal(W4.subcallInput({ op: 'is_free', broker_id: 'b1', start: '2026-10-22T08:00:00Z', want_token: true }).want_token, true);
+  assert.equal(W4.subcallInput({ op: 'is_free', broker_id: 'b1', start: '2026-10-22T08:00:00Z' }).want_token, undefined);
+  const tok = { ok: true, access_token: 'AT-1', expires_at: new Date(now + 3600e3).toISOString() };
+  assert.deepEqual(W4.reusableToken({ op: 'is_free', want_token: true }, tok), { access_token: 'AT-1', expires_at: tok.expires_at });
+  for (const [req, t] of [[{ op: 'is_free' }, tok], [{ op: 'list', want_token: true }, tok], [{ op: 'is_free', want_token: true }, { ok: false }]]) assert.equal(W4.reusableToken(req, t), null);
+  const compute = async (x) => (await run(WF4, 'Compute (w04.respond)', { json: x, refs: { 'Token plan (w04.planToken)': { tok } } }))[0].json;
+  const res = { next: 'respond', result: { free: true, next_slots: [] } };
+  assert.deepEqual((await compute({ lane: 'sub', req: { op: 'is_free', want_token: true }, plan: res })).body, { free: true, next_slots: [], access_token: 'AT-1', expires_at: tok.expires_at });
+  assert.deepEqual((await compute({ lane: 'sub', req: { op: 'is_free' }, plan: res })).body, { free: true, next_slots: [] }, 'W10 / others: no token');
+  assert.equal(JSON.stringify(await compute({ lane: 'http', req: { op: 'is_free', want_token: true }, plan: { next: 'respond', result: { status: 200, body: { slots: [] } } } })).includes('AT-1'), false);
+  // W05: the re-check asks for it on the broker calendar only
+  const isFree = { op: 'is_free', broker_id: 'b1', start: 's', end: 'e' };
+  assert.deepEqual((await run(WF5, 'is_free input', { json: { dec: { is_free: isFree, plan: { route: 'graph' } } } }))[0].json, { ...isFree, want_token: true });
+  assert.deepEqual((await run(WF5, 'is_free input', { json: { dec: { is_free: isFree, plan: { route: 'shared' } } } }))[0].json, isFree);
+  // a good token (> 5 min left) skips W04 graph_token; otherwise the old path
+  const C = WF5.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const IFN = 'Re-check token still good? (#37: no second refresh)';
+  assert.deepEqual(outs('Broker calendar (graph)?', 0), [IFN]);
+  assert.deepEqual([outs(IFN, 0), outs(IFN, 1)], [['Event body'], ['graph_token input']]);
+  assert.deepEqual(outs('graph_token input'), ['W04 graph_token (waits)']); assert.deepEqual(outs('W04 graph_token (waits)'), ['Event body']);
+  assert.equal(W5.recheckToken({ access_token: 'AT-1', expires_at: new Date(now + 301e3).toISOString() }, now), 'AT-1');
+  assert.equal(W5.recheckToken({ access_token: 'AT-1', expires_at: new Date(now + 299e3).toISOString() }, now), null, 'about to expire: refresh');
+  assert.equal(W5.recheckToken({ free: true }, now), null);
+  const dec = { ctx: ctx5({ lane: 'sub', broker: ownCal({ methods_supported: ['teams', 'phone'] }) }), dec: { plan: { lead_id: 'lead_test_L02', broker_id: broker().broker_id, start: '2026-10-22T08:00:00.000Z', end: '2026-10-22T08:30:00.000Z', method: 'phone', idempotency_key: 'k1', route: 'graph' } } };
+  const far = { free: true, access_token: 'AT-RECHECK', expires_at: new Date(Date.now() + 3600e3).toISOString() };
+  const body = async (refs) => (await run(WF5, 'Event body', { refs: { 'Decide (w05.decide + MX)': dec, ...refs } }))[0].json;
+  assert.equal((await body({ 'W04 is_free (re-check, waits)': far })).access_token, 'AT-RECHECK', 'no second refresh');
+  assert.equal((await body({ 'W04 is_free (re-check, waits)': far, 'W04 graph_token (waits)': { access_token: 'AT-FRESH' } })).access_token, 'AT-FRESH');
+  assert.equal((await body({ 'W04 is_free (re-check, waits)': far })).event.subject, 'SortMyCover call – Sipho – Phone');
+});
+
+// ============================================================================================
+// Smoke test 21 Oct 2026 (#3): phone -> Teams left no join link; a verified email outside the offline 10-domain list was asked
+// again and Outlook never changed; W10 had saved the method and told the client before W05 did anything.
+// ============================================================================================
+test('#3 update_method: a verified email is used as is (any domain); other addresses need the real MX answer', () => {
+  const own = ownCal({ add_client_as_attendee: true, methods_supported: ['teams', 'phone'] });
+  const booking = { id: 'bk3', broker_id: 'b1', status: 'booked', appointment_date: '2026-10-23T08:30:00Z', ends_at: '2026-10-23T09:00:00Z', calendar_provider: 'outlook', idempotency_key: 'k3', booked_via: 'chat', method: 'phone', graph_event_id: 'EV3' };
+  const proton = smcLead({ email: 'client@protonmail.com', email_status: 'mx_ok', email_purpose: 'meeting_invite', email_verified: true });
+  // live: d7ab3bda (protonmail.com, verified, mx_ok) got ask_email because no DNS answer was passed
+  const r = W5.planUpdateMethod({ req: { method: 'teams' }, booking, lead: proton, broker: own });
+  assert.equal(r.action, 'patch');
+  assert.equal(r.plan.email, 'client@protonmail.com');
+  assert.deepEqual(r.graph_patch.attendees.map((a) => a.emailAddress.address), ['client@protonmail.com']);
+  assert.equal(r.appointment_update.invite_email_status, 'sent');
+  assert.equal(W5.planUpdateMethod({ req: { method: 'teams', email: 'CLIENT@protonmail.com ' }, booking, lead: proton, broker: own }).action, 'patch', 'the same address typed again');
+  // not verified: the real MX answer decides (never the offline list for an unknown domain)
+  const work = smcLead({ email: 'thandi@company.co.za', email_status: 'mx_ok', email_purpose: 'meeting_invite', email_verified: false });
+  assert.equal(W5.planUpdateMethod({ req: { method: 'teams' }, booking, lead: work, broker: own }).action, 'ask_email');
+  assert.equal(W5.planUpdateMethod({ req: { method: 'teams' }, booking, lead: work, broker: own, mx: { 'company.co.za': true } }).action, 'patch');
+  assert.equal(W5.planUpdateMethod({ req: { method: 'teams' }, booking, lead: work, broker: own, mx: { 'company.co.za': false } }).action, 'ask_email');
+  // a bounced verified email is not trusted; a different typed address is checked
+  assert.equal(W5.planUpdateMethod({ req: { method: 'teams' }, booking, lead: { ...proton, email_status: 'bounced' }, broker: own }).action, 'ask_email');
+  assert.equal(W5.planUpdateMethod({ req: { method: 'teams', email: 'other@unknown-domain.test' }, booking, lead: proton, broker: own }).action, 'ask_email');
+});
+
+test('#3 update_method: the Teams join link comes from the Graph PATCH answer; a failed PATCH saves and tells nothing', () => {
+  const p = { method: 'teams' };
+  const join = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_x';
+  assert.deepEqual(W5.afterMethodPatch({ statusCode: 200, body: { id: 'EV3', onlineMeeting: { joinUrl: join } } }, p, 'bk3', 'b1'), { ok: true, join_url: join, alert: null });
+  const noLink = W5.afterMethodPatch({ statusCode: 200, body: { id: 'EV3', onlineMeeting: null } }, p, 'bk3', 'b1');
+  assert.deepEqual([noLink.ok, noLink.join_url, noLink.alert.signal_key, noLink.alert.severity, noLink.alert.scope], [true, null, 'teams_join_url_missing', 'amber', 'booking:bk3']);
+  const fail = W5.afterMethodPatch({ statusCode: 403, body: { error: { code: 'ErrorAccessDenied' } } }, p, 'bk3', 'b1');
+  assert.deepEqual([fail.ok, fail.join_url, fail.alert.signal_key, fail.alert.severity], [false, null, 'calendar_event_update_failed', 'red']);
+  assert.match(fail.alert.what, /HTTP 403 ErrorAccessDenied/);
+  assert.equal(W5.afterMethodPatch({ error: { message: 'timeout' } }, p, 'bk3').ok, false, 'no response');
+  assert.deepEqual(W5.afterMethodPatch({ statusCode: 200, body: { id: 'EV3' } }, { method: 'phone' }, 'bk3'), { ok: true, join_url: null, alert: null }, 'phone: no link, no alert');
+  // the joinRedirect (/j/<booking>) now has a link to send the client to
+  assert.equal(W5.joinRedirect({ booking_id: '11111111-1111-4111-8111-111111111111' }, { status: 'booked', method: 'teams', join_url: join }).status, 302);
+  // W10's one message rides along (parseSub keeps it; anything that is not a message is dropped)
+  const wa = { messaging_product: 'whatsapp', to: '+27600000002', type: 'text', text: { body: "I'll change it to Teams." } };
+  assert.deepEqual(W5.parseSub({ op: 'update_method', booking_id: 'bk3', method: 'teams', notify_wa: wa }).notify_wa, wa);
+  assert.equal('notify_wa' in W5.parseSub({ op: 'update_method', booking_id: 'bk3', method: 'teams', notify_wa: 'x' }), false);
+});
+
+test('#3 W05.json update_method: PATCH answer -> saved (with the join link) -> client email + the W10 message; failure -> W22 only', async () => {
+  const { runCode: run, evalParam } = await import('./_n8ncode.mjs');
+  const C = WF5.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const AFTER = 'After method PATCH (w05.afterMethodPatch)';
+  for (const n of ['Graph PATCH event (method, howzit@ shared calendar)', 'Graph PATCH event (method, ASSUMPTION)']) assert.deepEqual(outs(n), [AFTER], n);
+  assert.deepEqual(outs(AFTER).sort(), ['Method PATCH alert', 'Method patched?']);
+  assert.deepEqual([outs('Method patched?', 0), outs('Method patched?', 1)], [['Save method'], []]);
+  assert.deepEqual(outs('Method PATCH alert'), ['-> W22 Alerts']);
+  assert.deepEqual(outs('Save method').sort(), ['Method change message (after the change)', 'Method client email (SortMyCover)', 'Method invite?']);
+  assert.deepEqual(outs('Method change message (after the change)'), ['Live send?']);
+  // nothing reaches Save method except the PATCH-ok branch and the no-event route
+  const into = Object.entries(C).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === 'Save method'))).map(([k]) => k).sort();
+  assert.deepEqual(into, ['Method event calendar?', 'Method patched?']);
+  const save = WF5.nodes.find((x) => x.name === 'Save method');
+  assert.match(save.parameters.query, /WHERE id = \$1::uuid AND status IN \('booked','confirmed'\)/);
+  assert.equal(save.alwaysOutputData, false, 'a booking that is no longer live: nothing saved, nothing told');
+  const join = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_x';
+  const plan = { booking: { id: 'bk3', broker_id: 'b1' }, lead_id: 'l3', plan: { method: 'teams' }, appointment_update: { method: 'teams', call_number: null, invite_email_status: 'sent' }, guest_drop: false,
+    smc_email: { kind: 'booking_updated', method: 'teams', booking_id: 'bk3' } };
+  const after = (await run(WF5, AFTER, { json: { statusCode: 200, body: { id: 'EV3', onlineMeeting: { joinUrl: join } } }, refs: { 'Plan method change (w05.planUpdateMethod)': plan } }))[0].json;
+  assert.deepEqual(after, { ok: true, join_url: join, alert: null });
+  assert.deepEqual(evalParam(WF5, 'Save method', 'options.queryReplacement', { refs: { 'Plan method change (w05.planUpdateMethod)': plan, [AFTER]: after } }), ['bk3', 'teams', '', 'sent', 'false', join]);
+  assert.equal(evalParam(WF5, 'Save method', 'options.queryReplacement', { refs: { 'Plan method change (w05.planUpdateMethod)': plan } })[5], '', 'no event to patch: no link');
+  const mail = (await run(WF5, 'Method client email (SortMyCover)', { refs: { 'Plan method change (w05.planUpdateMethod)': plan, [AFTER]: after } }))[0].json;
+  assert.equal(mail.smc_email.join_url, join);
+  const wa = { messaging_product: 'whatsapp', to: '+27600000002', type: 'text', text: { body: "I'll change it to Teams." } };
+  const msg = async (req) => (await run(WF5, 'Method change message (after the change)', { refs: { 'Normalise sub-call (w05.parseSub)': { req }, 'Plan method change (w05.planUpdateMethod)': plan } })).map((x) => x.json);
+  assert.deepEqual(await msg({ op: 'update_method', notify_wa: wa }), [{ kind: 'wa', to: 'lead', lead_id: 'l3', wa }]);
+  assert.deepEqual(await msg({ op: 'update_method' }), []);
+  const al = (await run(WF5, 'Method PATCH alert', { json: { ok: false, alert: { signal_key: 'calendar_event_update_failed' } }, refs: { 'Plan method change (w05.planUpdateMethod)': plan } })).map((x) => x.json);
+  assert.deepEqual(al, [{ signal_key: 'calendar_event_update_failed', lead_id: 'l3' }]);
+  // the plan node: a verified protonmail.com email patches (no DNS lookup for it, no second ask)
+  const own = ownCal({ add_client_as_attendee: true, methods_supported: ['teams', 'phone'] });
+  const p = (await run(WF5, 'Plan method change (w05.planUpdateMethod)', {
+    json: { booking: { id: 'bk3', broker_id: 'b1', status: 'booked', appointment_date: '2026-10-23T08:30:00Z', ends_at: '2026-10-23T09:00:00Z', calendar_provider: 'outlook', idempotency_key: 'k3', booked_via: 'chat', method: 'phone', graph_event_id: 'EV3' },
+      lead: smcLead({ email: 'client@protonmail.com', email_status: 'mx_ok', email_purpose: 'meeting_invite', email_verified: true }), broker: own },
+    refs: { 'Normalise sub-call (w05.parseSub)': { req: { op: 'update_method', booking_id: 'bk3', method: 'teams' } } } }))[0].json;
+  assert.equal(p.action, 'patch');
+});
