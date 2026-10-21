@@ -11,7 +11,9 @@
 //   multipart/form-data: file (audio, <= 25 MB), optional model_id (default scribe_v1), optional language_code
 //   application/json:    { audio_url, language_code? }  https only, host in SMC_TRANSCRIBE_URL_HOSTS
 //                        (comma list, default n8n.sortmycover.co.za), so the endpoint can't be pointed at arbitrary URLs
-// Output: 200 { text, language, language_code }, or 4xx/5xx { error }. Audio is never stored or logged.
+// Output: 200 { text, language, language_code, duration }, or 4xx/5xx { error }. Audio is never stored or logged.
+//   duration = seconds of audio (ElevenLabs audio_duration_secs, else the end of the last timed word; null if neither):
+//   W29 reads it for the 60-second voice-note limit (lib/w29.mjs voiceNote, Number(t.duration || 0)).
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 const STT_URL = "https://api.elevenlabs.io/v1/speech-to-text";
@@ -68,7 +70,22 @@ async function readAudio(req: Request): Promise<{ blob: Blob; model: string; lan
   return { error: "send multipart/form-data (file) or application/json (audio_url)", status: 415 };
 }
 
-Deno.serve(async (req) => {
+/** The client-facing body from an ElevenLabs speech-to-text response. */
+export function transcribeResult(out: Record<string, unknown>) {
+  const text = String(out.text || "").trim();
+  const language = (out.language_code as string) || null;
+  return { text, language, language_code: language, duration: audioDuration(out) };
+}
+
+/** Seconds of audio: audio_duration_secs when ElevenLabs sends it, else the end of the last timed word, else null. */
+export function audioDuration(out: Record<string, unknown>): number | null {
+  const d = Number(out.audio_duration_secs);
+  if (Number.isFinite(d) && d > 0) return Math.round(d * 100) / 100;
+  const ends = (Array.isArray(out.words) ? out.words : []).map((w: { end?: unknown }) => Number(w?.end)).filter((n) => Number.isFinite(n) && n > 0);
+  return ends.length ? Math.round(Math.max(...ends) * 100) / 100 : null;
+}
+
+export async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") return json(405, { error: "POST only" });
   const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   const given = req.headers.get("x-smc-transcribe-secret") || req.headers.get("xi-api-key") || bearer;
@@ -88,7 +105,7 @@ Deno.serve(async (req) => {
     console.log(JSON.stringify({ fn: "smc-transcribe", upstream: res.status })); // status only, never audio or text
     return json(502, { error: `elevenlabs ${res.status}` });
   }
-  const out = await res.json();
-  const text = String(out.text || "").trim();
-  return json(200, { text, language: out.language_code || null, language_code: out.language_code || null });
-});
+  return json(200, transcribeResult(await res.json()));
+}
+
+if (import.meta.main) Deno.serve(handler);
