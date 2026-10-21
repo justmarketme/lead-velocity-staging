@@ -2492,8 +2492,8 @@
         880
       ],
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const W7 = require('lv-automation').w07;\nconst j = $('Decide move (w10.applyReschedule)').item.json;\nreturn { json: { request: W7.neverSilentAlert({ route: 'W10', lead: { id: j.ld.id, first_name: j.ld.first_name } }) } };"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const W7 = require('lv-automation').w07;\n// none for a SYNTHETIC_TEST_NUMBERS lead (lib/w07.mjs syntheticSubject)\nconst out = [];\n$input.all().forEach((_, i) => {\n  const j = $('Decide move (w10.applyReschedule)').itemMatching(i).json;\n  const request = W7.neverSilentAlert({ route: 'W10', lead: { id: j.ld.id, first_name: j.ld.first_name, phone: j.ld.phone } }, $env);\n  if (request) out.push({ json: { request }, pairedItem: { item: i } });\n});\nreturn out;"
       }
     },
     {

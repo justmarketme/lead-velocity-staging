@@ -15,6 +15,7 @@ import { LINES, fill, fixedLines } from '../../conversation/lines.mjs';
 import { isPulseLine } from '../../conversation/pulse.mjs';
 import { checkEmail } from './w05.mjs';
 import { takesTypedReason } from './w10.mjs';
+import { isSyntheticNumber } from './wa.mjs';
 
 export const WORKFLOW = 'W07';
 // The CTWA ad pre-fill: "book a 30-minute call with an adviser" since 18 Oct 2026 (Jono); "check my life cover" before, still accepted.
@@ -304,15 +305,24 @@ export const inHours = (now_ms) => { const h = new Date(now_ms + SAST).getUTCHou
  * escalations_kind_check has no `sensitive` yet (I-25), so it is stored as kind 'human_handoff', severity 'red',
  * note 'esc_kind=sensitive' - the same mapping W30/W31 use - until platform-architect pass 3 adds the value.
  */
+/**
+ * 21 Oct 2026 (deploy of the smoke fixes): a wa-smoke inbound WhatsApped Jono through "Send ops alert". An ops alert CAUSED
+ * by a number on env SYNTHETIC_TEST_NUMBERS (exact numbers, lib/wa.mjs isSyntheticNumber; never a range) WhatsApps nobody:
+ * the escalation row is still written (marked) and W22 signals go by email only (lib/w22.mjs `synthetic`).
+ * j = any W07 item carrying { lead?: { phone }, msg?: { from } }.
+ */
+export const syntheticSubject = (j = {}, env = {}) => [j && j.lead && j.lead.phone, j && j.msg && j.msg.from].some((v) => isSyntheticNumber(v, env));
+export const SYNTHETIC_ESC_NOTE = '; synthetic test number (SYNTHETIC_TEST_NUMBERS): logged only, no ops WhatsApp';
 export const ESC_DB_KIND = { sensitive: 'human_handoff', human_handoff: 'human_handoff', frustrated: 'human_handoff', unanswered: 'human_handoff', claim_problem: 'human_handoff', complaint: 'complaint', guardrail_trip: 'guardrail_trip', band_conflict: 'other', opted_out_message: 'other' };
-export function escalationRow(kind, { lead_id, broker_id, brand_id, wamid, urgent = false }) {
+export function escalationRow(kind, { lead_id, broker_id, brand_id, wamid, urgent = false, synthetic = false }) {
   return {
     kind: ESC_DB_KIND[kind] || 'other',
     severity: kind === 'sensitive' ? 'red' : urgent || kind === 'complaint' ? 'urgent' : 'normal',
     ref_table: 'communications', ref_id: wamid, lead_id, broker_id, brand_id,
-    note: `esc_kind=${kind}`,
+    // a SYNTHETIC_TEST_NUMBERS chat (syntheticSubject): the console row is the only record; nobody is WhatsApped
+    note: `esc_kind=${kind}` + (synthetic ? SYNTHETIC_ESC_NOTE : ''),
     // trigger 6: both people at once, never batched into the digest; others primary first, backup at 15 min
-    notify: kind === 'sensitive' ? ['Jonathan', 'KG'] : ['Jonathan'],
+    notify: synthetic ? [] : kind === 'sensitive' ? ['Jonathan', 'KG'] : ['Jonathan'],
     deep_link: lead_id ? `/console/conversations/${lead_id}` : null
   };
 }
@@ -330,7 +340,7 @@ export function leadThemes(nlu, pre, text_store) {
 
 /**
  * planActions(decision, ctx) -> what W07 does next. Pure.
- * ctx = { lead, broker, booking, pre, nlu, now_ms, lang, state, wamid, disclosed }
+ * ctx = { lead, broker, booking, pre, nlu, now_ms, lang, state, wamid, disclosed, synthetic }  (synthetic: syntheticSubject(), a test number)
  */
 export function planActions(decision, ctx) {
   const { pre, nlu, now_ms } = ctx;
@@ -341,7 +351,7 @@ export function planActions(decision, ctx) {
   // #5: outputGate's injected_field check needs the RAW stored name, not the sanitised one
   const plan = { actions: decision.actions, next_state: decision.next_state, prefix: [], suffix: [], reply_actions: [], delegate: [], escalation: null, pause_reminders: false, send: true, unanswered: 0, themes: leadThemes(nlu, pre, ctx.text_store || ''), lead_updates: {}, first_name_raw: String(ctx.lead?.first_name || ''), discloses: false };
   const has = (a) => decision.actions.includes(a);
-  const esc = (kind) => { plan.escalation = escalationRow(kind, { lead_id: ctx.lead?.id, broker_id: ctx.lead?.broker_id, brand_id: ctx.lead?.brand_id, wamid: ctx.wamid }); };
+  const esc = (kind) => { plan.escalation = escalationRow(kind, { lead_id: ctx.lead?.id, broker_id: ctx.lead?.broker_id, brand_id: ctx.lead?.brand_id, wamid: ctx.wamid, synthetic: ctx.synthetic === true }); };
 
   if (has('stop')) { plan.delegate.push({ to: 'W15' }); plan.send = false; return plan; }
   if (has('handoff_urgent')) { esc('sensitive'); plan.send = false; plan.pause_reminders = true; plan.next_state = 'handoff'; return plan; }
@@ -690,7 +700,8 @@ export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
 }
 /** The internal alert that goes with every fallback (EMMA /api/notify -> Jono): first name, the hand-off that stayed silent,
     the lead id. Never the number or the message text (same rule as W38). */
-export function neverSilentAlert(j = {}) {
+export function neverSilentAlert(j = {}, env = null) {
+  if (env && syntheticSubject(j, env)) return null; // a test number: the "Never silent: escalation" row is the record
   const lead = j.lead || {};
   const first = sanitiseField('first_name', lead.first_name || (j.msg && j.msg.profile_name) || '').value || 'A lead';
   const what = j.route === 'W04' || j.route === 'W04_list' ? 'open times' : j.route === 'W05' ? 'a booking' : j.route === 'W10' ? 'a reschedule' : 'the next step';

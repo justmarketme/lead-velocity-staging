@@ -1031,7 +1031,9 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
     w07: CALL_METHODS.has(p.method) && !startPage ? { source: 'W05', booking: { id: booking.id, method: p.method }, broker: { contact_person: brokerConfig(ctx.broker).adviser_name }, lead: { id: lead.id, phone: lead.phone, brand_id: lead.brand_id || null, language: lead.language || 'en', conv_state: lead.conv_state || {} } } : null,
     ask_email: p.ask_email ? { op: 'ask_email', lead_id: lead.id, method: p.method, booking_id: booking.id, reason: 'book', delegate: ctx.req && ctx.req.delegate ? ctx.req.delegate : null } : null,
     capi,
-    alert: ev.ok || p.route === 'none' ? null : { signal_key: ev.reason === 'shared_calendar_id_missing' ? 'shared_calendar_id_missing' : 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: ev.reason === 'shared_calendar_id_missing' ? 'Set brokers.calendar_status_detail.shared_calendar_id (or SMC_SHARED_CALENDAR_ID), then add the event by hand' : 'Add the event by hand or reconnect the calendar', source: 'W05' },
+    alert: ev.ok || p.route === 'none' ? null : { signal_key: ev.reason === 'shared_calendar_id_missing' ? 'shared_calendar_id_missing' : 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: ev.reason === 'shared_calendar_id_missing' ? 'Set brokers.calendar_status_detail.shared_calendar_id (or SMC_SHARED_CALENDAR_ID), then add the event by hand' : 'Add the event by hand or reconnect the calendar', source: 'W05',
+      // 21 Oct 2026: a test lead's booking -> W22 emails it, marked, and WhatsApps nobody (lib/w22.mjs synthetic)
+      ...(ctx.lead && ctx.lead.is_synthetic === true ? { synthetic: true } : {}) },
   };
 }
 

@@ -140,14 +140,17 @@ for (const [i, item] of $input.all().entries()) {
   if (brand.start_page && (PROVIDER !== 'twilio' || !!SIDS.smc_start_cta)) {
     try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
   }
+  const synthetic = SYNTHETIC.has(String(m.mobile || '').replace(/[^0-9]/g, ''));
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
-    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: SYNTHETIC.has(String(m.mobile || '').replace(/[^0-9]/g, '')),
+    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: synthetic,
     lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
   const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;
   const leadId = (r.thread && r.thread.lead_id) || ctxRow.existing_open_lead_id || null;
-  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions: r.actions, stall_due_at: stallDue, lead_id: leadId, hops: m.hops || 0, store_thread: !!ctxRow.brand_id && !r.no_thread && !!r.thread } });
+  // 21 Oct 2026: a W22 alert caused by a test number goes by email only, marked (lib/w22.mjs synthetic); never WhatsApp to Jono / KG
+  const actions = synthetic ? r.actions.map((a) => (a.kind === 'alert' ? { ...a, synthetic: true } : a)) : r.actions;
+  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions, stall_due_at: stallDue, lead_id: leadId, hops: m.hops || 0, store_thread: !!ctxRow.brand_id && !r.no_thread && !!r.thread } });
 }
 return out;`));
   n.push(ifTrue('Store thread? (brand known)', [1700, 60], '={{ $json.store_thread === true }}'));

@@ -677,7 +677,7 @@ VALUES ($1::uuid, 'sms', 'outbound', 'system', 'client', $2, $3, CASE WHEN $4 <>
 ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;`,
     "={{ (() => { const p = $('Evidence rows (w06.communicationRow + sentUpdate)').first().json; return [p.l.brand_id, p.sms.to, p.sms.text, ($json.sid || ''), p.l.id, p.l.broker_id, p.wamid || 'rejected']; })() }}"));
   n.push(ifTrue('Slower than 60 s or slots short? -> W22', pos(19, 1), "$json.slow || $json.plan.fallback_from === 'not_enough_slots'"));
-  n.push(code('W22 signal', pos(20, 1), "return $input.all().map((i) => ({ json: { signal_key: i.json.slow ? 'first_touch_slow' : 'w06_no_slots', scope: 'lead:' + i.json.l.id, severity: i.json.slow ? 'red' : 'amber', source: 'W06', what: i.json.slow ? 'First WhatsApp later than 60 s' : 'Fewer than 3 free slots: Flow card sent instead of the 3-slot card', impact: 'HBR speed SLO', first_action: 'Check the W06 execution and the broker calendar' } }));"));
+  n.push(code('W22 signal', pos(20, 1), "// synthetic (21 Oct 2026): a SYNTHETIC_TEST_NUMBERS lead -> W22 emails it, marked, and WhatsApps nobody\nconst W = require('lv-automation').wa;\nreturn $input.all().map((i) => ({ json: { signal_key: i.json.slow ? 'first_touch_slow' : 'w06_no_slots', scope: 'lead:' + i.json.l.id, severity: i.json.slow ? 'red' : 'amber', synthetic: W.isSyntheticNumber(i.json.l.phone, $env), source: 'W06', what: i.json.slow ? 'First WhatsApp later than 60 s' : 'Fewer than 3 free slots: Flow card sent instead of the 3-slot card', impact: 'HBR speed SLO', first_action: 'Check the W06 execution and the broker calendar' } }));"));
   n.push(sub('W22 Alerts (W06)', pos(21, 1), 'W22 Alerts'));
 
   // status branch

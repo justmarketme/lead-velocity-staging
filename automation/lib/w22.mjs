@@ -89,10 +89,13 @@ export function normalise(j = {}, nowIso = new Date().toISOString()) {
   const to = s.recipients || (s.to === 'both' ? PARTNERS : s.to === 'kg' ? ['kg'] : ['jonathan']);
   return { signal_key: String(s.signal_key), scope: String(s.scope || 'global'), severity, notify_now: s.notify_now === true,
     what: s.what || s.signal_key, impact: s.impact || '', first_action: s.first_action || '', source: s.source || 'unknown',
-    since: s.since || nowIso, recipients: [].concat(to).filter((r) => PARTNERS.includes(r)), detail: s.detail || null, link: s.link || null };
+    since: s.since || nowIso, recipients: [].concat(to).filter((r) => PARTNERS.includes(r)), detail: s.detail || null, link: s.link || null,
+    // 21 Oct 2026: the producer saw a SYNTHETIC_TEST_NUMBERS number (lib/wa.mjs isSyntheticNumber) -> email only, marked
+    synthetic: j.synthetic === true };
 }
 
-export const dedupeKey = (s) => `${s.signal_key}|${s.scope}|${s.severity}`;
+// A synthetic alert has its own key, so a test never swallows the real alert of the same signal for 24 h.
+export const dedupeKey = (s) => `${s.signal_key}|${s.scope}|${s.severity}` + (s.synthetic ? '|synthetic' : '');
 
 /** 24-h dedupe over the workflow's static data { key: sent_ms }. Returns { send, sent } (sent = the pruned, updated map). */
 export function dedupe(sent = {}, key, now = Date.now()) {
@@ -111,16 +114,20 @@ const sast = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? n
  * A signal that passed the dedupe -> the items W22 sends:
  *   { channel: 'email', key, relay: { body, idempotency_key } }       (always, when OPS_ALERT_EMAIL is set)
  *   { channel: 'whatsapp', key, who, send: <smc-whatsapp-send input> } (red / notify_now, per recipient with a number,
- *                                                                        only once TWILIO_CONTENT_SIDS has ops_alert)
+ *                                                                        only once TWILIO_CONTENT_SIDS has ops_alert;
+ *                                                                        never for a synthetic signal)
  */
 export function plan(s, env = {}, now = Date.now()) {
   const key = dedupeKey(s);
   const day = new Date(now).toISOString().slice(0, 10);
   const out = [];
   const label = s.severity === 'red' ? 'Red alert' : 'Alert';
+  const test = s.synthetic ? '[synthetic test] ' : '';
   if (env.OPS_ALERT_EMAIL) {
     const lines = [
       `${label}: ${sentence(s.what, 200)}`, '',
+      s.synthetic ? 'Caused by a synthetic test number (SYNTHETIC_TEST_NUMBERS): no WhatsApp was sent to Jono or KG.' : null,
+      s.synthetic ? '' : null,
       `What happened: ${sentence(s.what, 300)}`,
       s.impact ? `Impact: ${sentence(s.impact, 300)}` : null,
       s.first_action ? `First action: ${sentence(s.first_action, 300)}` : null,
@@ -130,11 +137,11 @@ export function plan(s, env = {}, now = Date.now()) {
       'The same alert is sent at most once in 24 hours.', '', 'SortMyCover alerts',
     ].filter((l) => l !== null);
     out.push({ channel: 'email', key, relay: {
-      body: { from: 'SortMyCover <hello@sortmycover.co.za>', to: [String(env.OPS_ALERT_EMAIL)], subject: `SortMyCover ${label.toLowerCase()}: ${sentence(s.what, 120)}`,
+      body: { from: 'SortMyCover <hello@sortmycover.co.za>', to: [String(env.OPS_ALERT_EMAIL)], subject: `${test}SortMyCover ${label.toLowerCase()}: ${sentence(s.what, 120)}`,
         text: lines.join('\n'), tags: [{ name: 'kind', value: 'ops_alert' }] },
       idempotency_key: `w22:${key}:${day}`.slice(0, 256) } });
   }
-  if ((s.severity === 'red' || s.notify_now) && contentSids(env).ops_alert) {
+  if ((s.severity === 'red' || s.notify_now) && !s.synthetic && contentSids(env).ops_alert) {
     const phones = { jonathan: env.OPS_WHATSAPP_JONATHAN, kg: env.OPS_WHATSAPP_KG };
     for (const who of s.recipients.length ? s.recipients : ['jonathan']) {
       const to = phones[who];
