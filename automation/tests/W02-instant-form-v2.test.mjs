@@ -354,10 +354,10 @@ test('start_here send: decided shape, lt1 token minted for the lead and ONLY in 
   assert.equal(W01.startHere(d.row, '', NOW), null);
   assert.equal(W01.startHere({ ...d.row, first_name: null }, TOKEN_SECRET, NOW).variables[0], 'there');
   // the real shared sender: the template matches the submitted spec, the URL button parameter = the token
-  // the live-send path needs a fake number outside +27 60 000 xxxx (the sender dry-runs that range, smoke test #16)
+  // the live-send path needs a fake number that is not a listed test number (the sender dry-runs SYNTHETIC_TEST_NUMBERS, smoke test #16)
   const n = SW.normalise({ ...s, to: '+27820000201' });
   assert.equal(n.valid, true);
-  assert.equal(SW.decide(SW.normalise(s), { brand_id: 'smc', suppressed: false }, { ...READY_ENV, TWILIO_WHATSAPP_FROM: '+27600156480' }, NOW).reason, 'synthetic_number');
+  assert.equal(SW.decide(SW.normalise(s), { brand_id: 'smc', suppressed: false }, { ...READY_ENV, TWILIO_WHATSAPP_FROM: '+27600156480', SYNTHETIC_TEST_NUMBERS: s.to }, NOW).reason, 'synthetic_number');
   const env = { ...READY_ENV, TWILIO_WHATSAPP_FROM: '+27600156480', TWILIO_ACCOUNT_SID: 'ACtest', TWILIO_AUTH_TOKEN: 'secret' };
   const live = SW.decide(n, { brand_id: 'smc', suppressed: false }, env, NOW);
   assert.equal(live.action, 'send', JSON.stringify(live));

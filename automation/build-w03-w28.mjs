@@ -127,8 +127,9 @@ SELECT br.id AS brand_id,
 // smc_start_cta Content SID under Twilio) and a lead token can be minted for the lead this tap creates; otherwise the tap path.
 const PROVIDER = String($env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
 let SIDS = {}; try { SIDS = JSON.parse($env.TWILIO_CONTENT_SIDS || '{}') || {}; } catch (e) { SIDS = {}; }
-// smoke test #16 (21 Oct 2026): a +27 60 000 xxxx test number is stored as a synthetic lead (lib/wa.mjs SYNTHETIC_RANGE)
-const SYNTHETIC_RANGE = /^2760000[0-9]{4}$/;
+// smoke test #16 (21 Oct 2026): a test number is stored as a synthetic lead. Review 21 Oct: only the exact numbers in env
+// SYNTHETIC_TEST_NUMBERS (lib/wa.mjs isSyntheticNumber; there is no reserved test mobile range in South Africa)
+const SYNTHETIC = new Set(String($env.SYNTHETIC_TEST_NUMBERS || '').split(/[\\s,;]+/).map((x) => x.replace(/[^0-9]/g, '')).filter((x) => x.length >= 9));
 const out = [];
 for (const [i, item] of $input.all().entries()) {
   const ctxRow = item.json;
@@ -140,7 +141,7 @@ for (const [i, item] of $input.all().entries()) {
     try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
   }
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
-    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: SYNTHETIC_RANGE.test(String(m.mobile || '').replace(/[^0-9]/g, '')),
+    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: SYNTHETIC.has(String(m.mobile || '').replace(/[^0-9]/g, '')),
     lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');

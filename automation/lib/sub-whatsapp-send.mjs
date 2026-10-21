@@ -177,8 +177,8 @@ export function decide(n, ctx = {}, env = {}, nowMs = Date.now()) {
     else payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: n.to, type: n.media.type, [n.media.type]: n.media.id ? { id: n.media.id, ...(n.media.caption ? { caption: n.media.caption } : {}) } : { link: n.media.link, ...(n.media.caption ? { caption: n.media.caption } : {}) } };
   }
   if (String(env.DRY_RUN_SENDS || '').toLowerCase() === 'true') return { ...base, action: 'dry', sent_as: sentAs, external_id: `dry:${n.correlation}` };
-  // smoke test #16 (21 Oct 2026): a +27 60 000 xxxx test number is never sent to, whatever DRY_RUN_SENDS says (wa.mjs)
-  if (isSyntheticNumber(n.to)) return { ...base, action: 'dry', reason: 'synthetic_number', sent_as: sentAs, external_id: `dry:${n.correlation}` };
+  // smoke test #16 (21 Oct 2026): a test number (env SYNTHETIC_TEST_NUMBERS, exact) is never sent to, whatever DRY_RUN_SENDS says
+  if (isSyntheticNumber(n.to, env)) return { ...base, action: 'dry', reason: 'synthetic_number', sent_as: sentAs, external_id: `dry:${n.correlation}` };
   return { ...base, action: 'send', sent_as: sentAs, payload };
 }
 

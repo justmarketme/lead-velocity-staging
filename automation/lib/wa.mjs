@@ -102,9 +102,11 @@ export function nowFrom(input = {}, env = {}, wall = Date.now()) {
 export const touchesLastContact = (to, wamid) => to === 'lead' && typeof wamid === 'string' && wamid.length > 0 && !wamid.startsWith('dry:');
 
 /**
- * Smoke-test numbers (21 Oct 2026, smoke test #16): +27 60 000 xxxx (digits 2760000 + 4) is the range every synthetic
- * harness uses (wa-smoke.sh, the test fixtures), so the sender dry-runs it and intake (W03) flags such a lead
- * is_synthetic. The SMC business number (+27 60 015 6480) is outside it.
+ * Smoke-test numbers (21 Oct 2026, smoke test #16): the sender dry-runs a test number and intake (W03) flags such a lead
+ * is_synthetic. Review 21 Oct: South Africa has no reserved test mobile range (060 0 is an allocated cellular block, the SMC
+ * number sits in it), so a block heuristic could silence a real client. Only the EXACT numbers in env SYNTHETIC_TEST_NUMBERS
+ * (comma / space separated E.164, the ones the harness uses, e.g. wa-smoke.sh FROM) count; unset = none.
  */
-export const SYNTHETIC_RANGE = /^2760000\d{4}$/;
-export const isSyntheticNumber = (v) => SYNTHETIC_RANGE.test(String(v == null ? '' : v).replace(/\D/g, ''));
+const digitsOf = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+export const syntheticNumbers = (env = {}) => new Set(String((env && env.SYNTHETIC_TEST_NUMBERS) || '').split(/[\s,;]+/).map(digitsOf).filter((d) => d.length >= 9));
+export const isSyntheticNumber = (v, env = {}) => { const d = digitsOf(v); return d.length >= 9 && syntheticNumbers(env).has(d); };

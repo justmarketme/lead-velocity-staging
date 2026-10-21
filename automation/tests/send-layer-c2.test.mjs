@@ -26,7 +26,8 @@ const node = (wf, name) => { const n = wf.nodes.find((x) => x.name === name); as
 const DECIDE = 'Decide (suppression, allow-list, window, template, dry run)';
 const LIVE = { DRY_RUN_SENDS: 'false', WHATSAPP_PROVIDER: 'twilio' };
 
-async function sub(input, ctx, env = LIVE) {
+async function sub(input, ctx, env = LIVE) { return subAt(input, ctx, env); }
+async function subAt(input, ctx, env = LIVE) {
   const n = await runCode(WA, 'Normalise input', { json: input });
   const d = (await runCode(WA, DECIDE, { json: ctx, env, refs: { 'Normalise input': n.json } })).json;
   return d;
@@ -56,39 +57,50 @@ function row(wf, name, json, refs) {
 }
 
 // ------------------------------------------------------------------ #16 synthetic numbers
-test('#16 isSyntheticNumber: exactly +27 60 000 xxxx; the SMC business number and real mobiles are not', () => {
-  for (const v of ['+27600000923', '27600000951', '+27 60 000 0912', 27600000001]) assert.equal(isSyntheticNumber(v), true, String(v));
-  for (const v of ['+27600156480', '+27821234567', '2760000092', '276000009231', '', null, undefined]) assert.equal(isSyntheticNumber(v), false, String(v));
+// Review 21 Oct: 060 0 is an allocated cellular block (no reserved test range in South Africa), so only the EXACT numbers in
+// env SYNTHETIC_TEST_NUMBERS are test numbers; unset = none, and a real client in +27 60 000 xxxx is a real client.
+const SYN_ENV = { SYNTHETIC_TEST_NUMBERS: '+27600000923, 27600000951 +27600000912;+27600000001' };
+test('#16 isSyntheticNumber: only the exact SYNTHETIC_TEST_NUMBERS; the 060 000 block, the SMC number and real mobiles are not', () => {
+  for (const v of ['+27600000923', '27600000951', '+27 60 000 0912', 27600000001]) assert.equal(isSyntheticNumber(v, SYN_ENV), true, String(v));
+  for (const v of ['+27600156480', '+27821234567', '+27600001234', '2760000092', '276000009231', '', null, undefined]) assert.equal(isSyntheticNumber(v, SYN_ENV), false, String(v));
+  for (const v of ['+27600000923', '+27600001234']) assert.equal(isSyntheticNumber(v), false, `${v}: no list, no test numbers`);
+  assert.equal(isSyntheticNumber('+27600000923', { SYNTHETIC_TEST_NUMBERS: '' }), false);
 });
 
-test('#16 smc-whatsapp-send: a +27 60 000 xxxx number is dry-run with DRY_RUN_SENDS=false; a real number still sends', async () => {
-  const d = await sub(prebuilt('+27600000923'), { suppressed: false });
+test('#16 smc-whatsapp-send: a listed test number is dry-run with DRY_RUN_SENDS=false; a real number (any block) still sends', async () => {
+  const LIVE_SYN = { ...LIVE, ...SYN_ENV };
+  assert.equal((await subAt(prebuilt('+27600001234'), { suppressed: false }, LIVE_SYN)).action, 'send', 'a real client in the 060 000 block is messaged');
+  assert.equal((await subAt(prebuilt('+27600000923'), { suppressed: false })).action, 'send', 'no list: not a test number');
+  const subS = (input, ctx, env = LIVE_SYN) => subAt(input, ctx, env);
+  const d = await subS(prebuilt('+27600000923'), { suppressed: false });
   assert.equal(d.action, 'dry'); assert.equal(d.reason, 'synthetic_number'); assert.equal(d.external_id, 'dry:c:1');
   const res = (await runCode(WA, 'Result', { json: {}, refs: { [DECIDE]: d, 'Interpret Graph response': null } })).json;
   assert.equal(res.ok, true); assert.equal(res.messages[0].id, 'dry:c:1');
-  assert.equal((await sub(prebuilt('+27821234567'), { suppressed: false })).action, 'send');
-  assert.equal((await sub(prebuilt('+27600156480'), { suppressed: false })).action, 'send', 'the SMC number is not synthetic');
-  assert.equal((await sub(prebuilt('+27600000923'), { suppressed: true })).reason, 'suppressed', 'suppression still first');
+  assert.equal((await subS(prebuilt('+27821234567'), { suppressed: false })).action, 'send');
+  assert.equal((await subS(prebuilt('+27600156480'), { suppressed: false })).action, 'send', 'the SMC number is not synthetic');
+  assert.equal((await subS(prebuilt('+27600000923'), { suppressed: true })).reason, 'suppressed', 'suppression still first');
   // "Claimed and a live send?" only lets action=send through, so nothing reaches Twilio
   assert.match(node(WA, 'Claimed and a live send?').parameters.conditions.conditions[0].leftValue, /action === 'send'/);
 });
 
-test('#16 W03 intake: a +27 60 000 xxxx WhatsApp number is stored is_synthetic=true; a real number false', async () => {
+test('#16 W03 intake: a listed test number is stored is_synthetic=true; any other number (060 000 block too) false', async () => {
   const MARK = broker();
   const consent = W3.consentFor('named', MARK);
   const thread = { stage: 'await_consent', origin: { origin: 'ctwa' }, consent, answers: {}, first_at: '2026-10-21T10:00:00+02:00', broker_id: MARK.broker_id };
   const ctxRow = { brand_id: 'b-smc', broker: { ...MARK, consent_mode: 'named' }, existing_open_lead_id: null, lead: null, suppressed: false, thread, new_lead_id: '11111111-2222-4333-8444-555555555555' };
-  const syn = async (mobile) => {
+  const syn = async (mobile, env = SYN_ENV) => {
     const ad = { msg: { from: mobile.slice(1), id: 'SMc2', timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, at: '2026-10-21T10:01:00+02:00', mobile, profile_name: 'Smoke Test', external_id: 'SMc2', hops: 0 };
-    const [st] = await runCode(W03, 'W03 step', { items: [ctxRow], refs: { 'W07 hand-off -> Cloud API message': ad } });
+    const [st] = await runCode(W03, 'W03 step', { items: [ctxRow], env, refs: { 'W07 hand-off -> Cloud API message': ad } });
     return st.json.actions.find((a) => a.kind === 'insert_lead').row.is_synthetic;
   };
   assert.equal(await syn('+27600000923'), true);
   assert.equal(await syn('+27821234567'), false);
+  assert.equal(await syn('+27600001234'), false, 'a real client in the 060 000 block is a real lead');
+  assert.equal(await syn('+27600000923', {}), false, 'no list: no test numbers');
 });
 
 // ------------------------------------------------------------------ #17 CAPI
-test('#17 smc-capi-send: a synthetic lead (flag or +27 60 000 xxxx) is never sent unless CAPI_TEST_EVENT_CODE is set', async () => {
+test('#17 smc-capi-send: a synthetic lead (flag or a listed test number) is never sent unless a test event code is set', async () => {
   const input = { event_name: 'Qualified', event_id: 'q:1', action_source: 'system_generated', lead_id: '00000000-0000-0000-0000-0000000000a1', brand_id: '00000000-0000-0000-0000-0000000000b1' };
   const ctx = { found: true, consent_ads_at: '2026-10-21T10:00:00Z', phone: '+27821234567', pixel_id: 'px', dataset_id: 'ds', duplicate: false, is_synthetic: false };
   const build = async (c, env = { DRY_RUN_SENDS: 'false' }) => {
@@ -99,11 +111,12 @@ test('#17 smc-capi-send: a synthetic lead (flag or +27 60 000 xxxx) is never sen
   const flagged = await build({ ...ctx, is_synthetic: true });
   assert.equal(flagged.action, 'skip'); assert.equal(flagged.reason, 'synthetic_lead');
   assert.equal((await build({ ...ctx, is_synthetic: 't' })).reason, 'synthetic_lead');
-  assert.equal((await build({ ...ctx, phone: '+27600000923' })).reason, 'synthetic_lead', 'smoke numbers stored before the intake flag');
+  assert.equal((await build({ ...ctx, phone: '+27600000923' }, { DRY_RUN_SENDS: 'false', ...SYN_ENV })).reason, 'synthetic_lead', 'smoke numbers stored before the intake flag');
+  assert.equal((await build({ ...ctx, phone: '+27600001234' }, { DRY_RUN_SENDS: 'false', ...SYN_ENV })).action, 'send', 'an unlisted 060 000 number is a real lead');
   const test = await build({ ...ctx, is_synthetic: true }, { DRY_RUN_SENDS: 'false', CAPI_TEST_EVENT_CODE: 'TEST123' });
   assert.equal(test.action, 'send'); assert.equal(test.body.test_event_code, 'TEST123');
   assert.match(node(CAPIWF, 'Load lead, consent, dataset and dedupe').parameters.query, /l\.is_synthetic/);
-  assert.equal(CAPI.build(CAPI.normalise({ ...input, lead_id: null, user: { phone: '+27600000923' }, consent_ads: true }), { pixel_id: 'px' }, {}).reason, 'synthetic_lead');
+  assert.equal(CAPI.build(CAPI.normalise({ ...input, lead_id: null, user: { phone: '+27600000923' }, consent_ads: true }), { pixel_id: 'px' }, SYN_ENV).reason, 'synthetic_lead');
   // skip -> "Send?" false -> nothing claimed, nothing posted
   assert.deepEqual(CAPIWF.connections['Send?'].main[1] || [], []);
 });
@@ -232,3 +245,19 @@ test('#18 W06 receipt stamp: status only moves forward (pending < sent < deliver
   assert.equal(status(null, 'failed', 'x', null, RANK, IN), 'failed', 'a NULL status counts as pending');
 });
 
+
+// Review 21 Oct: the E2E switch CAPI_SYNTHETIC_TEST_EVENT_CODE sends synthetic leads' events as test events and never touches a
+// real lead's event (a real Lead / Qualified / GoodFit stays a production event); CAPI_TEST_EVENT_CODE keeps its staging meaning.
+test('review #17: CAPI_SYNTHETIC_TEST_EVENT_CODE marks only synthetic leads; real leads stay production events', async () => {
+  const input = { event_name: 'Qualified', event_id: 'q:2', action_source: 'system_generated', lead_id: '00000000-0000-0000-0000-0000000000a2', brand_id: '00000000-0000-0000-0000-0000000000b1' };
+  const ctx = { found: true, consent_ads_at: '2026-10-21T10:00:00Z', phone: '+27821234567', pixel_id: 'px', dataset_id: 'ds', duplicate: false, is_synthetic: false };
+  const env = { DRY_RUN_SENDS: 'false', CAPI_SYNTHETIC_TEST_EVENT_CODE: 'TESTE2E' };
+  const n = CAPI.normalise(input);
+  const real = CAPI.build(n, ctx, env);
+  assert.equal(real.action, 'send'); assert.equal('test_event_code' in real.body, false, 'a real lead is a production event'); assert.equal(real.test_event_code, null);
+  const syn = CAPI.build(n, { ...ctx, is_synthetic: true }, env);
+  assert.equal(syn.action, 'send'); assert.equal(syn.body.test_event_code, 'TESTE2E');
+  assert.equal(CAPI.build(n, { ...ctx, is_synthetic: true }, { DRY_RUN_SENDS: 'false' }).reason, 'synthetic_lead', 'no code: skipped as before');
+  // the staging switch is unchanged: it marks every event (docs/CAPI-ENABLE; never while ads are live)
+  assert.equal(CAPI.build(n, ctx, { DRY_RUN_SENDS: 'false', CAPI_TEST_EVENT_CODE: 'TEST123' }).body.test_event_code, 'TEST123');
+});
