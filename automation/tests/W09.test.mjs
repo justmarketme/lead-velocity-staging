@@ -378,3 +378,26 @@ test('I-53k: W05 finish -> W09 schedule carries {now, is_synthetic} on a shifted
   const W05WF = JSON.parse(readFileSync(new URL('../W05.json', import.meta.url), 'utf8'));
   assert.match(W05WF.nodes.find((n) => n.name === 'Decide (w05.decide + MX)').parameters.jsCode, /test_clock: now !== wall/);
 });
+
+// Smoke test #13 (21 Oct 2026): booking reminders keep their quiet-hours rule until Jono decides; ONE setting switches them to
+// the marketing contact hours (lib/contact-hours.mjs BOOKING_REMINDERS_USE_MARKETING_HOURS). reminder_10m stays exempt.
+test('W09 booking reminders: one setting picks quiet hours (default, off) or the marketing contact hours', async () => {
+  const { BOOKING_REMINDERS_USE_MARKETING_HOURS } = await import('../lib/contact-hours.mjs');
+  assert.equal(BOOKING_REMINDERS_USE_MARKETING_HOURS, false, 'reminders keep quiet hours until Jono decides');
+  const sunday = Date.parse('2026-10-25T10:00:00+02:00');
+  // meeting Mon 26 Oct 15:00, booked Thu 22 Oct 10:00: reminder_24h + prep_nudge fall on Sunday 15:00
+  const args = { bookingId: 'b', start: '2026-10-26T15:00:00+02:00', bookedAt: '2026-10-22T10:00:00+02:00', lead: { language: 'en' }, broker: B };
+  const at = (p, touch) => (p.jobs.find((j) => j.touch === touch) || {}).at;
+  const def = R.reminderPlan(args);
+  assert.equal(at(def, 'reminder_24h'), '2026-10-25T15:00:00+02:00', 'default: Sunday daytime is not quiet hours');
+  assert.deepEqual(def, R.reminderPlan({ ...args, hours: R.reminderHours(false) }), 'the default follows the setting (false)');
+  const cpa = R.reminderPlan({ ...args, hours: R.reminderHours(true) });
+  assert.equal(at(cpa, 'reminder_24h'), '2026-10-26T08:00:00+02:00', 'marketing hours: Sunday -> Monday 08:00');
+  assert.equal(at(cpa, 'reminder_10m'), '2026-10-26T14:50:00+02:00');
+  const job = { touch: 'reminder_24h', template: 'reminder_24h', at: '2026-10-25T15:00:00+02:00', start: '2026-10-26T15:00:00+02:00' };
+  const ctx = { booking: { status: 'booked', appointment_date: '2026-10-26T15:00:00+02:00' }, lead: {}, outbound_count: 1 };
+  assert.equal(R.dueAction(job, ctx, sunday).action, 'send', 'default: sent on Sunday');
+  assert.deepEqual(R.dueAction(job, ctx, sunday, R.reminderHours(true)), { action: 'defer', at: '2026-10-26T08:00:00+02:00' });
+  const t10 = { touch: 'reminder_10m', template: 'reminder_10m', at: '2026-10-24T13:50:00+02:00', start: '2026-10-24T14:00:00+02:00' };
+  assert.equal(R.dueAction(t10, { ...ctx, booking: { status: 'booked', appointment_date: '2026-10-24T14:00:00+02:00' } }, Date.parse('2026-10-24T13:50:00+02:00'), R.reminderHours(true)).action, 'send', 'T-10 min stays exempt');
+});
