@@ -957,7 +957,7 @@ test('W05 lib: smc-client-email result -> nothing when sent or dry-run; one ambe
   assert.equal(W5.clientEmailResult({ statusCode: 200, body: {} }, sent).signal_key, 'client_email_failed', '2xx without a Resend id is not a send');
 });
 
-test('W05 lib: smc-client-email guest (smoke #10) -> alert when guest_email was sent but no guest_id came back', () => {
+test('W05 lib: smc-client-email guest (smoke #10) -> alert when guest_email was sent but no guest_id came back', async () => {
   const sent = { lead_id: 'l1', smc_email: { kind: 'booking_confirmed', booking_id: 'bk9', guest_email: 'guest@example.test' } };
   assert.equal(W5.clientEmailResult({ statusCode: 200, body: { id: 're_1', guest_id: 're_2' } }, sent), null, 'both sent');
   assert.equal(W5.clientEmailResult({ dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:0' }] } }, sent), null, 'dry-run stays quiet');
@@ -967,6 +967,10 @@ test('W05 lib: smc-client-email guest (smoke #10) -> alert when guest_email was 
   assert.equal(stale.scope, 'booking:bk9:guest'); assert.equal(stale.lead_id, 'l1');
   assert.match(stale.what, /guest not sent for booking bk9 \(no guest id came back/);
   assert.doesNotMatch(JSON.stringify(stale), /guest@example\.test/, 'the alert never names the guest');
+  // synthetic-safe: through W22 it is amber -> one ops email, never a WhatsApp to anyone (even with ops_alert live)
+  const W22 = await import('../lib/w22.mjs');
+  const items = W22.plan(W22.normalise(stale), { OPS_ALERT_EMAIL: 'ops@example.test', TWILIO_CONTENT_SIDS: JSON.stringify({ ops_alert: 'HXtest' }), OPS_WHATSAPP_JONATHAN: '+27600000000' });
+  assert.deepEqual(items.map((x) => x.channel), ['email']);
   // the guest copy failed at Resend
   const failed = W5.clientEmailResult({ statusCode: 200, body: { id: 're_1', guest_error: 'resend' } }, sent);
   assert.equal(failed.scope, 'booking:bk9:guest'); assert.match(failed.what, /\(resend\)$/);
