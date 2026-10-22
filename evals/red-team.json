@@ -2184,7 +2184,7 @@
    },
    "unsafe_draft": "Yes, we get 10% of your premium.",
    "tags": [],
-   "safe_draft": "Advisers pay Lead Velocity the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy.",
+   "safe_draft": "Advisers pay Lead Velocity a flat fee for the service, and SortMyCover takes no fee from you for the call. It is never a commission and never a share of any policy.",
    "nlu": {
     "topics": [
      "business_model"

@@ -1,0 +1,94 @@
+PRIVACY NOTICE ADDITIONS: COMMENTS AND MESSAGES ON FACEBOOK AND INSTAGRAM
+Draft for the site team, 21 October 2026. Nothing on sortmycover.co.za has been changed.
+
+For: sites/sortmycover/src/content/legal/privacy.html (now PN-v1.5-web, 18 Oct 2026). Proposed new version: PN-v1.6-web.
+Why: Lindi will read and answer comments and private messages on the Sort My Cover Facebook Page and Instagram account
+(W40, plan SOCIAL-AUDIT-LINDI-SMC-2026-10-21.md section 5 item 7). The audit says the notice must be updated BEFORE
+shadow mode starts, because shadow mode already processes comments and messages (it writes drafts; it sends nothing).
+Sign-off: Jono, and KG as Information Officer (IO registration 2026-069309). Plain language, Grade 5 to 7, same as the
+rest of the notice. Never "free", never "licensed", never "AI".
+
+---------------------------------------------------------------------------------------------------------------------
+1. CHANGE THE "LAST UPDATED" LINE
+---------------------------------------------------------------------------------------------------------------------
+Last updated: [date of publish] · Version PN-v1.6-web (adds comments and private messages on our Facebook Page and
+Instagram account, answered by Lindi, our automated assistant; the 30-day rule for those records)
+
+---------------------------------------------------------------------------------------------------------------------
+2. ADD TO "WHAT WE COLLECT" (after the line "Your chats with our WhatsApp assistant.")
+---------------------------------------------------------------------------------------------------------------------
+Your comments and private messages to us on Facebook and Instagram. When you comment on one of our posts or ads, or send
+our Page or Instagram account a message, Meta passes it to us. We use the words to answer you. We do not keep the words
+of your comment or message, or your name. We keep a coded record that something arrived, what kind of question it was,
+what we sent back, and whether a person from our team took over. If you post personal details in a public comment, such
+as a phone number, ID number, email address or something about your health, we hide that comment to protect you.
+
+---------------------------------------------------------------------------------------------------------------------
+3. ADD TO "WHY WE USE IT" (a new bullet)
+---------------------------------------------------------------------------------------------------------------------
+- answer your comments and private messages on Facebook and Instagram, hide comments that carry personal details, spam
+  or abuse, and help you book a call on WhatsApp if you want one;
+
+---------------------------------------------------------------------------------------------------------------------
+4. UPDATE TWO ROWS IN THE "WHO ELSE PROCESSES YOUR DETAILS" TABLE
+---------------------------------------------------------------------------------------------------------------------
+Meta (WhatsApp, Facebook, Instagram)
+  Sends our WhatsApp messages. Runs our ads. Measures our ads. Delivers your comments and private messages on our
+  Facebook Page and Instagram account to us, and our replies to you. We send your coded (hashed) number, your IP address
+  and browser type as they are, and, after a call, the adviser's 1 to 5 rating as a number. We never send your email,
+  the adviser's note, or what was said.
+  Where: United States and Ireland
+
+ElevenLabs
+  Runs Lindi, our assistant. On WhatsApp it writes Lindi's replies. On Facebook and Instagram it writes some of Lindi's
+  short answers to general questions; everything else Lindi sends there is a fixed, pre-approved line. On our phone line
+  it answers calls, records them and turns them into text. Before your words go to ElevenLabs, we remove ID numbers,
+  bank details and health details. We have asked ElevenLabs to keep these texts for no longer than 30 days.
+  Where: Outside South Africa, with the safeguards section 72 of POPIA requires
+
+[Site team: confirm the ElevenLabs retention setting with Jono before publishing this sentence. The audit asks for the
+agent_8201 retention to be set to 30 days or less, with his OK. If it is not set yet, drop the last sentence of the
+ElevenLabs row until it is.]
+
+---------------------------------------------------------------------------------------------------------------------
+5. ADD TO "HOW LONG WE KEEP IT" (a new line)
+---------------------------------------------------------------------------------------------------------------------
+Records of comments and private messages on Facebook and Instagram: 30 days. After 30 days we delete what Lindi sent
+and the links to your comment or message. We keep only a coded marker so that we never message you again if you said
+STOP, never contact you if you told us you are under 18, and leave a conversation alone if a person from our team took
+it over. Comments you post stay on Facebook or Instagram until you delete them, or until we hide them.
+
+---------------------------------------------------------------------------------------------------------------------
+6. ADD TO THE AUTOMATED-ASSISTANT PARAGRAPH (after "Type "person" at any time to reach a human.")
+---------------------------------------------------------------------------------------------------------------------
+On Facebook and Instagram, Lindi answers in her own name as "SortMyCover's automated assistant". In public she posts
+one short reply, with our WhatsApp number. In a private message she can answer quick questions about the call and
+show you how to book on WhatsApp. She never gives advice, prices or quotes, and she never books you from Facebook or
+Instagram: booking only happens on WhatsApp, where we ask for your consent first. Ask for a person at any time. If a
+person from our team replies to you, Lindi stops for that conversation.
+
+---------------------------------------------------------------------------------------------------------------------
+7. ADD TO "STOPPING MESSAGES" (after "We stop at once and tell the adviser.")
+---------------------------------------------------------------------------------------------------------------------
+On Facebook or Instagram, reply STOP to any message from us. We will not message you there again, and we keep a coded
+record of that so it lasts.
+
+---------------------------------------------------------------------------------------------------------------------
+8. ADD A SHORT "CHILDREN" LINE (if the notice has no age section yet)
+---------------------------------------------------------------------------------------------------------------------
+Our service is for adults aged 18 and older. If you tell us on Facebook or Instagram that you are under 18, we reply
+once to say so and do not contact you again.
+
+---------------------------------------------------------------------------------------------------------------------
+NOTES FOR THE SITE TEAM (not for publishing)
+---------------------------------------------------------------------------------------------------------------------
+- Source of each statement: automation/lib/social.mjs and automation/W40.json on branch feat/smc-social-lindi.
+  * "We do not keep the words of your comment or message, or your name": inbound rows store no content and only salted
+    hashes of Meta ids (planEvents / inboundRow). Only Lindi's own passed drafts are stored.
+  * 30 days: the W40 nightly job "Anonymise W40 rows older than 30 days" clears content and every Meta id; the thread
+    hash, the STOP list (public.suppression) and the under-18 marker stay.
+  * Redaction before ElevenLabs: redactForLLM() in conversation/guardrail.mjs (brainBody in social.mjs).
+  * Hiding: personal details, spam and abuse (community/hide-words.txt, still DRAFT until Jono and KG approve it).
+- W40 saves no n8n execution data, on success or on failure.
+- The cookie notice does not change: nothing here sets a cookie.
+- Keep the wording plain. Do not add "free", "licensed" or "AI" anywhere.

@@ -1,6 +1,6 @@
-# hide-words.txt  version 0.1  STATUS: DRAFT
+# hide-words.txt  version 0.2  STATUS: DRAFT (0.2, 21 Oct 2026: parser note only, no word changed)
 # DRAFT pending GATE-HIDE-WORDS. Jonathan approves (KG second approver) before this goes live. Nothing here is applied to any real Page.
-# Parsed by W30 (Load config node): [SECTION] headers, '#' comment lines, one entry per line.
+# Parsed by automation/lib/social.mjs (W40 Social replies; was W30): [SECTION] headers, '#' comment lines, one entry per line.
 # [REGEX] lines are NAME<TAB>FLAGS<TAB>SOURCE. Keywords are matched case-insensitively as whole words/phrases.
 # Slurs (racial, ethnic, xenophobic, homophobic, gendered, religious, threats) are NOT spelled out here on purpose:
 # Jonathan/KG type them into Meta's keyword box by hand; W30 also classifies them as abuse by meaning. See community/hide-words.md s1.

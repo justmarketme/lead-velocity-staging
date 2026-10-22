@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Version | `faq-v1.0.3` (2026-10-02). Changelog at the end of this file. |
+| Version | `faq-v1.0.5` (2026-10-21). Changelog at the end of this file. |
 | Owner | conversation-designer |
-| Used by | Lindi / W07 (WhatsApp), W30/W31 comment and DM replies (4.14), the landing-page FAQ block, the broker explainer |
+| Used by | Lindi / W07 (WhatsApp), W40 social replies (Facebook and Instagram: the answers with no placeholders are the brain's FACTS, `automation/lib/social.mjs`), the landing-page FAQ block, the broker explainer |
 | Change rule | Any edit runs `node evals/run.mjs --dry-run` (and the live eval when `ANTHROPIC_API_KEY` is set) in CI and cannot merge below the baseline (6B.1). Bump the version on every change. |
 | **Compliance sign-off** | compliance-qa: `PENDING` (v1.0.0 withheld in phase4-review-2; v1.0.1 applies K-1…K-7; v1.0.2 adds the FAQ-23 provider line; v1.0.3 the absolute privacy link — English Parts A+B signed in phase4-review-4 at v1.0.3; Afrikaans unsigned) · name: ______ · date: ______ · version signed: ______ |
 | Practitioner review (2.3) | `PENDING`, within 30 days of launch |
@@ -27,9 +27,9 @@
 ### FAQ-02 · Does the call cost anything?
 - topic: call_cost
 - type: answer
-- asked as: "Do I pay for the call?" · "Is it free?" · "Kos die oproep iets?"
-- en: You don't pay for the call. Advisers pay SortMyCover a fee for the service, and that fee doesn't depend on whether you buy anything.
-- af: Jy betaal nie vir die oproep nie. Adviseurs betaal SortMyCover 'n fooi vir die diens, en daardie fooi hang nie af of jy iets koop nie.
+- asked as: "Do I pay for the call?" · "Does it cost anything?" · "Kos die oproep iets?"
+- en: SortMyCover takes no fee from you for the call. Advisers pay SortMyCover a fee for the service, and that fee doesn't depend on whether you buy anything.
+- af: SortMyCover vra geen fooi van jou vir die oproep nie. Adviseurs betaal SortMyCover 'n fooi vir die diens, en daardie fooi hang nie af of jy iets koop nie.
 
 ### FAQ-03 · Who is the adviser?
 - topic: adviser_who
@@ -77,8 +77,8 @@
 - topic: business_model
 - type: answer
 - asked as: "What's in it for you?" · "Who pays you?" · "Hoe maak julle geld?"
-- en: Advisers pay Lead Velocity the same flat fee for each 30-day cycle, and you pay nothing. It is never a commission and never a share of any policy.
-- af: Adviseurs betaal Lead Velocity dieselfde vaste fooi vir elke siklus van 30 dae, en jy betaal niks. Dit is nooit kommissie nie en nooit 'n deel van enige polis nie.
+- en: Advisers pay Lead Velocity a flat fee for the service, and SortMyCover takes no fee from you for the call. It is never a commission and never a share of any policy.
+- af: Adviseurs betaal Lead Velocity 'n vaste fooi vir die diens, en SortMyCover vra geen fooi van jou vir die oproep nie. Dit is nooit kommissie nie en nooit 'n deel van enige polis nie.
 
 ### FAQ-10 · Will I be sold something?
 - topic: sales_pressure
@@ -175,8 +175,8 @@
 - topic: data_sharing
 - type: answer
 - asked as: "Will I get calls from other people?" · "Do you sell my number?" · "Verkoop julle my nommer?"
-- en: No, only {practice} gets your details. The firms that handle data for us (hosting, WhatsApp, the AI model and Meta) are listed at sortmycover.co.za/privacy.
-- af: Nee, net {practice} kry jou besonderhede. Die firmas wat data vir ons hanteer (hosting, WhatsApp, die KI-model en Meta) word by sortmycover.co.za/privacy gelys.
+- en: No, only {practice} gets your details. The firms that handle data for us (hosting, WhatsApp, our assistant's language service and Meta) are listed at sortmycover.co.za/privacy.
+- af: Nee, net {practice} kry jou besonderhede. Die firmas wat data vir ons hanteer (hosting, WhatsApp, ons assistent se taaldiens en Meta) word by sortmycover.co.za/privacy gelys.
 
 ### FAQ-24 · Why do you need my email?
 - topic: email_why
@@ -198,7 +198,7 @@
 
 Every entry below is answered with the fixed deferral line from `conversation/lines.mjs`, verbatim, followed by the "I've made a note" line. The question (or, for health and ID, only the words "has a health question for you") goes into the pre-call brief. Lindi never adds a sentence about the topic itself.
 
-**FAQ-05 / FAQ-23 note (K-1, K-2, NH-17).** "{practice} only" means the only *adviser* who gets the lead. The service providers who process data for us (hosting, WhatsApp, the AI model, and Meta, which receives a hashed contact for ad measurement as the consent sentence says) are listed in the privacy notice. Lindi never says "only to {practice}" without the provider line, and never says "nobody else".
+**FAQ-05 / FAQ-23 note (K-1, K-2, NH-17).** "{practice} only" means the only *adviser* who gets the lead. The service providers who process data for us (hosting, WhatsApp, our assistant's language service (ElevenLabs), and Meta, which receives a hashed contact for ad measurement as the consent sentence says) are listed in the privacy notice. Lindi never says "only to {practice}" without the provider line, and never says "nobody else".
 
 **Self-harm and bereavement are not in this file.** A message that suggests self-harm, or tells us someone has died, gets no FAQ entry and no deferral line: the bot pauses and Jonathan and KG are alerted at once (`conversation/handoff.md`, trigger 6).
 
@@ -295,6 +295,7 @@ Every entry below is answered with the fixed deferral line from `conversation/li
 
 | Version | Date | Change | Source |
 |---|---|---|---|
+| `faq-v1.0.5` | 2026-10-21 | FAQ-02: "SortMyCover takes no fee from you for the call" replaces "You don't pay for the call" (Jono, 21 Oct 2026). FAQ-09: the "30-day cycle" is gone (the CRM order replaced cycles, D5) and "you pay nothing" becomes the same no-fee line. FAQ-23 and the FAQ-05/23 note: "the AI model" becomes "our assistant's language service" (social audit: never "AI"). | SOCIAL-AUDIT-LINDI-SMC-2026-10-21 §5.2 |
 | `faq-v1.0.4` | 2026-10-18 | FAQ-12 and FAQ-13: no age turn-away; every age books with the adviser (Jono). | Jono, 18 Oct 2026 |
 | `faq-v1.0.3` | 2026-10-02 | FAQ-23: privacy link written as sortmycover.co.za/privacy (WhatsApp has no relative links; review 4 #13). | compliance-qa phase4-review-4 |
 | `faq-v1.0.2` | 2026-10-02 | FAQ-23: service-provider line added (review 3 §9). | compliance-qa phase4-review-3 |

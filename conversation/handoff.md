@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Version | `handoff-v1.1.0` (2026-10-02: trigger 6 self-harm / bereavement; trigger 7 refused claims; compliance-qa phase4-review-2 §3b gap 6, K-7) |
+| Version | `handoff-v1.2.0` (2026-10-21: Lindi on Facebook and Instagram, W40, "Social lines" below). `handoff-v1.1.0` (2026-10-02: trigger 6 self-harm / bereavement; trigger 7 refused claims; compliance-qa phase4-review-2 §3b gap 6, K-7) |
 | Inspired by | **Conversica / Verse.ai**: hand hot or stuck leads to a human at the right moment, and tell the human why. |
 | Who | **Jonathan (primary), KG (backup)**, per 6.8a |
 | Hours | **08:00-20:00 SAST** (6.8a). Outside hours the agent says a person will reply by 09:00 and books a callback task. Weekends and public holidays: not stated in 6.8a; we apply the same hours every day until Jonathan says otherwise (SUMMARY `needs_human`). |
@@ -50,6 +50,53 @@ Not a trigger: a deferral. The person on our side cannot quote or advise either;
 | `HANDOFF_COMPLAINT` | I'm sorry to hear that. A person from our team will reply within 48 hours, and you can also email hello@sortmycover.co.za. | Jammer om dit te hoor. Iemand van ons span sal binne 48 uur antwoord, en jy kan ook na hello@sortmycover.co.za e-pos. |
 
 `{open_time_word}` is "today" between 00:00 and 08:00 and "tomorrow" between 20:00 and 24:00 (AF: "vandag" / "môre").
+
+## Social lines: Lindi on Facebook and Instagram (W40, 21 Oct 2026)
+
+Source: `Desktop\EMMA\checklist\SOCIAL-AUDIT-LINDI-SMC-2026-10-21.md` sections 3 and 5 (Jono's go, 21 Oct 2026). Code: `automation/lib/social.mjs`, workflow `automation/W40.json`, prompt `conversation/prompts/lindi-social.md`. English only in v1. These lines are copied verbatim from `conversation/lines.mjs` (the eval drift check fails otherwise). Sign-off: Jono and KG (`PENDING`, before go-live).
+
+**How she behaves (summary; the doc is the source).**
+- Disclosure: in private messages she is "Lindi, SortMyCover's automated assistant". Never "AI", never a person. Never "free", no licence wording about the adviser (the provider is the one that is FSCA-authorised), never "You don't pay for the call".
+- Comments, v1: one public reply of at most 2 sentences with the WhatsApp number (Facebook also the short link). Comments, v2 (after App Review, `SOCIAL_CHANNELS` + `private_replies`): the private reply goes first and the public line is picked from its result.
+- Statements (objections, scam claims, competitors): public line only. Spam, scam bait and abuse: hidden at any hour, no reply. Personal details posted: the neutral line, then hidden.
+- DMs: Instagram first, then Messenger. Up to 2 FAQ answers, then only the WhatsApp button. At most 4 messages per thread in 24 hours, only inside Meta's 24-hour window, never a message tag.
+- Hours: public replies and hides any time; v2 private replies only in CPA hours (weekdays 08:00-20:00, Saturday 09:00-13:00, no Sundays or public holidays; a missing holiday list counts as closed). DMs the person starts: any time.
+- Human takeover: a person replying (Page Inbox echo, standby, a hand-over, a Page comment Lindi did not send, a Page reply already under the comment) makes her quiet on that thread for `SOCIAL_HUMAN_PAUSE_HOURS` (24) after the last human message; a comment thread a person joined stays theirs for good.
+- STOP is permanent (`public.suppression`, source `stop`, hashed id). Under 18: `SOCIAL_UNDER_18`, no link, no follow-up, ever.
+- Distress (self-harm, bereavement): **no automated text** on social either (trigger 6 above). Red `social_distress` alert to Jono and KG; the comment is hidden only if it also carries personal or health details. The SADAG crisis line (0800 567 567) is for the person's own reply, verified by Jono before go-live.
+- Alerts (W22 `community_escalation`, `social_distress`, `social_breaker`): a link and a case type only, never the message text or a name.
+
+| Key | English | When |
+|---|---|---|
+| `SOCIAL_DISCLOSE` | Hi, I'm Lindi, SortMyCover's automated assistant. I can answer quick questions and help you book a call with an adviser, and you can ask for a person at any time. | First message in every Messenger / Instagram DM thread. Lindi is SortMyCover's automated assistant: never "AI", never a person. |
+| `SOCIAL_PRIVATE_HELLO` | Hi, it's Lindi here, SortMyCover's automated assistant. Thanks for your comment on our post. | Opens every private reply to a comment (v2, after App Review). |
+| `SOCIAL_HOW` | We book a 30-minute call with an adviser from an FSCA-authorised provider, at a time that suits you. | How booking works (DM answer, private-reply body, public answer to "how does it work"). |
+| `SOCIAL_COST` | SortMyCover takes no fee from you for the call. There's no obligation to buy anything. | Cost of the call (Jono 21 Oct 2026: never "You don't pay for the call"). |
+| `SOCIAL_WHO` | They're advisers from FSCA-authorised financial services providers. You'll see who your adviser is when you book. | "Who are the advisers?" Never names an adviser, firm or FSP. |
+| `SOCIAL_ADVICE` | That depends on your situation, so it's one for the adviser to go through with you on the call. | Advice requests in DMs and private replies (FAIS: no yes/no, no advice). |
+| `SOCIAL_CTA` | When you're ready, tap below to book your call on WhatsApp. | Body of the WhatsApp button (button template, title "Book on WhatsApp", URL /webhook/wa/dm_messenger or dm_instagram). |
+| `SOCIAL_CTA_LINK` | When you're ready, book your call on WhatsApp here: {wa_link} | Private replies (text only): the short link with the comment ref. |
+| `SOCIAL_ASK_FIRST` | Anything you'd like to ask first? | Private replies: one open question. |
+| `SOCIAL_STOP_FOOTER` | Reply STOP and we won't message you again. | Ends every private reply. |
+| `SOCIAL_SCAM` | SortMyCover is run by Lead Velocity (Pty) Ltd, and our only WhatsApp number is {wa_number}. We never ask for payment, banking details or passwords. | Scam questions in DMs. Anti-scam signal. |
+| `SOCIAL_WILLS` | Message us on WhatsApp on {wa_number} and we'll help you book a call about wills. | Wills, public and DM: the WhatsApp number only, no link and no hand-off (wills consent wording comes first). Never names the will provider. |
+| `SOCIAL_UNDER_18` | Thanks for your interest. This service is only for adults aged 18 and older. | Under 18, public and DM: no link, no follow-up, ever (minor marker). |
+| `SOCIAL_PERSON_LATER` | A person from our team will reply here by {open_at}. | DM "I want a person" outside CPA hours; {open_at} is the real next opening ("08:00 on Monday"). |
+| `SOCIAL_COMPLAINT_TAIL` | Reply here and a person from our team will pick it up. | DM complaint: after HANDOFF_COMPLAINT. Thread passed to the inbox, Jono and KG alerted. |
+| `SOCIAL_PRIVATE_DETAILS` | We've hidden your comment to protect your personal details, so please don't post them in public. | Private reply (v2) when personal details were posted in public. |
+| `SOCIAL_PUBLIC_COST` | SortMyCover takes no fee from you for the call. Message us on WhatsApp on {wa_number} and we'll help you book. | Public: cost of the call. |
+| `SOCIAL_PUBLIC_ADVICE` | That depends on your situation, so it's one for the adviser to go through with you on the call. Message us on WhatsApp on {wa_number} to book. | Public: any advice question ("Should I cancel my funeral policy?"). No yes/no. |
+| `SOCIAL_PUBLIC_INTEREST` | Thanks for your interest. Message us on WhatsApp on {wa_number} and we'll help you book your call. | Public: interest ("Interested", "How do I book?"). |
+| `SOCIAL_PUBLIC_QUESTION` | Good question. Message us on WhatsApp on {wa_number} and we'll help you with that. | Public: fallback for a question when the brain fails, times out or its draft fails the gate. |
+| `SOCIAL_PUBLIC_WA` | Message us on WhatsApp on {wa_number} to book. | Public: follows a one-sentence brain answer that passed the gate. |
+| `SOCIAL_PUBLIC_SCAM` | Fair question. SortMyCover is run by Lead Velocity (Pty) Ltd, and our only WhatsApp number is {wa_number}. | Public: "Is this a scam?". Statement only, no DM follow-up. |
+| `SOCIAL_PUBLIC_COMPLAINT` | We're sorry to hear this. Please message us on WhatsApp on {wa_number} or email hello@sortmycover.co.za so our team can help. | Public complaint. No timed promise in public. |
+| `SOCIAL_PUBLIC_PERSON` | A person from our team can help you on WhatsApp on {wa_number}. | Public "I want a person". |
+| `SOCIAL_PUBLIC_STATEMENT` | Thanks for sharing your view. If you'd ever like to talk it through, message us on WhatsApp on {wa_number}. | Public: objections and competitor statements. No DM follow-up. |
+| `SOCIAL_PUBLIC_THANKS` | Thank you, we appreciate it. | Public: praise. |
+| `SOCIAL_PUBLIC_DETAILS` | We've hidden this comment to protect your personal details. Please message us on WhatsApp on {wa_number} instead. | Public: personal details were posted. Sent first, then the comment is hidden. Never repeats the details. |
+| `SOCIAL_PUBLIC_SENT_PRIVATE` | Thanks for your comment. We've sent you a message with the details. | Public (v2): only when the private reply went through, so it is never false. |
+| `SOCIAL_LINK_FB` | Book here: {wa_link} | Facebook public replies only (Instagram comments cannot carry a clickable link): the short link with ref cmt_org_<page>_<post>. |
 
 ## Why the human answers in the same chat
 

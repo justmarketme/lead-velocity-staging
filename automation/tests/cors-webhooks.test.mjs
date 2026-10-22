@@ -38,6 +38,7 @@ const EXEMPT = {
   'W28.json': { 'POST:flow': 'Meta WhatsApp Flows data_exchange endpoint' },
   'W34.json': { 'POST:w34/dsr': 'server-side DSR intake' },
   'W37.json': { 'POST:cal': 'Cal.com webhook' },
+  'W40.json': { 'POST:meta-social': 'Meta Instagram webhook (comments, DMs)', 'GET:meta-social': 'Meta subscription handshake' },
 };
 
 const files = readdirSync(A).filter((f) => /^(W\d+|SUB-.+)\.json$/.test(f)).sort();
