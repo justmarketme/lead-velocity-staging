@@ -82,6 +82,16 @@ describe("evidence ledger", () => {
     for (const e of (evidence as Record<string, string>[]).filter((x) => x.status === "verified")) expect(e.checked, `${e.id}.checked`).toMatch(/^\d{4}-\d\d-\d\d$/);
   });
   it("unique ids", () => { const ids = (evidence as { id: string }[]).map((e) => e.id); expect(new Set(ids).size).toBe(ids.length); });
+  it("sources link their final URLs, not aliases that redirect (link check, 21 Oct 2026)", () => {
+    const urls = (evidence as { id: string; url?: string }[]).filter((e) => e.url).map((e) => [e.id, e.url!] as const);
+    const ALIASES = [/\/\/www\.smartaboutmoney\.co\.za\//, /what-illness-does-my/, /\/\/www\.gov\.za\/node\/\d/, /gov\.za\/services\/end-life\//, /cliffedekkerhofmeyr\.com\/news\//];
+    for (const [id, u] of urls) for (const re of ALIASES) expect(u, id).not.toMatch(re);
+  });
+  it("the Wills Act source is the amended Justice text (s2(3) and s4A), not acts.co.za (timed out) or the unamended 1953 Gazette", () => {
+    const e = (evidence as { id: string; url: string; publisher: string }[]).find((x) => x.id === "act-wills-act")!;
+    expect(e.url).toBe("https://www.justice.gov.za/legislation/acts/1953-07.pdf");
+    expect(e.publisher).toMatch(/Justice/);
+  });
 });
 
 describe("glossary", () => {
@@ -197,5 +207,11 @@ describe("FAQ", () => {
   it("scoped commission wording and no unscoped 'free'", () => {
     for (const f of [...SITE_FAQ, ...CAMPAIGN_FAQ]) for (const [re, label] of BANNED) expect(f.a + f.q, `${f.id}: ${label}`).not.toMatch(re);
     expect(CAMPAIGN_FAQ.find((f) => f.id === "who-pays")!.a).toMatch(/SortMyCover takes no commission/);
+  });
+  it("no question is asked twice (/faq/ showed 'How long is the call?' with two answers)", () => {
+    for (const list of [SITE_FAQ, CAMPAIGN_FAQ, WILLS_FAQ]) {
+      const qs = list.map((f) => f.q);
+      expect(qs.filter((q, i) => qs.indexOf(q) !== i)).toEqual([]);
+    }
   });
 });

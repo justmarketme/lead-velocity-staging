@@ -52,12 +52,12 @@ export function CampaignLanding({ angle }: { angle: Angle }) {
         </section>
         <section className="wrap-narrow py-6" aria-labelledby="h-how"><h2 id="h-how" className="text-[24px] mb-4">What happens next</h2><Steps items={wills ? WILLS_STEPS : HOW_STEPS} /></section>
         <section className="wrap-narrow py-6" aria-labelledby="h-cost" data-disclosure>
-          <h2 id="h-cost" className="text-[24px] mb-3">Cost, and who we are</h2>
+          <h2 id="h-cost" className="text-[24px] mb-3">Cost, and what we do</h2>
           <p>{wills ? null : <>{FEE_LINE} {NO_COMMISSION}</>} SortMyCover is not a financial services provider and gives no advice.</p>
         </section>
         <section className="wrap-narrow pb-8" aria-labelledby="h-faq">
           <h2 id="h-faq" className="text-[24px] mb-3">Questions people ask</h2>
-          {(wills ? WILLS_FAQ : CAMPAIGN_FAQ).map((f) => <FaqItem key={f.id} q={f.q}><p><Inline text={f.a} /></p></FaqItem>)}
+          {(wills ? WILLS_FAQ : CAMPAIGN_FAQ).map((f) => <FaqItem key={f.id} q={f.q}><p><Inline text={f.a} chat={campaignContext(angle)} /></p></FaqItem>)}
         </section>
       </main>
       <CampaignFooter feeLine={!wills} />

@@ -2,6 +2,7 @@
 @import "./styles/home-redesign.css";
 @import "./styles/visuals.css";
 @import "./styles/start.css";
+@import "./styles/footer.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -46,6 +47,8 @@
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .skip { position: absolute; left: -999px; top: 0; z-index: 60; background: var(--sm-amber); color: var(--sm-accent-text); padding: 12px 16px; font-weight: 800; }
 .skip:focus { left: 0; }
+/* focus moves to <main> on every page change (Layout ScrollToTop) and from the skip link: no ring around the whole page */
+#main:focus { outline: none; }
 
 /* ------------------------------------------------------------------ brand ---------------------------------------------- */
 .logo { font-weight: 800; font-size: 20px; letter-spacing: -0.01em; display: inline-flex; align-items: baseline; text-decoration: none; }
@@ -53,15 +56,20 @@
 .tick svg { width: 68%; height: 68%; }
 
 /* ------------------------------------------------------------------ layout --------------------------------------------- */
-.wrap { max-width: 1080px; margin-inline: auto; padding-inline: 16px; }
+/* landscape notch / Dynamic Island phones: the side insets (viewport-fit=cover). Not .wrap-narrow: its centred 720px column already
+   clears the notch, and the inset would count twice. */
+.wrap { max-width: 1080px; margin-inline: auto; padding-inline: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 .wrap-narrow { max-width: 720px; margin-inline: auto; padding-inline: 16px; }
 .site-header { position: sticky; top: 0; z-index: 40; background: var(--sm-charcoal); color: var(--sm-off-white); }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
+.site-header .logo { padding-block: 10px; } /* a 44px+ tap area, still inside the 60px bar */
 .nav-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 9px; white-space: nowrap; font-size: 15px; font-weight: 500; color: #e4e7ea; text-decoration: none; border-radius: 8px; }
 .nav-link:hover, .nav-link[aria-current="page"] { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
 .menu summary { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; font-weight: 800; border: 2px solid rgba(255, 255, 255, 0.35); border-radius: 999px; font-size: 15px; }
 .menu[open] summary { background: rgba(255, 255, 255, 0.1); }
-.menu-panel { position: absolute; left: 0; right: 0; top: 100%; background: var(--sm-charcoal); border-top: 1px solid rgba(255, 255, 255, 0.12); padding: 8px 16px 16px; box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3); }
+/* max-height: the panel scrolls on small and landscape phones instead of cutting off the last links; 60px = .site-header .bar
+   min-height (the panel hangs below it); the 100vh line is the fallback for browsers without dvh */
+.menu-panel { position: absolute; left: 0; right: 0; top: 100%; background: var(--sm-charcoal); border-top: 1px solid rgba(255, 255, 255, 0.12); padding: 8px 16px 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3); max-height: calc(100vh - 120px); max-height: calc(100dvh - 60px - env(safe-area-inset-bottom, 0px)); overflow-y: auto; overscroll-behavior: contain; }
 .menu-panel .nav-link { display: flex; font-size: 17px; padding: 0 4px; }
 
 .hero-band { background: var(--sm-charcoal); color: var(--sm-off-white); position: relative; overflow: hidden; }
@@ -70,11 +78,7 @@
 .hero-band > * { position: relative; }
 .eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; color: var(--sm-amber); }
 
-/* padding-bottom = safe area: the page's last lines clear the floating WhatsApp launcher (16px offset + 60px + its 6px ring, plus room) */
-.site-footer { background: var(--sm-charcoal); color: #c3c8ce; font-size: 14px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
-.site-footer a { color: #e4e7ea; display: inline-flex; align-items: center; min-height: 44px; }
-.site-footer h2 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; margin-bottom: 4px; }
-.site-footer address { font-style: normal; }
+/* footer: src/styles/footer.css */
 
 /* ------------------------------------------------------------------ buttons -------------------------------------------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: var(--sm-amber); color: var(--sm-accent-text); font: inherit; font-weight: 800; font-size: 17px; padding: 14px 24px; border-radius: 999px; border: 0; cursor: pointer; text-decoration: none; min-height: 52px; text-align: center; will-change: transform; }
@@ -119,9 +123,12 @@
 .card-link b { display: block; font-size: 19px; line-height: 1.25; letter-spacing: -0.02em; font-weight: 800; color: var(--sm-charcoal); }
 .card-link span { display: block; margin-top: 6px; color: #56606a; font-size: 15px; line-height: 1.6; }
 /* breadcrumb = the eyebrow line of the page head (same as the home hero eyebrow) */
-.breadcrumb { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sm-charcoal); margin: 0 0 18px; line-height: 1.8; }
-.crumb-rule { display: inline-block; vertical-align: middle; width: 28px; height: 3px; border-radius: 2px; margin: -2px 12px 0 0; background: var(--sm-amber); transform-origin: 0 50%; }
-.breadcrumb a { color: var(--sm-charcoal); text-decoration: none; }
+/* 44px tap rows: flex rows that wrap, so a wrapped trail's rows sit 44px apart and no link's tap area covers the one above it
+   (inline padding did, on phones); the margins take back the extra 22px, so a one-row trail sits where the 21.6px line did */
+.breadcrumb { display: flex; flex-wrap: wrap; align-items: center; font-size: 12px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sm-charcoal); margin: -11px 0 7px; line-height: 1.8; }
+.breadcrumb > span:not(.crumb-rule) { display: inline-flex; align-items: center; }
+.crumb-rule { display: inline-block; flex: none; vertical-align: middle; width: 28px; height: 3px; border-radius: 2px; margin: -2px 12px 0 0; background: var(--sm-amber); transform-origin: 0 50%; }
+.breadcrumb a { display: inline-flex; align-items: center; min-height: 44px; color: var(--sm-charcoal); text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; text-decoration-color: var(--sm-amber); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .crumb-sep { margin: 0 8px; color: var(--sm-amber); }
 
@@ -138,7 +145,7 @@
 .faq-item summary { cursor: pointer; padding: 20px 0; min-height: 52px; font-weight: 800; font-size: 18px; letter-spacing: -0.01em; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .faq-item summary::after { content: ""; flex: none; width: 12px; height: 12px; border-right: 3px solid var(--sm-amber); border-bottom: 3px solid var(--sm-amber); transform: rotate(45deg) translateY(-3px); transition: transform 0.2s; }
 .faq-item[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
-.faq-body { overflow: hidden; }
+/* no overflow clip at rest (it cut the focus ring of links in an answer); toggleDetails clips only while the height glides */
 .faq-body > div { padding: 0 0 20px; color: #45505a; font-size: 17px; line-height: 1.7; }
 .faq-body p { margin: 0 0 10px; }
 
@@ -335,12 +342,12 @@ legend { padding: 0; width: 100%; }
 /* white cards: the dark-card colours above (#d3d7dc, #c3c8ce, yellow text) fail contrast on white; muted is 5.8:1, charcoal for the kicker (no yellow text on light) */
 .smc-home .svc-fine{color:var(--sm-text-muted)}.smc-home .svc-kicker{color:var(--sm-charcoal)}
 .smc-home .svc-list{display:flex;flex-wrap:wrap;gap:4px 12px}
-.smc-home .svc-list a{min-height:31px}
+.smc-home .svc-list a{min-height:44px}
 .home-editorial{display:grid;grid-template-columns:1.08fr .92fr;gap:clamp(25px,5vw,80px);align-items:center;margin-bottom:28px}
 .home-editorial>img{width:100%;height:390px;object-fit:cover;border-radius:22px}
 .home-editorial>div{padding:20px 0}.home-editorial h2,.home-section-heading{font-size:clamp(30px,4vw,52px);line-height:1.08;letter-spacing:-.035em;max-width:14ch}
 .home-editorial p:not(.eyebrow){font-size:17px;line-height:1.65;max-width:42ch;margin:20px 0}
-.home-text-link{font-weight:800;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:6px}
+.home-text-link{font-weight:800;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:6px;display:inline-flex;align-items:center;min-height:44px}
 .home-editorial-reverse>img{order:2}.home-editorial-reverse>div{order:1}
 .home-guide-grid{margin-top:28px}
 .home-how-photo{position:relative;overflow:hidden;border-radius:22px;height:310px;margin:25px 0 32px}
@@ -370,6 +377,14 @@ legend { padding: 0; width: 100%; }
 .page-body{padding-top:8px;padding-bottom:clamp(48px,7vw,88px)}
 .prose-sm>:first-child{margin-top:0}
 .prose-sm dt{font-size:20px;letter-spacing:-.02em}
+/* /legal/ company record: small muted labels over strong values, one hairline-separated row per pair, label | value from 480px
+   (the generic glossary dt above is 20px, bigger than its value) */
+.prose-sm .legal-dl{display:grid;margin:20px 0 8px;border-bottom:1px solid var(--sm-border)}
+.prose-sm .legal-dl>div{display:grid;gap:2px;padding:12px 0;border-top:1px solid var(--sm-border)}
+.prose-sm .legal-dl dt{font-size:13px;line-height:1.4;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--sm-text-muted)}
+.prose-sm .legal-dl dd{margin:0;font-size:18px;line-height:1.5;font-weight:600;color:var(--sm-charcoal);overflow-wrap:anywhere}
+@media(min-width:480px){.prose-sm .legal-dl>div{grid-template-columns:minmax(0,200px) minmax(0,1fr);column-gap:20px;align-items:baseline}}
+.prose-sm p.legal-updated{font-size:14px;color:var(--sm-text-muted)}
 
 /* ------------------------------------------------------------------ WhatsApp-first CTAs + chat widget (17 Oct 2026) ----- */
 .btn-wa svg{flex:none}
@@ -381,10 +396,10 @@ legend { padding: 0; width: 100%; }
 .chat-launch{display:inline-flex;align-items:center;gap:10px;min-height:60px;padding:0 22px 0 18px;border:0;border-radius:999px;background:var(--sm-amber);color:var(--sm-accent-text);font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 18px 40px #1f293340,0 0 0 6px #f5a62340}
 .chat-launch:hover{filter:brightness(1.04)}
 .chat-launch:focus-visible{outline:3px solid var(--sm-charcoal);outline-offset:3px}
-.chat-panel{width:min(340px,calc(100vw - 32px));max-height:calc(100vh - 110px);overflow:auto;display:grid;gap:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e4e5e7;box-shadow:0 20px 50px #1f293330}
+.chat-panel{width:min(340px,calc(100vw - 32px));max-height:calc(100vh - 110px);max-height:calc(100svh - 110px);overflow:auto;display:grid;gap:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e4e5e7;box-shadow:0 20px 50px #1f293330}
 .chat-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .chat-title{margin:0;font-weight:800;font-size:16px;letter-spacing:-.01em;color:var(--sm-charcoal)}
-.chat-x{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:var(--sm-charcoal);font-size:24px;line-height:1;cursor:pointer}
+.chat-x{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:transparent;color:var(--sm-charcoal);font-size:24px;line-height:1;cursor:pointer}
 .chat-x:hover{background:#f4f5f6}
 .chat-x:focus-visible{outline:3px solid var(--sm-charcoal);outline-offset:2px}
 .chat-check{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;color:var(--sm-charcoal);cursor:pointer}
@@ -392,13 +407,19 @@ legend { padding: 0; width: 100%; }
 .chat-check.is-missing input{outline:2px solid var(--err);outline-offset:2px}
 .chat-check-opt{color:#56606a;font-size:13px}
 .chat-more{margin:-6px 0 0 30px;font-size:12px;color:var(--sm-text-muted)}
-.chat-more summary{cursor:pointer;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:3px;width:max-content}
+.chat-more summary{cursor:pointer;text-decoration:underline;text-decoration-color:var(--sm-amber);text-underline-offset:3px;width:max-content;padding:3px 0;margin:-3px 0}
+/* 3px, not more: a bigger hit area would reach up over the consent tick-box label just above */
 .chat-more p{margin:6px 0 0;line-height:1.5}
 .chat-more a{text-decoration:underline;text-underline-offset:3px}
 .chat-err{margin:0;color:var(--err);font-size:13px;font-weight:800}
 .chat-go{width:100%}
 .chat-go[aria-disabled=true]{opacity:.55}
 .chat-fine{margin:0;font-size:12px;line-height:1.5;color:var(--sm-text-muted);text-align:center}
+/* visible Privacy notice link: in the tick label's text column (20px box + 10px gap), a 24px-tall target (WCAG 2.5.8), and the
+   "Full wording" under it drops its -6px tuck so the two targets keep a clear gap */
+.chat-privacy{text-align:left;margin-left:30px}
+.chat-privacy a{display:inline-flex;align-items:center;min-height:24px;text-decoration:underline;text-underline-offset:3px}
+.chat-privacy+.chat-more{margin-top:0}
 .chat-backdrop{display:none}
 @media(max-width:640px){
   .chat-launch{width:60px;padding:0;justify-content:center;transition:transform .25s,visibility .25s}

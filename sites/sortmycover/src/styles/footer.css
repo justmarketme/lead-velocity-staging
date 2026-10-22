@@ -1,0 +1,82 @@
+/* Site footer (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 4). Phone first (390px), then sm 640-1023 and lg 1024+.
+   Brand: navy #1F2933 base (never black), logo yellow for the hairline and underline accents only. Rest state is final: the hairline is
+   fully drawn and nothing is offset, so reduced motion (and a slow motion chunk) shows the finished footer. Transform-only motion. */
+
+/* padding-bottom = safe area: the last lines clear the floating WhatsApp launcher (16px offset + 60px + its 6px ring, plus room) */
+.site-footer { position: relative; background: var(--sm-charcoal); color: #c3c8ce; font-size: 14px; padding-top: 40px; margin-top: 48px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+.site-footer a { color: #e4e7ea; display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+.site-footer h2 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #fff; margin: 0; }
+.site-footer ul { list-style: none; margin: 0; padding: 0; }
+.site-footer p { margin: 0; }
+
+.f-rule { position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--sm-amber); transform-origin: left; }
+
+.f-top { display: grid; gap: 28px; }
+.f-brand { display: grid; gap: 14px; align-content: start; }
+/* start, not the grid default stretch: only the wordmark is the Home link (no full-width tap area or focus box) */
+.f-brand .logo { color: #fff; min-height: 44px; justify-self: start; }
+.f-promise { color: #e4e7ea; font-size: 15px; line-height: 1.5; max-width: 34ch; }
+.f-cta { width: 100%; min-height: 52px; }
+.site-footer .f-cta { color: var(--sm-accent-text); justify-content: center; }
+.f-contact { display: flex; flex-wrap: wrap; column-gap: 20px; }
+
+.f-group { border-top: 1px solid rgba(255, 255, 255, 0.12); }
+.f-group:last-child { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.f-group > summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; list-style: none; cursor: pointer; }
+.f-group > summary::-webkit-details-marker { display: none; }
+.f-chev { width: 16px; height: 16px; color: #fff; flex: none; }
+.f-group[open] .f-chev { transform: rotate(180deg); }
+/* no overflow clip at rest: it cut the focus ring of every group link. toggleDetails clips only while the height glides. */
+.f-links { padding-bottom: 8px; }
+.f-links a { color: #e4e7ea; }
+
+.f-base { margin-top: 28px; display: grid; gap: 12px; }
+.f-line { font-size: 13px; color: #c3c8ce; line-height: 1.55; }
+.f-legal { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
+.f-legal .f-optout { grid-column: 1 / -1; }
+/* Legal & disclosures leads the row in white (spec section 4): with the identity sentence off it is the footer's only route to the
+   company identity (ECT s43). Both footers. */
+.site-footer .f-legal li:first-child a { color: #fff; font-weight: 700; }
+
+/* campaign footer: no groups, the legal row wraps */
+.site-footer-campaign { margin-top: 0; }
+.site-footer-campaign .f-legal { display: flex; flex-wrap: wrap; column-gap: 20px; }
+
+/* underline wipe (CSS, zero JS): grows from the left on hover / focus-visible, exits right faster. The global reduced-motion rule in
+   index.css zeroes transitions, so the line simply appears. */
+.site-footer :is(.f-links, .f-legal, .f-contact) a { position: relative; }
+.site-footer :is(.f-links, .f-legal, .f-contact) a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 10px; height: 2px; background: var(--sm-amber); transform: scaleX(0); transform-origin: right; transition: transform .18s ease-in; }
+.site-footer :is(.f-links, .f-legal, .f-contact) a:is(:hover, :focus-visible)::after { transform: scaleX(1); transform-origin: left; transition: transform .28s cubic-bezier(.22, 1, .36, 1); }
+
+/* sm: groups always open (Footer.tsx holds them open), three columns, brand row across the top */
+@media (min-width: 640px) {
+  .f-top { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
+  .f-brand { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) auto; column-gap: 32px; align-items: start; }
+  .f-brand .logo, .f-promise { grid-column: 1; }
+  .f-cta, .f-contact { grid-column: 2; }
+  .f-brand .f-cta { grid-row: 1; width: auto; align-self: start; }
+  .f-brand .f-contact { grid-row: 2; }
+  .f-nav { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 32px; }
+  .f-group, .f-group:last-child { border: 0; }
+  .f-group > summary { cursor: default; min-height: 40px; }
+  .f-chev { display: none; }
+}
+
+/* lg: brand column + three link columns, legal row underneath */
+@media (min-width: 1024px) {
+  .site-footer { padding-top: 64px; }
+  .f-top { grid-template-columns: minmax(0, 1.3fr) minmax(0, 3fr); gap: 48px; }
+  .f-brand { grid-column: auto; grid-template-columns: minmax(0, 1fr); }
+  .f-brand .logo, .f-promise, .f-cta, .f-contact { grid-column: 1; }
+  .f-brand .f-cta { grid-row: auto; justify-self: start; }
+  .f-brand .f-contact { grid-row: auto; }
+  .f-nav { grid-column: auto; column-gap: 40px; }
+  .f-base { margin-top: 56px; border-top: 1px solid rgba(255, 255, 255, 0.12); padding-top: 20px; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 16px 32px; }
+  .f-line { max-width: 60ch; }
+  .f-legal { display: inline-flex; flex-wrap: wrap; gap: 0 20px; }
+}
+
+/* a mouse: denser rows; touch keeps 44px */
+@media (hover: hover) and (pointer: fine) {
+  .site-footer :is(.f-links, .f-legal, .f-contact) a { min-height: 36px; }
+}

@@ -4,28 +4,24 @@
  *  - nothing hides a required disclosure; nothing auto-loops (every animation runs once or follows the user's scroll/tap);
  *  - exit animations are under 100 ms so they never block the next tap (INP);
  *  - animateView, animateLayout and every Motion+ API are NOT used (animateView injects inline style; layout is 28 KB).
- *  Motion APIs used: animate (motion/mini), spring (to build a CSS linear() spring easing for WAAPI), stagger, inView, scroll, hover, press. */
+ *  Motion APIs used: animate (motion/mini, with `type: spring` for springs), spring, stagger, inView, scroll, hover, press. */
 import { animate } from "motion/mini";
 import { hover, inView, press, scroll, spring, stagger } from "motion";
+
+/** Static legal pages load no Motion at all (no motion chunk, no page or footer motion). */
+export const NO_MOTION = /^\/(privacy|terms|paia|legal)\//;
 
 export function prefersReducedMotion(): boolean {
   return typeof window === "undefined" || !window.matchMedia || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/* ---- spring physics: sample Motion's spring generator into a CSS linear() easing so the (small) mini animate can play it natively ---- */
-const cache: Record<string, string> = {};
-export function springEase(stiffness = 520, damping = 22, mass = 1): string {
-  const key = `${stiffness}/${damping}/${mass}`;
-  if (cache[key]) return cache[key];
-  const gen = spring({ keyframes: [0, 1], stiffness, damping, mass, restDelta: 0.001, restSpeed: 0.01 } as any);
-  const pts: number[] = [];
-  let t = 0, done = false;
-  while (!done && t < 1500) { const s = gen.next(t); pts.push(+(s.value as number).toFixed(4)); done = s.done; t += 16; }
-  pts.push(1);
-  return (cache[key] = `linear(${pts.join(", ")})`);
-}
-/** Duration (seconds) that matches the sampled spring. */
-export const springDuration = (easing: string) => Math.min(1.2, ((easing.split(",").length - 1) * 16) / 1000);
+/* ---- spring physics ----
+   Springs use `type: spring` on mini animate (documented for motion/mini 14.1.0): motion samples the spring into a native CSS
+   linear() easing itself, or falls back to a 300 ms ease-out where linear() is unsupported. A hand-sampled linear() string passed as
+   `ease` was silently dropped by mini animate (it is not in motion-dom's supportedWaapiEasing table), so every spring played at
+   constant speed (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6; tests/spring-fix.test.ts). */
+/** Transition options for a physics spring on mini animate. */
+export const springTo = (stiffness = 520, damping = 22, extra: { delay?: number | ((i: number, n: number) => number) } = {}) => ({ type: spring, stiffness, damping, ...extra });
 
 /* ---- (a) staggered scroll reveal ---- */
 /** REVEAL_FAILSAFE_MS: hidden items are always restored by this time, whatever the observer does. */
@@ -97,9 +93,7 @@ export function drawPath(path: SVGGeometryElement, delay = 0, duration = 0.5): (
 /* ---- (d) spring hover / press gestures ---- */
 export function springGestures(root: ParentNode, selector: string): () => void {
   if (prefersReducedMotion()) return () => {};
-  const ease = springEase();
-  const dur = springDuration(ease);
-  const to = (el: Element, s: number) => animate(el, { transform: `scale(${s})` }, { duration: dur, ease: ease as any });
+  const to = (el: Element, s: number) => animate(el, { transform: `scale(${s})` }, springTo());
   const cleanups: (() => void)[] = [];
   root.querySelectorAll(selector).forEach((el) => {
     cleanups.push(hover(el, () => { to(el, 1.03); return () => { to(el, 1); }; }));
@@ -110,9 +104,7 @@ export function springGestures(root: ParentNode, selector: string): () => void {
 /** One-shot spring pulse (a chosen quiz option, a picked slot). */
 export function pulse(el: Element) {
   if (prefersReducedMotion()) return;
-  const ease = springEase(600, 16);
   animate(el, { transform: ["scale(1)", "scale(1.04)", "scale(1)"] }, { duration: 0.32, ease: "easeOut" });
-  void ease;
 }
 /** Validation shake. Reduced motion: no movement (the red border and message already carry the meaning). */
 export function shake(el: Element) {
@@ -130,29 +122,41 @@ export function watchPastSentinel(sentinel: Element, onChange: (past: boolean) =
 /** Fade/slide a freshly shown element in. Used for the sticky bar. */
 export function slideIn(el: Element) {
   if (prefersReducedMotion()) return;
-  const ease = springEase(420, 28);
-  animate(el, { transform: ["translateY(100%)", "translateY(0%)"], opacity: [0.4, 1] }, { duration: springDuration(ease), ease: ease as any });
+  animate(el, { transform: ["translateY(100%)", "translateY(0%)"], opacity: [0.4, 1] }, springTo(420, 28));
 }
 
 /** Pop a freshly opened panel in (the chat widget). */
 export function popIn(el: Element) {
   if (prefersReducedMotion()) return;
-  const ease = springEase(460, 30);
-  animate(el, { transform: ["translateY(14px) scale(0.98)", "translateY(0px) scale(1)"], opacity: [0, 1] }, { duration: springDuration(ease), ease: ease as any });
+  animate(el, { transform: ["translateY(14px) scale(0.98)", "translateY(0px) scale(1)"], opacity: [0, 1] }, springTo(460, 30));
 }
 
-/* ---- (e) smooth <details> (FAQ) ---- */
-/** Smooth open/close for a native <details> (content stays in the HTML for crawlers and no-JS). */
+/* ---- (e) smooth <details> (FAQ, footer groups) ---- */
+/** Details whose close glide is running (d.open stays true until it ends): the running height animation. */
+const closing = new WeakMap<HTMLDetailsElement, { cancel(): void }>();
+/** True while `d` is gliding shut (it still reports open). */
+export const isClosing = (d: HTMLDetailsElement) => closing.has(d);
+/** Smooth open/close for a native <details> (content stays in the HTML for crawlers and no-JS). The body is clipped (overflow
+ *  hidden) only while its height glides, so at rest nothing cuts the focus ring of a link inside it. A tap during the close glide
+ *  reopens from the current height instead of closing a second time. */
 export function toggleDetails(d: HTMLDetailsElement, body: HTMLElement, e: { preventDefault(): void }) {
   if (prefersReducedMotion()) return; // native instant toggle
   e.preventDefault();
-  if (d.open) {
+  const rest = () => { body.style.height = ""; body.style.overflow = ""; };
+  body.style.overflow = "hidden";
+  if (d.open && !closing.has(d)) {
     const h = body.offsetHeight;
-    animate(body, { height: [`${h}px`, "0px"] }, { duration: 0.2, ease: "easeOut" }).finished.then(() => { d.open = false; body.style.height = ""; }, () => { d.open = false; body.style.height = ""; });
+    const a = animate(body, { height: [`${h}px`, "0px"] }, { duration: 0.2, ease: "easeOut" });
+    closing.set(d, a);
+    // a reopen tap replaced this glide (closing no longer maps to it): leave the details open
+    const done = () => { if (closing.get(d) !== a) return; closing.delete(d); d.open = false; rest(); };
+    a.finished.then(done, done);
   } else {
+    const reopen = closing.delete(d); // mid-close: glide back up from where it is (a single keyframe starts from the current height)
     d.open = true;
     const h = body.scrollHeight;
-    animate(body, { height: ["0px", `${h}px`] }, { duration: 0.26, ease: "easeOut" }).finished.then(() => { body.style.height = ""; }, () => { body.style.height = ""; });
+    const a = animate(body, { height: reopen ? `${h}px` : ["0px", `${h}px`] }, { duration: 0.26, ease: "easeOut" });
+    a.finished.then(rest, rest);
   }
 }
 
@@ -166,4 +170,24 @@ export function leave(el: Element, done: () => void) {
 export function watchInView(el: Element, onChange: (visible: boolean) => void): () => void {
   onChange(false);
   return inView(el, () => { onChange(true); return () => onChange(false); }, { amount: 0 });
+}
+
+/** Footer group on a phone (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): the list glides open or shut (toggleDetails), the
+ *  chevron spring-rotates and, on a fresh open, the links cascade down 6px. Transform only on the chevron and links; no opacity.
+ *  The open state is read BEFORE toggleDetails (on close it keeps d.open true for 0.2s), and a group that is gliding shut counts as
+ *  closed, so a second tap during the close reopens it. The chevron animates to a single target: mini animate stops the running
+ *  rotation and starts from its current angle (no snap back to a start keyframe on an interrupting tap).
+ *  Reduced motion: toggleDetails returns early (native instant toggle) and the chevron comes from CSS `details[open] .f-chev`. */
+export function footerGroupToggle(d: HTMLDetailsElement, list: HTMLElement, chev: Element, e: { preventDefault(): void }) {
+  const fresh = !d.open; // fully closed: the links cascade in
+  const opening = fresh || isClosing(d);
+  toggleDetails(d, list, e);
+  if (prefersReducedMotion()) return;
+  const clr = () => { (chev as HTMLElement).style.transform = ""; };
+  animate(chev, { transform: opening ? "rotate(180deg)" : "rotate(0deg)" }, { type: spring, visualDuration: 0.3, bounce: 0.25 }).finished.then(clr, clr);
+  if (fresh) {
+    const lis = Array.from(list.querySelectorAll<HTMLElement>("li"));
+    const c = () => lis.forEach((l) => { l.style.transform = ""; });
+    if (lis.length) animate(lis, { transform: ["translateY(-6px)", "none"] }, { duration: 0.3, delay: stagger(0.03), ease: [0.22, 1, 0.36, 1] }).finished.then(c, c);
+  }
 }

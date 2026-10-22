@@ -2,7 +2,7 @@
 
 On 18 Oct 2026, Jono decided that SortMyCover does not name or rely on its will provider in public. The provider is named only inside WhatsApp, before the call. The wills and estate guides therefore rest on South African government and statutory sources. Every page below was opened on 18 Oct 2026, and the evidence ids are in `config/evidence.json`.
 
-SAFLII and lawlibrary.org.za returned 403 to automated fetches. Statute text comes from gov.za PDFs and, for the Wills Act, the consolidated text on acts.co.za. The gov.za Wills Act PDF is the unamended 1953 text.
+SAFLII and lawlibrary.org.za returned 403 to automated fetches. Statute text comes from gov.za PDFs and, for the Wills Act, the consolidated text on justice.gov.za (acts.co.za until 21 Oct 2026, when it kept timing out). The gov.za Wills Act PDF is the unamended 1953 text.
 
 ## The ten sources
 
@@ -17,13 +17,13 @@ SAFLII and lawlibrary.org.za returned 403 to automated fetches. Statute text com
 | 7 | GN R.921 of 24 Nov 2014: fixing the amount under section 1(1)(c)(i) of the Intestate Succession Act | Minister of Justice (gov.za) | https://www.gov.za/documents/notices/intestate-succession-act-fixing-amount-section-11ci-24-nov-2014 | `gov-intestate-amount` |
 | 8 | Estate Duty | SARS | https://www.sars.gov.za/types-of-tax/estate-duty/ | `sars-estate-duty` |
 | 9 | FAQs: Deceased Estates, Income Tax and Estate Duty (Issue 4) | SARS | https://www.sars.gov.za/wp-content/uploads/Ops/Guides/LAPD-IT-G31-FAQs-on-Deceased-Estates.pdf | `sars-deceased-faq` |
-| 10 | Maintenance of Surviving Spouses Act 27 of 1990 | gov.za | https://www.gov.za/node/734686 | `gov-surviving-spouses-act` |
+| 10 | Maintenance of Surviving Spouses Act 27 of 1990 | gov.za | https://www.gov.za/documents/maintenance-surviving-spouses-act-4-mar-2015-1224 | `gov-surviving-spouses-act` |
 
 Supporting sources:
 
 - **Children's Act 38 of 2005, section 27.** https://www.gov.za/documents/childrens-act, evidence id `gov-childrens-act-s27`.
-- **Wills Act 7 of 1953, consolidated text.** https://www.acts.co.za/wills-act-1953/, evidence id `act-wills-act`.
-- **Report the estate of a deceased person.** https://www.gov.za/services/end-life/report-estate-deceased, evidence id `gov-report-estate`.
+- **Wills Act 7 of 1953, consolidated text.** https://www.justice.gov.za/legislation/acts/1953-07.pdf (as amended to Act 49 of 1996; was acts.co.za until 21 Oct 2026), evidence id `act-wills-act`.
+- **Report the estate of a deceased person.** https://www.gov.za/services/services-residents/end-life/report-estate-deceased, evidence id `gov-report-estate`.
 - **SARS Estates.** https://www.sars.gov.za/businesses-and-employers/estates/, evidence id `sars-estates`.
 
 ## Cautions recorded by the research

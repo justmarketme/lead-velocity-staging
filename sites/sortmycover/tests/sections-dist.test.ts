@@ -101,14 +101,41 @@ describe.skipIf(!have)("navigation, footer and sitemap", () => {
       expect(foot.querySelector('a[href="/cover/income-protection/"]'), rel).toBeTruthy();
     }
   });
-  it("the footer fee line is shown everywhere except the wills section", () => {
-    expect(visible(read("about/index.html"))).toMatch(/Advisers pay SortMyCover a fee/);
-    expect(visible(read("cover/index.html"))).toMatch(/Advisers pay SortMyCover a fee/);
+  it("orphan guard: every apex footer links the footer-only pages, with at most 30 links (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 4)", () => {
+    const want = ["/legal/", "/faq/", "/accessibility/", "/terms/", "/paia/", "/advisers/", "/learn/sources/", "/learn/life-events/", "/learn/glossary/", "/privacy/#opt-out"];
+    for (const rel of ["index.html", "about/index.html", "learn/index.html", "wills/index.html", "cover/life-cover/index.html", "legal/index.html", "404.html"]) {
+      const foot = new JSDOM(read(rel)).window.document.querySelector("footer.site-footer")!;
+      for (const href of want) expect(foot.querySelector(`a[href="${href}"]`), `${rel} ${href}`).toBeTruthy();
+      expect(foot.querySelectorAll("a").length, rel).toBeLessThanOrEqual(30);
+      expect(foot.querySelectorAll('nav[aria-label="Footer"]').length, rel).toBe(1);
+      expect(foot.querySelectorAll('nav[aria-label="Legal"]').length, rel).toBe(1);
+    }
+  });
+  it("link graph: the guides and /book/ that left the footer keep at least 2 inbound links in the built HTML", () => {
+    const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+    const files = walk(dist).filter((f) => f.endsWith(".html"));
+    for (const target of ["/learn/life-cover-and-a-home-loan/", "/learn/income-protection-vs-disability-cover/", "/learn/cover-for-business-owners-and-directors/", "/book/"]) {
+      const self = target.slice(1) + "index.html";
+      const from = files.filter((f) => path.relative(dist, f).split(path.sep).join("/") !== self && fs.readFileSync(f, "utf8").includes(`href="${target}"`));
+      expect(from.length, target).toBeGreaterThanOrEqual(2);
+    }
+  });
+  // The fee line left the apex footer (spec section 2: it is shown where details are collected, in the chat panel, and on the pages
+  // below); campaign landings still carry it in their footer because they collect leads (CPA s41).
+  it("the fee statement is on About, Cover, How we make money and /legal/, never on /wills/; no apex footer carries it, campaign cover footers do", () => {
+    for (const rel of ["about/index.html", "cover/index.html", "how-we-make-money/index.html", "legal/index.html"]) expect(visible(read(rel)), rel).toMatch(/advisers pay SortMyCover a fee/i);
     expect(visible(read("wills/index.html"))).not.toMatch(/Advisers pay SortMyCover a fee/);
+    const footer = (rel: string) => new JSDOM(read(rel)).window.document.querySelector("footer")!.textContent!;
+    for (const rel of ["index.html", "about/index.html", "cover/index.html", "faq/index.html"]) expect(footer(rel), rel).not.toMatch(/Advisers pay SortMyCover a fee/);
+    for (const a of ANGLES) {
+      const f = footer(`_c/${a.slug}/index.html`);
+      if (a.theme === "B") expect(f, a.slug).not.toMatch(/Advisers pay SortMyCover a fee/);
+      else expect(f, a.slug).toMatch(/Advisers pay SortMyCover a fee/);
+    }
   });
   it("the sitemap lists both hubs and all ten new pages", () => {
     const sm = read("sitemap.xml");
-    for (const p of ["/wills/", "/cover/", ...WILLS.map((s) => `/wills/${s}/`), ...COVER.map((s) => `/cover/${s}/`)]) expect(sm, p).toContain(`<loc>https://sortmycover.co.za${p}</loc>`);
+    for (const p of ["/wills/", "/cover/", "/legal/", ...WILLS.map((s) => `/wills/${s}/`), ...COVER.map((s) => `/cover/${s}/`)]) expect(sm, p).toContain(`<loc>https://sortmycover.co.za${p}</loc>`);
   });
   it("the learn hub links to both sections", () => {
     const html = read("learn/index.html");

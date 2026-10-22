@@ -15,12 +15,16 @@ const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true })
 const pages = have ? walk(dist).filter((f) => f.endsWith(".html")).map((f) => ({ file: f, rel: path.relative(dist, f).replace(/\\/g, "/"), html: fs.readFileSync(f, "utf8") })) : [];
 const isCampaign = (p: { rel: string }) => p.rel.startsWith("_c/");
 const isApex = (p: { rel: string }) => !isCampaign(p);
+/** FOOTER-v3 as the site builds it (src/lib/site.ts): the no-advice line, plus the identity sentence only while
+    company.footer_identity is on (off by Jono's decision, 21 Oct 2026; FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 2). */
+const FOOTER_V3 = site.footer_line + (site.company.footer_identity ? ` It is a trading name of ${site.company.legal_name}.` : "");
+const footerHtml = (html: string) => (/<footer[\s\S]*?<\/footer>/.exec(html) || [""])[0];
 const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
   it("renders every route (74 files) with real content", () => {
-    expect(pages.length).toBe(74); // + /start/ (Lindi's per-lead page, 18 Oct 2026) // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
+    expect(pages.length).toBe(75); // + /legal/ (Legal & disclosures, 21 Oct 2026) // + /start/ (Lindi's per-lead page, 18 Oct 2026) // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -109,18 +113,75 @@ describe.skipIf(!have)("pre-rendered output", () => {
   it("no robots meta blocks snippets on indexable pages", () => {
     for (const p of pages) expect(p.html).not.toMatch(/nosnippet|max-snippet:\s*0/);
   });
-  it("footer identity block and 'not a financial services provider' line on every page; opt-out link", () => {
+  // Rule S31 (identity block in every footer) is reversed by Jono's decision (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 2): the
+  // registration number and address moved to /legal/, which every footer links to (ECT Act s43). The positive identity checks moved
+  // to the /legal/ test below; this test now also guards that the footers stay slim.
+  // 404.html is no longer exempt (reviewer finding, 21 Oct 2026): it renders the same apex Footer, and some hosts serve it on a
+  // campaign host, so the no-advice line and the /legal/ link must be guarded there too.
+  it("footer line, contact, Legal & disclosures link and opt-out on every page, 404 included", () => {
     for (const p of pages) {
-      if (p.rel === "404.html") continue;
       const v = visible(p.html);
-      expect(v, p.rel).toContain("Lead Velocity (Pty) Ltd");
-      expect(v, p.rel).toContain("2025/637858/07");
-      expect(v, p.rel).toContain("210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria 0184");
+      expect(v, p.rel).toContain(FOOTER_V3);
+      expect(v, p.rel).toContain("SortMyCover is not a financial services provider and gives no financial advice");
       expect(v, p.rel).toContain("+27 10 976 5618");
       expect(v, p.rel).toContain("hello@sortmycover.co.za");
-      expect(v, p.rel).toContain("SortMyCover is not a financial services provider and gives no financial advice");
+      expect(p.html, p.rel).toMatch(/href="[^"]*\/legal\/"[^>]*>Legal &amp; disclosures/);
       expect(p.html, p.rel).toMatch(/href="[^"]*\/privacy\/#opt-out"[^>]*>Opt out of ad measurement/);
+      const foot = footerHtml(p.html);
+      expect(foot, p.rel).toBeTruthy();
+      expect(foot, p.rel).not.toContain("2025/637858/07");
+      expect(foot, p.rel).not.toContain("210 Amarand Avenue");
+      // one mention while the identity sentence is on, none while it is off (Jono: Lead Velocity is not named on every page)
+      expect((foot.match(/Lead Velocity/g) || []).length, p.rel).toBe(site.company.footer_identity ? 1 : 0);
     }
+  });
+  it("/legal/ (Legal & disclosures) carries the full company identity (ECT Act s43) and links every legal document", () => {
+    const h = pages.find((p) => p.rel === "legal/index.html")!.html;
+    const v = visible(h);
+    for (const t of ["Lead Velocity (Pty) Ltd", "SortMyCover", "2025/637858/07", "Private company, registered in South Africa", "210 Amarand Avenue, Pegasus Building 1, Menlyn Maine, Pretoria 0184", "Address for service of legal documents", "+27 10 976 5618", "hello@sortmycover.co.za", site.disclosure_statement, "SortMyCover takes no fee from the person who asks for a call", "Kgomotso Pule", "2026-069309"]) expect(v, t).toContain(t);
+    for (const href of ["/privacy/", "/terms/", "/paia/", "/complaints/", "/how-we-make-money/"]) expect(h, href).toContain(`href="${href}"`);
+    expect(h).toContain('<link rel="canonical" href="https://sortmycover.co.za/legal/">');
+    expect(h).toContain("<title>Legal &amp; disclosures | SortMyCover</title>");
+    expect(h).not.toMatch(/<meta name="robots" content="noindex/);
+    // #codes is published only when there is something to list; no "None" claim
+    if (!site.company.codes_of_conduct.length) expect(h).not.toContain('id="codes"');
+    for (const d of new JSDOM(h).window.document.querySelectorAll("main section")) expect(d.hasAttribute("data-disclosure")).toBe(true);
+  });
+  // Reviewer finding, 21 Oct 2026: /legal/ hides the Directors row while company.directors is empty, so no copy that points to
+  // /legal/ may promise directors (About, the FAQ scam answer, the /legal/ description, FAQPage JSON-LD).
+  it.skipIf(site.company.directors.length > 0)("while company.directors is empty, no page promises directors next to a /legal/ link", () => {
+    for (const p of pages) {
+      const doc = new JSDOM(p.html).window.document;
+      for (const el of doc.querySelectorAll("p, li, dd, td")) {
+        if (el.querySelector('a[href$="/legal/"]') || /Legal & disclosures/.test(el.textContent || "")) expect(el.textContent, p.rel).not.toMatch(/\bdirectors\b/i);
+      }
+      for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
+        if (/Legal & disclosures|\/legal\//.test(s.textContent || "")) for (const m of (s.textContent || "").match(/"text":"[^"]*Legal & disclosures[^"]*"/g) || []) expect(m, p.rel).not.toMatch(/\bdirectors\b/i);
+      }
+    }
+    const legal = pages.find((p) => p.rel === "legal/index.html")!.html;
+    expect(meta(legal, /<meta name="description" content="([^"]+)"/)).not.toMatch(/directors/i);
+    expect(visible(pages.find((p) => p.rel === "about/index.html")!.html)).toContain("Its registration number and addresses are on Legal & disclosures");
+  });
+  // the copy above only routes visitors to /legal/ and the privacy notice; the guide links both (it used to name them unlinked)
+  it("the 'how SortMyCover works' guide links Legal & disclosures and the privacy notice where it names them", () => {
+    const h = pages.find((p) => p.rel === "learn/how-sortmycover-works/index.html")!.html;
+    expect(h).toMatch(/href="\/legal\/"[^>]*>Legal &amp; disclosures<\/a>/);
+    expect(h).toMatch(/href="\/privacy\/"[^>]*>privacy notice<\/a>/);
+  });
+  // /legal/ is its own page module: /privacy/, /terms/ and /paia/ do not preload the company card's Visuals chunk or its code
+  it("only /legal/ (of the legal pages) downloads the Visuals chunk", () => {
+    const pre = (rel: string) => [...pages.find((p) => p.rel === rel)!.html.matchAll(/<link rel="modulepreload"[^>]*href="\/assets\/([^"]+)"/g)].map((m) => m[1]);
+    for (const rel of ["privacy/index.html", "terms/index.html", "paia/index.html"]) {
+      expect(pre(rel).filter((f) => /^(Visuals|Disclosures)-/.test(f)), rel).toEqual([]);
+      expect(pre(rel).some((f) => /^Legal-/.test(f)), rel).toBe(true);
+    }
+    expect(pre("legal/index.html").some((f) => /^Disclosures-/.test(f))).toBe(true);
+  });
+  // left visible in the output while the gap is open: Jono supplies the directors' names as on the CIPC record
+  it.skipIf(site.company.directors.length === 0)("/legal/ lists the directors (ECT Act s43(1)(f))", () => {
+    const v = visible(pages.find((p) => p.rel === "legal/index.html")!.html);
+    expect(v).toContain("Directors " + site.company.directors.join(", "));
   });
   it("wills and estate landing pages carry the generic will disclosure and never name the will provider (Jono, 18 Oct 2026), make no fee statement, and theme A pages do not mention it", () => {
     const wp = WP;
@@ -189,8 +250,11 @@ describe.skipIf(!have)("pre-rendered output", () => {
         expect(d.closest("[data-reveal],[data-step-item]"), p.rel + " disclosure inside a reveal target").toBeNull();
         expect(d.querySelector("[data-reveal],[data-step-item]"), p.rel + " reveal target inside a disclosure").toBeNull();
         expect(d.getAttribute("hidden"), p.rel).toBeNull();
+        // footer motion settles [data-f-settle] only: never on or around a disclosure (spec section 6)
+        expect(d.closest("[data-f-settle]"), p.rel + " disclosure inside a footer settle target").toBeNull();
+        expect(d.querySelector("[data-f-settle]"), p.rel + " footer settle target inside a disclosure").toBeNull();
       }
-      expect(doc.querySelector("footer [data-disclosure]") || p.rel === "404.html", p.rel + " footer disclosure").toBeTruthy();
+      expect(doc.querySelector("footer [data-disclosure]"), p.rel + " footer disclosure").toBeTruthy(); // 404 included (same apex Footer)
     }
     expect(disclosures).toBeGreaterThan(100);
   });
@@ -200,14 +264,20 @@ describe.skipIf(!have)("pre-rendered output", () => {
       expect(p.html, p.rel).not.toMatch(/son[a-z]+="/);
     }
   });
-  it("the footer line is FOOTER-v2 exactly as stored in config/site.json, on every page", () => {
-    const line = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../config/site.json"), "utf8")).footer_line as string;
-    expect(line.startsWith("SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers.")).toBe(true);
-    expect(line.endsWith("You must be 18 or older.")).toBe(true);
-    for (const p of pages) { if (p.rel === "404.html") continue; expect(visible(p.html), p.rel).toContain(line); }
+  // FOOTER-v2 moved to /legal/ #role as disclosure_statement; footers carry FOOTER-v3 (spec section 2 + Jono's override, 21 Oct 2026)
+  it("the footer line is FOOTER-v3 exactly as built from config/site.json, on every page; FOOTER-v2 lives on /legal/ only", () => {
+    expect(site.footer_line).toBe("SortMyCover is not a financial services provider and gives no financial advice.");
+    expect(FOOTER_V3.startsWith("SortMyCover is not a financial services provider")).toBe(true);
+    if (site.company.footer_identity) expect(FOOTER_V3).toContain("trading name of Lead Velocity (Pty) Ltd");
+    else expect(FOOTER_V3).not.toContain("Lead Velocity");
+    for (const p of pages) expect(visible(footerHtml(p.html)), p.rel).toContain(FOOTER_V3); // 404 included
+    const v2 = site.disclosure_statement;
+    expect(v2.startsWith("SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers.")).toBe(true);
+    expect(v2.endsWith("You must be 18 or older.")).toBe(true);
+    expect(pages.filter((p) => visible(p.html).includes(v2)).map((p) => p.rel)).toEqual(["legal/index.html"]);
   });
   it("no page states the fee as flat, monthly or the same (spec C.1 item 5), and none says 30-day cycle", () => {
-    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/flat|30-day cycle|the same whether|flat monthly/i);
+    for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(/\bflat\b|30-day cycle|the same whether|flat monthly/i);
   });
   it("booking is on WhatsApp only (Jono, 17 Oct 2026): no booking form on any page; /book/ opens WhatsApp for cover and for a will", () => {
     const home = pages.find((p) => p.rel === "index.html")!.html;
@@ -218,6 +288,24 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*Ref%20w-book"/);
     expect(book).toMatch(/href="https:\/\/wa\.me\/27600156480\?text=[^"]*a%20will%20consultant[^"]*Ref%20w-book-will"/);
     expect(pages.some((p) => p.rel === "book/thanks/index.html")).toBe(false);
+  });
+  it("every WhatsApp link carries the page's opener and Ref, content links included (21 Oct 2026: a bare wa.me link lost the source)", () => {
+    let n = 0;
+    for (const p of pages) for (const [, href] of p.html.matchAll(/href="(https:\/\/wa\.me\/[^"]*)"/g)) {
+      n++;
+      expect(href, p.rel).toMatch(/^https:\/\/wa\.me\/27600156480\?text=Hi%20Lindi[^"]*Ref%20[a-z0-9-]+/);
+    }
+    expect(n).toBeGreaterThan(100);
+    // the guides' "message SortMyCover on WhatsApp" link uses each guide's own ref, not one hard-coded opener
+    for (const [slug, ref] of [["life-cover-and-a-home-loan", "w-learn-bond"], ["income-protection-vs-disability-cover", "w-learn-income"], ["cover-for-business-owners-and-directors", "w-learn-owner"], ["questions-to-ask-a-financial-adviser", "w-learn-adviser"]]) {
+      const h = pages.find((p) => p.rel === `learn/${slug}/index.html`)!.html;
+      const link = /<a href="(https:\/\/wa\.me\/[^"]*)">\+27 60 015 6480<\/a>/.exec(h);
+      expect(link?.[1], slug).toMatch(/\?text=Hi%20Lindi/);
+      expect(link?.[1].endsWith(`Ref%20${ref}`), slug).toBe(true);
+    }
+    // home: "Questions? WhatsApp <number>" is a link that opens the chat (ref w-home), wording unchanged
+    const home = pages.find((p) => p.rel === "index.html")!.html;
+    expect(home).toMatch(/Questions\? (<!-- -->)?WhatsApp <a class="underline" href="https:\/\/wa\.me\/27600156480\?text=[^"]*Ref%20w-home">\+27 60 015 6480<\/a> or email/);
   });
   it("privacy and terms are signed off (17 Oct 2026): no DRAFT mark, indexable; the PAIA placeholder stays DRAFT and noindex", () => {
     for (const r of ["privacy", "terms"]) {
@@ -247,7 +335,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(AI);
     // the adviser is "authorised" (FSCA wording), never "licensed", as in the ads, Lindi's WhatsApp copy and the phone script
-    const LICENSED = /licensed (financial )?advis[eo]rs?/i;
+    const LICENSED = /\blicensed (financial )?advis[eo]rs?\b/i;
     for (const p of pages) expect(visible(p.html), p.rel).not.toMatch(LICENSED);
     for (const f of walk(dist).filter((x) => x.endsWith(".js"))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(LICENSED);
     // no price wording anywhere a client sees it (Jono, 16 Oct 2026)
@@ -264,18 +352,38 @@ describe.skipIf(!have)("pre-rendered output", () => {
     expect(home).toMatch(/<a href="https:\/\/sortmycover\.co\.za\/start\/\?ref=w-home"[^>]*desk-only/);
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/app\.cal\.com/);
   });
+  it("chat panel on phones (21 Oct 2026): its height fits the visible screen with the toolbars showing (100svh after the 100vh fallback), and the close button is a 44px target", () => {
+    const css = walk(path.join(dist, "assets")).filter((f) => f.endsWith(".css")).map((f) => fs.readFileSync(f, "utf8")).join("\n");
+    const panel = /\.chat-panel\{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(panel).toMatch(/max-height:calc\(100vh - 110px\);max-height:calc\(100svh - 110px\)/);
+    const x = /\.chat-x\{[^}]*\}/.exec(css)?.[0] ?? "";
+    expect(Number(/width:(\d+)px/.exec(x)?.[1])).toBeGreaterThanOrEqual(44);
+    expect(Number(/height:(\d+)px/.exec(x)?.[1])).toBeGreaterThanOrEqual(44);
+  });
+  it("no will CTA offers 'Pick a time' (21 Oct 2026): /start/ only hands a will over to WhatsApp, so no page links to for=wills", () => {
+    for (const p of pages) expect(p.html, p.rel).not.toMatch(/for=wills/);
+    // the wills pages still have their WhatsApp CTA
+    expect(pages.find((p) => p.rel === "wills/index.html")!.html).toMatch(/href="https:\/\/wa\.me\/[^"]*Ref%20w-wills"/);
+  });
   it("no public page names or links the will provider (Jono, 18 Oct 2026: named only on WhatsApp)", () => {
     for (const p of pages) expect(p.html, p.rel).not.toMatch(/capital\s*legacy|capitallegacy|FSP 43826/i);
     // nor any shipped script or file: the provider's identity is internal (config/will-provider.internal.json)
     const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     for (const f of walk(dist).filter((x) => /\.(js|json|txt|xml|webmanifest|css)$/.test(x))) expect(fs.readFileSync(f, "utf8"), f).not.toMatch(/capital\s*legacy|capitallegacy|43826/i);
   });
+  it("/how-it-works/ headings never skip a level: a visually hidden H2 sits above the step H3s", () => {
+    const h = pages.find((p) => p.rel === "how-it-works/index.html")!.html;
+    const main = h.slice(h.indexOf("<main"), h.indexOf("</main>"));
+    const levels = [...main.matchAll(/<h([1-6])[\s>]/g)].map((m) => Number(m[1]));
+    levels.forEach((l, i) => { if (i) expect(l - levels[i - 1], `h${levels[i - 1]} then h${l}`).toBeLessThanOrEqual(1); });
+    expect(main).toMatch(/<h2 class="sr">What happens when you book<\/h2>/);
+  });
   it("each code-drawn visual ships pre-rendered on its page, with its words in the HTML (readable with no JavaScript)", () => {
     const want: Record<string, [string, string]> = {
       "how-it-works/index.html": ["split", "Only the adviser"],
       "how-we-make-money/index.html": ["money", "Pays a fee for introductions"],
       "advisers/index.html": ["check", "On the FSCA register"],
-      "about/index.html": ["company", "Legally responsible"],
+      "legal/index.html": ["company", "Legally responsible"], // the company card moved from /about/ (spec section 5)
       "book/index.html": ["phone", "Lindi is an automated assistant, and you can ask for a person at any time"],
     };
     for (const [rel, [viz, words]] of Object.entries(want)) {
@@ -287,5 +395,21 @@ describe.skipIf(!have)("pre-rendered output", () => {
   it("the privacy notice covers call recording (POPIA): automated voice assistant, recorded, 365 days, ElevenLabs, s72, the Information Officer", () => {
     const v = visible(pages.find((p) => p.rel === "privacy/index.html")!.html);
     for (const t of ["Phone calls and recordings", "+27 60 015 6480", "automated voice assistant", "the call is recorded", "365 days", "ElevenLabs", "section 72 of POPIA", "Kgomotso Pule", "2026-069309"]) expect(v, t).toContain(t);
+  });
+  it("phone header (21 Oct 2026): the menu panel scrolls within the screen, page and menu text clear a landscape notch, <main> takes focus without a ring", () => {
+    const css = fs.readFileSync(path.join(dist, "assets", fs.readdirSync(path.join(dist, "assets")).find((f) => f.endsWith(".css"))!), "utf8");
+    // the declarations of every top-level rule whose selector is exactly `sel` (rules inside @media are left out)
+    const rule = (sel: string) => css.split("}").filter((b) => b.slice(0, b.indexOf("{")).trim() === sel).map((b) => b.slice(b.indexOf("{") + 1)).join(" ");
+    const panel = rule(".menu-panel");
+    expect(panel).toContain("max-height:calc(100vh - 120px)"); // browsers without dvh
+    expect(panel).toContain("max-height:calc(100dvh - 60px - env(safe-area-inset-bottom,0px))");
+    expect(panel).toContain("overflow-y:auto");
+    expect(panel).toContain("overscroll-behavior:contain");
+    for (const sel of [".wrap", ".menu-panel"]) {
+      expect(rule(sel), sel).toContain("padding-left:max(16px,env(safe-area-inset-left,0px))");
+      expect(rule(sel), sel).toContain("padding-right:max(16px,env(safe-area-inset-right,0px))");
+    }
+    expect(rule(".wrap-narrow")).not.toContain("safe-area"); // its centred 720px column already clears the notch
+    expect(rule("#main:focus")).toContain("outline:none");
   });
 });

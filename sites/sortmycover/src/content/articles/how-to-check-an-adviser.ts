@@ -58,7 +58,7 @@ export const body: Block[] = [
   { type: "h2", text: "Does SortMyCover appear on the register?" },
   {
     type: "p",
-    text: "No. SortMyCover is a service of Lead Velocity (Pty) Ltd. It is not a financial services provider and does not give advice. The register is for the adviser you are introduced to.",
+    text: "No. SortMyCover is not a financial services provider and does not give advice. The register is for the adviser you are introduced to.",
   },
   { type: "h2", text: "What if the details do not match?" },
   {

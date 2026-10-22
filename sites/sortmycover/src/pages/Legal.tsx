@@ -1,5 +1,7 @@
-/* Privacy, Terms and PAIA. The text is ported from landing/holding/*.html (files in src/content/legal) with the compliance edits listed in
-   the README. The privacy notice and terms were signed off on 17 Oct 2026; the PAIA manual is still a noindex placeholder. */
+/* Privacy, Terms and PAIA. The privacy and terms text is ported from landing/holding/*.html (files in src/content/legal) with the
+   compliance edits listed in the README. The privacy notice and terms were signed off on 17 Oct 2026; the PAIA manual is still a
+   noindex placeholder. Legal & disclosures (/legal/) is its own module, pages/Disclosures.tsx, so these three pages do not preload
+   the Visuals chunk (its company card) or its code. */
 import { Fragment, useEffect, useState } from "react";
 import PageFrame, { DraftNote } from "@/components/PageFrame";
 import privacyHtml from "@/content/legal/privacy.html?raw";

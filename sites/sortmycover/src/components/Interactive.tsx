@@ -71,7 +71,7 @@ export function SectionNav({ items }: { items: string[] }) {
       <details className="toc-box">
         <summary className="toc-sum"><span className="toc-k">On this page</span><span className="toc-now" data-toc-now>{items[0]}</span></summary>
         <ol className="toc-list">
-          <span className="toc-ind" aria-hidden="true" />
+          <li className="toc-ind" aria-hidden="true" />
           {items.map((t) => <li key={t}><a href={"#" + sectionId(t)}>{t}</a></li>)}
         </ol>
       </details>

@@ -32,10 +32,17 @@
     "messenger": "https://m.me/sortmycover",
     "information_officer": "Kgomotso Pule",
     "information_officer_registration": "2026-069309",
-    "information_officer_registered_on": "15 October 2026"
+    "information_officer_registered_on": "15 October 2026",
+    "status": "Private company, registered in South Africa",
+    "directors": [],
+    "service_address": null,
+    "codes_of_conduct": [],
+    "footer_identity": false
   },
   "robots_extra_disallow": [],
-  "footer_line": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers. We are not a financial services provider. We do not give financial advice, compare products or quote premiums. You must be 18 or older.",
+  "_footer_comment": "FOOTER-v3 (spec FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 2): footer_line is the no-advice line on every footer. company.footer_identity=true appends 'It is a trading name of <legal_name>.' (recommended, not required; off by Jono's decision, 21 Oct 2026). The old FOOTER-v2 text lives on /legal/ as disclosure_statement.",
+  "footer_line": "SortMyCover is not a financial services provider and gives no financial advice.",
+  "disclosure_statement": "SortMyCover is a service of Lead Velocity (Pty) Ltd. We introduce you to authorised financial services providers. We are not a financial services provider. We do not give financial advice, compare products or quote premiums. You must be 18 or older.",
   "fsca_register_url": "https://www.fsca.co.za/FSB-Search/",
   "will_provider": {
     "_comment": "Public wills lines only (Jono, 18 Oct 2026: the provider is not named on the site). Identity: config/will-provider.internal.json.",

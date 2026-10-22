@@ -4,21 +4,26 @@
    the primary CTA are never faded in, every effect cleans up, and the whole system is off only when the visitor's OS asks for
    reduced motion. Phones get the full scroll choreography; pointer effects (tilt, spotlight, magnetic, pan) need a fine pointer. */
 import { animate } from "motion/mini";
-import { hover, inView, press, scroll } from "motion";
-import { drawLineOnScroll, drawPath, prefersReducedMotion, springDuration, springEase } from "./motion";
+import { hover, inView, press, scroll, spring, stagger } from "motion";
+import { drawLineOnScroll, drawPath, prefersReducedMotion, springTo } from "./motion";
 
 type Off = () => void;
 const fine = () => typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 let launcherDone = false;
+/** The footer persists across routes: its arrival plays once per visit. */
+let footerShown = false;
+/** Test hook: a fresh visit. */
+export const resetFooterMotion = () => { footerShown = false; };
 
 /** Offsets a below-the-fold element now and springs it home when it scrolls in. The element stays fully visible throughout
-    (transform only); a failsafe puts it home after 2.5 s whatever the observer does. */
-function settleOnEnter(el: HTMLElement, from: string, opts: { amount?: number; delay?: number; stiffness?: number; damping?: number } = {}): Off {
+    (transform only); a failsafe puts it home after 2.5 s whatever the observer does. `to` is the element's CSS rest transform
+    (default none): an element centred with translate(-50%,-50%) must spring to that, not to none, or it drifts off centre and
+    snaps back when the inline style is cleared. */
+export function settleOnEnter(el: HTMLElement, from: string, opts: { amount?: number; delay?: number; stiffness?: number; damping?: number; to?: string } = {}): Off {
   if (el.getBoundingClientRect().top < (window.innerHeight || 800)) return () => {};
-  const ease = springEase(opts.stiffness ?? 260, opts.damping ?? 24);
   el.style.transform = from;
   let done = false;
-  const home = () => { if (done) return; done = true; stop(); window.clearTimeout(t); animate(el, { transform: [from, "none"] }, { duration: springDuration(ease), delay: opts.delay ?? 0, ease: ease as any }).finished.then(clear, clear); };
+  const home = () => { if (done) return; done = true; stop(); window.clearTimeout(t); animate(el, { transform: [from, opts.to ?? "none"] }, springTo(opts.stiffness ?? 260, opts.damping ?? 24, { delay: opts.delay ?? 0 })).finished.then(clear, clear); };
   const clear = () => { el.style.transform = ""; };
   const stop = inView(el, () => { home(); return undefined; }, { amount: opts.amount ?? 0.35 });
   const t = window.setTimeout(home, 2500);
@@ -64,8 +69,7 @@ function pointerGlow(area: HTMLElement): Off {
 function cards(root: ParentNode): Off {
   const els = Array.from(root.querySelectorAll<HTMLElement>(".card-link, .viz-card, .co-card, .wa-phone"));
   if (!els.length) return () => {};
-  const ease = springEase(320, 22);
-  const dur = springDuration(ease);
+  const sp = springTo(320, 22);
   const offs: Off[] = [];
   if (fine()) {
     for (const c of els) {
@@ -77,24 +81,22 @@ function cards(root: ParentNode): Off {
         c.style.transform = `perspective(900px) rotateX(${((0.5 - y) * 6).toFixed(2)}deg) rotateY(${((x - 0.5) * 8).toFixed(2)}deg) translateY(-3px)`;
       };
       c.addEventListener("pointermove", move);
-      offs.push(hover(c, () => () => { animate(c, { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px)" }, { duration: dur, ease: ease as any }); }));
+      offs.push(hover(c, () => () => { animate(c, { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px)" }, sp); }));
       offs.push(() => { c.removeEventListener("pointermove", move); c.style.transform = ""; });
     }
   } else {
-    offs.push(press(els, (c) => { animate(c, { transform: "scale(0.97)" }, { duration: dur, ease: ease as any }); return () => { animate(c, { transform: "scale(1)" }, { duration: dur, ease: ease as any }); }; }));
+    offs.push(press(els, (c) => { animate(c, { transform: "scale(0.97)" }, sp); return () => { animate(c, { transform: "scale(1)" }, sp); }; }));
   }
   return () => offs.forEach((o) => o());
 }
 
 /** Magnetic buttons on a mouse (the button leans toward the cursor and springs back). */
-function magnetic(root: ParentNode): Off {
+export function magnetic(root: ParentNode, selector = ".page-body .btn, .page-head .btn, .smc-campaign .hx-actions .btn"): Off {
   if (!fine()) return () => {};
-  const ease = springEase(300, 18);
-  const dur = springDuration(ease);
   const offs: Off[] = [];
-  root.querySelectorAll<HTMLElement>(".page-body .btn, .page-head .btn, .smc-campaign .hx-actions .btn").forEach((b) => {
+  root.querySelectorAll<HTMLElement>(selector).forEach((b) => {
     const move = (e: PointerEvent) => { const r = b.getBoundingClientRect(); b.style.transform = `translate(${(((e.clientX - r.left) / r.width - 0.5) * 12).toFixed(1)}px, ${(((e.clientY - r.top) / r.height - 0.5) * 8).toFixed(1)}px)`; };
-    const leave = () => { animate(b, { transform: "translate(0px, 0px)" }, { duration: dur, ease: ease as any }); };
+    const leave = () => { animate(b, { transform: "translate(0px, 0px)" }, springTo(300, 18)); };
     b.addEventListener("pointermove", move);
     b.addEventListener("pointerleave", leave);
     offs.push(() => { b.removeEventListener("pointermove", move); b.removeEventListener("pointerleave", leave); b.style.transform = ""; });
@@ -107,8 +109,7 @@ function launcher(): Off {
   const el = document.querySelector<HTMLElement>(".chat-launch");
   if (!el || launcherDone) return () => {};
   launcherDone = true;
-  const ease = springEase(380, 20);
-  animate(el, { transform: ["translateY(28px) scale(0.7)", "none"] }, { duration: springDuration(ease), delay: 0.5, ease: ease as any }).finished.then(() => { el.style.transform = ""; }, () => { el.style.transform = ""; });
+  animate(el, { transform: ["translateY(28px) scale(0.7)", "none"] }, springTo(380, 20, { delay: 0.5 })).finished.then(() => { el.style.transform = ""; }, () => { el.style.transform = ""; });
   const t = window.setTimeout(() => {
     if (el.getAttribute("aria-expanded") === "true") return;
     animate(el, { transform: ["rotate(0deg) scale(1)", "rotate(-10deg) scale(1.08)", "rotate(8deg) scale(1.08)", "rotate(-4deg) scale(1.04)", "rotate(0deg) scale(1)"] }, { duration: 0.8, ease: "easeInOut" }).finished.then(() => { el.style.transform = ""; }, () => { el.style.transform = ""; });
@@ -135,7 +136,7 @@ function vizMotion(main: HTMLElement): Off {
   // links and the money line draw in; the who-does-what join runs vertically on a phone
   main.querySelectorAll<HTMLElement>(".mf-line").forEach((l, i) => offs.push(drawOnEnter(l, "x", 0.1 + i * 0.12)));
   main.querySelectorAll<HTMLElement>(".viz-join-line").forEach((l) => offs.push(drawOnEnter(l, narrow() ? "y" : "x", 0.15)));
-  main.querySelectorAll<HTMLElement>(".mf-x").forEach((x, i) => offs.push(settleOnEnter(x, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { amount: 0.6, delay: 0.25 + i * 0.12, stiffness: 420, damping: 18 })));
+  main.querySelectorAll<HTMLElement>(".mf-x").forEach((x, i) => offs.push(settleOnEnter(x, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { amount: 0.6, delay: 0.25 + i * 0.12, stiffness: 420, damping: 18, to: "translate(-50%,-50%)" })));
   main.querySelectorAll<HTMLElement>(".viz-split .viz-card").forEach((c, i) => offs.push(settleOnEnter(c, narrow() ? "translateY(26px)" : `translateX(${i ? 28 : -28}px)`, { amount: 0.3, delay: i * 0.08 })));
 
   // checking an adviser: the progress line follows the scroll, the cards step in, the tick draws itself
@@ -154,11 +155,10 @@ function vizMotion(main: HTMLElement): Off {
   // the chat plays: bubbles settle in turn when the phone comes into view, the dots type, and a tap replays it
   main.querySelectorAll<HTMLElement>(".wa-phone").forEach((ph) => {
     const msgs = Array.from(ph.querySelectorAll<HTMLElement>(".wa-msg"));
-    const ease = springEase(360, 24);
     const play = () => msgs.forEach((m, i) => {
       const from = m.classList.contains("wa-me") ? "translate(18px, 14px) scale(0.86)" : "translate(-18px, 14px) scale(0.86)";
       m.style.transform = from;
-      animate(m, { transform: [from, "none"] }, { duration: springDuration(ease), delay: 0.15 + i * 0.55, ease: ease as any }).finished.then(() => { m.style.transform = ""; }, () => { m.style.transform = ""; });
+      animate(m, { transform: [from, "none"] }, springTo(360, 24, { delay: 0.15 + i * 0.55 })).finished.then(() => { m.style.transform = ""; }, () => { m.style.transform = ""; });
     });
     offs.push(inView(ph, () => { play(); return undefined; }, { amount: 0.45 }));
     const replay = () => play();
@@ -186,7 +186,7 @@ function readingRhythm(main: HTMLElement): Off {
 
 /** "On this page": names the section being read, springs the marker to it, pins under the header on a phone and sits in the
     left margin as a rail on a wide screen. Shown only while the reader is inside the guide's sections. */
-function sectionTracker(main: HTMLElement): Off {
+export function sectionTracker(main: HTMLElement): Off {
   const nav = main.querySelector<HTMLElement>("[data-toc]");
   if (!nav) return () => {};
   const box = nav.querySelector<HTMLDetailsElement>("details")!;
@@ -198,11 +198,12 @@ function sectionTracker(main: HTMLElement): Off {
   const wide = () => !!window.matchMedia && window.matchMedia("(min-width: 1240px)").matches;
   const header = document.querySelector<HTMLElement>(".site-header");
   const offs: Off[] = [];
-  const ease = springEase(380, 30);
   nav.classList.add("toc-live");
+  // the rail is held open on a wide screen; once the window narrows (rotation, resize) it closes and drops the rail's shift
+  let forced = false;
   const place = () => {
     nav.style.setProperty("--toc-top", `${(header?.offsetHeight ?? 64) + (wide() ? 28 : 0)}px`);
-    if (wide()) box.open = true;
+    if (wide()) { box.open = true; forced = true; } else if (forced) { box.open = false; box.style.transform = ""; forced = false; }
   };
   place();
   let active = -1;
@@ -213,7 +214,7 @@ function sectionTracker(main: HTMLElement): Off {
     links.forEach((a, j) => a.toggleAttribute("aria-current", j === i));
     const a = links[Math.max(0, i)];
     now.textContent = a.textContent;
-    animate(ind, { transform: `translateY(${a.parentElement!.offsetTop}px)`, height: `${a.parentElement!.offsetHeight}px` } as any, { duration: springDuration(ease), ease: ease as any });
+    animate(ind, { transform: `translateY(${a.parentElement!.offsetTop}px)`, height: `${a.parentElement!.offsetHeight}px` } as any, springTo(380, 30));
     if (!wide()) animate(now, { transform: ["translateY(8px)", "none"] }, { duration: 0.35, ease: [0.22, 1, 0.36, 1] });
   };
   const update = () => {
@@ -243,7 +244,10 @@ function sectionTracker(main: HTMLElement): Off {
     e.preventDefault();
     if (!wide()) box.open = false;
     window.scrollTo({ top: h.getBoundingClientRect().top + window.scrollY - (header?.offsetHeight ?? 64) - 70, behavior: "smooth" });
-    history.replaceState(null, "", a.hash);
+    // focus follows the reader (the tapped link is now hidden in the closed list); keep React Router's history state
+    h.setAttribute("tabindex", "-1");
+    h.focus({ preventScroll: true });
+    history.replaceState(history.state, "", a.hash);
   };
   nav.addEventListener("click", click);
   offs.push(() => nav.removeEventListener("click", click));
@@ -251,6 +255,18 @@ function sectionTracker(main: HTMLElement): Off {
   const toggle = () => { if (box.open && !wide()) { const ol = box.querySelector<HTMLElement>(".toc-list"); if (ol) animate(ol, { transform: ["translateY(-10px) scale(0.98)", "none"] }, { duration: 0.4, ease: [0.22, 1, 0.36, 1] }); } };
   box.addEventListener("toggle", toggle);
   offs.push(() => box.removeEventListener("toggle", toggle));
+  // phone list: a tap outside or Escape closes it. Phones only: the wide rail cannot be reopened by hand, and Escape also
+  // closes the chat panel
+  const down = (e: PointerEvent) => { if (box.open && !wide() && !nav.contains(e.target as Node)) box.open = false; };
+  const esc = (e: KeyboardEvent) => {
+    if (e.key !== "Escape" || !box.open || wide()) return;
+    const inside = nav.contains(document.activeElement);
+    box.open = false;
+    if (inside) nav.querySelector<HTMLElement>("summary")?.focus();
+  };
+  document.addEventListener("pointerdown", down, { passive: true });
+  document.addEventListener("keydown", esc);
+  offs.push(() => { document.removeEventListener("pointerdown", down); document.removeEventListener("keydown", esc); });
   update();
   return () => { offs.forEach((o) => o()); nav.classList.remove("toc-live", "toc-on"); box.style.transform = ""; };
 }
@@ -278,5 +294,57 @@ export function pageMotion(main: HTMLElement): Off {
   main.querySelectorAll<HTMLElement>(".ab-bar").forEach((b) => offs.push(drawOnEnter(b, "y", 0.1)));
   main.querySelectorAll<HTMLElement>(".cta-quiet").forEach((c) => { offs.push(settleOnEnter(c, "translateY(36px) scale(0.95)", { amount: 0.25, stiffness: 200, damping: 22 })); offs.push(pointerGlow(c)); });
   offs.push(vizMotion(main), readingRhythm(main), sectionTracker(main), cards(main), magnetic(main));
+  return () => offs.forEach((o) => o());
+}
+
+/** Footer arrival (FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): a yellow hairline draws left to right and the brand column and
+    the three link groups settle up 18px with a soft spring, once per visit, and only when the footer starts below the fold. Two
+    observers: one arms (offsets) the footer while it is within 320px below the viewport and disarms it if the visitor scrolls back
+    away; one plays it at 12% visible. Play before arming does nothing, so a visitor who jumps straight to the footer never sees a
+    snap-down. A 4 s failsafe from arming guards a visible footer: it plays the arrival if the footer is on screen, and otherwise
+    only checks again (offsets on an off-screen footer harm nobody), so a slow reader still sees the arrival when it scrolls in.
+    Touches only [data-f-settle] and .f-rule (never .f-base or a [data-disclosure]); transform only; the footer's WhatsApp button
+    is magnetic on a mouse. */
+export const FOOTER_FAILSAFE_MS = 4000;
+export function footerMotion(footer: HTMLElement): Off {
+  if (prefersReducedMotion() || !footer) return () => {};
+  const offs: Off[] = [magnetic(footer, ".site-footer .f-cta")];
+  const items = Array.from(footer.querySelectorAll<HTMLElement>("[data-f-settle]")).filter((i) => !i.closest("[data-disclosure]") && !i.querySelector("[data-disclosure]"));
+  const rule = footer.querySelector<HTMLElement>(".f-rule");
+  if (!footerShown && items.length && rule) {
+    let armed = false;
+    let fail = 0;
+    const clearItems = () => items.forEach((i) => { i.style.transform = ""; });
+    const clearRule = () => { rule.style.transform = ""; };
+    const onScreen = () => footer.getBoundingClientRect().top < window.innerHeight;
+    const disarm = () => { armed = false; window.clearTimeout(fail); clearItems(); clearRule(); };
+    const play = () => {
+      if (!armed || footerShown) return;
+      footerShown = true;
+      window.clearTimeout(fail);
+      try {
+        animate(rule, { transform: ["scaleX(0)", "scaleX(1)"] }, { duration: 0.9, ease: [0.22, 1, 0.36, 1] }).finished.then(clearRule, clearRule);
+        animate(items, { transform: ["translateY(18px)", "none"] }, { type: spring, visualDuration: 0.55, bounce: 0.12, delay: stagger(0.07, { startDelay: 0.08 }) }).finished.then(clearItems, clearItems);
+      } catch { clearItems(); clearRule(); }
+    };
+    const failsafe = () => { if (footerShown) return; if (onScreen()) { play(); clearItems(); clearRule(); } else fail = window.setTimeout(failsafe, FOOTER_FAILSAFE_MS); };
+    offs.push(inView(footer, () => {
+      if (footerShown) return undefined; // one-shot from here: unobserve
+      // already on screen when it (re)arms, e.g. a jump straight to the footer: never offset what the visitor can see
+      if (!armed && onScreen()) { footerShown = true; return undefined; }
+      if (!armed) {
+        armed = true;
+        items.forEach((i) => { i.style.transform = "translateY(18px)"; });
+        rule.style.transform = "scaleX(0)";
+        window.clearTimeout(fail);
+        fail = window.setTimeout(failsafe, FOOTER_FAILSAFE_MS);
+      }
+      // returning a function keeps observing: the visitor scrolled back away before it played, so put the footer home and re-arm later
+      return () => { if (!footerShown) disarm(); };
+    }, { margin: "0px 0px 320px 0px" }));
+    // keeps observing until it has played (a play before arming is ignored, not used up)
+    offs.push(inView(footer, () => { play(); return footerShown ? undefined : () => {}; }, { amount: 0.12 }));
+    offs.push(() => { window.clearTimeout(fail); if (!footerShown || armed) { clearItems(); clearRule(); } });
+  }
   return () => offs.forEach((o) => o());
 }

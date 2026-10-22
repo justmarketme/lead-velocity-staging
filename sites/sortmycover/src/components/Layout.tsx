@@ -1,26 +1,32 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigationType } from "react-router-dom";
 import ChatWidget, { WhatsAppCta } from "./ChatWidget";
 import { contextFor } from "@/lib/whatsapp";
 import { Wordmark } from "./Brand";
 import { Footer } from "./Footer";
 import { ReadProgress } from "./Interactive";
+import { NO_MOTION } from "@/lib/motion";
 
 /** Desktop nav shows from xl (1280px): seven items do not fit next to the wordmark and the button below that; the menu takes over. */
 const NAV: [string, string][] = [["Cover types", "/cover/"], ["Wills & estate", "/wills/"], ["How it works", "/how-it-works/"], ["Learn", "/learn/"], ["About", "/about/"], ["Contact", "/contact/"]];
-/** Static legal pages load no Motion at all. */
-const NO_MOTION = /^\/(privacy|terms|paia)\//;
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
+  const type = useNavigationType();
   const first = useRef(true);
+  const shown = useRef(pathname);
   useEffect(() => {
     // first load: the browser already placed the pre-rendered page; resetting here would yank a reader who started scrolling
     // before the app finished loading back to the top
     if (first.current) { first.current = false; return; }
+    // a new page: keyboard and screen-reader focus moves to its content (the link that had it is gone, or hidden in the closed menu)
+    if (shown.current !== pathname) document.getElementById("main")?.focus({ preventScroll: true });
+    shown.current = pathname;
+    // Back / Forward: the browser restores the reader's place on the page they return to
+    if (type === "POP") return;
     if (hash) { document.getElementById(hash.slice(1))?.scrollIntoView(); return; }
     window.scrollTo(0, 0);
-  }, [pathname, hash]);
+  }, [pathname, hash]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
 
@@ -50,7 +56,14 @@ function PageMotion() {
     let dead = false;
     const main = document.getElementById("main");
     if (!main) return;
-    import("@/lib/pageMotion").then((m) => { if (!dead) off = m.pageMotion(main); });
+    import("@/lib/pageMotion").then((m) => {
+      if (dead) return;
+      const offs = [m.pageMotion(main)];
+      // the apex footer (spec FOOTER-DISCLOSURE-SPEC-SMC-2026-10-21 section 6): arrival once per visit, magnetic WhatsApp button
+      const f = document.querySelector<HTMLElement>(".site-footer[data-footer]");
+      if (f) offs.push(m.footerMotion(f));
+      off = () => offs.forEach((o) => o());
+    });
     return () => { dead = true; off(); };
   }, [pathname]);
   return null;
@@ -61,6 +74,45 @@ function Progress() {
   const { pathname } = useLocation();
   if (pathname === "/" || NO_MOTION.test(pathname)) return null;
   return <ReadProgress key={pathname} />;
+}
+
+/** Mobile menu: a native <details>, so it works without JavaScript. The header stays mounted across client-side navigation,
+    so the open state would survive a route change: close it on every route change, on a tap on any of its links (the current
+    page included), on Escape, on a tap outside it and when keyboard focus leaves it (the open panel would cover what has focus).
+    NavLink marks the current section (aria-current), as on the desktop nav. */
+function MobileMenu() {
+  const menu = useRef<HTMLDetailsElement>(null);
+  const { pathname, hash } = useLocation();
+  const first = useRef(true);
+  const close = () => { if (menu.current) menu.current.open = false; };
+  /** The page already open: nothing changes page, so focus would stay on a link inside the closed menu; it goes to the Menu button. */
+  const tapped = (p: string) => { close(); if (p === pathname) menu.current?.querySelector("summary")?.focus(); };
+  // not on first load: a menu opened before the page finished loading (native <details>) must not snap shut under the finger
+  useEffect(() => { if (first.current) { first.current = false; return; } close(); }, [pathname, hash]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !menu.current?.open) return;
+      close();
+      menu.current.querySelector("summary")?.focus();
+    };
+    const onDown = (e: PointerEvent) => { if (menu.current?.open && !menu.current.contains(e.target as Node)) close(); };
+    // focus moved to something outside the menu (no relatedTarget: the window lost focus, or a tap on nothing focusable; the tap
+    // outside is handled above)
+    const onOut = (e: FocusEvent) => { const to = e.relatedTarget as Node | null; if (to && !menu.current?.contains(to)) close(); };
+    const el = menu.current;
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    el?.addEventListener("focusout", onOut);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); el?.removeEventListener("focusout", onOut); };
+  }, []);
+  return (
+    <details ref={menu} className="menu xl:hidden">
+      <summary aria-label="Menu">Menu</summary>
+      <nav aria-label="Main (mobile)" className="menu-panel">
+        {NAV.map(([t, p]) => <NavLink key={p} to={p} className="nav-link" onClick={() => tapped(p)}>{t}</NavLink>)}
+      </nav>
+    </details>
+  );
 }
 
 export function Header() {
@@ -75,13 +127,7 @@ export function Header() {
         <div className="flex items-center gap-2">
           {/* one label element: the button's flex gap would otherwise split "Chat on" from "WhatsApp" */}
           <WhatsAppCta ctx={ctx} className="btn btn-sm"><span><span className="hidden sm:inline">Chat on&nbsp;</span>WhatsApp</span></WhatsAppCta>
-          {/* Mobile menu: native <details>, works without JavaScript */}
-          <details className="menu xl:hidden">
-            <summary aria-label="Menu">Menu</summary>
-            <nav aria-label="Main (mobile)" className="menu-panel">
-              {NAV.map(([t, p]) => <Link key={p} to={p} className="nav-link">{t}</Link>)}
-            </nav>
-          </details>
+          <MobileMenu />
         </div>
       </div>
     </header>
