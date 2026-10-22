@@ -12,7 +12,7 @@ LANDING_DIST := landing/dist
 LANDING_SKIP := assets fonts shared
 
 help: ## List the targets
-	@echo "make test        full offline suite (workflows, billing, optimisation, media, generators, scripts, landing e2e + axe, templates, tasks.json)"
+	@echo "make test        full offline suite (workflows, ads, optimisation, media, generators, scripts, landing e2e + axe, templates, tasks.json)"
 	@echo "make eval        LLM eval gate in dry-run (golden set, state machine, prefilter); must print PASS"
 	@echo "make check       test + eval (the CI gate)"
 	@echo "make a11y        axe-core WCAG 2.1 A/AA on every landing angle (start, details, booking, not-a-fit, thanks) + holding privacy page"
@@ -23,8 +23,8 @@ landing-build:
 	$(NODE) landing/build.mjs >/dev/null
 
 test: landing-build
-	@echo "== workflows + billing + optimisation"
-	$(NODE) --test automation/tests/*.test.mjs automation/billing/*.test.js optimisation/workflows.test.js
+	@echo "== workflows + ads + optimisation"
+	$(NODE) --test automation/tests/*.test.mjs automation/ads/*.test.js optimisation/spc.test.js
 	@echo "== media (W23)"
 	cd automation/media && $(NODE) --test media.test.js w23-auth.test.js
 	@echo "== generators"
