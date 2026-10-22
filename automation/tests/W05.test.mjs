@@ -957,6 +957,23 @@ test('W05 lib: smc-client-email result -> nothing when sent or dry-run; one ambe
   assert.equal(W5.clientEmailResult({ statusCode: 200, body: {} }, sent).signal_key, 'client_email_failed', '2xx without a Resend id is not a send');
 });
 
+test('W05 lib: smc-client-email guest (smoke #10) -> alert when guest_email was sent but no guest_id came back', () => {
+  const sent = { lead_id: 'l1', smc_email: { kind: 'booking_confirmed', booking_id: 'bk9', guest_email: 'guest@example.test' } };
+  assert.equal(W5.clientEmailResult({ statusCode: 200, body: { id: 're_1', guest_id: 're_2' } }, sent), null, 'both sent');
+  assert.equal(W5.clientEmailResult({ dry_run: true, statusCode: 200, body: { messages: [{ id: 'dry:0' }] } }, sent), null, 'dry-run stays quiet');
+  // the pre-guest function (v12) answers { id } only: the guest silently got nothing
+  const stale = W5.clientEmailResult({ statusCode: 200, body: { id: 're_1' } }, sent);
+  assert.equal(stale.signal_key, 'client_email_failed'); assert.equal(stale.severity, 'amber'); assert.equal(stale.source, 'W05');
+  assert.equal(stale.scope, 'booking:bk9:guest'); assert.equal(stale.lead_id, 'l1');
+  assert.match(stale.what, /guest not sent for booking bk9 \(no guest id came back/);
+  assert.doesNotMatch(JSON.stringify(stale), /guest@example\.test/, 'the alert never names the guest');
+  // the guest copy failed at Resend
+  const failed = W5.clientEmailResult({ statusCode: 200, body: { id: 're_1', guest_error: 'resend' } }, sent);
+  assert.equal(failed.scope, 'booking:bk9:guest'); assert.match(failed.what, /\(resend\)$/);
+  // no guest asked for -> { id } alone is a full send
+  assert.equal(W5.clientEmailResult({ statusCode: 200, body: { id: 're_1' } }, { lead_id: 'l1', smc_email: { kind: 'booking_confirmed', booking_id: 'bk9' } }), null);
+});
+
 test('W05.json (SMC email): function call behind DRY_RUN_SENDS, relay token from $env, failures -> W22; brand read in both loads; Code nodes run', async () => {
   const { runCode: run, many: mk } = await import('./_n8ncode.mjs');
   const { findUngated } = createRequire(import.meta.url)('../lib/egress-gate.cjs');
