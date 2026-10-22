@@ -129,7 +129,9 @@ export const OUT_OF_BAND_AGE_BOOKS = true;
 export const OOB_AGE_RULE = 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)';
 
 // Meta instant form v2 (deliverables/media-buyer/instant-form-spec-v2.json, 18 Oct 2026). The form mirrors /start/: three
-// multiple-choice custom questions with stable keys, then first name + WhatsApp number. Meta returns a custom question's
+// multiple-choice custom questions with stable keys, then first name + WhatsApp number. v3 (instant-form-spec-v3.json, 22 Oct
+// 2026) keeps intent + age band and drops the cover question (Meta: no insurance question on the form); every reader below
+// still accepts a cover answer (a v2-style lead, /start/). Meta returns a custom question's
 // answer as the option text (and a form built by hand in Ads Manager may get its own field names), so each answer is
 // matched on its option key OR its exact option label, and a field whose name is unknown is matched on its value.
 // Option keys are the /start/ codes where one exists (life / income / illness / review; lt35 / 35_44 / 45_50 / 51plus;
@@ -164,8 +166,20 @@ export const workCoverOf = (code) => (code === 'yes_work' ? true : code === 'yes
 /** The required consent checkbox (custom_disclaimer_responses[].checkbox_key) and the optional ad-measurement one. */
 export const LEAD_AD_CONSENT_KEYS = new Set(['consent', 'smc_consent']);
 export const LEAD_AD_ADS_KEYS = new Set(['consent_ads', 'smc_consent_ads']);
-/** The text version the v2 form's required checkbox shows: the site's named text, filled for the broker (consentRegistry). */
-export const LEAD_AD_CONSENT_VERSION = 'CONSENT-NAMED-v5web';
+/**
+ * The Instant Form v3 required checkbox (deliverables/media-buyer/instant-form-spec-v3.json, 22 Oct 2026; SOCIAL-AUDIT row 22).
+ * Generic: no practice name and no FSP number on the form (the adviser is named before any hand-over: /start/ START-DISCLOSE-v1,
+ * or the LEADAD-DISCLOSE-v1 session text, routeExisting disclosure-before-routing for every generic consent). It carries the
+ * audit's four parts: WhatsApp contact about a call with an adviser from an FSCA-authorised financial services provider, 18 or
+ * older, reply STOP to opt out, and the privacy link. The form shows this string word for word; W02 records it on intake.
+ */
+export const LEAD_AD_FORM_CONSENT = Object.freeze({
+  version: 'CONSENT-GENERIC-v5form',
+  text: 'I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about a call with an adviser from an FSCA-authorised financial services provider, and may share my details with that adviser, who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP. Privacy notice: https://sortmycover.co.za/privacy/',
+});
+/** The text version the live form's required checkbox shows (v3: generic; v2's CONSENT-NAMED-v5web stays readable in the registry). */
+export const LEAD_AD_CONSENT_VERSION = LEAD_AD_FORM_CONSENT.version;
+export const LEAD_AD_CONSENT_TEXT = LEAD_AD_FORM_CONSENT.text;
 const optSlug = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/[\s-]+/g, '_');
 const optionIndex = (codes, labelOf) => {
   const m = new Map();
@@ -310,7 +324,7 @@ export const WEB_CONSENT = Object.freeze({
   ads: { version: 'CONSENT-ADS-v2web', text: 'I give SortMyCover permission to use my details in coded (hashed) form to measure and improve its ads on Facebook and Instagram. It will never use them to send me ads by message. This is optional, and the call does not depend on it.' },
 });
 
-/** The named-consent registry (landing/config/consent.json, CP-v0.1, + the site's v5web texts): version -> exact text for a practice. */
+/** The consent registry (landing/config/consent.json, CP-v0.1, the site's v5web texts, the Instant Form v5form text): version -> exact text for a practice. */
 export function consentRegistry(broker = {}) {
   const fill = (t) => t.replace('{practice_name}', broker.practice_name || broker.firm_name || '').replace('{fsp_number}', broker.fsp_number || '');
   return {
@@ -318,6 +332,7 @@ export function consentRegistry(broker = {}) {
     [CONSENT.generic.version]: `${CONSENT.generic.text} ${CONSENT.ads}`,
     [WEB_CONSENT.named.version]: fill(WEB_CONSENT.named.text),
     [WEB_CONSENT.generic.version]: WEB_CONSENT.generic.text,
+    [LEAD_AD_FORM_CONSENT.version]: LEAD_AD_FORM_CONSENT.text,
   };
 }
 

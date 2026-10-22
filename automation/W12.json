@@ -14,7 +14,7 @@
       "parameters": {
         "width": 900,
         "height": 380,
-        "content": "W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\nLogic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\nBroker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two within 30 days -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\nLead side: reach_check at slot end + 30 min. Broker \"No-show\" counts only after the lead stays silent for the 2-h reach window; lead \"No, not yet\" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\nWrites: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead \"No\" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook, CAPI Send Qualified + GoodFit (tick sweep of leads.qualified_at on a tier A/B band and good-fit outcomes from W29 or the portal; capi_log dedupe; GoodFit offline only, value = rating). Portal marks (outcomes written by the broker portal, marked_via portal) are read on the tick and resolved with the same two-sided rules; they and the W11 auto-attended row run the follow-ups only after claiming w12:outcome:{bk}, the key the sweep insert writes, so each booking gets them once. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\nNeeds NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
+        "content": "W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\nLogic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\nBroker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two within 30 days -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\nContact hours (22 Oct 2026): what W12 starts with the lead (reach_check, attended_thanks, the Schedule D apology + its W10 rebooking) goes only inside the CPA s12 / Reg 4 hours of lib/contact-hours.mjs (Mon-Fri 08:00-20:00, Sat 09:00-13:00, no Sunday or public holiday); outside them it waits (reach_check: the sweep asks at the next opening and her 2-h window runs from then, w12.reachPlan; thank-you / apology: parked as w12:hold rows, sent by the tick at the next opening). Broker messages and the reply to her own tap are not held.\nLead side: reach_check at slot end + 30 min. Broker \"No-show\" counts only after the lead stays silent for the 2-h reach window; lead \"No, not yet\" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\nWrites: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead \"No\" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook, CAPI Send Qualified + GoodFit (tick sweep of leads.qualified_at on a tier A/B band and good-fit outcomes from W29 or the portal; capi_log dedupe; GoodFit offline only, value = rating). Portal marks (outcomes written by the broker portal, marked_via portal) are read on the tick and resolved with the same two-sided rules; they and the W11 auto-attended row run the follow-ups only after claiming w12:outcome:{bk}, the key the sweep insert writes, so each booking gets them once. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\nNeeds NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED."
       }
     },
     {
@@ -591,7 +591,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w12;\nconst out = [];\n$input.all().forEach((it, i) => {\n  // inserted rows carry outcome_id (first writer only); the false branch of the If is the disputed item itself\n  const src = it.json.outcome_id ? $('Write outcome? (not pending, not disputed)').itemMatching(i).json : it.json;\n  for (const x of L.followUps(src.r, src.row, it.json.outcome_id || null)) out.push({ json: x });\n});\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w12;\nconst now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);\nconst out = [];\n$input.all().forEach((it, i) => {\n  // inserted rows carry outcome_id (first writer only); the false branch of the If is the disputed item itself\n  const src = it.json.outcome_id ? $('Write outcome? (not pending, not disputed)').itemMatching(i).json : it.json;\n  // now: the lead's thank-you / apology follow the contact hours (lib/contact-hours.mjs); outside them they are held\n  for (const x of L.followUps(src.r, src.row, it.json.outcome_id || null, src.row && src.row.brand_id, now)) out.push({ json: x });\n});\nreturn out;"
       }
     },
     {
@@ -681,7 +681,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w12;\nconst out = [];\n$input.all().forEach((it, i) => {\n  if (!it.json.id) return; // claim lost: W12 (or an earlier tick) already ran this booking's follow-ups\n  for (const x of L.claimedFollowUps($('Claim source').itemMatching(i).json)) out.push({ json: x });\n});\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w12;\nconst now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);\nconst out = [];\n$input.all().forEach((it, i) => {\n  if (!it.json.id) return; // claim lost: W12 (or an earlier tick) already ran this booking's follow-ups\n  for (const x of L.claimedFollowUps($('Claim source').itemMatching(i).json, now)) out.push({ json: x });\n});\nreturn out;"
       }
     },
     {
@@ -886,6 +886,28 @@
                     "id": "s8",
                     "leftValue": "={{ $json.fu }}",
                     "rightValue": "send_skipped",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "send_hold",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s9",
+                    "leftValue": "={{ $json.fu }}",
+                    "rightValue": "send_hold",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -1614,6 +1636,68 @@
     },
     {
       "id": "n58",
+      "name": "Park held lead message (w12:hold, contact hours)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2880,
+        2800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W12', 'system', 'post_call_message_held', jsonb_build_object('booking_id', $4::text, 'kind', $5::text, 'key', $6::text, 'due_at', $7::text, 'with_w10', $8::boolean), now(), 'w12:hold:' || $5::text || ':' || $4::text)\nON CONFLICT (idempotency_key) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [$json.hold.lead_id, $json.hold.brand_id, $json.hold.broker_id, $json.hold.booking_id, $json.hold.kind, $json.hold.key, $json.hold.due_at, $json.hold.with_w10] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n59",
+      "name": "Held lead messages due (contact hours)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        2800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT h.payload->>'kind' AS kind, h.payload->>'key' AS key, h.payload->>'due_at' AS due_at, (h.payload->>'with_w10')::boolean AS with_w10,\n       a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.appointment_date, a.ends_at AS slot_end,\n       l.first_name, l.last_name, l.phone, l.language, l.opted_out_at,\n       b.adviser_name, b.contact_person, b.adviser_whatsapp, b.whatsapp_number,\n       (SELECT r.occurred_at FROM public.lead_activities r WHERE r.idempotency_key = 'w12:reach:' || a.id::text) AS reach_at\n  FROM public.lead_activities h\n  JOIN public.appointments a ON a.id::text = h.payload->>'booking_id'\n  JOIN public.leads l ON l.id = a.client_id\n  JOIN public.brokers b ON b.id = a.broker_id\n WHERE h.activity_type = 'post_call_message_held'\n   AND h.occurred_at > $1::timestamptz - interval '7 days'\n   AND (h.payload->>'due_at')::timestamptz <= $1::timestamptz\n   AND NOT EXISTS (SELECT 1 FROM public.lead_activities s WHERE s.idempotency_key IN (h.payload->>'key', 'send_skipped:' || (h.payload->>'key')))\n   AND (NOT $2::boolean OR l.is_synthetic)\n ORDER BY h.occurred_at\n LIMIT 200;",
+        "options": {
+          "queryReplacement": "={{ (() => { const c = $('Classify + validate (w12.classifyOp)').first().json; return [c.now_iso, c.synthetic_only]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n60",
+      "name": "Held lead messages (w12.heldLeadMessageItems)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        2800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w12;\nconst now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);\nreturn L.heldLeadMessageItems($input.all().map((it) => it.json), now).map((x) => ({ json: x }));"
+      }
+    },
+    {
+      "id": "n61",
       "name": "Quality events due (Qualified + GoodFit, not in capi_log)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1637,7 +1721,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n59",
+      "id": "n62",
       "name": "Quality events (w12.qualityEventItems)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1651,7 +1735,7 @@
       }
     },
     {
-      "id": "n60",
+      "id": "n63",
       "name": "Portal-marked outcomes (no W12 follow-ups yet)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
@@ -1675,7 +1759,7 @@
       "alwaysOutputData": false
     },
     {
-      "id": "n61",
+      "id": "n64",
       "name": "Portal resolution (w12.portalResolution)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1758,6 +1842,11 @@
           },
           {
             "node": "Held CAPI Attended (not yet released)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Held lead messages due (contact hours)",
             "type": "main",
             "index": 0
           },
@@ -2034,7 +2123,7 @@
       "main": [
         [
           {
-            "node": "Live send?",
+            "node": "Message item",
             "type": "main",
             "index": 0
           }
@@ -2091,6 +2180,13 @@
         [
           {
             "node": "Skipped send item (no recipient)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Park held lead message (w12:hold, contact hours)",
             "type": "main",
             "index": 0
           }
@@ -2356,6 +2452,28 @@
         [
           {
             "node": "Live send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held lead messages due (contact hours)": {
+      "main": [
+        [
+          {
+            "node": "Held lead messages (w12.heldLeadMessageItems)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Held lead messages (w12.heldLeadMessageItems)": {
+      "main": [
+        [
+          {
+            "node": "Follow-up",
             "type": "main",
             "index": 0
           }

@@ -1,4 +1,5 @@
-// automation/patch-w02-instant-form-v2.mjs - W02 ingests the Meta instant form v2 (18 Oct 2026).
+// automation/patch-w02-instant-form-v2.mjs - W02 ingests the Meta instant form v2 (18 Oct 2026). Superseded in part by
+// patch-w02-instant-form-v3.mjs (22 Oct 2026: generic CONSENT-GENERIC-v5form, version + text recorded on intake); run v2 then v3.
 // The form (deliverables/media-buyer/instant-form-spec-v2.json) mirrors /start/: smc_intent, smc_age_band, smc_has_cover,
 // first name, WhatsApp number, a required named-consent box (CONSENT-NAMED-v5web) and an optional ad-measurement box.
 // Every age is accepted (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS); W01 normaliseLeadAd reads the answers + the checkbox responses.
@@ -37,7 +38,9 @@ const STICKY_TO = 'backstop (consent tick; every age accepted since the instant 
 
 const changed = [];
 const f = node('Fetch lead via Graph + backstop');
-if (f.parameters.jsCode === FETCH) changed.push(false);
+// v3 (patch-w02-instant-form-v3.mjs) adds the consent text on top of this code: that state counts as applied here
+const V3 = (x) => x.replace(' text: W01.LEAD_AD_CONSENT_TEXT,', '').split('\n').filter((l) => !l.startsWith('// Instant Form v3 (22 Oct 2026)') && !l.startsWith('// (CONSENT-GENERIC-v5form')).join('\n');
+if (f.parameters.jsCode === FETCH || V3(f.parameters.jsCode) === FETCH) changed.push(false);
 else if (f.parameters.jsCode.includes("text_version: 'CONSENT-NAMED-v3+CONSENT-ADS-v1'")) { f.parameters.jsCode = FETCH; changed.push(true); }
 else throw new Error('W02 "Fetch lead via Graph + backstop": unexpected code, refusing to overwrite');
 const s = node('Sticky: read me');

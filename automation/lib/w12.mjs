@@ -18,6 +18,7 @@ import { fill, LINES } from '../../conversation/lines.mjs';
 import { MIN, H, D, ms, iso, timeLabel, firstName, firstAndInitial, templateMessage, textMessage, listMessage, nowFrom, touchesLastContact } from './wa.mjs';
 import { QUAL_BUDGET } from './w01.mjs';
 import { GOOD_FIT } from './w29.mjs';
+import { inMarketingHours, nextMarketingTime } from './contact-hours.mjs';
 export { MIN, H, D, iso, nowFrom, touchesLastContact };
 
 export const OUTCOME_CHECK_AFTER_END = 15 * MIN; // broker
@@ -32,11 +33,41 @@ export const STALE_AFTER_END = 48 * H; // the sweep stops looking at a meeting a
 export const CAPI_META_WINDOW = 7 * D;
 export const CAPI_HOLD_MAX = CAPI_META_WINDOW - 12 * H;
 
+// ---------------------------------------------------------------------------------------------------------------
+// Contact hours (22 Oct 2026, Instant Form consent pack: SOCIAL-AUDIT-LINDI-SMC-2026-10-21 row 22 + section 5 item 8).
+// The WhatsApp follow-ups W12 STARTS with the lead (the reach_check template, the attended_thanks template, and the Schedule D
+// apology with the W10 rebooking behind it) go only inside the CPA s12 / Reg 4 contact hours, the one rule in
+// lib/contact-hours.mjs (Mon-Fri 08:00-20:00, Sat 09:00-13:00, never Sunday or a public holiday), like W01 / W05 / W08.
+// A message that falls outside waits for the next opening; it is never dropped for being late.
+// Not held: broker messages (outcome_check, nudge, disposition: the contracted adviser, not a consumer) and the short
+// reply to the lead's own "Yes, we spoke" tap (reach_thanks, an answer to her message). The apology answers her
+// "No, not yet": it waits for the hours unless her 24-h session would close first (there is no apology template), and
+// then it goes at once rather than never.
+// ---------------------------------------------------------------------------------------------------------------
+/** The latest moment after the slot end that the reach check may still be asked: its 2-h window then closes 1 h before
+ * the 24-h auto-attend (W11's hourly backstop), so a lead's silence is never read after the meeting was closed. */
+export const REACH_ASK_LATEST_AFTER_END = AUTO_ATTEND_AFTER_END - REACH_WINDOW - H;
+
+/**
+ * reachPlan(slotEnd) -> { planned, ask_at, window_close } (ms). planned = end + 30 min; ask_at = the first contact-hours
+ * moment at or after it (null when that is later than REACH_ASK_LATEST_AFTER_END: she is not asked, as for an opted-out
+ * lead); window_close = when her silence counts (ask_at, else planned, + the 2-h REACH_WINDOW). One rule for the sweep
+ * (when to ask), resolveOutcome (lead no-show) and capiAttendedGate (lead_window_closed).
+ */
+export function reachPlan(slotEnd) {
+  const end = ms(slotEnd);
+  const planned = end + REACH_CHECK_AFTER_END;
+  const next = nextMarketingTime(planned);
+  const ask_at = next <= end + REACH_ASK_LATEST_AFTER_END ? next : null;
+  return { planned, ask_at, window_close: (ask_at ?? planned) + REACH_WINDOW };
+}
+
 /**
  * capiAttendedGate(m, now) -> { action: 'send'|'hold'|'drop', reason }  (I-51b a, b, c). Pure; the ONE place that decides.
  * m = { slotEnd, reach: 'yes'|'no'|null, disposition, kgDecision: 'attended'|'not_attended'|null, consentAds }
  *  drop  unreachable_disposition (c) | kg_not_attended (a) | no_ads_consent | meta_window_expired (held too long)
- *  send  kg_attended (a, same event_id: Meta dedupes) | lead_confirmed | lead_window_closed (b: end + 30 min + 2 h)
+ *  send  kg_attended (a, same event_id: Meta dedupes) | lead_confirmed | lead_window_closed (b: reachPlan window_close:
+ *        end + 30 min + 2 h when the reach check went at once, later when the contact hours moved it)
  *  hold  conflict_pending_kg (broker Attended vs lead "No") | awaiting_lead (b)
  */
 export function capiAttendedGate(m, now) {
@@ -48,7 +79,7 @@ export function capiAttendedGate(m, now) {
   if (m.kgDecision === 'attended') return { action: 'send', reason: 'kg_attended' };
   if (m.reach === 'no') return { action: 'hold', reason: 'conflict_pending_kg' };
   if (m.reach === 'yes') return { action: 'send', reason: 'lead_confirmed' };
-  if (now >= end + REACH_CHECK_AFTER_END + REACH_WINDOW) return { action: 'send', reason: 'lead_window_closed' };
+  if (now >= reachPlan(m.slotEnd).window_close) return { action: 'send', reason: 'lead_window_closed' };
   return { action: 'hold', reason: 'awaiting_lead' };
 }
 // 4.12a order = broker_disposition.json button order = session list row order.
@@ -123,7 +154,8 @@ export function resolveOutcome(m, now) {
   if (m.brokerMark === 'attended') return attended();
   if (m.brokerMark === 'no_show') {
     if (m.reach === 'yes') return Object.assign(r, { outcome: 'disputed', dispute_status: 'open', next: 'console_queue' });
-    const confirmAt = ms(p.reach_check_at) + REACH_WINDOW;
+    // her 2-h window runs from when she was actually asked (reachPlan: the contact hours can move the reach check)
+    const confirmAt = reachPlan(m.slotEnd).window_close;
     // missed_you is the lead's message on this path; W13 sends it (templates README) and starts the 48-h clock.
     if (now >= confirmAt) return Object.assign(r, { outcome: 'no_show', no_show_confirmed_at: iso(confirmAt), lead_message: m.optedOut ? null : 'missed_you', next: 'W13' });
     return r; // waiting for the lead's side
@@ -188,7 +220,7 @@ export function validateInput(op, input = {}) {
 /**
  * sweepActions(row, now) -> [{ kind }] for one finished meeting (W12.json 5-minute sweep).
  * row = { slot_end, sent: { outcome_check, reach_check, broker_nudge }, brokerMark, reach, outcome_exists, optedOut }
- * kinds: outcome_check (broker), broker_nudge (broker, once), reach_check (lead), resolve.
+ * kinds: outcome_check (broker), broker_nudge (broker, once), reach_check (lead, contact hours only: reachPlan), resolve.
  */
 export function sweepActions(row, now) {
   const p = postCallPlan(row.slot_end);
@@ -200,7 +232,9 @@ export function sweepActions(row, now) {
     if (!sent.outcome_check && now >= ms(p.outcome_check_at)) out.push({ kind: 'outcome_check' });
     else if (sent.outcome_check && !sent.broker_nudge && now >= ms(p.broker_nudge_at)) out.push({ kind: 'broker_nudge' });
   }
-  if (!sent.reach_check && !row.reach && !row.optedOut && row.brokerMark !== 'rescheduled' && now >= ms(p.reach_check_at) && now < end + AUTO_ATTEND_AFTER_END) out.push({ kind: 'reach_check' });
+  // reach_check is a template W12 starts: only inside the contact hours (reachPlan ask_at, and this tick in hours)
+  const ask = reachPlan(row.slot_end).ask_at;
+  if (!sent.reach_check && !row.reach && !row.optedOut && row.brokerMark !== 'rescheduled' && ask != null && now >= ask && inMarketingHours(now) && now < end + AUTO_ATTEND_AFTER_END) out.push({ kind: 'reach_check' });
   const r = resolveOutcome({ slotEnd: row.slot_end, brokerMark: row.brokerMark || null, reach: row.reach || null, disposition: row.disposition || null, consentAds: row.consentAds, optedOut: row.optedOut, leadId: row.lead_id }, now);
   if (r.outcome !== 'pending') out.push({ kind: 'resolve', r });
   return out;
@@ -437,20 +471,28 @@ export function sweepItems(r = {}, now) {
  *   w13 (lead no-show: missed_you + 48-h clock), w10 (broker no-show rebook at our cost / broker "Rescheduled"),
  *   alert (KG on a broker no-show).
  */
-export function followUps(r, row = {}, outcomeId, brandId = row.brand_id) {
+export function followUps(r, row = {}, outcomeId, brandId = row.brand_id, now) {
+  // now = the workflow clock (W12.json passes it since 22 Oct 2026). Without it (a W12.json imported before that, running on
+  // these libs) nothing is held: the old JSON has no route for a hold, so a hold would be lost. Import W12.json with the libs.
   const { booking, lead, broker } = partsOf(row);
   const out = outcomeId ? [{ fu: 'w29', event: 'outcome_recorded', outcome_id: outcomeId }] : []; // disputed: no row, alert only
-  if (r.lead_message === 'attended_thanks' && !row.sent_reach_thanks) out.push(sendItem(row, attendedThanksMessage(lead, broker), `w12:attended_thanks:${row.booking_id}`));
-  if (r.lead_message === 'broker_no_show_apology') out.push(sendItem(row, brokerNoShowApology(lead, broker), `w12:apology:${row.booking_id}`));
+  let rebookHeld = false;
+  if (r.lead_message === 'attended_thanks' && !row.sent_reach_thanks) out.push(leadFollowUp(row, 'attended_thanks', now));
+  if (r.lead_message === 'broker_no_show_apology') {
+    const it = leadFollowUp(row, 'apology', now, { with_w10: r.outcome === 'broker_no_show' });
+    rebookHeld = it.fu === 'send_hold' && it.hold.with_w10;
+    out.push(it);
+  }
   for (const c of r.capi || []) if (c.event_name === 'Attended') out.push({ fu: 'capi', ...capiAttended(lead, brandId, row.slot_end) });
   // I-51b: a held Attended is parked (w12:capi_hold row = the release queue); a dropped one is logged with its reason.
   const capiKeys = { lead_id: row.lead_id, brand_id: brandId, broker_id: row.broker_id, booking_id: row.booking_id, event_id: `evt_${row.lead_id}_attended`, event_time: row.slot_end || null };
   if ((r.capi_held || []).length) out.push({ fu: 'capi_hold', ...capiKeys, reason: r.capi_gate?.reason || 'awaiting_lead' });
   if (r.capi_dropped) out.push({ fu: 'capi_release', ...capiKeys, decision: 'drop', reason: r.capi_dropped });
   if (r.outcome === 'no_show') out.push({ fu: 'w13', ...w13NoShow(outcomeId, booking, row.lead_id, r.no_show_confirmed_at) });
-  if (r.outcome === 'broker_no_show') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_no_show') });
+  // the Schedule D rebooking follows the apology: held with it (released together, apology first) when the apology waits
+  if (r.outcome === 'broker_no_show' && !rebookHeld) out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_no_show') });
   if (r.outcome === 'rescheduled' && r.dispute_status !== 'open') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_rescheduled') });
-  for (const a of r.alerts || []) out.push({ fu: 'alert', to: a, kind: 'other', severity: 'urgent', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=broker_no_show; ${firstAndInitial(lead)}: the lead says ${firstName(broker.adviser_name || broker.contact_person)} did not call (Schedule D: apology sent, rebooking at our cost, no replacement).` });
+  for (const a of r.alerts || []) out.push({ fu: 'alert', to: a, kind: 'other', severity: 'urgent', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=broker_no_show; ${firstAndInitial(lead)}: the lead says ${firstName(broker.adviser_name || broker.contact_person)} did not call (Schedule D: apology and rebooking at our cost, inside the contact hours; no replacement).` });
   if (r.outcome === 'disputed' || r.dispute_status === 'open') out.push({ fu: 'alert', to: 'console', kind: 'outcome_unmarked', severity: 'normal', lead_id: row.lead_id, broker_id: row.broker_id, brand_id: brandId, booking_id: row.booking_id, note: `esc_kind=outcome_disputed; ${firstAndInitial(lead)}: broker marked ${row.broker_mark || 'nothing'}, lead answered ${row.reach || 'nothing'}. KG reviews in the console; nothing goes to the lead until KG decides, and no replacement is opened automatically (an Unreachable/wrong number disposition takes the normal W13 path).${(r.capi_held || []).length ? ` CAPI ${r.capi_held.join(', ')} held until KG decides (not sent).` : ''}` });
   return out;
 }
@@ -501,7 +543,55 @@ const claimItem = (r, row, outcomeId, via, writes) => ({ fu: 'claim', via, r, ro
 export const claimParams = (c) => [c.row.lead_id, c.row.brand_id, c.row.broker_id, c.row.booking_id, c.row.outcome || c.r.outcome, c.via, c.r.outcome, c.r.lead_reach_check || 'none', Boolean(c.dispute_open), c.appointment_status || null, c.lead_stage || null, CONV_STATE_AFTER_OUTCOME[c.r && c.r.outcome] || null];
 
 /** After a won claim: the same follow-ups the sweep runs for a row it inserted. */
-export const claimedFollowUps = (c) => followUps(c.r, c.row, c.outcome_id);
+export const claimedFollowUps = (c, now) => followUps(c.r, c.row, c.outcome_id, c.row && c.row.brand_id, now);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Held lead messages (contact hours, 22 Oct 2026). Outside the hours followUps() parks attended_thanks / the apology as a
+// w12:hold:{kind}:{booking_id} row (activity post_call_message_held, payload { kind, key, due_at, with_w10 }); the tick
+// reads the due ones ("Held lead messages due") and heldLeadMessageItems() sends them inside the hours under their usual
+// key (claimed, so each goes once; an earlier send or skip under that key ends the hold).
+// ---------------------------------------------------------------------------------------------------------------
+export const HELD_KINDS = Object.freeze({ attended_thanks: 'attended_thanks', apology: 'apology' });
+const messageOf = (kind, lead, broker) => (kind === 'attended_thanks' ? attendedThanksMessage(lead, broker) : kind === 'apology' ? brokerNoShowApology(lead, broker) : null);
+const heldKey = (kind, bookingId) => `w12:${kind}:${bookingId}`;
+const claimed = (it) => (it.fu === 'send' ? { ...it, send: { ...it.send, claim: true } } : it);
+
+/** One lead follow-up: inside the hours it is sent (or skipped: no phone), outside a hold until the next opening. */
+function leadFollowUp(row, kind, now, { with_w10 = false } = {}) {
+  const { lead, broker } = partsOf(row);
+  const key = heldKey(kind, row.booking_id);
+  // a send is claimed (the key row is written before it: w12:apology is what I-50f "apology already sent" reads); a skip
+  // (no phone) logs under send_skipped:{key}, so it never looks sent
+  const it = claimed(sendItem(row, messageOf(kind, lead, broker), key));
+  if (it.fu !== 'send' || !Number.isFinite(now) || inMarketingHours(now)) return it;
+  const due = nextMarketingTime(now);
+  // the apology is a session text (no template): if her 24-h window would close before the hours open, it goes now
+  if (kind === 'apology' && !(row.reach_at && due <= ms(row.reach_at) + REACH_THANKS_WINDOW)) return { ...it, send: { ...it.send, hours_exempt: 'session_closes_before_hours' } };
+  return { fu: 'send_hold', hold: { lead_id: row.lead_id, brand_id: row.brand_id, broker_id: row.broker_id, booking_id: row.booking_id, kind, key, due_at: iso(due), with_w10: Boolean(with_w10) } };
+}
+
+/**
+ * heldLeadMessageItems(rows, now) -> Follow-up items for the "Held lead messages due" rows (meeting, lead and broker
+ * columns + kind, key, due_at, with_w10, reach_at). Nothing outside the contact hours. Opted out since -> skipped
+ * (send_skipped:{key}, ends the hold); an apology whose 24-h session closed meanwhile (an outage) -> skipped with that
+ * reason; the rebooking still goes.
+ */
+export function heldLeadMessageItems(rows = [], now) {
+  if (!inMarketingHours(now)) return [];
+  const out = [];
+  for (const r of rows) {
+    if (!r || !r.booking_id || !HELD_KINDS[r.kind] || !(ms(r.due_at) <= now)) continue;
+    const { booking, lead, broker } = partsOf(r);
+    const key = r.key || heldKey(r.kind, r.booking_id);
+    // a skip never writes the message key itself (w12:apology would read as "apology sent"); the hold query ends on either
+    const skip = (reason) => ({ fu: 'send_skipped', skip: { to: 'lead', lead_id: r.lead_id, brand_id: r.brand_id, broker_id: r.broker_id, booking_id: r.booking_id, template: r.kind === 'attended_thanks' ? 'attended_thanks' : null, key: `send_skipped:${key}`, reason, workflow: 'W12' } });
+    if (r.opted_out_at) out.push(skip('opted_out'));
+    else if (r.kind === 'apology' && r.reach_at && now > ms(r.reach_at) + REACH_THANKS_WINDOW) out.push(skip('session_window_closed'));
+    else out.push(claimed(sendItem(r, messageOf(r.kind, lead, broker), key)));
+    if (r.with_w10 === true || r.with_w10 === 'true') out.push({ fu: 'w10', ...w10Rebook(booking, lead, 'broker_no_show') });
+  }
+  return out;
+}
 
 /**
  * I-50f: a broker mark (any of Attended / No-show / Rescheduled) that arrives after the Schedule D apology went out

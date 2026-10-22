@@ -506,15 +506,15 @@ Cal.com is dropped: on desktop, "Book" opens `/start/?ref=<code>&via=<src>` with
 
 Then the W39 two phases (answers -> adviser card -> confirm -> W01 routes with `first_touch: false` and `expect_broker_id`; the named consent must name that broker's practice + FSP, else `held_consent_names_other_practice`), W04 `/slots` and W05 `/book` exactly as for a WhatsApp lead. **No session text for a web lead**: it never messaged us (no 24-h window), so W39 plans no WhatsApp line for `leads.origin = 'page'`; `will` and `other` open a console escalation (a person follows up) and the page shows its chat / "we'll be in touch" screen for `next: 'chat'`. Templates still go out: a held tier-C lead gets W01's `lead_low_budget_held`, and after booking W06 sends `broker_intro_booked` (the disclosure card with the booked time: since 2026-10-18 a booking event that wins the one-card claim is the first touch, however long after routing it came).
 
-## W02 Meta instant form v2 (Jono, 2026-10-18; A/B arm vs click-to-WhatsApp)
-Form: `deliverables/media-buyer/instant-form-spec-v2.json` (built by hand in Ads Manager). Reader: `lib/w01.mjs normaliseLeadAd` (`leadAdAnswers`, `leadAdConsent`); W02 passes the Graph answers map + `custom_disclaimer_responses` through (`automation/patch-w02-instant-form-v2.mjs`). Tests: `automation/tests/W02-instant-form-v2.test.mjs`.
+## W02 Meta instant form v3 (2026-10-22; v2 Jono 2026-10-18; A/B arm vs click-to-WhatsApp)
+Form: `deliverables/media-buyer/instant-form-spec-v3.json` (built by hand in Ads Manager after the Lead Ads terms are accepted; steps in `DEPLOY-INSTANT-FORM.md`). v3 asks intent + age band only (no cover, income, insurer or health question: SOCIAL-AUDIT row 22) and its required box is the generic `CONSENT-GENERIC-v5form` (no practice name, no FSP number; `lib/w01.mjs LEAD_AD_FORM_CONSENT`). Reader: `lib/w01.mjs normaliseLeadAd` (`leadAdAnswers`, `leadAdConsent`); W02 passes the Graph answers map + `custom_disclaimer_responses` through (`automation/patch-w02-instant-form-v2.mjs`) and records the consent version AND exact text on intake (`automation/patch-w02-instant-form-v3.mjs`). Tests: `automation/tests/W02-instant-form-v3.test.mjs`.
 
 | Field | Keys accepted | Values (option key or exact label) | Stored |
 |---|---|---|---|
 | intent | `smc_intent`, `intent`, `help_with` | `life` Life cover, `disability` Disability cover, `income` Income protection, `illness` Severe illness cover, `review` Not sure yet | `conv_state.start.intent` (/start/ code: life / income / income / illness / review) + `intent_option`, `conv_state.help_with` (life / disability_income / severe_illness / review), `product_interest = 'life_cover'` |
 | age | `smc_age_band`, `age_band` | `lt35` Under 35, `35_44` 35 to 44, `45_50` 45 to 50, `51plus` Over 50 | `leads.age_band` |
-| cover today | `smc_has_cover`, `has_cover` | `yes_work` Yes, through work · `yes_own` Yes, my own · `no` No · `unsure` Not sure (legacy `yes` Yes -> `yes`, `not_sure` -> `unsure`) | `conv_state.start.has_cover` + `leads.work_cover` (yes_work true; yes_own / no false; unsure / yes unchanged) |
-| consent | checkbox `consent` / `smc_consent` (required) | `is_checked "1"` | `consent_text` = `consentRegistry(broker)['CONSENT-NAMED-v5web']`, audited (`consent_audit`) |
+| cover today (v2 forms only; not on v3) | `smc_has_cover`, `has_cover` | `yes_work` Yes, through work · `yes_own` Yes, my own · `no` No · `unsure` Not sure (legacy `yes` Yes -> `yes`, `not_sure` -> `unsure`) | `conv_state.start.has_cover` + `leads.work_cover` (yes_work true; yes_own / no false; unsure / yes unchanged) |
+| consent | checkbox `consent` / `smc_consent` (required) | `is_checked "1"` | `consent_text` = the `CONSENT-GENERIC-v5form` text (W02 ingest `consent.text`, = `consentRegistry()[version]`), `consent_text_version`, `consent_mode = 'generic'` (routed only after `adviser_disclosed` for that broker), audited (`consent_audit`). v2's `CONSENT-NAMED-v5web` stays readable in the registry |
 | ad measurement | checkbox `consent_ads` / `smc_consent_ads` (optional) | `is_checked "1"` | `consent_ads_at` |
 
 A field with an unknown name is matched on its value (a hand-built form). Other checkbox keys: a ticked box is the consent (Meta refuses a submission without the required one); the ads choice is then not assumed. Missing intent / cover answers are tolerated.
@@ -545,7 +545,7 @@ Instant Form leads (`leads.origin = 'lead_ad'`) are introduced by W06's `broker_
 | legacy "Yes" (three-option form / page) | `yes` (type unknown) | unchanged |
 | legacy `not_sure` | `unsure` | unchanged |
 
-Paths: /start/ (W39 `POST /start/answers`, stored in `conv_state.start.has_cover`; `GET /start` returns it as stored), the Instant Form (W01 `normaliseLeadAd`, Graph lead or the W02 ingest item's answers map; `conv_state.start.has_cover` + the insert's `work_cover`). Lindi's chat asks no cover question (the 3b/3c copy in lindi-flow-copy.md is not built), so there is no chat mapping. Test: `W02-instant-form-v2.test.mjs` "cover answer (4 options ...)".
+Paths: /start/ (W39 `POST /start/answers`, stored in `conv_state.start.has_cover`; `GET /start` returns it as stored), the Instant Form (W01 `normaliseLeadAd`, Graph lead or the W02 ingest item's answers map; `conv_state.start.has_cover` + the insert's `work_cover`). Lindi's chat asks no cover question (the 3b/3c copy in lindi-flow-copy.md is not built), so there is no chat mapping. Test: `W02-instant-form-v3.test.mjs` "cover answer (4 options ...)".
 
 ## Every age books and counts (Jono, 2026-10-18)
 Under-35 and over-50 leads book with the adviser AND count toward his order, on every intake. The age is still asked (the adviser wants it) but never closes a conversation or disqualifies:

@@ -332,6 +332,7 @@ function buildW12() {
   sticky('W12 Outcome, disposition & feedback (two-sided), 4.6 W12 row + 4.12a + Schedule C/D + 0.1 broker feedback rule. DRAFT pending GATE-TEST-W12.\n' +
     'Logic: automation/lib/w12.mjs (pure), loaded by every Code node through the lv-automation loader (index.cjs).\n' +
     'Broker side: broker_outcome_check at slot end + 15 min (Attended / No-show / Rescheduled), ONE nudge 3 h later. Attended -> one-tap disposition list at once (session; the tap opened his window; 4.12a codes; template broker_disposition only out of window) -> W29 takes the reply, asks quality 1-5 and the optional voice note. Unmarked at 24 h -> attended + auto_marked + unconfirmed (flagged in the console; two within 30 days -> Jonathan calls the broker). W11 keeps its 24-h backstop (ON CONFLICT (booking_id) DO NOTHING on both sides).\n' +
+    'Contact hours (22 Oct 2026): what W12 starts with the lead (reach_check, attended_thanks, the Schedule D apology + its W10 rebooking) goes only inside the CPA s12 / Reg 4 hours of lib/contact-hours.mjs (Mon-Fri 08:00-20:00, Sat 09:00-13:00, no Sunday or public holiday); outside them it waits (reach_check: the sweep asks at the next opening and her 2-h window runs from then, w12.reachPlan; thank-you / apology: parked as w12:hold rows, sent by the tick at the next opening). Broker messages and the reply to her own tap are not held.\n' +
     'Lead side: reach_check at slot end + 30 min. Broker "No-show" counts only after the lead stays silent for the 2-h reach window; lead "No, not yet" waits for the broker (R6-03): still unmarked at broker_nudge_at = BROKER no-show (Schedule D: lines.mjs BROKER_NO_SHOW_APOLOGY, W10 rebook at our cost, KG alerted, never a replacement); a broker Attended / Rescheduled / No-show against it = conflict for KG in the console, nothing to the lead; Unreachable/wrong number = normal W13 path. Sides disagree -> console queue, nothing guessed.\n' +
     'Writes: outcomes (one row per booking, first writer wins), appointments.status, leads.stage, lead_activities timeline (w12:mark / w12:reach rows, last tap wins per CONTRACTS). Calls: W29 outcome_recorded (every outcome; pulse/facts, quality index), CAPI Send Attended (I-51b: held until the lead answered or her 2.5-h window closed; held on a lead "No" until KG decides via op kg_decision; never on Unreachable; w12:capi_hold / w12:capi_release rows), W13 no_show (missed_you + 48-h clock), W10 rebook, CAPI Send Qualified + GoodFit (tick sweep of leads.qualified_at on a tier A/B band and good-fit outcomes from W29 or the portal; capi_log dedupe; GoodFit offline only, value = rating). Portal marks (outcomes written by the broker portal, marked_via portal) are read on the tick and resolved with the same two-sided rules; they and the W11 auto-attended row run the follow-ups only after claiming w12:outcome:{bk}, the key the sweep insert writes, so each booking gets them once. Voice note (op voice_note): only the WhatsApp media reference is stored (outcomes.voice_note_url = whatsapp-media:{id}).\n' +
     'Needs NODE_FUNCTION_ALLOW_EXTERNAL=lv-automation. Env: DRY_RUN_SENDS, META_GRAPH_VERSION, PHONE_NUMBER_ID, META_SYSTEM_USER_TOKEN, TEST_HOOKS_ENABLED.');
@@ -451,11 +452,13 @@ SELECT o.id AS outcome_id FROM o;`,
     "={{ (() => { const x = $json; const r = x.row; const o = x.o; return [r.booking_id, r.lead_id, r.broker_id, r.brand_id, x.r.outcome, o.lead_reach_check, o.marked_via, o.marked_at, o.auto_marked, o.unconfirmed, o.dispute_status, o.appointment_status, o.lead_stage, o.conv_state || null]; })() }}");
   link(writeQ, ins, 0);
   const fu = code('Follow-ups (w12.followUps)', [10, 1], IMPORT('w12') +
-`const out = [];
+`const now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);
+const out = [];
 $input.all().forEach((it, i) => {
   // inserted rows carry outcome_id (first writer only); the false branch of the If is the disputed item itself
   const src = it.json.outcome_id ? $('Write outcome? (not pending, not disputed)').itemMatching(i).json : it.json;
-  for (const x of L.followUps(src.r, src.row, it.json.outcome_id || null)) out.push({ json: x });
+  // now: the lead's thank-you / apology follow the contact hours (lib/contact-hours.mjs); outside them they are held
+  for (const x of L.followUps(src.r, src.row, it.json.outcome_id || null, src.row && src.row.brand_id, now)) out.push({ json: x });
 });
 return out;`, 'runOnceForAllItems');
   link(ins, fu); link(writeQ, fu, 1); // disputed (no row): alert only
@@ -498,15 +501,16 @@ st AS (UPDATE public.leads SET stage = COALESCE($11, stage), conv_state = CASE W
 SELECT c.id FROM c;`,
     '={{ $json.params }}');
   const claimFu = code('Claimed follow-ups (w12.claimedFollowUps)', [10, 4], IMPORT('w12') +
-`const out = [];
+`const now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);
+const out = [];
 $input.all().forEach((it, i) => {
   if (!it.json.id) return; // claim lost: W12 (or an earlier tick) already ran this booking's follow-ups
-  for (const x of L.claimedFollowUps($('Claim source').itemMatching(i).json)) out.push({ json: x });
+  for (const x of L.claimedFollowUps($('Claim source').itemMatching(i).json, now)) out.push({ json: x });
 });
 return out;`, 'runOnceForAllItems');
   link(autoFu, claimSrc); link(claimSrc, claim); link(claim, claimFu);
 
-  const fuSw = switchOn('Follow-up', [11, 2], '$json.fu', ['send', 'capi', 'w29', 'w13', 'w10', 'alert', 'capi_hold', 'capi_release', 'send_skipped']);
+  const fuSw = switchOn('Follow-up', [11, 2], '$json.fu', ['send', 'capi', 'w29', 'w13', 'w10', 'alert', 'capi_hold', 'capi_release', 'send_skipped', 'send_hold']);
   link(fu, fuSw); link(claimFu, fuSw);
   const capi = sub('CAPI Send (Attended)', [12, 2], 'CAPI Send');
   const w29 = sub('W29 outcome_recorded (quality, pulse facts)', [12, 3], 'W29 Feedback loop');
@@ -700,7 +704,41 @@ RETURNING o.id, o.lead_id;`,
   link(sw, rejectNode('W12', [4, 8], '$json'), 6);
 
   const live = sendChain('W12', 13, 0);
-  link(claimedItem, live); link(fuSw, live, 0);
+  // 22 Oct 2026: follow-up sends (attended_thanks, the apology, a released hold) are claimed like the sweep's messages, so
+  // each goes once and 'w12:apology:{bk}' exists once it went (the I-50f late-mark check reads that row; before this the
+  // apology was sent unclaimed and the check never fired).
+  link(claimedItem, live); link(fuSw, msgItem, 0);
+
+  // ---- Contact hours (22 Oct 2026, Instant Form consent pack). Outside the CPA hours (lib/contact-hours.mjs) the lead's
+  // attended_thanks / Schedule D apology (+ its W10 rebooking) are parked here and the tick sends them at the next opening.
+  const holdPark = pg('Park held lead message (w12:hold, contact hours)', [12, 14],
+`INSERT INTO public.lead_activities (${ACTIVITY_COLS})
+VALUES ($1::uuid, $2::uuid, $3::uuid, 'W12', 'system', 'post_call_message_held', jsonb_build_object('booking_id', $4::text, 'kind', $5::text, 'key', $6::text, 'due_at', $7::text, 'with_w10', $8::boolean), now(), 'w12:hold:' || $5::text || ':' || $4::text)
+ON CONFLICT (idempotency_key) DO NOTHING;`,
+    '={{ [$json.hold.lead_id, $json.hold.brand_id, $json.hold.broker_id, $json.hold.booking_id, $json.hold.kind, $json.hold.key, $json.hold.due_at, $json.hold.with_w10] }}');
+  link(fuSw, holdPark, 9);
+  const heldMsgQ = pg('Held lead messages due (contact hours)', [5, 14],
+`SELECT h.payload->>'kind' AS kind, h.payload->>'key' AS key, h.payload->>'due_at' AS due_at, (h.payload->>'with_w10')::boolean AS with_w10,
+       a.id AS booking_id, a.client_id AS lead_id, a.brand_id, a.broker_id, a.appointment_date, a.ends_at AS slot_end,
+       l.first_name, l.last_name, l.phone, l.language, l.opted_out_at,
+       b.adviser_name, b.contact_person, b.adviser_whatsapp, b.whatsapp_number,
+       (SELECT r.occurred_at FROM public.lead_activities r WHERE r.idempotency_key = 'w12:reach:' || a.id::text) AS reach_at
+  FROM public.lead_activities h
+  JOIN public.appointments a ON a.id::text = h.payload->>'booking_id'
+  JOIN public.leads l ON l.id = a.client_id
+  JOIN public.brokers b ON b.id = a.broker_id
+ WHERE h.activity_type = 'post_call_message_held'
+   AND h.occurred_at > $1::timestamptz - interval '7 days'
+   AND (h.payload->>'due_at')::timestamptz <= $1::timestamptz
+   AND NOT EXISTS (SELECT 1 FROM public.lead_activities s WHERE s.idempotency_key IN (h.payload->>'key', 'send_skipped:' || (h.payload->>'key')))
+   AND (NOT $2::boolean OR l.is_synthetic)
+ ORDER BY h.occurred_at
+ LIMIT 200;`,
+    "={{ (() => { const c = $('Classify + validate (w12.classifyOp)').first().json; return [c.now_iso, c.synthetic_only]; })() }}");
+  const heldMsgFu = code('Held lead messages (w12.heldLeadMessageItems)', [6, 14], IMPORT('w12') +
+`const now = Date.parse($('Classify + validate (w12.classifyOp)').first().json.now_iso);
+return L.heldLeadMessageItems($input.all().map((it) => it.json), now).map((x) => ({ json: x }));`, 'runOnceForAllItems');
+  link(sw, heldMsgQ, 0); link(heldMsgQ, heldMsgFu); link(heldMsgFu, fuSw);
 
   // ---- CAPI quality events (19 Oct 2026): Qualified (leads.qualified_at on a tier A/B band, or a /start/ v4 lead with age + income and no band, written by W03 / W39 / the
   // capture Flow) and GoodFit (a good-fit disposition, from W29 on WhatsApp or the broker portal, which writes outcomes

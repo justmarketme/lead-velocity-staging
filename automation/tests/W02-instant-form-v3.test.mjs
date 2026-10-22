@@ -1,8 +1,10 @@
-// Meta instant form v2 (18 Oct 2026, A/B arm vs click-to-WhatsApp): deliverables/media-buyer/instant-form-spec-v2.json.
-// The form mirrors /start/ (intent, age band, cover today, first name, WhatsApp number), every age is accepted
-// (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as W39), the first WhatsApp is the start_here template to /start/ (19 Oct 2026; before
-// its SID is set: qualify_budget < 60 s, the older tests below), and the
-// required consent box is exactly the CONSENT-NAMED-v5web registry text for Mark's practice.
+// Meta instant form v3 (22 Oct 2026; v2 18 Oct 2026, A/B arm vs click-to-WhatsApp): deliverables/media-buyer/instant-form-spec-v3.json.
+// The form asks the intent and the age band, then first name + WhatsApp number (v3 dropped the cover question: no insurance,
+// income or health question on the form, SOCIAL-AUDIT row 22). Every age is accepted (lib/w01.mjs OUT_OF_BAND_AGE_BOOKS, as
+// W39), the first WhatsApp is the start_here template to /start/ (19 Oct 2026; before its SID is set: qualify_budget < 60 s,
+// the older tests below), and the required consent box is exactly the generic CONSENT-GENERIC-v5form registry text (no
+// practice name, no FSP number): the adviser is named before any hand-over. A v2-style Graph lead that still carries a cover
+// answer (the fixtures) is read as before.
 // Offline, real code: the W02 Code nodes (signature + Graph fetch, Graph stubbed), meta-ads normalizeLead / qualifyLead,
 // the W01 "Lead ad -> submission" node, w01 normaliseLeadAd / withRegistryText / consentAudit / decide / budgetQuestion,
 // and W03 (ctwa/w03.js) for the band tap.
@@ -24,7 +26,7 @@ const M = require('../ads/meta-ads.js');
 const W3 = require('../ctwa/w03.js');
 const json = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const FX = json(join(A, 'tests', 'fixtures', 'instant-form-v2.json'));
-const SPEC = json(join(ROOT, 'deliverables', 'media-buyer', 'instant-form-spec-v2.json'));
+const SPEC = json(join(ROOT, 'deliverables', 'media-buyer', 'instant-form-spec-v3.json'));
 const SITE_CONSENT = json(join(ROOT, 'sites', 'sortmycover', 'config', 'consent.json'));
 const W02 = json(join(A, 'W02.json'));
 const W01WF = json(join(A, 'W01.json'));
@@ -40,19 +42,18 @@ const lead = (k) => FX.graph_leads[k];
 const decideOf = (sub, c = ctx()) => W01.decide(W01.withRegistryText(sub, OPW), c);
 
 // ------------------------------------------------------------------------------------------- the spec itself
-test('spec v2: exact strings, question order and keys, no banned words in anything the person sees', () => {
+test('spec v3: exact strings, question order and keys, no banned words in anything the person sees', () => {
   assert.equal(SPEC.intro.headline.text, 'Book a 30-minute call with an authorised adviser');
-  assert.deepEqual(SPEC.questions_section.questions.map((q) => q.key), ['smc_intent', 'smc_age_band', 'smc_has_cover', 'first_name', 'phone_number']);
-  const [qi, qa, qc] = SPEC.questions_section.questions;
+  assert.deepEqual(SPEC.questions_section.questions.map((q) => q.key), ['smc_intent', 'smc_age_band', 'first_name', 'phone_number']);
+  assert.deepEqual(SPEC.questions_section.questions.map((q) => q.n), [1, 2, 3, 4]);
+  const [qi, qa] = SPEC.questions_section.questions;
   assert.deepEqual(qi.options.map((o) => [o.key, o.value]), [['life', 'Life cover'], ['disability', 'Disability cover'], ['income', 'Income protection'], ['illness', 'Severe illness cover'], ['review', 'Not sure yet']]);
   assert.deepEqual(qa.options.map((o) => [o.key, o.value]), [['lt35', 'Under 35'], ['35_44', '35 to 44'], ['45_50', '45 to 50'], ['51plus', 'Over 50']]);
-  assert.deepEqual(qc.options.map((o) => [o.key, o.value]), [['yes_work', 'Yes, through work'], ['yes_own', 'Yes, my own'], ['no', 'No'], ['unsure', 'Not sure']]);
-  assert.equal(qc.label.text, 'Do you have any life, disability or income cover now?');
-  assert.equal(SPEC.questions_section.questions[4].label.text, 'WhatsApp number');
+  assert.equal(SPEC.questions_section.questions[3].label.text, 'WhatsApp number');
+  assert.equal(SPEC.intro.description_bullets[0].text, 'Answer two quick questions.', 'the intro counts the questions the form asks');
   // the option labels are W01's own vocabulary (a hand-built form is matched on them)
   for (const o of qi.options) assert.equal(W01.LEAD_AD_INTENT[o.key].label, o.value);
   for (const o of qa.options) assert.equal(W01.LEAD_AD_AGE[o.key], o.value);
-  for (const o of qc.options) assert.equal(W01.LEAD_AD_HAS_COVER[o.key], o.value);
   // every visible string: chars is right, no banned word; "Lead Velocity" only inside the verbatim consent text
   const seen = [];
   const walk = (v, path) => {
@@ -68,6 +69,13 @@ test('spec v2: exact strings, question order and keys, no banned words in anythi
     assert.doesNotMatch(t, /\bR\d|budget|income\b(?! protection| cover)|salary|afford/i, `${path}: no financial question`);
   }
   assert.ok(!SPEC.questions_section.questions.some((q) => /email/i.test(q.meta_type)), 'no email');
+  // SOCIAL-AUDIT row 22: no income band, no "are you insured" / "which insurer", no health or disability question, no
+  // practice name or FSP number. The labels the person answers (the options name cover types, never her own situation):
+  for (const q of SPEC.questions_section.questions) {
+    assert.doesNotMatch(q.label.text, /insur|cover now|policy|health|medical|disab|condition|income|earn|salary/i, q.key);
+    assert.ok(!['smc_has_cover', 'has_cover', 'budget_band', 'insurer'].includes(q.key), q.key);
+  }
+  for (const [path, x] of seen) assert.doesNotMatch(x, /Oracle|Private Wealth|FSP \d|\(FSP|Mark\b|Weston/, `${path}: no practice, adviser or FSP number on the form`);
   assert.equal(SPEC.form_settings.form_type.ui, 'Higher intent');
   assert.deepEqual([SPEC.privacy_policy.url, SPEC.privacy_policy.link_text], ['https://sortmycover.co.za/privacy/', 'Privacy notice']);
   assert.deepEqual([SPEC.thank_you.headline.text, SPEC.thank_you.description.text, SPEC.thank_you.button.text.text, SPEC.thank_you.button.url],
@@ -76,19 +84,27 @@ test('spec v2: exact strings, question order and keys, no banned words in anythi
   assert.ok(SPEC.sources.length >= 4 && SPEC.sources.every((s) => /^https:\/\//.test(s.url)));
 });
 
-test('spec v2: the consent boxes are the registry texts word for word (required named box, optional ads box, both unticked)', () => {
+test('spec v3: the consent boxes are the registry texts word for word (required generic box CONSENT-GENERIC-v5form, optional ads box, both unticked)', () => {
   const [c1, c2] = SPEC.custom_disclaimer.checkboxes;
-  assert.deepEqual([c1.key, c1.required, c1.ticked_by_default, c1.consent_version], ['consent', true, false, 'CONSENT-NAMED-v5web']);
+  assert.deepEqual([c1.key, c1.required, c1.ticked_by_default, c1.consent_version], ['consent', true, false, 'CONSENT-GENERIC-v5form']);
   assert.deepEqual([c2.key, c2.required, c2.ticked_by_default, c2.consent_version], ['consent_ads', false, false, 'CONSENT-ADS-v2web']);
-  const reg = W01.consentRegistry(OPW);
-  assert.equal(c1.text, reg[c1.consent_version], 'what the form shows = what W01 stores and audits');
-  // and both equal the site's own config (sites/sortmycover/config/consent.json), filled for Mark's practice
-  assert.equal(c1.text, SITE_CONSENT.named.text.replace('{practice_name}', 'Oracle Private Wealth').replace('{fsp_number}', '28418'));
+  assert.equal(W01.LEAD_AD_CONSENT_VERSION, 'CONSENT-GENERIC-v5form');
+  assert.equal(SPEC.w02_contract.consent_text_version, W01.LEAD_AD_CONSENT_VERSION);
+  // one text everywhere: the form, the W01 registry (for any broker, nothing to fill in) and what W02 records on intake
+  assert.equal(c1.text, W01.LEAD_AD_CONSENT_TEXT);
+  assert.equal(c1.text, W01.consentRegistry(OPW)[c1.consent_version], 'what the form shows = what W01 stores and audits');
+  assert.equal(c1.text, W01.consentRegistry({})[c1.consent_version], 'generic: the same text before the broker is known');
   assert.equal(c2.text, SITE_CONSENT.ads.text);
-  assert.equal(SITE_CONSENT.named.version, W01.LEAD_AD_CONSENT_VERSION);
-  assert.match(c1.text, /Oracle Private Wealth \(FSP 28418\)/);
-  assert.ok(W01.namesPractice(c1.text, OPW), 'named-mode routing accepts it');
-  for (const c of SPEC.custom_disclaimer.checkboxes) assert.doesNotMatch(c.text, /\{practice_name\}|\{fsp_number\}/, 'no placeholder left');
+  // the audit's four parts, and nothing that names a practice
+  assert.match(c1.text, /may message me on WhatsApp to book and remind me about a call with an adviser from an FSCA-authorised financial services provider/);
+  assert.match(c1.text, /I am 18 or older\./);
+  assert.match(c1.text, /I can opt out at any time by replying STOP\./);
+  assert.match(c1.text, /Privacy notice: https:\/\/sortmycover\.co\.za\/privacy\/$/);
+  assert.equal(SPEC.privacy_policy.url, 'https://sortmycover.co.za/privacy/', 'the same privacy page as the form\'s own privacy link');
+  assert.doesNotMatch(c1.text, /FSP \d|\(FSP|Oracle|Mark|\{practice_name\}|\{fsp_number\}/);
+  assert.equal(W01.namesPractice(c1.text, OPW), false, 'names no practice');
+  assert.ok(W01.isGenericConsent({ consent_text_version: c1.consent_version }), 'recorded as generic: disclosure before routing');
+  for (const c of SPEC.custom_disclaimer.checkboxes) assert.equal([...c.text].length, c.chars);
 });
 
 // ------------------------------------------------------------------------------------------- normalisation
@@ -117,7 +133,8 @@ test('normaliseLeadAd: every option, as its key or its label, maps to the /start
 test('normaliseLeadAd on the fixtures: keys, labels, a hand-built form (Meta field names + checkbox keys), consent and ads ticks', () => {
   const k = W01.normaliseLeadAd(lead('keys_in_band'));
   assert.deepEqual([k.first_name, k.mobile_raw, k.quiz.age_band, k.lead_ad.intent, k.lead_ad.intent_option, k.lead_ad.has_cover, k.help_with], ['Thandi', '+27600000201', '45_50', 'income', 'income', 'unsure', 'disability_income']);
-  assert.deepEqual([k.consent.checked, k.consent.version, k.consent.ads, k.consent.ads_version, k.consent.source], [true, 'CONSENT-NAMED-v5web', true, 'CONSENT-ADS-v2web', 'lead_ad']);
+  assert.deepEqual([k.consent.checked, k.consent.version, k.consent.ads, k.consent.ads_version, k.consent.source], [true, 'CONSENT-GENERIC-v5form', true, 'CONSENT-ADS-v2web', 'lead_ad']);
+  assert.equal(k.consent.text, W01.LEAD_AD_CONSENT_TEXT);
   assert.deepEqual([k.context.leadgen_id, k.context.form_id, k.context.ad_id], ['lg_v2_0201', 'form_v2_01', 'ad_v2_01']);
   const u = W01.normaliseLeadAd(lead('under_35'));
   assert.deepEqual([u.quiz.age_band, u.lead_ad.intent, u.lead_ad.has_cover, u.consent.checked, u.consent.ads], ['lt35', 'life', 'no', true, false], 'ads box unticked -> no ads');
@@ -130,24 +147,30 @@ test('normaliseLeadAd on the fixtures: keys, labels, a hand-built form (Meta fie
 });
 
 // ------------------------------------------------------------------------------------------- consent audit
-test('consent audit: the stored text is the registry text for Mark (pass); an edited text fails', () => {
+test('consent audit: the stored text is the v5form registry text (pass, generic, no practice); an edited text fails', () => {
   const sub = W01.withRegistryText(W01.normaliseLeadAd(lead('keys_in_band')), OPW);
   const reg = W01.consentRegistry(OPW);
-  assert.deepEqual(W01.consentAudit(sub, reg), { version: 'CONSENT-NAMED-v5web', known_version: true, matches_registry: true });
+  assert.deepEqual(W01.consentAudit(sub, reg), { version: 'CONSENT-GENERIC-v5form', known_version: true, matches_registry: true });
   assert.equal(sub.consent.text, SPEC.custom_disclaimer.checkboxes[0].text);
   const d = decideOf(W01.normaliseLeadAd(lead('keys_in_band')));
   assert.equal(d.row.consent_text, SPEC.custom_disclaimer.checkboxes[0].text, 'leads.consent_text = what the form showed');
+  assert.deepEqual([d.row.consent_text_version, d.row.consent_mode, d.row.consent_source], ['CONSENT-GENERIC-v5form', 'generic', 'lead_ad'], 'recorded on intake');
+  assert.ok(d.row.consent_at, 'consent time recorded');
   assert.ok(d.row.consent_ads_at, 'ads box ticked -> consent_ads_at');
   // wrong text: the form shows a different wording than the registry holds for that version
   const edited = { ...sub, consent: { ...sub.consent, text: sub.consent.text.replace('18 or older', '21 or older') } };
   assert.equal(W01.consentAudit(edited, reg).matches_registry, false);
   assert.equal(W01.consentAudit({ ...sub, consent: { ...sub.consent, text: sub.consent.text + ' ' } }, reg).matches_registry, false, 'one extra space fails');
   // a spec drift fails too: the hand-built form must be typed from the registry text
-  assert.notEqual(SPEC.custom_disclaimer.checkboxes[0].text.replace('Oracle Private Wealth', 'Oracle Wealth'), reg['CONSENT-NAMED-v5web']);
-  // a text naming another practice is never handed over to Mark (named mode holds it at the band tap's routing)
-  const other = { ...OPW, practice_name: 'Other Practice', fsp_number: '99999' };
-  const row = W01.decide(W01.withRegistryText(W01.normaliseLeadAd(lead('keys_in_band')), other), ctx()).row;
-  assert.deepEqual(W01.routeExisting({ ...row, budget_band: '1500_plus' }, { brokers: [OPW], now: NOW }), { action: 'held', update: { routing_reason: 'held_consent_names_other_practice' }, notice: null });
+  assert.notEqual(SPEC.custom_disclaimer.checkboxes[0].text.replace('FSCA-authorised', 'authorised'), reg['CONSENT-GENERIC-v5form']);
+  // generic consent names nobody: never handed over before the adviser is named to the lead (disclosure before routing),
+  // whatever the brand's consent mode; once adviser_disclosed is on her timeline for THIS broker, it routes
+  const row = d.row;
+  const rt = W01.routeExisting({ ...row, budget_band: '1500_plus' }, { brokers: [OPW], now: NOW, consent_mode: 'named' });
+  assert.equal(rt.action, 'disclose', 'the adviser is named first (LEADAD-DISCLOSE-v1 session text)');
+  assert.match(rt.disclose.send.text, /Oracle Private Wealth/);
+  const after = W01.routeExisting({ ...row, budget_band: '1500_plus', disclosed: [OPW.id] }, { brokers: [OPW], now: NOW, consent_mode: 'named' });
+  assert.equal(after.action, 'routed', 'named to her -> routed (no held_consent_names_other_practice for a generic consent)');
 });
 
 // ------------------------------------------------------------------------------------------- intake decisions
@@ -213,8 +236,9 @@ test('band tap: in band -> qualified + routed; under 35 -> the same (qualified o
   assert.deepEqual([u2.budget_band, !!u2.qualified_at, u2.stage], ['1500_plus', true, 'qualified'], 'qualified on the band, whatever the age');
   assert.ok(r2.actions.some((a) => a.kind === 'route_and_first_touch'), 'routed to Mark like anyone');
   assert.ok(!r2.actions.some((a) => a.kind === 'send'), 'no close message');
-  // hand-over: routeExisting routes it (no age rule there), W06 sends the intro card
-  const rt = W01.routeExisting({ ...young, budget_band: '1500_plus', consent_ads_at: null }, { brokers: [OPW], now: NOW });
+  // hand-over: routeExisting routes it (no age rule there) once the adviser was named to her (generic consent), W06 sends the intro card
+  assert.equal(W01.routeExisting({ ...young, budget_band: '1500_plus', consent_ads_at: null }, { brokers: [OPW], now: NOW }).action, 'disclose');
+  const rt = W01.routeExisting({ ...young, budget_band: '1500_plus', consent_ads_at: null, disclosed: [OPW.id] }, { brokers: [OPW], now: NOW });
   assert.deepEqual([rt.action, rt.first_touch && rt.first_touch.workflow], ['routed', 'W06']);
 });
 
@@ -243,7 +267,9 @@ test('W02 webhook -> Graph lead -> ingest item -> W01 core: same answers, consen
   assert.deepEqual([ev.valid, ev.leadgen_id, ev.form_id], [true, 'lg_v2_0201', 'form_v2_01']);
   assert.deepEqual(fetched, ['lg_v2_0201']);
   assert.equal(out.action, 'ingest', 'every age passes the W02 backstop now');
-  assert.equal(out.lead.consent.text_version, 'CONSENT-NAMED-v5web');
+  // Instant Form v3: W02 records the consent version AND the exact text the person ticked on intake
+  assert.deepEqual([out.lead.consent.text_version, out.lead.consent.text, out.lead.consent.source, out.lead.consent.given], ['CONSENT-GENERIC-v5form', SPEC.custom_disclaimer.checkboxes[0].text, 'meta_instant_form', true]);
+  assert.ok(out.lead.consent.captured_at, 'when it was ticked (the lead created_time)');
   assert.deepEqual(out.lead.consent.responses, lead('under_35').custom_disclaimer_responses);
   // the real W01 "Lead ad -> submission" node
   const [n] = await runCode(W01WF, 'Lead ad -> submission (w01.normaliseLeadAd + screen)', { items: [out], env: { BRAND_ID: '00000000-0000-4000-8000-0000000005c1' } });
@@ -326,7 +352,7 @@ test('start_here ready: lead ad -> stored UNROUTED like the desktop start-page l
   assert.equal(d.mint_token, false, 'a lead ad has no page response: the token is minted by the start_here send only');
   assert.ok(!d.activities.some((a) => a.activity_type === 'budget_question_pending'));
   assert.ok(d.activities.some((a) => a.activity_type === 'start_page_pending' && a.payload.first_touch === 'start_here'));
-  // consent recorded exactly as on the qualify_budget path (instant-form-spec-v2 mapping unchanged)
+  // consent recorded exactly as on the qualify_budget path (instant-form-spec-v3 mapping)
   for (const k of ['consent_text', 'consent_text_version', 'consent_mode', 'consent_at', 'consent_source', 'consent_ads_at', 'consent_page_url', 'lead_event_id', 'age_band', 'work_cover'])
     assert.deepEqual(d.row[k], old.row[k], k);
   assert.equal(d.row.consent_text, SPEC.custom_disclaimer.checkboxes[0].text);
@@ -338,9 +364,11 @@ test('start_here ready: lead ad -> stored UNROUTED like the desktop start-page l
   // without the gate: the old path, unchanged
   assert.deepEqual([old.outcome, old.row.routing_reason, old.row.conv_state.state, old.first_touch.workflow, old.first_touch.op], ['budget_pending', 'held_budget_pending', 'q_budget', 'W03', 'ask_budget']);
   assert.deepEqual(decideOf(sub, ctx({ start_here: false })), old);
-  // a form that still carries a band (older form) is judged at intake as before: the gate changes nothing there
+  // a form that still carried a band (older form) is judged at intake: with the v3 generic consent it is never routed before
+  // the adviser is named to the lead (held_disclosure_pending, nothing to the broker); the gate changes nothing there
   const banded = decideOf({ ...sub, quiz: { ...sub.quiz, budget_band: '1500_plus' } }, ctx({ start_here: true }));
-  assert.deepEqual([banded.outcome, banded.first_touch.workflow], ['accepted', 'W06']);
+  assert.deepEqual([banded.outcome, banded.row.routing_reason, banded.row.broker_id, banded.first_touch], ['held', W01.DISCLOSURE_PENDING, null, null]);
+  assert.deepEqual(decideOf({ ...sub, quiz: { ...sub.quiz, budget_band: '1500_plus' } }, ctx({ start_here: false })).row.routing_reason, W01.DISCLOSURE_PENDING);
 });
 
 test('start_here send: decided shape, lt1 token minted for the lead and ONLY in the URL button; Twilio {1: first name, 2: token}, no Body; DRY_RUN_SENDS honoured', () => {

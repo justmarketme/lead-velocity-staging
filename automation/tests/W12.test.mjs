@@ -53,6 +53,9 @@ const onlineSys = {
   },
 };
 const sys = MODE === 'online' ? onlineSys : offlineSys;
+// A weekday moment inside the CPA contact hours (Thu 15 Oct 2026, 12:00 SAST): follow-ups computed "now" send at once.
+const IN_HOURS = '2026-10-15T12:00:00+02:00';
+const IN_HOURS_MS = ms(IN_HOURS);
 
 // ============================================================================================
 // Tests
@@ -116,7 +119,7 @@ test('W12 L03 timing (R6-03): lead "No, not yet" waits for the broker until brok
   assert.equal(att.outcome, 'attended'); assert.equal(att.dispute_status, 'open'); assert.equal(att.lead_message, null, 'no thank-you, no apology');
   const resch = resolveOutcome({ ...base, brokerMark: 'rescheduled' }, ms(end) + H);
   assert.equal(resch.outcome, 'rescheduled'); assert.equal(resch.dispute_status, 'open'); assert.equal(resch.lead_message, null);
-  assert.ok(!R.followUps(resch, { booking_id: 'b', lead_id: 'x' }, 'o1').some((f) => f.fu === 'w10' || f.fu === 'send'), 'nothing to the lead until KG decides');
+  assert.ok(!R.followUps(resch, { booking_id: 'b', lead_id: 'x' }, 'o1', undefined, IN_HOURS_MS).some((f) => f.fu === 'w10' || f.fu === 'send'), 'nothing to the lead until KG decides');
   const ns = resolveOutcome({ ...base, brokerMark: 'no_show' }, ms(end) + H);
   assert.equal(ns.outcome, 'disputed'); assert.equal(ns.lead_message, null);
   const un = resolveOutcome({ ...base, brokerMark: 'attended', disposition: 'unreachable' }, ms(end) + H);
@@ -177,7 +180,7 @@ test(`W12 [${MODE}] sides disagree -> console queue, never an automatic replacem
   // I-50f: CAPI Attended is held (emitted nowhere) until KG decides; the console note says so (attribution-analyst)
   assert.deepEqual(b.capi, []);
   assert.deepEqual(b.capi_held, ['Attended']);
-  const fu = R.followUps(b, { booking_id: 'bk', lead_id: 'x', broker_mark: 'attended', reach: 'no' }, 'o1');
+  const fu = R.followUps(b, { booking_id: 'bk', lead_id: 'x', broker_mark: 'attended', reach: 'no' }, 'o1', undefined, IN_HOURS_MS);
   assert.ok(!fu.some((f) => f.fu === 'capi'), 'no CAPI Attended on an Attended-vs-No conflict');
   assert.match(fu.find((f) => f.fu === 'alert').note, /CAPI Attended held until KG decides/);
   const plain = resolveOutcome({ ...base, brokerMark: 'attended', reach: 'yes' }, ms('2026-10-15T12:00:00+02:00'));
@@ -222,11 +225,12 @@ const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: 
 const sweep = async (row, now) => (await runCode(WF, 'Decide (w12.sweepItems)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
 // Follow-up claim chain (19 Oct 2026): Claim source (adds the query params) -> Claim W12 follow-ups (a row = claim won)
 // -> Claimed follow-ups. won=false runs the last node as n8n does when the claim insert returned nothing.
-const claimed = async (claimItem, won = true) => {
+const claimed = async (claimItem, won = true, now = IN_HOURS) => {
   const src = (await runCode(WF, 'Claim source', { json: claimItem })).json;
-  return (await runCode(WF, 'Claimed follow-ups (w12.claimedFollowUps)', { items: [won ? { id: 'act_claim' } : {}], refs: { 'Claim source': src } })).map((x) => x.json);
+  return (await runCode(WF, 'Claimed follow-ups (w12.claimedFollowUps)', { items: [won ? { id: 'act_claim' } : {}], refs: { 'Claim source': src, 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
 };
-const follow = async (item, outcomeId) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item } })).map((x) => x.json);
+// now = the workflow clock (Classify node): the lead's thank-you / apology follow the contact hours
+const follow = async (item, outcomeId, now = IN_HOURS) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item, 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
 
 test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes require(\'lv-automation\').w12, id smc-w12', () => {
   assert.equal(WF.name, 'W12 Outcome, disposition & feedback (DRAFT pending GATE-TEST-W12)');
@@ -390,7 +394,7 @@ const WINDOW_CLOSES = ms(END) + 30 * MIN + 2 * H;
 test('I-51b (b): Attended waits for the lead (answer or the 2.5-h window), then goes with the same event_id; never before', () => {
   const early = resolveOutcome({ ...GATE_BASE, brokerMark: 'attended', reach: null }, ms(END) + 20 * MIN);
   assert.deepEqual(early.capi, []); assert.deepEqual(early.capi_held, ['Attended']); assert.equal(early.capi_gate.reason, 'awaiting_lead');
-  const park = R.followUps(early, { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END }, 'o1').find((f) => f.fu === 'capi_hold');
+  const park = R.followUps(early, { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END }, 'o1', undefined, IN_HOURS_MS).find((f) => f.fu === 'capi_hold');
   assert.deepEqual([park.booking_id, park.event_id, park.reason], ['bk', 'evt_x_attended', 'awaiting_lead']);
   const held = { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END, event_id: 'evt_x_attended', outcome_outcome: 'attended' };
   assert.deepEqual(R.releaseHeld(held, WINDOW_CLOSES - 1), [], 'still holding one ms before the window closes');
@@ -426,7 +430,7 @@ test('I-51b (c): Attended + unreachable never sends Attended (any reach, any tim
   for (const reach of [null, 'yes', 'no']) {
     const r = resolveOutcome({ ...GATE_BASE, brokerMark: 'attended', reach, disposition: 'unreachable' }, WINDOW_CLOSES + H);
     assert.deepEqual(r.capi, [], `reach ${reach}`); assert.equal(r.capi_dropped, 'unreachable_disposition');
-    const fu = R.followUps(r, { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END }, 'o1');
+    const fu = R.followUps(r, { booking_id: 'bk', lead_id: 'x', brand_id: 'b', broker_id: 'br', slot_end: END }, 'o1', undefined, IN_HOURS_MS);
     assert.ok(!fu.some((f) => f.fu === 'capi'));
     assert.deepEqual(fu.filter((f) => f.fu === 'capi_release').map((f) => [f.decision, f.reason]), [['drop', 'unreachable_disposition']]);
   }
@@ -440,7 +444,7 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
   assert.equal(ops.indexOf('reject'), 6); assert.ok(ops.includes('kg_decision'));
   const fus = node('Follow-up').parameters.rules.values.map((v) => v.outputKey);
-  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release', 'send_skipped']);
+  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release', 'send_skipped', 'send_hold']);
   assert.match(node('Park held CAPI Attended (w12:capi_hold)').parameters.query, /'w12:capi_hold:' \|\| \$4::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING/);
   assert.match(node('Claim CAPI release (once per booking, logs the reason)').parameters.query, /'w12:capi_release:'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
   assert.match(node('Record KG decision (w12:kg_decision, first wins)').parameters.query, /'w12:kg_decision:' \|\| a\.id::text/);
@@ -598,10 +602,10 @@ test('W12 broker with no WhatsApp number: outcome check, nudge and disposition a
 test('W12 lead with no phone: the thank-you is skipped under send_skipped:{key} (never looks sent), no escalation', () => {
   const fx = lead('L01');
   const row = mrow(fx, { phone: null, broker_mark: 'attended', reach: 'yes' });
-  const sk = R.followUps({ outcome: 'attended', lead_message: 'attended_thanks', capi: [] }, row, 'o1').find((x) => x.fu === 'send_skipped');
+  const sk = R.followUps({ outcome: 'attended', lead_message: 'attended_thanks', capi: [] }, row, 'o1', undefined, IN_HOURS_MS).find((x) => x.fu === 'send_skipped');
   assert.deepEqual([sk.skip.to, sk.skip.reason, sk.skip.key], ['lead', 'no_lead_phone', 'send_skipped:w12:attended_thanks:bkg_L01']);
   assert.equal(sk.alert, undefined);
-  const ap = R.followUps({ outcome: 'broker_no_show', lead_message: 'broker_no_show_apology', alerts: [] }, row, 'o2').find((x) => x.fu === 'send_skipped');
+  const ap = R.followUps({ outcome: 'broker_no_show', lead_message: 'broker_no_show_apology', alerts: [] }, row, 'o2', undefined, IN_HOURS_MS).find((x) => x.fu === 'send_skipped');
   assert.equal(ap.skip.key, 'send_skipped:w12:apology:bkg_L01', 'w12:apology:{id} stays unwritten: the late-mark check reads it as "apology sent"');
 });
 
@@ -657,7 +661,7 @@ const prow = (over = {}) => ({ outcome_id: 'out_p', outcome: 'attended', disposi
   appointment_date: '2026-10-15T10:00:00+02:00', slot_end: PEND, first_name: 'Thandi', last_name: 'N', phone: '+27600000009', language: 'en', opted_out_at: null,
   adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, reach: null, ...over });
 const pat = (min) => ms(PEND) + min * MIN;
-const fus = (c) => R.claimedFollowUps(c);
+const fus = (c) => R.claimedFollowUps(c, IN_HOURS_MS);
 const kinds = (c) => fus(c).map((x) => x.fu).sort();
 
 test('Portal attended: thank-you + W29 at once; CAPI Attended goes through the I-51b gate (held until the lead answered or her window closed)', () => {

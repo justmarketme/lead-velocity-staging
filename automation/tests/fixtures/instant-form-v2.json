@@ -2,7 +2,7 @@
   "_meta": {
     "what": "Meta instant form v2 (deliverables/media-buyer/instant-form-spec-v2.json): the leadgen webhook Meta POSTs to W02, and the Graph lead W02 then fetches (GET /{leadgen_id}?fields=...,field_data,...,custom_disclaimer_responses). Synthetic people only; numbers +27 60 000 02xx (clear of the seed's 00xx and align-fixture's 01xx).",
     "shapes": "webhook = the Page 'leadgen' change (developers.facebook.com/docs/graph-api/webhooks/reference/page/#leadgen). graph_leads.* = the Lead node: field_data [{ name, values }] (a multiple-choice answer arrives as its option text), custom_disclaimer_responses [{ checkbox_key, is_checked: '1' | '' }] (developers.facebook.com/docs/marketing-api/guides/lead-ads/retrieving).",
-    "used_by": "automation/tests/W02-instant-form-v2.test.mjs"
+    "used_by": "automation/tests/W02-instant-form-v3.test.mjs (v2-shaped Graph leads: a lead that still carries a cover answer is read as before; the consent version is the live form's, CONSENT-GENERIC-v5form)"
   },
   "webhook": {
     "object": "page",

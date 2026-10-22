@@ -1,6 +1,7 @@
 // automation/lib/contact-hours.mjs  -  the ONE contact-hours rule for direct-marketing WhatsApp sends (smoke test #13, 21 Oct 2026).
 // Imported by lib/w08.mjs (unbooked + Start here nudges), lib/w01.mjs (budget reminder, low-budget close), lib/w05.mjs (the
-// hold-released rebook nudge) and lib/w09.mjs (booking reminders, only when BOOKING_REMINDERS_USE_MARKETING_HOURS is true).
+// hold-released rebook nudge), lib/w09.mjs (booking reminders, only when BOOKING_REMINDERS_USE_MARKETING_HOURS is true) and
+// lib/w12.mjs (22 Oct 2026: the post-call reach_check, attended_thanks and the Schedule D apology + its W10 rebooking).
 // Node 18+, zero dependencies. The holiday list is data/za-public-holidays.json, the same file W04 slots read.
 //
 // Consumer Protection Act s12 / Regulation 4 (direct marketing contact hours), the same window the voice callbacks use

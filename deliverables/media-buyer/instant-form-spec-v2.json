@@ -1,6 +1,7 @@
 {
   "_meta": {
     "title": "SortMyCover Meta Instant Form v2 (A/B arm: Instant Form vs click-to-WhatsApp)",
+    "superseded_by": "deliverables/media-buyer/instant-form-spec-v3.json (22 Oct 2026, SOCIAL-AUDIT row 22): generic consent CONSENT-GENERIC-v5form, no practice name or FSP number, no cover question. Do NOT build this v2 form.",
     "date": "2026-10-18",
     "supersedes": "deliverables/media-buyer/instant-form-spec.json (5 Oct 2026: said \"free\" and \"licensed adviser\", routed out under-35 / over-50, asked call_ok and bond/children)",
     "build": "Built by hand in Ads Manager from this file (SortMyCover Page > Instant forms > Create form). Type every string exactly as given; \"chars\" is its length. Meta publishes no character limits for instant-form fields: the builder shows a live counter and refuses anything too long. If the builder ever truncates a string, stop and report it (never shorten the consent text).",
