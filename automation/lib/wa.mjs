@@ -107,6 +107,6 @@ export const touchesLastContact = (to, wamid) => to === 'lead' && typeof wamid =
  * number sits in it), so a block heuristic could silence a real client. Only the EXACT numbers in env SYNTHETIC_TEST_NUMBERS
  * (comma / space separated E.164, the ones the harness uses, e.g. wa-smoke.sh FROM) count; unset = none.
  */
-const digitsOf = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+export const digitsOf = (v) => String(v == null ? '' : v).replace(/\D/g, ''); // also lib/routing-split.mjs (SMC_TEST_PHONES)
 export const syntheticNumbers = (env = {}) => new Set(String((env && env.SYNTHETIC_TEST_NUMBERS) || '').split(/[\s,;]+/).map(digitsOf).filter((d) => d.length >= 9));
 export const isSyntheticNumber = (v, env = {}) => { const d = digitsOf(v); return d.length >= 9 && syntheticNumbers(env).has(d); };

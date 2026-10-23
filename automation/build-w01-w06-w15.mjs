@@ -162,10 +162,13 @@ const s = $('Guard passed?').first().json;
 const resp = s.need_lookup ? $input.first().json : null;
 const line_type = s.lookup_override ? L.lineTypeOf(s.lookup_override) : resp ? L.lineTypeFromLookup(resp) : (s.ctx.prior && s.ctx.prior.line_type) || 'unknown';
 const brokers = s.ctx.brokers || [];
-const routable = brokers.find((b) => b.status === 'active' && b.routing_on !== false);
+// test lead -> test practices only, real lead -> real advisers only (Jono, 23 Oct 2026; env SMC_TEST_BROKER_IDS, lib/routing-split.mjs).
+// is_synthetic exactly as the row stores it below; null pool (env unset) = no filter.
+const pool = L.routingPool({ phone: s.mobile, is_synthetic: !!s.sub.is_synthetic && s.test_hooks }, $env);
+const routable = brokers.find((b) => L.inPool(b, pool) && b.status === 'active' && b.routing_on !== false);
 const sub = L.withRegistryText(s.sub, routable); // lead-ad registry text gets the practice once the broker is known
 const decision = L.decide(sub, { mobile: s.mobile, line_type, prior: s.ctx.prior, suppressed: s.ctx.suppressed, brokers, brand_id: s.ctx.brand_uuid,
-  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check,
+  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check, pool,
   start_here: L.startHereReady($env) }); // lead ad -> /start/ (start_here template) once Twilio has its SID + LEAD_TOKEN_SECRET
 if (decision.row) decision.row.is_synthetic = !!s.sub.is_synthetic && s.test_hooks;
 const audit = L.consentAudit(sub, L.consentRegistry(routable || {}));
@@ -291,6 +294,7 @@ return out;`));
        $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.consent_text_version, l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
+               l.is_synthetic, -- test / real routing pool (lib/routing-split.mjs, with the phone)
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed,
                -- lead-ad disclosure: the brokers this lead was already told about (W01 / W39 'adviser_disclosed')
                (SELECT COALESCE(jsonb_agg(DISTINCT a.payload->>'broker_id'), '[]'::jsonb) FROM public.lead_activities a
@@ -308,8 +312,10 @@ return out;`));
 for (const it of $input.all()) {
   // lead-ad and generic-consent leads: no hand-over before the adviser is named (action 'disclose' -> the branch below; window
   // closed -> held_disclosure_pending). routeExisting enforces the generic rule itself; require_disclosure adds the lead-ad one.
+  // pool: a test lead routes only to a test practice, a real lead never to one (SMC_TEST_BROKER_IDS; unset = no filter)
   const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,
-    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env) });
+    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env),
+    pool: L.routingPool(it.json.lead, $env) });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
 }
 return out;`));
@@ -336,7 +342,8 @@ LIMIT 1;`,
 `const x = $('Load CTWA lead + brokers').first().json;
 const logged = ($input.first() && $input.first().json && $input.first().json.broker_id) || null;
 const r = L.routeAfterDisclosure(x.lead, { brokers: x.brokers || [], now: Date.now(), first_touch: x.first_touch !== false,
-  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env) }, logged);
+  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env),
+  pool: L.routingPool(x.lead, $env) }, logged);
 return [{ json: { lead_id: x.lead && x.lead.id, r, routed: r.action === 'routed', update: r.update || null } }];`));
   n.push(ifTrue('Routed or held? (write it)', pos(4, 7), "['routed', 'held'].includes($json.r.action)"));
   n.push(pg('Write routing (only if not routed yet) + timeline', pos(5, 7),

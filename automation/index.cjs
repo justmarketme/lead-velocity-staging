@@ -40,6 +40,7 @@ const MODULES = {
   w20ms: './lib/w20-ms.mjs',
   w29: './lib/w29.mjs',
   wa: './lib/wa.mjs',
+  routingSplit: './lib/routing-split.mjs', // 23 Oct 2026: test leads -> test practices only, real leads -> real advisers only (W03 Load context)
   breachDetect: './lib/breach-detect.mjs', // W34 B2 breach-report detector, shared by howzit@ mail (W34) and broker WhatsApp (W07)
   // sub-workflows SUB-*.json (LOCAL-STAGING §7, I-48f)
   subWhatsappSend: './lib/sub-whatsapp-send.mjs',

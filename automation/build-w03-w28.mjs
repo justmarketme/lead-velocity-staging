@@ -65,7 +65,10 @@ function buildW03() {
   // rebuilds the Cloud API message object that ctwa/w03.js step() reads, so the tested logic is unchanged.
   n.push(node('Called by W07 (CTWA lead)', 'executeWorkflowTrigger', 1.1, [0, 0], { inputSource: 'passthrough' }));
   n.push(code('W07 hand-off -> Cloud API message', [220, 0],
-`const out = [];
+`// test / real routing pool for "Load context" (Jono, 23 Oct 2026; lib/routing-split.mjs): with SMC_TEST_BROKER_IDS set a test
+// number (SYNTHETIC_TEST_NUMBERS, SMC_TEST_PHONES) gets only a test practice, any other number never one; unset = no filter
+const TR = require('lv-automation').routingSplit;
+const out = [];
 for (const it of $input.all()) {
   const j = it.json || {};
   const g = j.msg || {};
@@ -79,7 +82,9 @@ for (const it of $input.all()) {
   // I-47a: a W07 delegation carries the intent-slot NLU slots (typed answer); I-48b: msg.hops = hand-offs so far.
   const d = j.delegate && typeof j.delegate === 'object' ? j.delegate : null;
   const typed = d && d.to === 'W03' ? { slots: d.slots || {}, actions: d.actions || (d.action ? [d.action] : []) } : null;
-  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id || (j.metadata && j.metadata.phone_number_id) || null, mobile: '+' + m.from, profile_name: j.profile_name || g.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), lead_id: (j.lead && j.lead.id) || null, typed, hops: Number(g.hops) || 0 } });
+  const pool = TR.routingPool({ phone: '+' + m.from, is_synthetic: j.lead && j.lead.is_synthetic }, $env);
+  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id || (j.metadata && j.metadata.phone_number_id) || null, mobile: '+' + m.from, profile_name: j.profile_name || g.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), lead_id: (j.lead && j.lead.id) || null, typed, hops: Number(g.hops) || 0,
+    is_test: !!(pool && pool.test), test_broker_ids: pool ? pool.test_broker_ids.join(',') : '' } });
 }
 return out;`));
   n.push(pg('Load context', [1340, 200],
@@ -88,6 +93,10 @@ return out;`));
 -- pre-consent thread (public.wa_threads, needs_human schema pass 3).
 -- I-47b: always one row; brand_id NULL = no brand for this receiving number -> W03 step logs it + W22 signal.
 -- I-47a: lead = the open lead W07 passed (or W03's own 90-day match), so a q_* answer without a wa_thread is qualified.
+-- 23 Oct 2026 (Jono; lib/routing-split.mjs): $5 = SMC_TEST_BROKER_IDS (the test practices, comma separated; '' = no filter).
+-- A test lead ($4: a SYNTHETIC_TEST_NUMBERS / SMC_TEST_PHONES number, or an is_synthetic open lead) gets only a test practice,
+-- any other lead never one; nobody in its pool -> broker NULL, the normal "no broker" path. Ids compared as text (a typo in the
+-- env list can never break the query).
 SELECT br.id AS brand_id,
        (SELECT row_to_json(k) FROM (
           SELECT b.id AS broker_id, b.practice_name, b.fsp_number, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name,
@@ -96,6 +105,7 @@ SELECT br.id AS brand_id,
            WHERE b.brand_id = br.id AND b.active AND b.routing_on AND NOT b.bookings_paused AND b.status = 'active'
              -- capacity: only a broker with an open paid SortMyCover lead order (the database enforces it again at routing)
              AND EXISTS (SELECT 1 FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = br.id AND c.open)
+             AND (coalesce($5, '') = '' OR (b.id::text = ANY (string_to_array(lower($5), ','))) = (coalesce($4, '') = 'true' OR coalesce(ol.is_synthetic, false)))
            ORDER BY b.next_free_slot_at NULLS LAST, b.created_at
            LIMIT 1) k) AS broker,
        ol.id AS existing_open_lead_id,
@@ -114,14 +124,14 @@ SELECT br.id AS brand_id,
   FROM (SELECT 1) one
   LEFT JOIN public.brands br ON br.phone_number_id = $1
   LEFT JOIN LATERAL (
-       SELECT l.id FROM public.leads l
+       SELECT l.id, l.is_synthetic FROM public.leads l
         WHERE l.brand_id = br.id
           AND (l.id = nullif($3, '')::uuid OR l.dedupe_hash = public.smc_hash_contact($2))
           AND l.created_at > now() - interval '90 days' AND l.opted_out_at IS NULL
           AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'unbooked_closed', 'opted_out')
         ORDER BY (l.id = nullif($3, '')::uuid) DESC, l.created_at DESC LIMIT 1) ol ON true
  LIMIT 1;`,
-    '={{ [ $json.phone_number_id || "", $json.mobile, $json.lead_id || "" ] }}'));
+    '={{ [ $json.phone_number_id || "", $json.mobile, $json.lead_id || "", String($json.is_test === true), $json.test_broker_ids || "" ] }}'));
   n.push(code('W03 step', [1560, 200], W3 + LT +
 `// /start/ page (brand flag start_page): the link only goes out when the transport can carry it (Meta interactive cta_url, or the
 // smc_start_cta Content SID under Twilio) and a lead token can be minted for the lead this tap creates; otherwise the tap path.
