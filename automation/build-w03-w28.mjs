@@ -138,8 +138,10 @@ SELECT br.id AS brand_id,
 const PROVIDER = String($env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
 let SIDS = {}; try { SIDS = JSON.parse($env.TWILIO_CONTENT_SIDS || '{}') || {}; } catch (e) { SIDS = {}; }
 // smoke test #16 (21 Oct 2026): a test number is stored as a synthetic lead. Review 21 Oct: only the exact numbers in env
-// SYNTHETIC_TEST_NUMBERS (lib/wa.mjs isSyntheticNumber; there is no reserved test mobile range in South Africa)
-const SYNTHETIC = new Set(String($env.SYNTHETIC_TEST_NUMBERS || '').split(/[\\s,;]+/).map((x) => x.replace(/[^0-9]/g, '')).filter((x) => x.length >= 9));
+// SYNTHETIC_TEST_NUMBERS (lib/wa.mjs isSyntheticNumber; there is no reserved test mobile range in South Africa). 23 Oct 2026: the
+// lib itself, so this flag and the routing split (lib/routing-split.mjs) read the list the same way (E.164 digits). A tester's
+// number (SMC_TEST_PHONES) is NOT stored synthetic: is_synthetic dry-runs sends, and the testers' messages must really send.
+const WAL = require('lv-automation').wa;
 const out = [];
 for (const [i, item] of $input.all().entries()) {
   const ctxRow = item.json;
@@ -150,7 +152,7 @@ for (const [i, item] of $input.all().entries()) {
   if (brand.start_page && (PROVIDER !== 'twilio' || !!SIDS.smc_start_cta)) {
     try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
   }
-  const synthetic = SYNTHETIC.has(String(m.mobile || '').replace(/[^0-9]/g, ''));
+  const synthetic = WAL.isSyntheticNumber(m.mobile, $env);
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
     broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: synthetic,
     lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });

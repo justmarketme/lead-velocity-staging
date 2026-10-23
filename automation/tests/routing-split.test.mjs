@@ -223,3 +223,61 @@ test('W03 hand-off node -> Load context parameters: is_test + the test ids; SQL 
   assert.match(q, /AND \(coalesce\(\$5, ''\) = '' OR \(b\.id::text = ANY \(string_to_array\(lower\(\$5\), ','\)\)\) = \(coalesce\(\$4, ''\) = 'true' OR coalesce\(ol\.is_synthetic, false\)\)\)/);
   assert.match(q, /SELECT l\.id, l\.is_synthetic FROM public\.leads l/);
 });
+
+// ============================================================================================ review 23 Oct 2026
+// A tester or smoke number typed in SA local form ('082 ...') or with 00, or an id list with quotes, must not silently flip a
+// lead or a broker to the other side; the W03 synthetic flag reads SYNTHETIC_TEST_NUMBERS the same way; CAPI skips testers.
+test('review: SA local / 00 / spaced numbers on either list or on the lead match the same E.164 number, nothing wider', async () => {
+  const { e164Digits, isSyntheticNumber } = await import('../lib/wa.mjs');
+  for (const [v, d] of [['0825550199', '27825550199'], ['082 555 0199', '27825550199'], ['0027825550199', '27825550199'], ['+27825550199', '27825550199'],
+    ['whatsapp:+27825550199', '27825550199'], ['825550199', '825550199'], ['08255501990', '08255501990'], ['', '']]) assert.equal(e164Digits(v), d, v);
+  for (const list of ['0825550199', '082 555 0199', '0027825550199', '+27 82 555 0199', '27825550199', '082 555 0199; 0830000000', '0825550199 0830000000']) {
+    const env = { SMC_TEST_BROKER_IDS: TEST_ID, SMC_TEST_PHONES: list };
+    for (const p of [TESTER, '0825550199', '27825550199']) assert.equal(TR.isTestLead({ phone: p }, env), true, `${list} / ${p}`);
+    assert.equal(TR.isTestLead({ phone: REAL_PHONE }, env), false, `${list}: a real number stays real`);
+    assert.deepEqual(TR.poolBrokers(BOTH, TR.routingPool({ phone: TESTER }, env)).map((b) => b.id), [TEST_ID], `${list}: tester -> test practice, never Mark`);
+  }
+  for (const list of ['0600000921', '060 000 0921', '+27 60 000 0921', '27600000921']) {
+    assert.equal(isSyntheticNumber(SMOKE, { SYNTHETIC_TEST_NUMBERS: list }), true, list);
+    assert.equal(TR.isTestLead({ phone: SMOKE }, { SYNTHETIC_TEST_NUMBERS: list }), true, list);
+  }
+  assert.equal(isSyntheticNumber('+27600000922', { SYNTHETIC_TEST_NUMBERS: '0600000921' }), false, 'exact number only');
+  assert.deepEqual(TR.testPhoneDigits({ SMC_TEST_PHONES: '082 555 0199, +27825550199', SYNTHETIC_TEST_NUMBERS: '0600000921' }), ['27600000921', '27825550199']);
+});
+
+test('review: SMC_TEST_BROKER_IDS with quotes (whole value or each id) still names the test practice', () => {
+  for (const v of [`"${TEST_ID}"`, `'${TEST_ID}'`, `"${TEST_ID},${'0'.repeat(8)}-0000-4000-8000-000000000000"`, `"${TEST_ID}", "x"`]) {
+    assert.equal(TR.isTestBroker({ id: TEST_ID }, { SMC_TEST_BROKER_IDS: v }), true, v);
+    assert.deepEqual(TR.poolBrokers(BOTH, TR.routingPool({ phone: REAL_PHONE }, { SMC_TEST_BROKER_IDS: v })).map((b) => b.id), [REAL_ID], `${v}: real lead -> Mark`);
+  }
+});
+
+test('review: W03 step stores is_synthetic for a SYNTHETIC_TEST_NUMBERS number in any format, never for a tester (their sends are real)', async () => {
+  const require = (await import('node:module')).createRequire(import.meta.url);
+  const W3 = require('../ctwa/w03.js');
+  const b = broker(TEST_ID);
+  const thread = { stage: 'await_consent', origin: { origin: 'ctwa' }, consent: W3.consentFor('named', b), answers: {}, first_at: '2026-10-23T10:00:00+02:00', broker_id: TEST_ID };
+  const ctxRow = { brand_id: BRAND, broker: b, existing_open_lead_id: null, lead: null, suppressed: false, thread, new_lead_id: '11111111-2222-4333-8444-555555555555' };
+  const syn = async (mobile, env) => {
+    const ad = { msg: { from: mobile.slice(1), id: 'RS2', timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, at: '2026-10-23T10:01:00+02:00', mobile, profile_name: 'T', external_id: 'RS2', hops: 0 };
+    const [st] = await runCode(WF03, 'W03 step', { items: [ctxRow], env, refs: { 'W07 hand-off -> Cloud API message': ad } });
+    return st.json.actions.find((a) => a.kind === 'insert_lead').row.is_synthetic;
+  };
+  assert.equal(await syn(SMOKE, { SYNTHETIC_TEST_NUMBERS: '060 000 0921' }), true, 'local-form list entry');
+  assert.equal(await syn(SMOKE, ON), true);
+  assert.equal(await syn(TESTER, ON), false, 'a tester is a test lead for routing, but never stored synthetic (that would dry-run his sends)');
+  assert.equal(await syn(REAL_PHONE, ON), false);
+  assert.match(WF03.nodes.find((n) => n.name === 'W03 step').parameters.jsCode, /WAL\.isSyntheticNumber\(m\.mobile, \$env\)/);
+});
+
+test('review: SUB-capi-send skips a tester\'s lead like a synthetic one (CAPI_SYNTHETIC_TEST_EVENT_CODE still marks it a test event)', async () => {
+  const CAPI = await import('../lib/sub-capi-send.mjs');
+  const n = CAPI.normalise({ event_name: 'Lead', event_id: 'l:rs', action_source: 'system_generated', lead_id: '00000000-0000-0000-0000-0000000000a9', brand_id: BRAND });
+  const ctx = (phone) => ({ found: true, consent_ads_at: '2026-10-23T10:00:00Z', phone, pixel_id: 'px', dataset_id: 'ds', duplicate: false, is_synthetic: false });
+  const env = { DRY_RUN_SENDS: 'false', SMC_TEST_PHONES: '082 555 0199' };
+  assert.equal(CAPI.build(n, ctx(TESTER), env).reason, 'synthetic_lead');
+  assert.equal(CAPI.build(n, ctx(REAL_PHONE), env).action, 'send', 'a real lead still goes');
+  assert.equal(CAPI.build(n, ctx(TESTER), { DRY_RUN_SENDS: 'false' }).action, 'send', 'SMC_TEST_PHONES unset: unchanged');
+  const marked = CAPI.build(n, ctx(TESTER), { ...env, CAPI_SYNTHETIC_TEST_EVENT_CODE: 'TESTE2E' });
+  assert.equal(marked.action, 'send'); assert.equal(marked.body.test_event_code, 'TESTE2E');
+});

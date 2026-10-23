@@ -18,6 +18,12 @@
 // POPIA data minimisation: the SQL returns only a first name, the last 3 digits of the number, attribution labels, the routed
 // practice and, for a booking, its time and method. Never email, the full number, ID numbers or message text; format()
 // masks again in case a wider row ever reaches it.
+// Test / real split (23 Oct 2026, lib/routing-split.mjs): both rows of the split carry the same practice name, so the SQL
+// also returns two booleans, test_lead (is_synthetic, or the number is on SYNTHETIC_TEST_NUMBERS / SMC_TEST_PHONES, compared
+// inside the database) and test_practice (the broker is on SMC_TEST_BROKER_IDS; null while the rule is off), plus
+// split_unknown_ids (an id on SMC_TEST_BROKER_IDS is no broker: the split cannot be trusted). line() labels the side and
+// flags an item on the wrong side; format() puts the misconfiguration warning on top.
+import { testBrokerIds, testPhoneDigits } from './routing-split.mjs';
 
 export const SMC_BRAND_ID = '6e532b05-984f-4906-90a0-a5257cde328c';
 export const NOTIFY_URL = 'https://emmadoesit.cloud/api/notify';
@@ -61,7 +67,7 @@ export function prune(seen = {}, watermarkMs) {
  *   { action: 'idle', next }                               nothing new: the watermark advances now
  *   { action: 'send', next, items, keys, message, request } new items: `next` is committed only after a 2xx (commit())
  */
-export function plan(state = {}, rows = [], dbNow) {
+export function plan(state = {}, rows = [], dbNow, opts = {}) {
   const now = ms(dbNow);
   if (!Number.isFinite(now)) throw new Error('w38.plan: no db_now from the query');
   const arr = typeof rows === 'string' ? JSON.parse(rows) : rows; // jsonb arrives parsed; a text cast would not
@@ -79,7 +85,7 @@ export function plan(state = {}, rows = [], dbNow) {
   for (const r of fresh) seen[keyOf(r)] = Number.isFinite(ms(r.created_at)) ? ms(r.created_at) : now;
   const next = { watermark: new Date(wm).toISOString(), seen: prune(seen, wm) };
   if (!fresh.length) return { action: 'idle', next };
-  const message = format(fresh);
+  const message = format(fresh, opts); // opts.split_unknown_ids: the misconfiguration warning line
   return { action: 'send', next, items: fresh.length, keys: fresh.map(keyOf), message, request: requestBody(message) };
 }
 
@@ -141,13 +147,20 @@ export function sourceText(r = {}) {
   return origin && detail ? `${origin} (${detail})` : origin || detail;
 }
 
-const practiceText = (r) => { const p = String(r.practice || '').replace(/\s+/g, ' ').trim().slice(0, 60); return p || 'not routed'; };
+const isTestItem = (r) => r.synthetic === true || r.test_lead === true;
+/** Which side of the test / real split the practice is on (only while the rule is on: test_practice is then a boolean). */
+const sideText = (r) => (!r.practice || typeof r.test_practice !== 'boolean' ? ''
+  : (r.test_practice ? ' (TEST practice)' : ' (real adviser)') + (r.test_practice !== isTestItem(r) ? ' [WRONG SIDE of the test/real split: check it now]' : ''));
+const practiceText = (r) => { const p = String(r.practice || '').replace(/\s+/g, ' ').trim().slice(0, 60); return (p || 'not routed') + sideText(r); };
+export const SPLIT_WARNING = '! Test/real routing split: SMC_TEST_BROKER_IDS names an id that is no broker. Check the n8n .env now.';
+/** The split's env lists as query parameters ($3 test broker ids, $4 test numbers as E.164 digits; '' = none). */
+export const splitParams = (env = {}) => ({ test_broker_ids: [...testBrokerIds(env)].join(','), test_phones: testPhoneDigits(env).join(',') });
 
 /** One line per item. Only the allowed fields are ever read. */
 export function line(r = {}) {
   const tail = phoneTail(r.phone_last3 != null ? r.phone_last3 : r.phone);
   const phone = tail ? `phone ends ${tail}` : 'no number';
-  const test = r.synthetic === true ? ' [test data]' : '';
+  const test = isTestItem(r) ? ' [test data]' : '';
   if (r.kind === 'booking') {
     const what = r.rebooked ? 'Rebooking' : 'Booking';
     const held = r.status === 'pending_verification' ? ' (held until the email is verified)' : '';
@@ -161,14 +174,14 @@ export function line(r = {}) {
 }
 
 /** The message for a tick's new items (oldest first), plain text, at most MAX_LINES lines and MAX_CHARS characters. */
-export function format(items = []) {
+export function format(items = [], opts = {}) {
   const leads = items.filter((r) => r.kind === 'lead').length;
   const bookings = items.length - leads;
   const n = (k, one, many) => `${k} new ${k === 1 ? one : many}`;
   const head = `SortMyCover: ${[leads ? n(leads, 'lead', 'leads') : null, bookings ? n(bookings, 'booking', 'bookings') : null].filter(Boolean).join(', ')}`;
   const lines = items.slice(0, MAX_LINES).map(line);
   if (items.length > MAX_LINES) lines.push(`...and ${items.length - MAX_LINES} more (see the CRM)`);
-  let text = [head, ...lines].join('\n');
+  let text = [head, ...(opts && opts.split_unknown_ids === true ? [SPLIT_WARNING] : []), ...lines].join('\n');
   if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS - 20).replace(/\n[^\n]*$/, '') + '\n...(cut, see the CRM)';
   return text;
 }
