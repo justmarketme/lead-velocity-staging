@@ -901,11 +901,14 @@ export function clientEmailResult(res = {}, sent = {}) {
   const body = r.body && typeof r.body === 'object' ? r.body : {};
   const e = sent.smc_email || {};
   if (status >= 200 && status < 300 && body.id) {
-    if (!body.guest_error) return null;
-    // the client's email went; only the guest's copy failed (never names the guest)
+    // smoke #10 (21 Oct 2026): a guest_email was sent but no guest_id came back. Either the guest copy failed (guest_error)
+    // or the deployed function predates the guest change and silently ignored the field (it answered { id } only).
+    if (!e.guest_email || (body.guest_id && !body.guest_error)) return null;
+    const why = body.guest_error ? String(body.guest_error).slice(0, 80) : 'no guest id came back: the deployed smc-client-email may not support guests';
+    // the client's email went; only the guest's copy is missing (never names the guest)
     return { signal_key: 'client_email_failed', scope: `booking:${e.booking_id || 'unknown'}:guest`, severity: 'amber',
-      what: `SortMyCover ${e.kind || 'booking'} email to the booking's guest not sent for booking ${e.booking_id || '?'} (${String(body.guest_error).slice(0, 80)})`,
-      impact: 'The client got the email; the guest did not', first_action: 'Check the smc-client-email function logs and Resend; then resend the guest copy by hand',
+      what: `SortMyCover ${e.kind || 'booking'} email to the booking's guest not sent for booking ${e.booking_id || '?'} (${why})`,
+      impact: 'The client got the email; the guest did not', first_action: 'Check the smc-client-email version and function logs and Resend; then resend the guest copy by hand',
       source: 'W05', lead_id: sent.lead_id || null };
   }
   const reason = r.error ? `error: ${String((r.error && r.error.message) || r.error).slice(0, 120)}` : `HTTP ${status || '?'}${body.error ? ` ${body.error}` : ''}${body.status ? ` (Resend ${body.status})` : ''}${Array.isArray(body.fields) ? ` fields ${body.fields.join(',')}` : ''}`;

@@ -45,11 +45,41 @@ test('the query: columns exist in the migrations; email / full number / message 
   assert.deepEqual(checkSql(workflowSql(WF)), []);
   const q = node(READ).parameters.query.replace(/--[^\n]*/g, '');
   assert.doesNotMatch(q, /email|\bbody\b|message|id_number|last_name|communications|conv_state/i);
-  assert.equal(q.match(/l\.phone/g).length, q.match(/right\(regexp_replace\(coalesce\(l\.phone, ''\), '\[\^0-9\]', '', 'g'\), 3\)/g).length, 'the number only as its last 3 digits');
+  // the number leaves only as its last 3 digits; the test / real split compares it inside the database (a boolean comes back)
+  const last3 = q.match(/right\(regexp_replace\(coalesce\(l\.phone, ''\), '\[\^0-9\]', '', 'g'\), 3\)/g).length;
+  const compared = q.match(/'test_lead', coalesce\(l\.is_synthetic, false\) OR coalesce\(regexp_replace\(regexp_replace\(regexp_replace\(coalesce\(l\.phone, ''\), [^\n]*= ANY \(string_to_array\(nullif\(\$4, ''\), ','\)\), false\)/g).length;
+  assert.equal(compared, 2, 'leads + bookings');
+  assert.equal(q.match(/l\.phone/g).length, last3 + compared);
   assert.match(q, /l\.brand_id = \$1::uuid AND l\.created_at > nullif\(\$2, ''\)::timestamptz/);
   assert.match(q, /a\.brand_id = \$1::uuid AND a\.created_at > nullif\(\$2, ''\)::timestamptz/);
   assert.match(q, new RegExp(`LIMIT ${L.ROW_LIMIT}\\)`));
-  assert.equal(node(READ).parameters.options.queryReplacement, '={{ [ $json.brand_id, $json.since ] }}');
+  assert.match(q, /'test_practice', CASE WHEN coalesce\(\$3, ''\) = '' OR l\.broker_id IS NULL THEN NULL ELSE l\.broker_id::text = ANY \(string_to_array\(\$3, ','\)\) END/);
+  assert.match(q, /'test_practice', CASE WHEN coalesce\(\$3, ''\) = '' OR a\.broker_id IS NULL THEN NULL ELSE a\.broker_id::text = ANY \(string_to_array\(\$3, ','\)\) END/);
+  assert.match(q, /CASE WHEN coalesce\(\$3, ''\) = '' THEN false\s+ELSE \(SELECT count\(\*\) FROM public\.brokers b WHERE b\.id::text = ANY \(string_to_array\(\$3, ','\)\)\) < cardinality\(string_to_array\(\$3, ','\)\) END AS split_unknown_ids/);
+  assert.match(q, /'\^0\(\[0-9\]\{9\}\)\$', '27\\1'\)/, 'SA local 0... -> 27... inside the database (one backslash in the SQL)');
+  assert.equal(node(READ).parameters.options.queryReplacement, '={{ [ $json.brand_id, $json.since, $json.test_broker_ids || "", $json.test_phones || "" ] }}');
+});
+
+test('test / real split (23 Oct 2026): START passes the env lists; lines say the side; wrong side and a bad id list are flagged', async () => {
+  const TEST_ID = 'f688380e-fb68-4bfc-a9ee-4bf37ce76dcc';
+  const env = { ...ON, SMC_TEST_BROKER_IDS: ` "${TEST_ID.toUpperCase()}" `, SMC_TEST_PHONES: '082 555 0199, +27 83 000 0000', SYNTHETIC_TEST_NUMBERS: '+27600000921' };
+  assert.deepEqual(L.splitParams(env), { test_broker_ids: TEST_ID, test_phones: '27600000921,27825550199,27830000000' });
+  assert.deepEqual(L.splitParams({}), { test_broker_ids: '', test_phones: '' });
+  assert.deepEqual(await runCode(WF, START, { env, staticData: {} }),
+    [{ json: { brand_id: L.SMC_BRAND_ID, since: '', test_broker_ids: TEST_ID, test_phones: '27600000921,27825550199,27830000000' } }]);
+  // rule off (test_practice null): the line is exactly as before
+  assert.equal(L.line(lead('l1', 0, { test_practice: null, test_lead: false })), '- Lead: Thandi, WhatsApp ad (ad-new-bond), phone ends 234, routed to SortMyCover test practice');
+  assert.equal(L.line(lead('l1', 0, { test_practice: true, test_lead: true })), '- Lead: Thandi, WhatsApp ad (ad-new-bond), phone ends 234, routed to SortMyCover test practice (TEST practice) [test data]');
+  assert.equal(L.line(lead('l1', 0, { practice: 'Oracle Private Wealth', test_practice: false, test_lead: false })), '- Lead: Thandi, WhatsApp ad (ad-new-bond), phone ends 234, routed to Oracle Private Wealth (real adviser)');
+  assert.match(L.line(lead('l1', 0, { test_practice: true, test_lead: false })), /\(TEST practice\) \[WRONG SIDE of the test\/real split: check it now\]$/, 'a real lead on the test practice');
+  assert.match(L.line(booking('b1', 0, { test_practice: false, synthetic: true })), /\(real adviser\) \[WRONG SIDE of the test\/real split: check it now\] \[test data\]$/, 'a test booking on a real adviser');
+  assert.equal(L.line(lead('l1', 0, { practice: null, test_practice: null, test_lead: true })), '- Lead: Thandi, WhatsApp ad (ad-new-bond), phone ends 234, not routed [test data]');
+  // split_unknown_ids -> the warning under the head line, through the real PLAN node
+  const sd = { watermark: at(0), seen: {} };
+  const p = await runCode(WF, PLAN, { items: [{ db_now: at(60), split_unknown_ids: true, items: [lead('l1', 10)] }], staticData: sd });
+  assert.equal(p[0].json.message.split('\n')[1], L.SPLIT_WARNING);
+  const q = await runCode(WF, PLAN, { items: [{ db_now: at(60), split_unknown_ids: false, items: [lead('l1', 10)] }], staticData: { watermark: at(0), seen: {} } });
+  assert.doesNotMatch(q[0].json.message, /SMC_TEST_BROKER_IDS/);
 });
 
 test('send: POST https://emmadoesit.cloud/api/notify with x-emma-secret from env; body { message, source, title }', () => {
@@ -182,7 +212,7 @@ test('gates: SMC_LEAD_ALERT_ENABLED must be exactly "true"; off drops the state 
     assert.deepEqual(sd, {}, 'state dropped');
   }
   const sd = {};
-  assert.deepEqual(await runCode(WF, START, { env: ON, staticData: sd }), [{ json: { brand_id: L.SMC_BRAND_ID, since: '' } }]);
+  assert.deepEqual(await runCode(WF, START, { env: ON, staticData: sd }), [{ json: { brand_id: L.SMC_BRAND_ID, since: '', test_broker_ids: '', test_phones: '' } }]);
   assert.deepEqual(L.gates({ DRY_RUN_SENDS: 'true', SMC_LEAD_ALERT_ENABLED: 'true' }), { enabled: true, dryRun: true });
 });
 

@@ -4,7 +4,7 @@
 // event_time? }) and the decided shape ({ event_name, event_id, lead_id?, user: { phone, fn?, ln?, external_id?, ip?,
 // ua?, fbc?, fbp? }, custom_data? }). User data from the lead row wins; email is never sent (no `em`, ever).
 import { createRequire } from 'node:module';
-import { isSyntheticNumber } from './wa.mjs';
+import { isTestLead } from './routing-split.mjs';
 const require = createRequire(import.meta.url);
 const capi = require('../capi/capi.js');
 
@@ -69,10 +69,11 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
   const log = { lead_id: n.lead_id, brand_id, event_name: n.event_name, event_id: n.event_id, action_source: n.action_source };
   if (!n.valid) return { action: 'skip', reason: 'invalid_input', missing: n.missing, log };
   // smoke test #17 (21 Oct 2026): a test lead (leads.is_synthetic, or a SYNTHETIC_TEST_NUMBERS number) never reaches the pixel
+  // 23 Oct 2026: nor a tester's lead (SMC_TEST_PHONES, Jono / KG): lib/routing-split.mjs isTestLead, the routing split's own test
   // (Meta cannot delete events). Only with a test event code set (Events Manager "Test events", the E2E window) does it go,
   // and then as a test event. Review 21 Oct: the E2E uses CAPI_SYNTHETIC_TEST_EVENT_CODE, which marks ONLY synthetic leads'
   // events; CAPI_TEST_EVENT_CODE (staging, docs/CAPI-ENABLE) marks every event, so it must never be set while ads are live.
-  const synthetic = ctx.is_synthetic === true || ctx.is_synthetic === 't' || isSyntheticNumber(ctx.phone || (n.user && n.user.phone), env);
+  const synthetic = isTestLead({ is_synthetic: ctx.is_synthetic, phone: ctx.phone || (n.user && n.user.phone) }, env);
   const testCode = (synthetic && env.CAPI_SYNTHETIC_TEST_EVENT_CODE) || env.CAPI_TEST_EVENT_CODE || '';
   if (synthetic && !testCode) return { action: 'skip', reason: 'synthetic_lead', log };
   const metaName = n.action_source === 'business_messaging' ? MESSAGING_EVENT_NAME[n.event_name] : n.event_name;

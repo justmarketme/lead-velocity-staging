@@ -106,7 +106,20 @@ export const touchesLastContact = (to, wamid) => to === 'lead' && typeof wamid =
  * is_synthetic. Review 21 Oct: South Africa has no reserved test mobile range (060 0 is an allocated cellular block, the SMC
  * number sits in it), so a block heuristic could silence a real client. Only the EXACT numbers in env SYNTHETIC_TEST_NUMBERS
  * (comma / space separated E.164, the ones the harness uses, e.g. wa-smoke.sh FROM) count; unset = none.
+ * Review 23 Oct 2026: both sides normalise to E.164 digits (e164Digits), so an entry or a phone written in SA local form
+ * ('060 000 0912', '0600000912') or with the 00 prefix still matches exactly that one number; nothing wider ever matches.
  */
-const digitsOf = (v) => String(v == null ? '' : v).replace(/\D/g, '');
-export const syntheticNumbers = (env = {}) => new Set(String((env && env.SYNTHETIC_TEST_NUMBERS) || '').split(/[\s,;]+/).map(digitsOf).filter((d) => d.length >= 9));
-export const isSyntheticNumber = (v, env = {}) => { const d = digitsOf(v); return d.length >= 9 && syntheticNumbers(env).has(d); };
+export const digitsOf = (v) => String(v == null ? '' : v).replace(/\D/g, ''); // also lib/routing-split.mjs (SMC_TEST_PHONES)
+/** Digits in E.164 form: SA local '0XXXXXXXXX' -> '27XXXXXXXXX', '00<cc>...' -> '<cc>...'; anything else = its digits. */
+export const e164Digits = (v) => { const d = digitsOf(v); return /^0\d{9}$/.test(d) ? '27' + d.slice(1) : d.startsWith('00') ? d.slice(2) : d; };
+/**
+ * A phone-number list from env: one number per comma / semicolon / line. Inside an entry spaces separate numbers only when
+ * every part is a whole number ("+27825550199 +27830000000"); otherwise they are formatting ("+27 82 555 0199").
+ * -> Set of E.164 digit strings (9+ digits). Used for SYNTHETIC_TEST_NUMBERS and SMC_TEST_PHONES (lib/routing-split.mjs).
+ */
+export const phoneSet = (v) => new Set(String(v == null ? '' : v).split(/[,;\n]+/).flatMap((e) => {
+  const parts = e.trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 && parts.every((p) => digitsOf(p).length >= 9) ? parts : [e];
+}).map(e164Digits).filter((d) => d.length >= 9));
+export const syntheticNumbers = (env = {}) => phoneSet(env && env.SYNTHETIC_TEST_NUMBERS);
+export const isSyntheticNumber = (v, env = {}) => { const d = e164Digits(v); return d.length >= 9 && syntheticNumbers(env).has(d); };

@@ -31,6 +31,8 @@
 //   W03's pending stall is cancelled, one lead_activities row per call (w39:answers:<lead>:<request_id>[:confirm]).
 import { resolveCaller as w04Caller, brokerConfig, iso, ms } from './w04.mjs';
 import { QUAL_AGE, QUAL_BUDGET, LOW_BUDGET, HELP_WITH, OUT_OF_BAND_RETENTION_H, H, routingFor, tierOf, OUT_OF_BAND_AGE_BOOKS, OOB_AGE_RULE, hasCoverCode, workCoverOf, HAS_COVER_CODES, toE164, QUALIFYING_STATES } from './w01.mjs';
+// the preview pick and the confirm route use one test / real split (Jono, 23 Oct 2026): L.routingPool(lead, $env) in the nodes
+export { routingPool } from './routing-split.mjs';
 
 export const WORKFLOW = 'W39';
 /**
@@ -212,7 +214,7 @@ export function approvedPhoto(b = {}) {
 }
 
 /** GET /start body. Times leave as ISO +02:00 (W04). Nothing else about the lead or the broker is returned. */
-export function startView({ lead = {}, broker = null, brokers = null, booking = null } = {}) {
+export function startView({ lead = {}, broker = null, brokers = null, booking = null, pool = null } = {}) {
   const cs = (lead && lead.conv_state) || {};
   const st = cs.start && typeof cs.start === 'object' ? cs.start : {};
   const answers = {};
@@ -227,7 +229,7 @@ export function startView({ lead = {}, broker = null, brokers = null, booking = 
   // the routed broker, else the preview pick (the adviser W01 would choose: v4 shows the card before anything is asked)
   let b = lead.broker_id && broker ? broker : null;
   if (!b && !lead.broker_id && Array.isArray(brokers)) {
-    const p = pickAdviser(lead, brokers);
+    const p = pickAdviser(lead, brokers, pool);
     b = p.adviser ? brokers.find((x) => String(x.id || x.broker_id) === p.adviser.id) || null : null;
   }
   const adviser = b ? adviserCard(b) : null;
@@ -428,14 +430,15 @@ export const adviserCard = (b) => (b ? { id: String(b.id || b.broker_id), first_
  * The adviser this lead has, or would get. lead = { id, broker_id, routed_at, consent_text, consent_mode, brand_id, budget_band,
  * product_interest, disqualified_reason, opted_out_at, suppressed }, brokers = the W01 core broker list (+ display columns).
  * Returns { adviser, routed } | { adviser: null, held: reason }.
+ * pool (23 Oct 2026): routingPool(lead, $env), the same test / real split as W01 routes on (lib/routing-split.mjs).
  */
-export function pickAdviser(lead = {}, brokers = []) {
+export function pickAdviser(lead = {}, brokers = [], pool = null) {
   const byId = (id) => brokers.find((b) => String(b.id || b.broker_id) === String(id)) || null;
   if (lead.broker_id && lead.routed_at) return { adviser: adviserCard(byId(lead.broker_id) || { id: lead.broker_id }), routed: true };
   if (lead.opted_out_at || lead.disqualified_reason || lead.suppressed) return { adviser: null, held: 'not_routable' };
   // v4: the page asks no budget. An unknown band is provisional tier B, exactly W01's page budget_pending rule (a broker who
   // takes R750-R1,499 also takes R1,500+); W01 routeExisting reads the same null band the same way (only tier C narrows).
-  const r = routingFor(lead.consent_text, lead.consent_mode || 'named', brokers, lead.brand_id, tierOf(lead.budget_band) || 'B', lead.product_interest || null);
+  const r = routingFor(lead.consent_text, lead.consent_mode || 'named', brokers, lead.brand_id, tierOf(lead.budget_band) || 'B', lead.product_interest || null, pool);
   return r.held ? { adviser: null, held: r.held } : { adviser: adviserCard(r.broker), routed: false };
 }
 
@@ -448,8 +451,8 @@ export const holdInput = (leadId) => ({ kind: 'route_and_first_touch', lead_id: 
  * A cover path, after the answers are stored: what to do next. `steps` run in this order, so the disclosure row is written
  * BEFORE the routing call, never after. Returns { next, adviser?, steps: [], disclose?, route?, hold?, held?, changed? }.
  */
-export function coverStep({ plan, lead, brokers = [] } = {}) {
-  const pick = pickAdviser(lead, brokers);
+export function coverStep({ plan, lead, brokers = [], pool = null } = {}) {
+  const pick = pickAdviser(lead, brokers, pool);
   const confirm = plan && plan.confirm_adviser ? String(plan.confirm_adviser) : null;
   if (!pick.adviser) return lead.broker_id ? { next: 'chat', steps: [], held: pick.held } : { next: 'chat', steps: ['hold'], hold: holdInput(lead.id), held: pick.held };
   if (!confirm || confirm !== pick.adviser.id) return { next: 'adviser', adviser: pick.adviser, steps: [], ...(confirm ? { changed: true } : {}) };
