@@ -51,7 +51,7 @@ const sourceLabel = (l: WaitingLead, acts: LeadAct[]) => {
 };
 const waLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "")}`;
 
-function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
+export function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
   const [open, setOpen] = useState(false);
   const nudges = acts.filter((a) => a.activity_type === "nurture_sent");
   const openedPage = acts.some((a) => a.activity_type.startsWith("start_page_") && a.activity_type !== "start_page_pending");

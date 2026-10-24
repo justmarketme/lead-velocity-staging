@@ -1,8 +1,8 @@
 -- =============================================================================
 -- 20261024150000_smc_broker_sees_whatsapp_verified_leads.sql
 --
--- DRAFT — NOT APPLIED. DDL on the live project is Jonathan's gate (CLAUDE.md: never apply DDL to the live Supabase
--- project). Apply on staging first, then live, with the undo file at hand. Predicates below start from the LIVE
+-- Applied on Jonathan's go-ahead (24 Oct 2026). Builds on 20261021150300_smc_broker_sees_live_bookings (smc_broker_has_live_booking).
+-- Undo file alongside. Predicates below start from the LIVE
 -- policies as read on 24 Oct 2026 (files 05, 08 and 20261013210000_appointment_manual_allocation applied), so the
 -- manual-allocation and live-booking paths are kept exactly; only the "verified" test widens.
 --
@@ -20,25 +20,6 @@
 -- Nothing here widens who a lead can belong to: every path still requires leads.broker_id = the caller's broker.
 -- =============================================================================
 BEGIN;
-
--- 0. smc_broker_has_live_booking(uuid) exists on the live project (20261013210000_appointment_manual_allocation, as read
---    live on 24 Oct 2026) but has no definition in this repo's migrations; the live body is restated so the file is
---    self-contained (a no-op where it already exists: CREATE OR REPLACE with the same body).
-CREATE OR REPLACE FUNCTION public.smc_broker_has_live_booking(p_lead_id uuid)
-RETURNS boolean
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
-AS $$
-  SELECT p_lead_id IS NOT NULL AND EXISTS (
-    SELECT 1
-      FROM public.appointments a
-     WHERE a.client_id = p_lead_id
-       AND a.brand_id IS NOT NULL
-       AND a.broker_id IS NOT NULL
-       AND a.broker_id = public.smc_current_broker_id()
-       AND a.status IN ('booked', 'confirmed', 'rescheduled', 'attended', 'no_show'))
-$$;
-REVOKE ALL ON FUNCTION public.smc_broker_has_live_booking(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.smc_broker_has_live_booking(uuid) TO authenticated, n8n_app;
 
 -- 1. verified for visibility: email OR WhatsApp (verified_at), same guard as smc_lead_email_verified (file 08)
 CREATE OR REPLACE FUNCTION public.smc_lead_verified(p_lead_id uuid)

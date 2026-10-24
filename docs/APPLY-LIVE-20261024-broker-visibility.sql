@@ -1,8 +1,8 @@
 -- =============================================================================
 -- 20261024150000_smc_broker_sees_whatsapp_verified_leads.sql
 --
--- LIVE PASTE VERSION (24 Oct 2026): same as the repo migration minus step 0 (smc_broker_has_live_booking already exists live; left untouched).
--- project). Apply on staging first, then live, with the undo file at hand. Predicates below start from the LIVE
+-- Applied on Jonathan's go-ahead (24 Oct 2026). Builds on 20261021150300_smc_broker_sees_live_bookings (smc_broker_has_live_booking).
+-- Undo file alongside. Predicates below start from the LIVE
 -- policies as read on 24 Oct 2026 (files 05, 08 and 20261013210000_appointment_manual_allocation applied), so the
 -- manual-allocation and live-booking paths are kept exactly; only the "verified" test widens.
 --
