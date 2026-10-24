@@ -75,7 +75,9 @@ function consentV4(profileName) {
 // on the consent question would be: consent_text = the welcome wording (the referral's welcome_message.text when the provider
 // passes what was shown, else env SMC_CTWA_WELCOME_TEXT), version ctwa-icebreaker-v1, mode generic, consent_source = the
 // referral door (ctwa_ad). Needs referral data (a real click-to-WhatsApp entry) and the text to equal env
-// SMC_CTWA_ICEBREAKER_CONSENT after trim + case-fold; anything else keeps today's behaviour.
+// SMC_CTWA_ICEBREAKER_CONSENT after trim + case-fold; anything else keeps today's behaviour. When the referral's greeting and the
+// env wording both exist and differ (trim + case-fold) the ad drifted from the recorded version: the referral text is still what is
+// stored, and provenance.welcome_text_mismatch + a W22 signal (ctwa_welcome_text_mismatch) make the change-control slip visible.
 const ICEBREAKER_CONSENT_VERSION = 'ctwa-icebreaker-v1';
 const foldText = (s) => String(s || '').normalize('NFKC').trim().toLowerCase();
 /** First inbound of a new CTWA thread -> { version, mode, text, yes, shown_from } or null (not the ad's ice breaker). */
@@ -88,9 +90,11 @@ function iceBreakerConsent(msg, ctx) {
   if (foldText(body) !== want) return null;
   const wm = msg.referral.welcome_message;
   const fromReferral = wm && typeof wm === 'object' && String(wm.text || '').trim() ? String(wm.text) : '';
-  const shown = fromReferral || String(ib.welcome || '');
+  const fromEnv = String(ib.welcome || '');
+  const shown = fromReferral || fromEnv;
   if (!shown.trim()) return null; // no wording on record = nothing to store as consent: the question is asked as before
-  return { version: ICEBREAKER_CONSENT_VERSION, mode: 'generic', text: shown, yes: CONSENT_V4_YES, shown_from: fromReferral ? 'referral' : 'env' };
+  const mismatch = !!(fromReferral && fromEnv.trim() && foldText(fromReferral) !== foldText(fromEnv));
+  return { version: ICEBREAKER_CONSENT_VERSION, mode: 'generic', text: shown, yes: CONSENT_V4_YES, shown_from: fromReferral ? 'referral' : 'env', mismatch };
 }
 
 // ---------------------------------------------------------------- consent-stall re-asks (Jono, 24 Oct 2026)
@@ -520,9 +524,14 @@ function iceBreakerIntake(ib, origin, ctx, actions) {
   row.provenance.first_inbound_sid = ctx.wamid || null;
   row.provenance.consent_method = 'icebreaker';
   row.provenance.welcome_text_from = ib.shown_from; // 'referral' = the words Meta says were shown; 'env' = SMC_CTWA_WELCOME_TEXT
+  if (ib.mismatch) row.provenance.welcome_text_mismatch = true; // the ad's greeting is not the recorded wording (stored as shown; W22 signal below)
   row.consent_source = row.provenance.door;
   row.optin = optinRecord(row);
   actions.push({ kind: 'insert_lead', row });
+  if (ib.mismatch) actions.push({ kind: 'alert', signal_key: 'ctwa_welcome_text_mismatch', scope: `ad:${row.ad_id || 'none'}`, severity: 'amber', source: 'W03',
+    what: 'A click-to-WhatsApp ad greeting (referral.welcome_message.text) differs from SMC_CTWA_WELCOME_TEXT',
+    impact: "ctwa-icebreaker-v1 consents from this ad store the ad's own wording (provenance.welcome_text_mismatch): one version now covers two texts",
+    first_action: 'Align the ad greeting, SMC_CTWA_WELCOME_TEXT and automation/meta/ctwa-welcome-message.json; bump ICEBREAKER_CONSENT_VERSION if the change was meant' });
   if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging', lead_id: row.id, brand_id: row.brand_id, ctwa_clid: row.ctwa_clid });
   const t = { stage: 'await_consent', origin, consent: { version: ib.version, mode: ib.mode, text: ib.text, yes: ib.yes }, answers: {}, first_at: ctx.at,
     broker_id: ctx.broker ? ctx.broker.broker_id : null, first_wamid: ctx.wamid || null, first_referral: ctx.referral || null };

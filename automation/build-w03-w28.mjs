@@ -13,6 +13,9 @@ const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
 // consent-stall re-asks (24 Oct 2026): the hours live in ctwa/w03.js (CONSENT_STALL_HOURS) and are stamped into the SQL below
 const { CONSENT_STALL_HOURS, CONSENT_REASK_MAX } = createRequire(import.meta.url)('./ctwa/w03.js');
+// contact hours for the re-asks (review 24 Oct 2026): the CPA s12 / Reg 4 rule of lib/contact-hours.mjs, with the public holidays of
+// data/za-public-holidays.json stamped into the SQL (re-run this builder and re-import W03 after editing that file)
+const ZA_HOLIDAYS = createRequire(import.meta.url)('../data/za-public-holidays.json').holidays.map((h) => h.date);
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
 const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, ASK_DAY: L.ASK_DAY, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
@@ -59,7 +62,7 @@ function buildW03() {
     'W03 Click-to-WhatsApp intake (automation-engineer). Sub-workflow since I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply) and calls W03 for unknown numbers / CTWA entries / qualifying taps (automation/CONTRACTS.md "Inbound ownership"). ' +
     'The adapter rebuilds the Cloud API message from W07\'s normalised msg -> W03 step. GET /whatsapp verify handshake stays here until W07 has one (one GET handler only). ' +
     'W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. ' +
-    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of pre-consent stall nudges: "Every 5 minutes (consent stall)" re-asks the consent question once 2 h after it was read (or sent) and once more at 20 h, inside the 24-h window, never to a suppressed number (24 Oct 2026; before that the consent question scheduled no stall and stall_due_at stayed NULL). After consent W08 owns the Start here / unbooked nudges. ' +
+    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of pre-consent stall nudges: "Every 5 minutes (consent stall)" re-asks the consent question once 2 h after it was read (or sent) and once more at 20 h, inside the 24-h window and the contact hours (Mon-Fri 08:00-20:00, Sat 09:00-13:00, no Sunday / public holiday), never to a suppressed number (24 Oct 2026; before that the consent question scheduled no stall and stall_due_at stayed NULL). After consent W08 owns the Start here / unbooked nudges. ' +
     'One-tap consent from the ad (24 Oct 2026): a first message with referral data equal to env SMC_CTWA_ICEBREAKER_CONSENT (the ad welcome message\'s one ice breaker) is the consent itself, stored as env SMC_CTWA_WELCOME_TEXT (version ctwa-icebreaker-v1; automation/meta/CTWA-WELCOME.md), and the Start here card follows at once. Consent text version ctwa-named-v3 (responsible party + STOP + privacy link; v3 scope "insurance and financial planning"). Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
     'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS, SMC_CTWA_ICEBREAKER_CONSENT, SMC_CTWA_WELCOME_TEXT. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto. The schedule trigger only runs while the workflow is active (publish it on import).' }));
 
@@ -356,8 +359,10 @@ RETURNING id;`,
 -- message opened. This UPDATE is the claim: it moves stall_due_at on (NULL after the last) and appends the re-ask number to
 -- state.consent_reasks, so two overlapping runs never pick a thread twice (the reply claim reask:<sid>:<n> is the second lock).
 -- The phone comes from the consent question's own outbound row (wa_threads holds only the hash; the inbound row holds our number).
--- Never: a STOP / suppressed number, a closed window, a question that failed to send, an expired thread, SAST night (21:00-07:00:
--- the re-ask waits for 07:00 and is dropped if the window closed by then). Synthetic numbers dry-run in smc-whatsapp-send.
+-- Never: a STOP / suppressed number, a closed window, a question that failed to send, an expired thread, or outside the contact
+-- hours every other nudge keeps (lib/contact-hours.mjs, CPA s12 / Reg 4: Mon-Fri 08:00-20:00, Sat 09:00-13:00 SAST, no Sunday or
+-- public holiday; a re-ask due outside waits for the next opening and is dropped if the window closed by then). Synthetic numbers
+-- dry-run in smc-whatsapp-send.
 WITH q AS (
   SELECT t.brand_id, t.mobile_hash, t.stall_due_at, t.state->>'first_wamid' AS first_wamid,
          coalesce(jsonb_array_length(CASE WHEN jsonb_typeof(t.state->'consent_reasks') = 'array' THEN t.state->'consent_reasks' END), 0) + 1 AS n,
@@ -373,7 +378,12 @@ WITH q AS (
      AND coalesce(c.status, '') <> 'failed' AND c.recipient_contact IS NOT NULL
      AND public.smc_hash_contact(c.recipient_contact) = t.mobile_hash
      AND NOT EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = t.mobile_hash AND (s.brand_id IS NULL OR s.brand_id = t.brand_id))
-     AND extract(hour FROM now() AT TIME ZONE 'Africa/Johannesburg') BETWEEN 7 AND 20),
+     -- contact hours (lib/contact-hours.mjs MARKETING_HOURS): Mon-Fri 08:00-19:59, Sat 09:00-12:59 SAST, never a Sunday or a public holiday
+     AND (CASE extract(dow FROM now() AT TIME ZONE 'Africa/Johannesburg')
+            WHEN 0 THEN false
+            WHEN 6 THEN extract(hour FROM now() AT TIME ZONE 'Africa/Johannesburg') BETWEEN 9 AND 12
+            ELSE extract(hour FROM now() AT TIME ZONE 'Africa/Johannesburg') BETWEEN 8 AND 19 END)
+     AND (now() AT TIME ZONE 'Africa/Johannesburg')::date NOT IN (${ZA_HOLIDAYS.map((d) => `'${d}'`).join(', ')})),
 due AS (
   SELECT * FROM q
    WHERE n <= ${CONSENT_REASK_MAX}

@@ -847,6 +847,16 @@ test('ice breaker match is exact after trim + case-fold; the referral welcome_me
   const r = W3.step(null, ibMsg(ICEBREAKER, { ...REFERRAL, welcome_message: { text: shown } }), ibCtx());
   const row = r.actions.find((a) => a.kind === 'insert_lead').row;
   assert.equal(row.consent_text, shown); assert.equal(row.provenance.welcome_text_from, 'referral'); assert.equal(row.optin.consent_text, shown);
+  // review 24 Oct: the ad's greeting drifted from the recorded wording (an edit, a truncation): one version would cover two texts, so it is flagged
+  assert.equal(row.provenance.welcome_text_mismatch, true);
+  const al = r.actions.find((a) => a.kind === 'alert');
+  assert.equal(al.signal_key, 'ctwa_welcome_text_mismatch'); assert.equal(al.scope, 'ad:120212345678901234'); assert.equal(al.severity, 'amber'); assert.equal(al.source, 'W03');
+  // the same wording (case / outer whitespace aside): the referral is still the source, no flag, no signal
+  const same = W3.step(null, ibMsg(ICEBREAKER, { ...REFERRAL, welcome_message: { text: ` ${WELCOME_TEXT.toUpperCase()} ` } }), ibCtx());
+  const sr = same.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(sr.provenance.welcome_text_from, 'referral'); assert.equal('welcome_text_mismatch' in sr.provenance, false); assert.ok(!same.actions.some((a) => a.kind === 'alert'));
+  // env wording only (Twilio: the referral never carries the greeting): nothing to compare, no flag
+  assert.equal('welcome_text_mismatch' in W3.step(null, ibMsg(ICEBREAKER), ibCtx()).actions.find((a) => a.kind === 'insert_lead').row.provenance, false);
   assert.equal(W3.iceBreakerConsent(ibMsg(ICEBREAKER), ibCtx()).version, W3.ICEBREAKER_CONSENT_VERSION);
 });
 
@@ -926,7 +936,7 @@ test('consentReask: re-ask 1 and 2 as session buttons (an authorised financial a
   assert.equal(W3.consentReask({ n: 0, state }), null); assert.equal(W3.consentReask(null), null);
 });
 
-test('W03.json: the consent-stall schedule claims due threads (UPDATE = claim; window, suppression, read-or-sent anchor, night gate) and feeds Action? as a plain send', async () => {
+test('W03.json: the consent-stall schedule claims due threads (UPDATE = claim; window, suppression, read-or-sent anchor, contact hours) and feeds Action? as a plain send', async () => {
   const names = (n) => WF.nodes.find((x) => x.name === n);
   const trig = names('Every 5 minutes (consent stall)');
   assert.equal(trig.type, 'n8n-nodes-base.scheduleTrigger'); assert.equal(trig.parameters.rule.interval[0].expression, '*/5 * * * *');
@@ -938,7 +948,13 @@ test('W03.json: the consent-stall schedule claims due threads (UPDATE = claim; w
   assert.match(q, /c\.metadata->>'reply_to' = t\.state->>'first_wamid'/, "the phone comes from the consent question's own outbound row");
   assert.match(q, /public\.smc_hash_contact\(c\.recipient_contact\) = t\.mobile_hash/);
   assert.match(q, /t\.stall_due_at = d\.stall_due_at/, 'optimistic: a reply that moved the clock meanwhile wins');
-  assert.match(q, /BETWEEN 7 AND 20/); assert.match(q, /'consent_reasks'/); assert.match(q, /ELSE NULL END/);
+  assert.match(q, /'consent_reasks'/); assert.match(q, /ELSE NULL END/);
+  // contact hours (review 24 Oct 2026): the CPA s12 / Reg 4 rule every W08 nudge follows (lib/contact-hours.mjs), holidays stamped from data/za-public-holidays.json
+  assert.doesNotMatch(q, /BETWEEN 7 AND 20/, 'no plain night gate: Sundays, Saturday afternoons and public holidays are out too');
+  assert.match(q, /CASE extract\(dow FROM now\(\) AT TIME ZONE 'Africa\/Johannesburg'\)\s+WHEN 0 THEN false\s+WHEN 6 THEN extract\(hour FROM now\(\) AT TIME ZONE 'Africa\/Johannesburg'\) BETWEEN 9 AND 12\s+ELSE extract\(hour FROM now\(\) AT TIME ZONE 'Africa\/Johannesburg'\) BETWEEN 8 AND 19 END\)/);
+  const hol = JSON.parse(readFileSync(new URL('../../data/za-public-holidays.json', import.meta.url), 'utf8')).holidays.map((h) => h.date);
+  assert.ok(hol.length >= 12); for (const d of hol) assert.ok(q.includes(`'${d}'`), `holiday ${d} stamped`);
+  assert.match(q, /\(now\(\) AT TIME ZONE 'Africa\/Johannesburg'\)::date NOT IN \('/);
   assert.equal(WF.connections['Every 5 minutes (consent stall)'].main[0][0].node, 'Stalled consent threads (claim + advance)');
   assert.equal(WF.connections['Stalled consent threads (claim + advance)'].main[0][0].node, 'Consent re-ask (w03.consentReask)');
   assert.equal(WF.connections['Consent re-ask (w03.consentReask)'].main[0][0].node, 'Action?');

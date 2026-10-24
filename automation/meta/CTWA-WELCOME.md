@@ -59,7 +59,11 @@ What arrives on our side when the button is tapped: an inbound text whose body i
 object (`source_type: ad`, `source_id`, `ctwa_clid`, headline, body). The Cloud API webhook also carries the greeting as
 `referral.welcome_message.text` ("Click to WhatsApp ad greeting text", https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/messages/text);
 Twilio's inbound parameters do not, which is why the wording is also kept in env. W03 stores the referral's text when it is
-there and the env text otherwise (`provenance.welcome_text_from`: `referral` | `env`).
+there and the env text otherwise (`provenance.welcome_text_from`: `referral` | `env`). When both exist and differ (trim +
+case-fold) the ad drifted from the recorded wording: W03 still stores the referral text, sets
+`provenance.welcome_text_mismatch: true` and raises the W22 signal `ctwa_welcome_text_mismatch` (scope `ad:<ad id>`), so a
+change-control slip is visible the first time that ad is tapped. Under Twilio (live today) a drift cannot be detected this
+way, which is why the three places below must change together.
 
 ## How to apply
 

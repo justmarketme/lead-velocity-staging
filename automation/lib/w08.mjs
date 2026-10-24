@@ -40,8 +40,10 @@ export const OFFSETS = {
 // 30-minute "where you left off" nudge (Jono, 24 Oct 2026): a Start here lead who OPENED the page (lead_activities start_page_* /
 // adviser_disclosed; W08.json page_last_at) and left without booking gets the first nudge 30 min after the last page activity instead
 // of 2 h after the card: the smc_start_cta session card with the left-off words (the approved start_nudge_2h template when the
-// 24-h window has closed). Leads that never opened the page keep the 2-h timing. The two are ONE first nudge: whichever went out
-// first satisfies both (never a second "first" nudge), and the +24 h / final nudges follow as today, at least MIN_NUDGE_GAP apart.
+// 24-h window has closed). Leads that never opened the page keep the 2-h timing (W01's intake row start_page_pending is NOT a page
+// activity: W08.json excludes it). The two are ONE first nudge: whichever went out first satisfies both (never a second "first"
+// nudge), and the +24 h / final nudges follow as today, at least MIN_NUDGE_GAP apart; a page visit after the first nudge changes
+// nothing (due() drops page_last_at once a first nudge is out).
 export const PAGE_NUDGE_AFTER = 30 * 60_000;
 export const FIRST_START_TOUCHES = new Set(['start_nudge_2h', 'start_nudge_30m']);
 /** The last /start/ page activity as ms (W08.json page_last_at), or null when the lead never opened the page. */
@@ -144,14 +146,19 @@ export function stopReason(lead, ctx = {}) {
 
 /**
  * due(lead, ctx, now_ms) -> { action: 'send'|'close'|'wait'|'stop', touch?, channel?, template?, vars?, idempotency_key?, reason? }
- * ctx = { has_live_booking, suppressed, sent: Set(touch), last_inbound_ms, broker: {contact_person, intro_video_url, bio_short}, outbound_count }
+ * ctx = { has_live_booking, suppressed, sent: Set(touch), last_nudge_ms (when the last of `sent` went out), last_inbound_ms,
+ *         broker: {contact_person, intro_video_url, bio_short}, outbound_count }
  */
 export function due(lead, ctx, now_ms) {
   const why = stopReason(lead, ctx);
   if (why) return { action: 'stop', reason: why };
-  const p = nurturePlan(lead);
   const sent = ctx.sent || new Set();
   const firstDone = [...FIRST_START_TOUCHES].some((t) => sent.has(t)); // the 2-h and the 30-min card are one first nudge
+  // Review 24 Oct 2026: the page only anchors the plan while no first nudge is out. A visit AFTER one reshaped the whole plan
+  // (a 30-min step nobody would send, the +24 h / final pushed MIN_NUDGE_GAP after it, a CTWA final pushed past the free window
+  // and dropped). Once a first nudge went out the +24 h and final keep the times they had; the gap from the nudge actually sent
+  // (ctx.last_nudge_ms, W08.json last_nudge_at) is enforced below, so a late 30-min card never has the +24 h one 30 min behind it.
+  const p = nurturePlan(firstDone ? { ...lead, page_last_at: null } : lead);
   const next = p.steps.find((s) => !sent.has(s.touch) && !(FIRST_START_TOUCHES.has(s.touch) && firstDone));
   const cyc = p.restart_ms ? `:r${p.restart_ms}` : ''; // new idempotency keys for the restarted sequence
   if (!next) {
@@ -159,6 +166,9 @@ export function due(lead, ctx, now_ms) {
     return now_ms >= p.close_ms ? { action: 'close', reason: 'sequence finished', idempotency_key: `w08:${lead.id}:close` } : { action: 'wait' };
   }
   if (now_ms < next.due_ms) return { action: 'wait', touch: next.touch, due_ms: next.due_ms };
+  // never two nudges within MIN_NUDGE_GAP of each other, whatever the plan says (the last one sent is the truth, not the plan's slot)
+  const gapUntil = Number.isFinite(ctx.last_nudge_ms) ? ctx.last_nudge_ms + MIN_NUDGE_GAP : -Infinity;
+  if (now_ms < gapUntil) return { action: 'wait', reason: 'min gap', touch: next.touch, due_ms: outOfQuiet(gapUntil) };
   if (!inMarketingHours(now_ms)) return { action: 'wait', reason: 'contact hours', due_ms: outOfQuiet(now_ms) };
   return { action: 'send', touch: next.touch, ...message(lead, ctx, next.touch, now_ms), idempotency_key: `w08:${lead.id}:${next.touch}${cyc}`, restart: Boolean(p.restart_ms) };
 }
