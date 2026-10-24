@@ -1,0 +1,297 @@
+#!/usr/bin/env node
+// Generates automation/W39.json (Start page API: GET /start + POST /start/answers) for the hidden sortmycover.co.za/start/ page
+// (Jono, 18 Oct 2026). Code nodes load the tested pure logic with require('lv-automation').w39 (I-46c); routing is W01 Lead
+// core's (Execute Workflow by stable id smc-w01, the same path as W03's route_and_first_touch, with first_touch: false);
+// WhatsApp goes through smc-whatsapp-send (it applies suppression, the 24-h window and DRY_RUN_SENDS itself).
+// Stable top-level id smc-w39 (I-44b), credentials by name only (id ''), secrets via $env, workflow inactive, errorWorkflow
+// smc-w22. Run: node automation/build-w39.mjs   (GEN_OUT_DIR=<dir> writes elsewhere: tests/generators.test.mjs)
+import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+// I-54f: every sender ends up behind a DRY_RUN_SENDS gate (W39 has none of its own: its only sender is smc-whatsapp-send).
+const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
+const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
+const SETTINGS = { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveManualExecutions: false, saveDataSuccessExecution: 'none', errorWorkflow: 'smc-w22' }; // tokens pass through items: successful runs are not saved
+const PRE = (lib) => `const L = require('lv-automation').${lib.replace(/\.mjs$/, '')};\n`;
+const { ALLOWED_ORIGINS: ORIGINS } = createRequire(import.meta.url)('./lib/public-origins.cjs'); // literal list: n8n does not evaluate expressions in allowedOrigins
+
+let seq = 0; let X = 0;
+const pos = () => [((X++) % 8) * 240, Math.floor((X - 1) / 8) * 200];
+const node = (name, type, tv, parameters, extra = {}) => ({ id: `n${String(++seq).padStart(2, '0')}`, name, type: `n8n-nodes-base.${type}`, typeVersion: tv, position: pos(), parameters, ...extra });
+const code = (name, lib, body) => node(name, 'code', 2, { mode: 'runOnceForAllItems', jsCode: PRE(lib) + body });
+const pg = (name, query, repl, extra = {}) => node(name, 'postgres', 2.5, { operation: 'executeQuery', query, options: repl ? { queryReplacement: repl } : {} }, { credentials: PG, alwaysOutputData: true, ...extra });
+// Callee name -> stable workflow id (I-44b). "W01 Lead core" -> smc-w01; "WhatsApp Send" (no W number) -> smc-whatsapp-send.
+const workflowIdOf = (target) => { const m = /^W(\d\d)\b/.exec(target); return m ? `smc-w${m[1]}` : `smc-${target.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; };
+const sub = (name, target, wait = false, extra = {}) => node(name, 'executeWorkflow', 1.1, { source: 'database', workflowId: { __rl: true, mode: 'id', value: workflowIdOf(target), cachedResultName: target }, options: { waitForSubWorkflow: wait } }, extra);
+const ifTrue = (name, expr) => node(name, 'if', 2, { conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ id: 'c1', leftValue: `={{ String(${expr}) }}`, rightValue: 'true', operator: { type: 'string', operation: 'equals' } }] }, options: {} });
+const sw = (name, expr, keys) => node(name, 'switch', 3, { rules: { values: keys.map((k) => ({ conditions: { options: { caseSensitive: true, typeValidation: 'strict' }, combinator: 'and', conditions: [{ leftValue: expr, rightValue: k, operator: { type: 'string', operation: 'equals' } }] }, renameOutput: true, outputKey: k })) }, options: { fallbackOutput: 'none' } });
+const respond = (name) => node(name, 'respondToWebhook', 1.1, { respondWith: 'json', responseBody: '={{ JSON.stringify($json.body) }}', options: { responseCode: '={{ $json.status }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store' }] } } });
+const link = (c, from, to, out = 0) => { c[from] ??= { main: [] }; while (c[from].main.length <= out) c[from].main.push([]); c[from].main[out].push({ node: to, type: 'main', index: 0 }); };
+const chain = (c, ...names) => { for (let i = 0; i + 1 < names.length; i++) link(c, names[i], names[i + 1]); };
+
+// The lead, by the token's lead id only (the browser never sends a broker id). erased = W34 took the number away.
+const LEAD_COLS = `l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,
+         l.age_band, l.budget_band, l.income_band, l.product_interest, l.disqualified_reason, l.call_number, l.alt_number`;
+// The adviser card's display columns (v4): approved bio + approved picture only (lib/w39.mjs approvedBio / approvedPhoto).
+// bio_review = onboarding_progress.bio_review (migration 20261013160000); headshot_approved_url = the current APPROVED headshot take
+// (broker_media state 'approved'); card_approved_at = onboarding_progress.card.approved_at (broker_approve_intro_card). Never
+// brokers.headshot_url (the raw upload), never an email, number or calendar field.
+const CARD_COLS = (b) => `'adviser_name', ${b}.adviser_name, 'bio_short', ${b}.bio_short, 'bio_review', ${b}.onboarding_progress->'bio_review',
+                  'intro_card_url', ${b}.intro_card_url, 'card_approved_at', ${b}.onboarding_progress->'card'->>'approved_at', 'methods_supported', ${b}.methods_supported,
+                  'headshot_approved_url', (SELECT m.url FROM public.broker_media m WHERE m.broker_id = ${b}.id AND m.kind = 'headshot' AND m.state = 'approved' ORDER BY m.version DESC LIMIT 1)`;
+// The broker list W01 core routes on ("Load CTWA lead + brokers"), plus the card columns. q = the lead row alias (brand_id).
+const BROKER_LIST = `COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,
+                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,
+                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,
+                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),
+                  'firm_name', b.firm_name, 'contact_person', b.contact_person) || jsonb_build_object(${CARD_COLS('b')}))
+                   FROM public.brokers b
+                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
+                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
+                  WHERE b.brand_id = q.brand_id), '[]'::jsonb)`;
+const PICK_SQL = () => `-- The same lead columns and broker list as W01 "Load CTWA lead + brokers" (routingFor reads them), plus the card's
+-- display columns (adviser, practice, FSP, approved bio + picture). Nothing is written here.
+SELECT to_jsonb(q) AS lead, ${BROKER_LIST} AS brokers
+  FROM (${PICK_LEAD}) q;`;
+const PICK_LEAD = `SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
+               l.routing_reason, l.budget_band, l.product_interest,
+               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
+          FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL`;
+// One statement: claim the request_id (lead_activities idempotency key), then write the lead only if the claim is ours, cancel
+// W03's pending stall (wa_threads), and add the timeline notes. A repeat of the same request_id changes nothing. Columns as W03
+// "Update lead (answers / out-of-band)": leads.qualified is GENERATED (never written); a stage only moves forward from the
+// pre-booking stages; conv_state is MERGED (start, help_with, state, via).
+const SAVE_SQL = `WITH claim AS (
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT l.id, l.brand_id, l.broker_id, 'W39', 'lead', $3::jsonb->>'activity_type', $3::jsonb->'payload', now(), $3::jsonb->>'idempotency_key'
+    FROM public.leads l WHERE l.id = $1::uuid
+  ON CONFLICT DO NOTHING
+  RETURNING lead_id),
+u AS (
+  UPDATE public.leads l
+     SET age_band               = coalesce($2::jsonb->>'age_band', l.age_band),
+         budget_band            = coalesce($2::jsonb->>'budget_band', l.budget_band),
+         income_band            = coalesce($2::jsonb->>'income_band', l.income_band),
+         work_cover             = coalesce(($2::jsonb->>'work_cover')::boolean, l.work_cover),
+         product_interest       = coalesce($2::jsonb->>'product_interest', l.product_interest),
+         reasons                = CASE WHEN jsonb_typeof($2::jsonb->'reasons') = 'array' THEN ARRAY(SELECT jsonb_array_elements_text($2::jsonb->'reasons')) ELSE l.reasons END,
+         qualified_at           = coalesce(l.qualified_at, ($2::jsonb->>'qualified_at')::timestamptz),
+         disqualified_reason    = coalesce($2::jsonb->>'disqualified_reason', l.disqualified_reason),
+         broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE l.broker_id END,
+         retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, l.retention_delete_after) END,
+         stage                  = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(l.stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))
+                                       THEN $2::jsonb->>'stage' ELSE l.stage END,
+         stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(l.stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))
+                                       THEN now() ELSE l.stage_entered_at END,
+         conv_state             = coalesce(l.conv_state, '{}'::jsonb) || coalesce($2::jsonb->'conv_state', '{}'::jsonb) || jsonb_build_object('last_turn_at', now()),
+         updated_at             = now()
+   WHERE l.id = $1::uuid AND EXISTS (SELECT 1 FROM claim)
+  RETURNING l.id, l.brand_id, l.broker_id, l.phone),
+th AS (
+  UPDATE public.wa_threads t
+     SET state = coalesce(t.state, '{}'::jsonb) || jsonb_build_object('stage', $5::text), stage = $5::text, stall_due_at = NULL, updated_at = now()
+    FROM u
+   WHERE t.brand_id = u.brand_id AND u.phone IS NOT NULL AND t.mobile_hash = public.smc_hash_contact(u.phone)
+  RETURNING t.mobile_hash),
+notes AS (
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT u.id, u.brand_id, u.broker_id, 'W39', 'system', x->>'activity_type', x->'payload', now(), x->>'idempotency_key'
+    FROM u, jsonb_array_elements($4::jsonb) x
+  ON CONFLICT DO NOTHING
+  RETURNING id)
+SELECT (SELECT count(*) FROM claim)::int AS claimed, (SELECT count(*) FROM u)::int AS updated, (SELECT count(*) FROM th)::int AS threads, (SELECT count(*) FROM notes)::int AS notes;`;
+
+// The answers chain from its webhook to its response (no Lindi line / escalation effects): cloned for POST /start/adviser.
+const ADVISER_CHAIN = ['POST /start/answers', 'Resolve caller + parse (answers)', 'Caller + body ok? (answers)', 'Load lead + earlier answer (same request_id)',
+  'Decide (w39.decideAnswers)', 'Plan?', 'Reject (401)', 'Save answers + timeline + cancel stall (one statement)', 'Cover path? (adviser card first)', 'Load lead + brokers (pick)',
+  'Adviser step (w39.coverStep)', 'Disclose? (confirmed adviser)', 'Log adviser_disclosed (before routing)', 'W01 call? (route the confirmed adviser | record a hold)',
+  'W01 Lead core input (no first touch)', 'W01 Lead core (route, no W06 first touch; waits)', 'Re-read broker_id', 'Answer (w39.answer)', 'Respond (answers)'];
+/** Copies the named nodes (+ their connections among themselves) with `sfx` on every name and every $('name') reference. */
+function cloneChain(n, c, names, sfx, over = {}) {
+  const set = new Set(names);
+  const finalName = (nm) => (over[nm] && over[nm].rename ? over[nm].rename : nm + sfx);
+  const refs = [...names].sort((a, b) => b.length - a.length);
+  const fix = (str) => refs.reduce((t, nm) => t.split(`$('${nm}')`).join(`$('${finalName(nm)}')`), str);
+  for (const src of n.filter((x) => set.has(x.name))) {
+    const cp = JSON.parse(fix(JSON.stringify(src)));
+    cp.id = `n${String(++seq).padStart(2, '0')}`; cp.position = pos(); cp.name = finalName(src.name);
+    const o = over[src.name] || {};
+    if (o.parameters) Object.assign(cp.parameters, o.parameters);
+    if (o.webhookId) cp.webhookId = o.webhookId;
+    if (o.jsCode) cp.parameters.jsCode = o.jsCode;
+    n.push(cp);
+  }
+  for (const from of names) for (const [i, out] of ((c[from] && c[from].main) || []).entries()) for (const l of out) if (set.has(l.node)) link(c, finalName(from), finalName(l.node), i);
+}
+
+function buildW39() {
+  seq = 0; X = 0; const c = {}; const n = [];
+  n.push(node('Sticky: read me', 'stickyNote', 1, { width: 760, height: 380, content: 'W39 Start page API (automation-engineer, 18 Oct 2026). The hidden page sortmycover.co.za/start/#lt=<lt1 token> (W03 sends the link as ONE call-to-action when brands.start_page = on) replaces the WhatsApp qualifying taps. Caddy rewrites https://n8n.sortmycover.co.za/webhook/smc/<path> to /webhook/<path>. Header X-Lead-Token, lead path only (a broker JWT is 401), lead row check as W04 (unknown / opted out / erased -> 401 try_again). GET /start -> first name, adviser (practice + FSP from his row), methods (teams / phone only), answers so far, live booking (held = waiting on the email link). POST /start/answers -> bands + conv_state.start, help_with, one timeline row per request_id (idempotent), W03 stall cancelled; will -> a person (escalation) + Lindi says so; other -> Lindi asks for a sentence; age out of band -> OUT_OF_BAND_AGE_BOOKS (lib/w39.mjs); else the adviser card first: phase (a) returns next adviser + the broker W01 would pick (no routing); the confirm call (confirm_adviser = that id) logs adviser_disclosed, THEN W01 Lead core routes only that broker, WITHOUT the W06 first touch -> next slots | chat. Slots and booking stay W04 GET /slots and W05 POST /book. Logic automation/lib/w39.mjs, tests automation/tests/W39.test.mjs. CORS PUBLIC_ALLOWED_ORIGINS. Env LEAD_TOKEN_SECRET (+ _PREVIOUS).' }));
+
+  // ---- GET /start
+  n.push(node('GET /start', 'webhook', 2, { httpMethod: 'GET', path: 'start', responseMode: 'responseNode', options: { allowedOrigins: ORIGINS } }, { webhookId: 'w39-start-get' }));
+  n.push(code('Resolve caller (start)', 'w39.mjs', `const j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nreturn [{ json: c.ok ? { ok: true, lead_id: c.lead_id } : { ok: false, status: c.status, body: c.body, reason: c.reason } }];`));
+  n.push(ifTrue('Caller ok? (start)', '$json.ok === true'));
+  n.push(pg('Load lead, adviser, live booking', `-- The broker comes from leads.broker_id (CONTRACTS.md lead_token); the live booking is the lead's own (held or booked).
+-- v4: while the lead is not routed, the preview pick (lib/w39.mjs pickAdviser over the W01 broker list) shows the card first.
+SELECT (SELECT to_jsonb(x) || jsonb_build_object('routed_at', p.routed_at, 'consent_text', p.consent_text, 'consent_mode', p.consent_mode, 'suppressed', p.suppressed)
+          FROM (SELECT ${LEAD_COLS} FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x, (${PICK_LEAD}) p) AS lead,
+       (SELECT to_jsonb(k) || jsonb_build_object(${CARD_COLS('b')}) FROM (SELECT b.id, b.contact_person, b.firm_name, b.practice_name, b.fsp_number
+                                   FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id
+                                  WHERE l.id::text = $1 AND l.brand_id IS NOT NULL AND b.brand_id IS NOT NULL) k JOIN public.brokers b ON b.id = k.id) AS broker,
+       (SELECT CASE WHEN q.broker_id IS NULL THEN ${BROKER_LIST} END FROM (${PICK_LEAD}) q) AS brokers,
+       (SELECT to_jsonb(a) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a
+                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()
+                                  ORDER BY a.appointment_date LIMIT 1) a) AS booking;`, '={{ [$json.lead_id] }}'));
+  n.push(code('View (w39.startView)', 'w39.mjs', `const r = $input.first().json;\nconst g = L.leadGate(r.lead);\nif (!g.ok) return [{ json: { status: g.status, body: g.body, reason: g.reason } }];\nreturn [{ json: L.startView({ lead: r.lead, broker: r.broker, brokers: r.brokers || null, booking: r.booking }) }];`));
+  n.push(respond('Respond (start)'));
+  chain(c, 'GET /start', 'Resolve caller (start)', 'Caller ok? (start)');
+  link(c, 'Caller ok? (start)', 'Load lead, adviser, live booking', 0); link(c, 'Caller ok? (start)', 'Respond (start)', 1);
+  chain(c, 'Load lead, adviser, live booking', 'View (w39.startView)', 'Respond (start)');
+
+  // ---- POST /start/answers
+  n.push(node('POST /start/answers', 'webhook', 2, { httpMethod: 'POST', path: 'start/answers', responseMode: 'responseNode', options: { allowedOrigins: ORIGINS } }, { webhookId: 'w39-start-answers-post' }));
+  n.push(code('Resolve caller + parse (answers)', 'w39.mjs', `const j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseAnswers(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, answers: p.answers, request_id: p.request_id, confirm_adviser: p.confirm_adviser, key: L.answersKey(c.lead_id, p.request_id, !!p.confirm_adviser) } }];`));
+  n.push(ifTrue('Caller + body ok? (answers)', '$json.ok === true'));
+  n.push(pg('Load lead + earlier answer (same request_id)', `SELECT (SELECT to_jsonb(x) FROM (SELECT ${LEAD_COLS} FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,
+       (SELECT a.payload FROM public.lead_activities a WHERE a.idempotency_key = $2 LIMIT 1) AS prior;`, '={{ [$json.lead_id, $json.key] }}'));
+  n.push(code('Decide (w39.decideAnswers)', 'w39.mjs', `const r = $input.first().json;\nconst q = $('Resolve caller + parse (answers)').first().json;\nconst plan = L.decideAnswers({ lead: r.lead, answers: q.answers, request_id: q.request_id, confirm_adviser: q.confirm_adviser || null, prior: r.prior || null, now: Date.now(), oobAgeBooks: L.OUT_OF_BAND_AGE_BOOKS });\nreturn [{ json: { lead_id: q.lead_id, plan } }];`));
+  n.push(sw('Plan?', '={{ $json.plan.kind }}', ['work', 'replay', 'reject']));
+  n.push(code('Reject (401)', 'w39.mjs', `const p = $json.plan;\nreturn [{ json: { status: p.status || 401, body: p.body || { error: 'try_again' }, reason: p.reason || null } }];`));
+  // One statement: claim the request_id (lead_activities idempotency key), then write the lead only if the claim is ours,
+  // cancel W03's pending stall (wa_threads), and add the timeline notes. A repeat of the same request_id changes nothing.
+  // Columns as W03 "Update lead (answers / out-of-band)": leads.qualified is GENERATED (never written); a stage only moves
+  // forward from the pre-booking stages; conv_state is MERGED (start, help_with, state, age_accepted).
+  n.push(pg('Save answers + timeline + cancel stall (one statement)', SAVE_SQL,
+  "={{ [$json.lead_id, JSON.stringify($json.plan.set || {}), JSON.stringify($json.plan.activity), JSON.stringify($json.plan.notes || []), $json.plan.thread_stage || 'done'] }}"));
+  // Disclosure before routing (18 Oct 2026): a cover path picks the adviser W01 WOULD choose (no broker_id write); the page
+  // shows the card; only the confirm call with that broker's id routes, and its 'adviser_disclosed' row is written first.
+  n.push(ifTrue('Cover path? (adviser card first)', "$('Decide (w39.decideAnswers)').first().json.plan.cover === true"));
+  n.push(pg('Load lead + brokers (pick)', PICK_SQL(), "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id] }}"));
+  n.push(code('Adviser step (w39.coverStep)', 'w39.mjs', `const r = $input.first().json;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nreturn [{ json: { lead_id: d.lead_id, step: L.coverStep({ plan: d.plan, lead: r.lead || { id: d.lead_id }, brokers: r.brokers || [] }) } }];`));
+  n.push(ifTrue('Disclose? (confirmed adviser)', "($json.step.steps || []).includes('disclose')"));
+  n.push(pg('Log adviser_disclosed (before routing)', `-- The page showed this adviser's card (name, practice, FSP number) and the lead confirmed it. Written BEFORE the routing call;
+-- once per lead and broker (idempotency key w39:disclosed:<lead>:<broker>).
+INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+SELECT l.id, l.brand_id, $2::uuid, 'W39', 'lead', 'adviser_disclosed', $3::jsonb, now(), $4
+  FROM public.leads l WHERE l.id = $1::uuid
+ON CONFLICT DO NOTHING
+RETURNING id;`, "={{ (() => { const s = $('Adviser step (w39.coverStep)').first().json.step; return [$('Adviser step (w39.coverStep)').first().json.lead_id, s.disclose.broker_id, JSON.stringify(s.disclose.payload), s.disclose.idempotency_key]; })() }}"));
+  n.push(ifTrue('W01 call? (route the confirmed adviser | record a hold)', "(() => { const s = $('Adviser step (w39.coverStep)').first().json.step; return !!(s.route || s.hold); })()"));
+  n.push(code('W01 Lead core input (no first touch)', 'w39.mjs', `const s = $('Adviser step (w39.coverStep)').first().json.step;\nreturn [{ json: s.route || s.hold }];`));
+  // Waits, so the routing is written before the page is told 'slots'. W01 routes only expect_broker_id (the adviser shown),
+  // or with hold_only records the hold and sends a held tier-C lead its one notice; it never sends the W06 first touch here.
+  n.push(sub('W01 Lead core (route, no W06 first touch; waits)', 'W01 Lead core', true, { alwaysOutputData: true }));
+  n.push(pg('Re-read broker_id', 'SELECT l.broker_id FROM public.leads l WHERE l.id::text = $1;', "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id] }}"));
+  n.push(code('Answer (w39.answer)', 'w39.mjs', `const d = $('Decide (w39.decideAnswers)').first().json;\nlet claimed = false;\ntry { claimed = Number($('Save answers + timeline + cancel stall (one statement)').first().json.claimed) > 0; } catch (e) { claimed = false; } // replay: Save did not run\nlet step = null;\ntry { step = $('Adviser step (w39.coverStep)').first().json.step; } catch (e) { step = null; } // not a cover path\nreturn [{ json: L.answer({ plan: d.plan, step, broker_id: $input.first().json.broker_id || null, claimed }) }];`));
+  n.push(respond('Respond (answers)'));
+  n.push(code('Effects (claimed request only)', 'w39.mjs', `return $('Answer (w39.answer)').first().json.effects.map((e) => ({ json: e }));`));
+  n.push(sw('Effect?', '={{ $json.kind }}', ['send', 'escalate']));
+  n.push(code('WhatsApp input (Lindi line)', 'w39.mjs', `// decided shape (smc-whatsapp-send writes the communications row; correlation w39:<path>:<lead> = once per lead)\nreturn $input.all().map((i) => ({ json: i.json.message }));`));
+  n.push(sub('WhatsApp Send (Lindi line)', 'WhatsApp Send'));
+  // Same mechanism as W03's wills opener ("Escalate to a person (opener)"): a console escalation; once a day per lead at most.
+  n.push(pg('Escalate to a person (wills / web lead)', `INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)
+SELECT l.brand_id, 'human_handoff', 'normal', 'leads', l.id::text, l.id, now(), left($2, 500)
+  FROM public.leads l
+ WHERE l.id::text = $1
+   AND NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.lead_id = l.id AND e.kind = 'human_handoff' AND e.raised_at > now() - interval '1 day')
+RETURNING id;`, "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id, $json.note || ''] }}", { onError: 'continueRegularOutput' }));
+
+  chain(c, 'POST /start/answers', 'Resolve caller + parse (answers)', 'Caller + body ok? (answers)');
+  link(c, 'Caller + body ok? (answers)', 'Load lead + earlier answer (same request_id)', 0); link(c, 'Caller + body ok? (answers)', 'Respond (answers)', 1);
+  chain(c, 'Load lead + earlier answer (same request_id)', 'Decide (w39.decideAnswers)', 'Plan?');
+  link(c, 'Plan?', 'Save answers + timeline + cancel stall (one statement)', 0); link(c, 'Plan?', 'Cover path? (adviser card first)', 1); link(c, 'Plan?', 'Reject (401)', 2);
+  chain(c, 'Reject (401)', 'Respond (answers)');
+  chain(c, 'Save answers + timeline + cancel stall (one statement)', 'Cover path? (adviser card first)');
+  link(c, 'Cover path? (adviser card first)', 'Load lead + brokers (pick)', 0); link(c, 'Cover path? (adviser card first)', 'Re-read broker_id', 1);
+  chain(c, 'Load lead + brokers (pick)', 'Adviser step (w39.coverStep)', 'Disclose? (confirmed adviser)');
+  // order: the disclosure row, THEN the routing call (never the other way round)
+  link(c, 'Disclose? (confirmed adviser)', 'Log adviser_disclosed (before routing)', 0); link(c, 'Disclose? (confirmed adviser)', 'W01 call? (route the confirmed adviser | record a hold)', 1);
+  chain(c, 'Log adviser_disclosed (before routing)', 'W01 call? (route the confirmed adviser | record a hold)');
+  link(c, 'W01 call? (route the confirmed adviser | record a hold)', 'W01 Lead core input (no first touch)', 0); link(c, 'W01 call? (route the confirmed adviser | record a hold)', 'Re-read broker_id', 1);
+  chain(c, 'W01 Lead core input (no first touch)', 'W01 Lead core (route, no W06 first touch; waits)', 'Re-read broker_id', 'Answer (w39.answer)', 'Respond (answers)');
+  link(c, 'Answer (w39.answer)', 'Effects (claimed request only)');
+  chain(c, 'Effects (claimed request only)', 'Effect?');
+  link(c, 'Effect?', 'WhatsApp input (Lindi line)', 0); link(c, 'Effect?', 'Escalate to a person (wills / web lead)', 1);
+  chain(c, 'WhatsApp input (Lindi line)', 'WhatsApp Send (Lindi line)');
+
+  // ---- POST /start/adviser (v4, 19 Oct 2026): the same two-phase disclosure chain as the answers' cover path, without answers.
+  // Built by cloning that chain (one implementation of "disclosure before routing"), renamed with ' [adviser]' and re-pointed.
+  cloneChain(n, c, ADVISER_CHAIN, ' [adviser]', {
+    'POST /start/answers': { parameters: { path: 'start/adviser' }, webhookId: 'w39-start-adviser-post' },
+    'Resolve caller + parse (answers)': { jsCode: PRE('w39.mjs') + `const j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseAdviser(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, request_id: p.request_id, confirm_adviser: p.confirm_adviser, key: L.adviserKey(c.lead_id, p.request_id, !!p.confirm_adviser) } }];` },
+    'Decide (w39.decideAnswers)': { rename: 'Decide (w39.decideAdviser)', jsCode: PRE('w39.mjs') + `const r = $input.first().json;\nconst q = $('Resolve caller + parse (answers) [adviser]').first().json;\nconst plan = L.decideAdviser({ lead: r.lead, request_id: q.request_id, confirm_adviser: q.confirm_adviser || null, prior: r.prior || null, now: Date.now() });\nreturn [{ json: { lead_id: q.lead_id, plan } }];` },
+  });
+
+  // ---- POST /start/contact (v4): the number the adviser calls + the optional reach-fallback number, before W05 /book
+  n.push(node('POST /start/contact', 'webhook', 2, { httpMethod: 'POST', path: 'start/contact', responseMode: 'responseNode', options: { allowedOrigins: ORIGINS } }, { webhookId: 'w39-start-contact-post' }));
+  n.push(code('Resolve caller + parse (contact)', 'w39.mjs', `const j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseContact(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, request_id: p.request_id, call_number: p.call_number, alt_number: p.alt_number, key: L.contactKey(c.lead_id, p.request_id) } }];`));
+  n.push(ifTrue('Caller + body ok? (contact)', '$json.ok === true'));
+  n.push(pg('Load lead + earlier call (contact)', `SELECT (SELECT to_jsonb(x) FROM (SELECT ${LEAD_COLS} FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,
+       (SELECT a.payload FROM public.lead_activities a WHERE a.idempotency_key = $2 LIMIT 1) AS prior;`, '={{ [$json.lead_id, $json.key] }}'));
+  n.push(code('Decide (w39.decideContact)', 'w39.mjs', `const r = $input.first().json;\nconst q = $('Resolve caller + parse (contact)').first().json;\nconst plan = L.decideContact({ lead: r.lead, call_number: q.call_number, alt_number: q.alt_number, request_id: q.request_id, prior: r.prior || null, now: Date.now() });\nreturn [{ json: { lead_id: q.lead_id, plan } }];`));
+  n.push(ifTrue('Write? (contact)', "$json.plan.kind === 'work'"));
+  // One statement: claim the request_id, then write the numbers only if the claim is ours (a repeat writes nothing).
+  // call_number NULL = "call my WhatsApp number" (W05: lead.call_number || lead.phone). A changed call_number clears its line type.
+  n.push(pg('Save contact numbers (one statement)', `WITH claim AS (
+  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)
+  SELECT l.id, l.brand_id, l.broker_id, 'W39', 'lead', $3::jsonb->>'activity_type', $3::jsonb->'payload', now(), $3::jsonb->>'idempotency_key'
+    FROM public.leads l WHERE l.id = $1::uuid
+  ON CONFLICT DO NOTHING
+  RETURNING lead_id)
+UPDATE public.leads l
+   SET call_number           = NULLIF($2::jsonb->>'call_number', ''),
+       call_number_line_type = CASE WHEN ($2::jsonb->>'call_number_changed')::boolean THEN NULL ELSE l.call_number_line_type END,
+       call_number_verified  = CASE WHEN ($2::jsonb->>'call_number_changed')::boolean THEN NULL ELSE l.call_number_verified END,
+       alt_number            = NULLIF($2::jsonb->>'alt_number', ''),
+       alt_purpose           = NULLIF($2::jsonb->>'alt_purpose', ''),
+       updated_at            = now()
+ WHERE l.id = $1::uuid AND EXISTS (SELECT 1 FROM claim)
+RETURNING l.id;`, "={{ [$json.lead_id, JSON.stringify($json.plan.set || {}), JSON.stringify($json.plan.activity)] }}"));
+  n.push(code('Answer (w39.contactAnswer)', 'w39.mjs', `return [{ json: L.contactAnswer($('Decide (w39.decideContact)').first().json.plan) }];`));
+  n.push(respond('Respond (contact)'));
+  chain(c, 'POST /start/contact', 'Resolve caller + parse (contact)', 'Caller + body ok? (contact)');
+  link(c, 'Caller + body ok? (contact)', 'Load lead + earlier call (contact)', 0); link(c, 'Caller + body ok? (contact)', 'Respond (contact)', 1);
+  chain(c, 'Load lead + earlier call (contact)', 'Decide (w39.decideContact)', 'Write? (contact)');
+  link(c, 'Write? (contact)', 'Save contact numbers (one statement)', 0); link(c, 'Write? (contact)', 'Answer (w39.contactAnswer)', 1);
+  chain(c, 'Save contact numbers (one statement)', 'Answer (w39.contactAnswer)', 'Respond (contact)');
+
+  // ---- POST /start/move (v4.6): the page's "pick a new time". W10's own move (pick op), waited for, then the row re-read.
+  n.push(node('POST /start/move', 'webhook', 2, { httpMethod: 'POST', path: 'start/move', responseMode: 'responseNode', options: { allowedOrigins: ORIGINS } }, { webhookId: 'w39-start-move-post' }));
+  n.push(code('Resolve caller + parse (move)', 'w39.mjs', `const j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseMove(j.body, Date.now());\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, req: p } }];`));
+  n.push(ifTrue('Caller + body ok? (move)', '$json.ok === true'));
+  n.push(pg('Load lead + live booking (move)', `SELECT (SELECT to_jsonb(x) FROM (SELECT ${LEAD_COLS} FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,
+       (SELECT to_jsonb(a) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a
+                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()
+                                  ORDER BY a.appointment_date LIMIT 1) a) AS booking;`, '={{ [$json.lead_id] }}'));
+  n.push(code('Plan move (w39.moveRequest)', 'w39.mjs', `const r = $input.first().json;\nconst q = $('Resolve caller + parse (move)').first().json;\nreturn [{ json: { lead_id: q.lead_id, plan: L.moveRequest({ lead: r.lead, booking: r.booking, req: q.req, now: Date.now() }), booking_id: r.booking ? r.booking.id : null } }];`));
+  n.push(sw('Move?', '={{ $json.plan.kind }}', ['move', 'same', 'method_only', 'none', 'reject']));
+  n.push(code('W10 input (move)', 'w39.mjs', `return [{ json: $('Plan move (w39.moveRequest)').first().json.plan.w10 }];`));
+  // Waits: the page is answered from the row W10 wrote. W10 claims its own key (w10:w39:move:<lead>:<request_id>), so a repeat moves nothing twice.
+  n.push(sub('W10 Reschedule / cancel (move; waits)', 'W10 Reschedule / cancel', true, { alwaysOutputData: true }));
+  n.push(ifTrue('Method change? (move)', "!!$('Plan move (w39.moveRequest)').first().json.plan.method"));
+  n.push(code('W10 input (method)', 'w39.mjs', `return [{ json: $('Plan move (w39.moveRequest)').first().json.plan.method }];`));
+  n.push(sub('W10 Reschedule / cancel (method; waits)', 'W10 Reschedule / cancel', true, { alwaysOutputData: true }));
+  n.push(pg('Re-read booking (move)', `SELECT to_jsonb(a) AS after FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a
+  WHERE a.id::text = $1 AND a.client_id::text = $2) a;`, "={{ [String($('Plan move (w39.moveRequest)').first().json.booking_id || ''), $('Plan move (w39.moveRequest)').first().json.lead_id] }}"));
+  n.push(code('Answer (w39.moveAnswer)', 'w39.mjs', `const d = $('Plan move (w39.moveRequest)').first().json;\nlet after = null;\ntry { after = $('Re-read booking (move)').first().json.after || null; } catch (e) { after = null; } // reject / none: not read\nreturn [{ json: L.moveAnswer({ plan: d.plan, after }) }];`));
+  n.push(respond('Respond (move)'));
+  chain(c, 'POST /start/move', 'Resolve caller + parse (move)', 'Caller + body ok? (move)');
+  link(c, 'Caller + body ok? (move)', 'Load lead + live booking (move)', 0); link(c, 'Caller + body ok? (move)', 'Respond (move)', 1);
+  chain(c, 'Load lead + live booking (move)', 'Plan move (w39.moveRequest)', 'Move?');
+  link(c, 'Move?', 'W10 input (move)', 0); link(c, 'Move?', 'Re-read booking (move)', 1); link(c, 'Move?', 'Method change? (move)', 2); link(c, 'Move?', 'Answer (w39.moveAnswer)', 3); link(c, 'Move?', 'Answer (w39.moveAnswer)', 4);
+  chain(c, 'W10 input (move)', 'W10 Reschedule / cancel (move; waits)', 'Method change? (move)');
+  link(c, 'Method change? (move)', 'W10 input (method)', 0); link(c, 'Method change? (move)', 'Re-read booking (move)', 1);
+  chain(c, 'W10 input (method)', 'W10 Reschedule / cancel (method; waits)', 'Re-read booking (move)', 'Answer (w39.moveAnswer)', 'Respond (move)');
+
+  return { id: 'smc-w39', name: 'W39 Start page API', nodes: n, connections: c, active: false, settings: SETTINGS, pinData: {},
+    tags: [{ name: 'booking' }, { name: 'intake' }], meta: { notes: 'automation-engineer. W39 /start/ page API; logic automation/lib/w39.mjs; tests automation/tests/W39.test.mjs. Generated by automation/build-w39.mjs; do not hand-edit.' } };
+}
+
+const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
+writeFileSync(join(OUT_DIR, 'W39.json'), JSON.stringify(routeWaSends(gateSenders(buildW39()), { caller: 'W39', nodes: {} }), null, 2) + '\n');
+console.log(`wrote ${OUT_DIR === HERE ? 'automation' : OUT_DIR}/W39.json`);

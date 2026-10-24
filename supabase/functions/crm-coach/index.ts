@@ -1,9 +1,14 @@
+// crm-coach: "Einstein — next move" in the admin broker drawer (mode "broker") and the lead pipeline (mode "lead_pipeline").
+// Synced from the deployed v2 source (which added lead_pipeline) on 2026-10-12, then:
+// - Gemini: 2.0-flash and 2.5-flash are retired for this project (404 "no longer available"), so it tries gemini-3.8-flash then
+//   gemini-flash-latest, on GEMINI_API_KEY and then AYANDA_GEMINI_API_KEY (the first key's Google project answers 403
+//   "denied access" on 12 Oct 2026). Then Groq (GROQ_API_KEY), choosing a model from Groq's live model list.
+// - OpenRouter model updated to google/gemini-2.5-flash (used only when OPENROUTER_API_KEY / x-openrouter-key is set).
+// - Provider failures are logged with their HTTP status and body, and the function answers 200 {success:false, unavailable:true}
+//   so the CRM shows a calm message instead of "Edge Function returned a non-2xx status code".
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// Admin-only CRM coach. Deliberately SEPARATE from `einstein-ai`, which is
-// hard-scoped to the broker portal — this one is the internal sales strategist
-// for Lead Velocity's own team working their broker pipeline.
+import { pricingSummaryText } from "../_shared/pricing.generated.ts";
 
 const ALLOWED_ORIGINS = [
   "https://www.leadvelocity.co.za",
@@ -20,33 +25,57 @@ function cors(req: Request) {
   };
 }
 
-const SYSTEM = `You are the internal deal strategist for Lead Velocity, a South African B2B lead-generation company that sells raw commercial leads to insurance brokers and financial advisers.
+const BASE = `You are the internal deal strategist for Lead Velocity, a South African B2B lead-generation company that sells raw commercial leads to insurance brokers and financial advisers.
 
 You think like Alex Hormozi and Russell Brunson:
-- Hormozi: make the next offer so good it's illogical to refuse. Increase perceived value, reduce risk and effort, create urgency honestly. Focus on the one constraint blocking the deal.
+- Hormozi: make the next offer so good it's illogical to refuse. Increase perceived value, reduce risk and effort, create urgency honestly. Focus on the one constraint.
 - Brunson: meet them where they are in the value ladder. Hook, story, offer. Move them one concrete step, never ten.
 
-You are coaching the Lead Velocity team on ONE broker relationship. Be specific and commercial, never generic. Reference the actual data you're given (their stage, what was said on calls, what they've bought, what's overdue). South African context: rands, POPIA, local insurance market.
+Be specific and commercial, never generic. Reference the actual data given. South African context: rands, POPIA, local insurance market.
 
-Return STRICT JSON only, no markdown fences, in this exact shape:
+Hard rules (compliance, never break them): never offer or mention a guarantee, "risk-free" deal or performance promise; Lead Velocity commits to a number of Qualified Leads per cycle (say "committed", never "guaranteed"). No claims about results, conversions, sales or income (FAIS). Never invent discounts or prices: plans are fixed (Pilot, Bronze, Silver, Gold).
+
+Return STRICT JSON only, no markdown fences:
 {
   "headline": "one short sentence naming the single biggest constraint right now",
   "suggestions": [
-    {"action": "short imperative next step", "why": "one sentence on why this moves the deal"},
+    {"action": "short imperative next step", "why": "one sentence on why this moves the needle"},
     {"action": "...", "why": "..."},
     {"action": "...", "why": "..."}
   ],
-  "script": "a short ready-to-send WhatsApp/email message (3-5 sentences) the team can copy, written to this specific broker"
+  "script": "a short ready-to-send message (3-5 sentences) the team can copy"
 }
-Give exactly 3 suggestions, ordered by impact. Keep every field tight — no filler.`;
+Exactly 3 suggestions, ordered by impact. Tight — no filler.
 
-function buildUserPrompt(c: any) {
+Plans and prices: these are the only ones that exist. Quote them exactly as written, never invent or change a price, lead count or plan:
+${pricingSummaryText()}`;
+
+const BROKER_SYSTEM = BASE + `\n\nYou are coaching the team on ONE broker relationship.`;
+const PIPELINE_SYSTEM = BASE + `\n\nYou are coaching the team on their WHOLE lead-sourcing pipeline — the client-facing leads they deliver to brokers. Focus on where leads are stalling, which stage is the bottleneck, and what to do today to convert more. The "script" should be a short outreach/follow-up message template the team can reuse on stalled leads.`;
+
+interface BrokerCtx {
+  firm_name?: string;
+  contact_person?: string;
+  mgmt_stage?: string;
+  tier?: string;
+  next_follow_up_at?: string;
+  activities?: { activity_type?: string; outcome?: string; body?: string }[];
+  followups?: { title?: string; due_at?: string; overdue?: boolean }[];
+  orders?: { title?: string; lead_count?: number; amount_zar?: number; status?: string }[];
+}
+
+interface PipelineCtx {
+  total_leads?: number;
+  stage_counts?: { stage?: string; count?: number }[];
+}
+
+function brokerPrompt(c: BrokerCtx) {
   const acts = (c.activities || []).slice(0, 8)
-    .map((a: any) => `- ${a.activity_type}${a.outcome ? ` (${a.outcome})` : ""}: ${a.body || "no note"}`).join("\n") || "- none logged yet";
+    .map((a: { activity_type?: string; outcome?: string; body?: string }) => `- ${a.activity_type}${a.outcome ? ` (${a.outcome})` : ""}: ${a.body || "no note"}`).join("\n") || "- none logged yet";
   const fus = (c.followups || []).slice(0, 5)
-    .map((f: any) => `- ${f.title} due ${f.due_at}${f.overdue ? " [OVERDUE]" : ""}`).join("\n") || "- none scheduled";
+    .map((f: { title?: string; due_at?: string; overdue?: boolean }) => `- ${f.title} due ${f.due_at}${f.overdue ? " [OVERDUE]" : ""}`).join("\n") || "- none scheduled";
   const orders = (c.orders || [])
-    .map((o: any) => `- ${o.title || "order"}: ${o.lead_count ?? 0} leads, R${((o.amount_zar ?? 0) / 100).toFixed(2)}, status ${o.status}`).join("\n") || "- no orders yet";
+    .map((o: { title?: string; lead_count?: number; amount_zar?: number; status?: string }) => `- ${o.title || "order"}: ${o.lead_count ?? 0} leads, R${((o.amount_zar ?? 0) / 100).toFixed(2)}, status ${o.status}`).join("\n") || "- no orders yet";
 
   return `BROKER SNAPSHOT
 Firm: ${c.firm_name || "unknown"}
@@ -67,75 +96,144 @@ ${fus}
 Coach the team on the single best way to move this broker forward right now.`;
 }
 
+function pipelinePrompt(c: PipelineCtx) {
+  const stages = (c.stage_counts || [])
+    .map((s: { stage?: string; count?: number }) => `- ${s.stage}: ${s.count}`).join("\n") || "- no stage data";
+  return `LEAD PIPELINE SNAPSHOT
+Total leads in view: ${c.total_leads ?? 0}
+
+LEADS BY STAGE
+${stages}
+
+Where is this pipeline leaking, and what should the team do today to move more leads to won?`;
+}
+
+const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-flash-latest"];
+/** Groq models are retired often: ask Groq which exist and take the first match, best first. */
+const GROQ_PREFER = [/gpt-oss-120b/, /llama-?4.*maverick/, /llama-3\.3-70b/, /qwen.*32b/, /llama.*70b/, /gpt-oss/, /llama/];
+const OPENROUTER_MODEL = "google/gemini-2.5-flash";
+
+async function callGroq(system: string, user: string, key: string, failures: string[]) {
+  try {
+    const list = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+    if (!list.ok) { failures.push(`groq models ${list.status}: ${(await list.text()).slice(0, 200)}`); return null; }
+    const ids: string[] = ((await list.json())?.data || []).filter((m: { active?: boolean; id?: unknown } | null) => m?.active !== false).map((m: { id?: unknown }) => String(m.id));
+    const chat = ids.filter((id) => !/whisper|guard|tts|distil|playai|compound|prompt/i.test(id));
+    const model = GROQ_PREFER.map((re) => chat.find((id) => re.test(id))).find(Boolean) || chat[0];
+    if (!model) { failures.push("groq: no chat model available"); return null; }
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.7, response_format: { type: "json_object" } }),
+    });
+    if (!r.ok) { failures.push(`groq ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`); return null; }
+    const t = (await r.json())?.choices?.[0]?.message?.content;
+    if (t) return { text: t, provider: `groq:${model}` };
+    failures.push(`groq ${model}: empty reply`);
+  } catch (e) { failures.push(`groq: ${(e as Error).message}`); }
+  return null;
+}
+
 async function callLLM(system: string, user: string, orKey?: string | null, gemKey?: string | null) {
+  const failures: string[] = [];
+  const gemKeys = [gemKey, Deno.env.get("AYANDA_GEMINI_API_KEY")].filter((k, i, a): k is string => !!k && a.indexOf(k) === i);
+  const groqKey = Deno.env.get("GROQ_API_KEY");
   if (orKey) {
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${orKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.0-flash-001",
-        messages: [{ role: "system", content: system }, { role: "user", content: user }],
-        temperature: 0.7,
-      }),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      const t = j?.choices?.[0]?.message?.content;
-      if (t) return { text: t, provider: "openrouter" };
+    try {
+      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${orKey}` },
+        body: JSON.stringify({ model: OPENROUTER_MODEL, messages: [{ role: "system", content: system }, { role: "user", content: user }], temperature: 0.7 }),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const t = j?.choices?.[0]?.message?.content;
+        if (t) return { text: t, provider: "openrouter" };
+        failures.push("openrouter: empty reply");
+      } else failures.push(`openrouter ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    } catch (e) { failures.push(`openrouter: ${(e as Error).message}`); }
+  }
+  for (const [ki, key] of gemKeys.entries()) {
+    for (const model of GEMINI_MODELS) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: [{ role: "user", parts: [{ text: user }] }],
+            generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
+          }),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const t = (j?.candidates?.[0]?.content?.parts || []).map((p: { text?: string } | null) => p?.text || "").join("");
+          if (t) return { text: t, provider: `gemini:${model}` };
+          failures.push(`key${ki + 1} ${model}: empty reply (${j?.candidates?.[0]?.finishReason || "no candidates"})`);
+        } else {
+          failures.push(`key${ki + 1} ${model} ${r.status}: ${(await r.text()).slice(0, 200)}`);
+          if (r.status === 403) break; // this key's project is blocked: other models won't help
+        }
+      } catch (e) { failures.push(`key${ki + 1} ${model}: ${(e as Error).message}`); }
     }
   }
-  if (gemKey) {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gemKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: user }] }],
-        generationConfig: { temperature: 0.7 },
-      }),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      const t = j?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (t) return { text: t, provider: "gemini" };
-    }
+  if (groqKey) {
+    const g = await callGroq(system, user, groqKey, failures);
+    if (g) return g;
   }
-  throw new Error("No working LLM provider (check OPENROUTER/GEMINI keys)");
+  if (!orKey && !gemKeys.length && !groqKey) failures.push("no LLM key secret (OPENROUTER_API_KEY / GEMINI_API_KEY / GROQ_API_KEY)");
+  const err = new Error("No working LLM provider");
+  (err as Error & { failures?: string[] }).failures = failures;
+  throw err;
 }
 
 serve(async (req) => {
   const h = cors(req);
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...h, "Content-Type": "application/json" } });
   if (req.method === "OPTIONS") return new Response(null, { headers: h });
 
   try {
     const auth = req.headers.get("Authorization");
-    if (!auth) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...h, "Content-Type": "application/json" } });
+    if (!auth) return json({ error: "Unauthorized" }, 401);
 
     const sb = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: auth } } });
     const { data: { user } } = await sb.auth.getUser();
-    if (!user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...h, "Content-Type": "application/json" } });
+    if (!user) return json({ error: "Unauthorized" }, 401);
 
     const { data: role } = await sb.from("user_roles").select("role").eq("user_id", user.id).eq("role", "admin").single();
-    if (!role) return new Response(JSON.stringify({ error: "Forbidden - admin only" }), { status: 403, headers: { ...h, "Content-Type": "application/json" } });
+    if (!role) return json({ error: "Forbidden - admin only" }, 403);
 
-    const { context } = await req.json();
-    if (!context) return new Response(JSON.stringify({ error: "Missing context" }), { status: 400, headers: { ...h, "Content-Type": "application/json" } });
+    const body = await req.json();
+    const context = body?.context;
+    const mode = body?.mode || context?.mode || "broker";
+    if (!context) return json({ error: "Missing context" }, 400);
 
     const orKey = req.headers.get("x-openrouter-key") || Deno.env.get("OPENROUTER_API_KEY");
     const gemKey = req.headers.get("x-gemini-key") || Deno.env.get("GEMINI_API_KEY");
 
-    const { text, provider } = await callLLM(SYSTEM, buildUserPrompt(context), orKey, gemKey);
+    const system = mode === "lead_pipeline" ? PIPELINE_SYSTEM : BROKER_SYSTEM;
+    const prompt = mode === "lead_pipeline" ? pipelinePrompt(context) : brokerPrompt(context);
 
-    let parsed: any = null;
+    let result: { text: string; provider: string };
     try {
-      parsed = JSON.parse(String(text).replace(/```json|```/g, "").trim());
-    } catch {
-      parsed = { headline: "Coach returned free text", suggestions: [], script: String(text).slice(0, 1200) };
+      result = await callLLM(system, prompt, orKey, gemKey);
+    } catch (e) {
+      // The model being down is not the admin's problem to debug: log the detail, answer calmly.
+      console.error("crm-coach: no provider answered", (e as Error & { failures?: string[] }).failures || (e as Error).message);
+      // Admin-only endpoint: the provider statuses go back too (the drawer logs them to the console, never shows them).
+      return json({ success: false, unavailable: true, error: "Einstein is unavailable right now. Try again in a minute.", detail: (e as Error & { failures?: string[] }).failures || [] });
     }
 
-    return new Response(JSON.stringify({ success: true, provider, ...parsed }), { status: 200, headers: { ...h, "Content-Type": "application/json" } });
-  } catch (e: any) {
+    let parsed: Record<string, unknown> | null = null;
+    try {
+      parsed = JSON.parse(String(result.text).replace(/```json|```/g, "").trim());
+    } catch {
+      parsed = { headline: "Coach returned free text", suggestions: [], script: String(result.text).slice(0, 1200) };
+    }
+
+    return json({ success: true, provider: result.provider, mode, ...parsed });
+  } catch (e) {
     console.error("crm-coach error:", e);
-    return new Response(JSON.stringify({ success: false, error: e.message }), { status: 500, headers: { ...h, "Content-Type": "application/json" } });
+    return json({ success: false, error: "Einstein hit a problem. Try again in a minute." });
   }
 });

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>06 The new website</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .browser { position: absolute; left: 120px; top: 290px; width: 1120px; height: 660px; border-radius: 18px; overflow: hidden; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow-lg); }
+  .browser .chromebar { height: 44px; background: var(--soft); border-bottom: 1.5px solid var(--line); display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+  .browser .chromebar i { width: 12px; height: 12px; border-radius: 50%; background: #d7dade; }
+  .browser .chromebar .url { margin-left: 18px; flex: 1; height: 28px; border-radius: 8px; background: #fff; border: 1px solid var(--line); font-size: 15px; color: var(--slate); display: flex; align-items: center; padding: 0 12px; font-weight: 600; }
+  .browser .view { position: absolute; left: 0; right: 0; top: 44px; bottom: 0; overflow: hidden; }
+  .browser .view img { position: absolute; left: 0; top: 0; width: 100%; }
+  .ph { position: absolute; left: 1350px; top: 200px; }
+  .ph .phone { position: relative; width: 360px; height: 740px; border-radius: 54px; padding: 12px; }
+  .ph .phone .scr { inset: 12px; border-radius: 42px; }
+  .ph .phone .notch { width: 100px; height: 28px; margin-left: -50px; top: 10px; }
+  .ph .phone img { position: absolute; left: 0; top: 0; width: 100%; }
+  .ph .phone img.b { opacity: 0; }
+  .note { position: absolute; left: 1350px; top: 960px; width: 360px; display: flex; justify-content: center; }
+  .io { position: absolute; left: 640px; top: 560px; width: 560px; overflow: hidden; border-radius: 16px; box-shadow: var(--shadow-lg); border: 1.5px solid var(--line); opacity: 0; }
+  .io img { width: 100%; display: block; }
+  .io .cap { position: absolute; left: 12px; top: 12px; }
+  .cal { position: absolute; left: 1300px; top: 150px; opacity: 0; }
+  .status { position: absolute; left: 120px; top: 968px; display: none; }
+</style></head>
+<body data-scene="s06"><div class="stage">
+  <div class="top"><div class="eyebrow">The website</div><h1 class="h">sortmycover.co.za, <em>redesigned</em></h1></div>
+  <div class="browser"><div class="chromebar"><i></i><i></i><i></i><div class="url">sortmycover.co.za</div></div>
+    <div class="view"><img id="page" src="assets/site/home-desktop-full.jpg" alt=""></div></div>
+  <div class="io"><img src="assets/site/about-desktop-hero.jpg" alt=""><div class="cap"><span class="pill ink"><i style="background:var(--y)"></i>About · Information Officer registration</span></div></div>
+  <div class="ph"><div class="phone"><div class="scr">
+    <img class="a" src="assets/site/home-mobile-01-hero.jpg" alt="">
+    <img class="b" src="assets/site/home-mobile-04-whatsapp-consent-sheet.jpg" alt="">
+  </div><div class="notch"></div></div></div>
+  <div class="note"><span class="pill green"><i></i>WhatsApp after one consent tick</span></div>
+  <div class="cal"><span class="pill y"><i></i>Desktop: Cal.com calendar too · on with the link</span></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const page = $('#page');
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.browser', t, .5, { y: 40, scale: .98, dur: 1 });
+    // slow scroll down the real home page (rendered 1440 wide; scaled to the frame)
+    const H = page.naturalHeight * (1120 / page.naturalWidth), maxY = Math.min(H - 616, 3600);
+    const y = maxY * E.inOut(clamp((t - 1.6) / (SCENE.clip - 3.5)));
+    page.style.transform = `translateY(${(-y).toFixed(1)}px)`;
+    rv('.ph', t, cue('booking') - .4, { x: 40, y: 0, dur: .8 });
+    $('.ph img.b').style.opacity = P(t, cue('consent') - .2, .5).toFixed(3);
+    rv('.note', t, cue('consent'), { y: 10, dur: .5 });
+    rv('.cal', t, cue('computer') - .2, { y: 10, dur: .5 });
+    const io = P(t, cue('About') - .3, .6) * (1 - P(t, cue('About') + 4.2, .5));
+    $('.io').style.opacity = io.toFixed(3);
+    $('.io').style.transform = `translateY(${((1 - P(t, cue('About') - .3, .6)) * 24).toFixed(1)}px)`;
+  };
+</script></body></html>

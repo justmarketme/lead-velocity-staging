@@ -220,6 +220,12 @@ const node = (name) => WF.nodes.find((n) => n.name === name);
 const BK = broker();
 const mrow = (fx, over = {}) => ({ booking_id: `bkg_${fx.fixture_id}`, lead_id: fx.lead_id, brand_id: 'brand_smc', broker_id: BK.broker_id, appointment_date: fx.reschedule_request?.new_slot_start ?? fx.booking_request.slot_start, slot_end: endOf(fx), status: 'booked', first_name: 'Pieter', last_name: 'V', phone: '+27600000004', language: 'en', opted_out_at: null, adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, broker_mark: null, reach: null, sent_outcome_check: false, sent_broker_nudge: false, sent_reach_check: false, outcome_exists: false, ...over });
 const sweep = async (row, now) => (await runCode(WF, 'Decide (w12.sweepItems)', { items: [row], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: now } } })).map((x) => x.json);
+// Follow-up claim chain (19 Oct 2026): Claim source (adds the query params) -> Claim W12 follow-ups (a row = claim won)
+// -> Claimed follow-ups. won=false runs the last node as n8n does when the claim insert returned nothing.
+const claimed = async (claimItem, won = true) => {
+  const src = (await runCode(WF, 'Claim source', { json: claimItem })).json;
+  return (await runCode(WF, 'Claimed follow-ups (w12.claimedFollowUps)', { items: [won ? { id: 'act_claim' } : {}], refs: { 'Claim source': src } })).map((x) => x.json);
+};
 const follow = async (item, outcomeId) => (await runCode(WF, 'Follow-ups (w12.followUps)', { items: [outcomeId ? { outcome_id: outcomeId } : item], refs: { 'Write outcome? (not pending, not disputed)': item } })).map((x) => x.json);
 
 test('W12.json: DRAFT name, inactive, one Postgres credential, physical columns only, Code nodes require(\'lv-automation\').w12, id smc-w12', () => {
@@ -329,9 +335,12 @@ test('W12.json unmarked at 24 h: attended + auto_marked + unconfirmed (marked_vi
   assert.equal(d.o, null);
   const fu = await follow({ ...d, row: { ...row, broker_mark: 'no_show', reach: 'yes' } });
   assert.deepEqual(fu.map((x) => [x.fu, x.kind]), [['alert', 'outcome_unmarked']]);
-  // W11 backstop entry: the attended path only (no broker re-ask)
-  const auto = (await runCode(WF, 'Auto-attended follow-ups (w12.resolveOutcome at 24 h)', { items: [{ ...row, outcome_id: 'out_auto', reach: 'none' }] })).map((x) => x.json);
+  // W11 backstop entry: the attended path only (no broker re-ask), behind the w12:outcome claim (19 Oct 2026)
+  const [c] = (await runCode(WF, 'Auto-attended resolution (w12.autoAttendedResolution)', { items: [{ ...row, outcome_id: 'out_auto', reach: 'none' }] })).map((x) => x.json);
+  assert.deepEqual([c.fu, c.via, c.outcome_id, c.appointment_status, c.lead_stage, c.dispute_open], ['claim', 'auto', 'out_auto', null, null, false], 'W11 already wrote status and stage');
+  const auto = await claimed(c);
   assert.deepEqual(auto.map((x) => x.fu).sort(), ['capi', 'send', 'w29']);
+  assert.deepEqual(await claimed(c, false), [], 'claim lost (W12 or the portal path ran first): nothing');
 });
 
 test('W12 voice note: only the WhatsApp media reference is stored (no download, no transcript in W12)', async () => {
@@ -431,7 +440,7 @@ test('W12.json I-51b: kg_decision op, held-queue sweep, claim-once release, CAPI
   const ops = node('Op').parameters.rules.values.map((v) => v.outputKey);
   assert.equal(ops.indexOf('reject'), 6); assert.ok(ops.includes('kg_decision'));
   const fus = node('Follow-up').parameters.rules.values.map((v) => v.outputKey);
-  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release']);
+  assert.deepEqual(fus.slice(6), ['capi_hold', 'capi_release', 'send_skipped']);
   assert.match(node('Park held CAPI Attended (w12:capi_hold)').parameters.query, /'w12:capi_hold:' \|\| \$4::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING/);
   assert.match(node('Claim CAPI release (once per booking, logs the reason)').parameters.query, /'w12:capi_release:'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
   assert.match(node('Record KG decision (w12:kg_decision, first wins)').parameters.query, /'w12:kg_decision:' \|\| a\.id::text/);
@@ -483,4 +492,290 @@ test('NH-62: KG-ruled no-shows claim goodwill replacements through W13, at most 
   assert.deepEqual([over.row, over.refused], [null, 'weekly_max']);
   assert.deepEqual(over.alerts, ['Jonathan: weekly replacement maximum reached']);
   assert.equal(rows.length, 3);
+});
+
+// ============================================================================================
+// CAPI quality events (19 Oct 2026): Qualified + GoodFit from the 5-min tick (w12.qualityEventItems)
+// ============================================================================================
+test('CAPI quality: Qualified = tier A/B band (W01 QUAL_BUDGET), GoodFit = the two good-fit codes (W29 GOOD_FIT); deterministic event ids', async () => {
+  const { QUAL_BUDGET } = await import('../lib/w01.mjs');
+  const { GOOD_FIT } = await import('../lib/w29.mjs');
+  assert.deepEqual(R.CAPI_QUALIFIED_BANDS, [...QUAL_BUDGET]);
+  assert.ok(!R.CAPI_QUALIFIED_BANDS.includes('lt750'), 'tier C (under R750) is never Qualified for Meta');
+  assert.deepEqual(R.CAPI_GOOD_FIT_CODES, [...GOOD_FIT]); assert.deepEqual(R.CAPI_GOOD_FIT_CODES, ['fit_proceeding', 'fit_followup']);
+  assert.equal(R.capiQualified({ lead_id: 'L1', brand_id: 'B' }).event_id, 'evt_L1_qualified');
+  assert.equal(R.capiGoodFit({ lead_id: 'L1', brand_id: 'B' }).event_id, 'evt_L1_goodfit');
+});
+
+test('CAPI quality: CTWA Qualified sends the click reference only; offline otherwise; GoodFit always offline (as Attended), value = rating', () => {
+  const now = Date.parse('2026-10-19T12:00:00Z');
+  const rows = [
+    { event_name: 'Qualified', lead_id: 'Lc', brand_id: 'B', ctwa_clid: 'CLID', event_time: '2026-10-19T10:00:00Z' },
+    { event_name: 'Qualified', lead_id: 'Lw', brand_id: 'B', ctwa_clid: null, event_time: '2026-10-19T10:00:00Z' },
+    { event_name: 'GoodFit', lead_id: 'Lg', brand_id: 'B', ctwa_clid: 'CLID', event_time: '2026-10-19T09:00:00Z', quality_score: 4 },
+  ];
+  assert.deepEqual(R.qualityEventItems(rows, now), [
+    { fu: 'capi', event_name: 'Qualified', event_id: 'evt_Lc_qualified', action_source: 'business_messaging', ctwa_clid: 'CLID', lead_id: 'Lc', brand_id: 'B', event_time: '2026-10-19T10:00:00Z' },
+    { fu: 'capi', event_name: 'Qualified', event_id: 'evt_Lw_qualified', action_source: 'system_generated', lead_id: 'Lw', brand_id: 'B', event_time: '2026-10-19T10:00:00Z' },
+    { fu: 'capi', event_name: 'GoodFit', event_id: 'evt_Lg_goodfit', action_source: 'system_generated', lead_id: 'Lg', brand_id: 'B', value: 4, event_time: '2026-10-19T09:00:00Z' },
+  ]);
+});
+
+test('CAPI quality: an unrated GoodFit waits 2 h for the WhatsApp rating, then goes without a value; stale (Meta 7-day edge) and future events never go', () => {
+  const marked = Date.parse('2026-10-19T10:00:00Z');
+  const g = { event_name: 'GoodFit', lead_id: 'L1', brand_id: 'B', event_time: new Date(marked).toISOString(), quality_score: null };
+  assert.deepEqual(R.qualityEventItems([g], marked + R.GOODFIT_VALUE_WAIT - 1), []);
+  const late = R.qualityEventItems([g], marked + R.GOODFIT_VALUE_WAIT);
+  assert.equal(late.length, 1); assert.equal('value' in late[0], false);
+  assert.equal(R.qualityEventItems([{ ...g, quality_score: '5' }], marked + 60_000)[0].value, 5, 'a rated one goes at once (pg smallint may arrive as text)');
+  const q = { event_name: 'Qualified', lead_id: 'L2', brand_id: 'B', event_time: new Date(marked).toISOString() };
+  assert.deepEqual(R.qualityEventItems([q], marked + R.CAPI_HOLD_MAX), [], 'at the hold edge: dropped (Meta rejects > 7 days)');
+  assert.deepEqual(R.qualityEventItems([q], marked - 1), [], 'future (test clock) not sent');
+  assert.deepEqual(R.qualityEventItems([{ ...q, event_name: 'Attended' }, { ...q, lead_id: null }], marked + 1), [], 'other names / no lead: nothing');
+});
+
+test('W12.json: the tick feeds Qualified + GoodFit to CAPI Send through the Follow-up switch; SQL dedupes on capi_log and pre-filters consent', async () => {
+  const to = (from, out = 0) => ((WF.connections[from] || {}).main || [])[out]?.map((x) => x.node) || [];
+  const Q = 'Quality events due (Qualified + GoodFit, not in capi_log)';
+  const C = 'Quality events (w12.qualityEventItems)';
+  assert.ok(to('Op', 0).includes(Q), 'tick output only');
+  for (let i = 1; i < 8; i++) assert.ok(!to('Op', i).includes(Q), `op output ${i} does not run the sweep`);
+  assert.deepEqual(to(Q), [C]); assert.deepEqual(to(C), ['Follow-up']);
+  const capiSub = WF.nodes.find((n) => n.name === to('Follow-up', 1)[0]);
+  assert.equal(capiSub.type, 'n8n-nodes-base.executeWorkflow'); assert.equal(capiSub.parameters.workflowId.value, 'smc-capi-send');
+  const sql = WF.nodes.find((n) => n.name === Q).parameters.query;
+  assert.match(sql, /g\.event_id = 'evt_' \|\| l\.id::text \|\| '_qualified' AND g\.event_name = 'Qualified'/);
+  assert.match(sql, /g\.event_id = 'evt_' \|\| o\.lead_id::text \|\| '_goodfit' AND g\.event_name = 'GoodFit'/);
+  assert.match(sql, /\(l\.ctwa_clid IS NOT NULL OR l\.consent_ads_at IS NOT NULL\)/);
+  assert.match(sql, /l\.opted_out_at IS NULL AND l\.consent_ads_at IS NOT NULL/);
+  assert.match(sql, /o\.outcome = 'attended' AND o\.dispute_status <> 'open'/);
+  assert.match(sql, new RegExp(`interval '${R.QUALITY_SWEEP_LOOKBACK_H} hours'`));
+  for (const b of R.CAPI_QUALIFIED_BANDS) assert.ok(sql.includes(`'${b}'`), b);
+  assert.ok(!sql.includes("'lt750'"));
+  // /start/ v4 (Jono, 19 Oct FINAL): no budget band -> income R15k+ AND age 35-50 (lib/w39.mjs isQualifiedV4); proven on the real schema in start-page.local.test.mjs
+  const W39L = await import('../lib/w39.mjs');
+  const page = sql.slice(sql.indexOf('l.budget_band IS NULL AND'), sql.indexOf('AND l.opted_out_at'));
+  for (const x of [...W39L.QUALIFIED_AGE, ...W39L.QUALIFIED_INCOME]) assert.ok(page.includes(`'${x}'`), x);
+  for (const x of ['lt35', '51plus', 'lt15k', 'lt20k', 'prefer_not']) assert.ok(!page.includes(`'${x}'`), `${x} never Qualified`);
+  assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => n.name === Q) })), [], 'physical columns only');
+  // the real Code node -> items CAPI Send accepts as valid input
+  const { normalise } = await import('../lib/sub-capi-send.mjs');
+  const items = (await runCode(WF, C, { items: [
+    { event_name: 'Qualified', lead_id: 'Lc', brand_id: 'B', ctwa_clid: 'CLID', event_time: '2026-10-19T10:00:00Z', quality_score: null },
+    { event_name: 'GoodFit', lead_id: 'Lg', brand_id: 'B', ctwa_clid: null, event_time: '2026-10-19T09:00:00Z', quality_score: 5 },
+  ], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: '2026-10-19T12:00:00Z' } } })).map((x) => x.json);
+  assert.deepEqual(items.map((x) => [x.fu, x.event_name, x.action_source]), [['capi', 'Qualified', 'business_messaging'], ['capi', 'GoodFit', 'system_generated']]);
+  for (const x of items) assert.equal(normalise(x).valid, true, `${x.event_name}: ${normalise(x).missing}`);
+});
+
+// ============================================================================================
+// 19 Oct 2026 live gate-test (booking cf9069c2): a broker row with no WhatsApp number crashed "Store outbound" (NULL
+// recipient_contact, execution 4760, the whole tick lost); a failed send stored failed_reason NULL although
+// smc-whatsapp-send knew the cause (twilio_content_sid_missing, execution 4795).
+// ============================================================================================
+import { evalParam } from './_n8ncode.mjs';
+const noNumber = { adviser_whatsapp: null, whatsapp_number: null };
+
+test('W12 broker with no WhatsApp number: outcome check, nudge and disposition ask are skipped with a reason (claimed), one console alert; never a send', async () => {
+  const fx = lead('L04');
+  const r0 = mrow(fx, noNumber);
+  const [a] = await sweep(r0, fx.expected.W12.outcome_check_at);
+  assert.equal(a.fu, 'send_skipped'); assert.equal(a.send, undefined, 'no send item, so nothing reaches Store outbound');
+  assert.deepEqual([a.skip.to, a.skip.template, a.skip.reason, a.skip.key, a.skip.booking_id], ['broker', 'broker_outcome_check', 'no_broker_whatsapp', 'w12:outcome_check:bkg_L04', 'bkg_L04'], 'claims the same key as a send (the sweep moves on)');
+  assert.equal(a.alert.fu, 'alert'); assert.equal(a.alert.kind, 'other'); assert.match(a.alert.note, /^esc_kind=broker_no_whatsapp; Pieter V\.: /);
+  const [n] = await sweep({ ...r0, sent_outcome_check: true, sent_reach_check: true }, iso(ms(endOf(fx)) + 15 * MIN + 3 * H));
+  assert.deepEqual([n.fu, n.skip.key], ['send_skipped', 'w12:broker_nudge:bkg_L04']);
+  // the lead side is unaffected
+  const [l] = await sweep({ ...r0, sent_outcome_check: true }, fx.expected.W12.reach_check_at);
+  assert.deepEqual([l.fu, l.send.template, l.send.wa.to], ['send', 'reach_check', '+27600000004']);
+  // disposition ask (portal feedback op, out of window) with no number
+  const [d] = (await runCode(WF, 'Disposition ask (w12.dispositionItem)', { items: [{ ...r0, broker_last_inbound_at: null }], refs: { 'Classify + validate (w12.classifyOp)': { op: 'feedback', now_iso: '2026-10-15T12:00:00+02:00' } } })).map((x) => x.json);
+  assert.deepEqual([d.fu, d.skip.template, d.skip.key], ['send_skipped', 'broker_disposition', 'w12:disposition_ask:bkg_L04:tpl']);
+  // a bare '+' is not a number either
+  assert.equal(R.sweepItems({ ...r0, adviser_whatsapp: '+', whatsapp_number: null }, ms(fx.expected.W12.outcome_check_at))[0].fu, 'send_skipped');
+});
+
+test('W12 lead with no phone: the thank-you is skipped under send_skipped:{key} (never looks sent), no escalation', () => {
+  const fx = lead('L01');
+  const row = mrow(fx, { phone: null, broker_mark: 'attended', reach: 'yes' });
+  const sk = R.followUps({ outcome: 'attended', lead_message: 'attended_thanks', capi: [] }, row, 'o1').find((x) => x.fu === 'send_skipped');
+  assert.deepEqual([sk.skip.to, sk.skip.reason, sk.skip.key], ['lead', 'no_lead_phone', 'send_skipped:w12:attended_thanks:bkg_L01']);
+  assert.equal(sk.alert, undefined);
+  const ap = R.followUps({ outcome: 'broker_no_show', lead_message: 'broker_no_show_apology', alerts: [] }, row, 'o2').find((x) => x.fu === 'send_skipped');
+  assert.equal(ap.skip.key, 'send_skipped:w12:apology:bkg_L01', 'w12:apology:{id} stays unwritten: the late-mark check reads it as "apology sent"');
+});
+
+test('W12.json wiring: send_skipped from the sweep, the disposition ask and the follow-ups is logged (claims the key) and alerts once; Escalate dedupes per esc_kind', async () => {
+  const to = (from, out = 0) => ((WF.connections[from] || {}).main || [])[out]?.map((x) => x.node) || [];
+  const S = 'Skipped send item (no recipient)';
+  const LOG = 'Log skipped send (no recipient; claims the key)';
+  const ALERT = 'Skip alert (first skip of a broker message only)';
+  const keysOf = (name) => node(name).parameters.rules.values.map((v) => v.outputKey);
+  assert.equal(keysOf('Sweep item').indexOf('send_skipped'), 2); assert.ok(to('Sweep item', 2).includes(S));
+  assert.equal(keysOf('Follow-up').indexOf('send_skipped'), 8); assert.ok(to('Follow-up', 8).includes(S));
+  assert.deepEqual(to('Disposition ask (w12.dispositionItem)'), ['Sweep item'], 'the ask goes through the same send / skip switch');
+  assert.deepEqual(to(S), [LOG]);
+  assert.match(node(LOG).parameters.query, /'send_skipped'[\s\S]*ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  assert.deepEqual(to(LOG), [ALERT]);
+  assert.deepEqual(to(ALERT), ['Escalate (KG broker no-show / console dispute)']);
+  const fx = lead('L04');
+  const [a] = await sweep(mrow(fx, noNumber), fx.expected.W12.outcome_check_at);
+  assert.deepEqual(evalParam(WF, LOG, 'options.queryReplacement', { json: a }),
+    [a.skip.lead_id, 'brand_smc', BK.broker_id, 'broker_outcome_check', 'broker', 'no_broker_whatsapp', 'bkg_L04', 'w12:outcome_check:bkg_L04']);
+  const alerts = (await runCode(WF, ALERT, { items: [{ id: 'act1' }], refs: { [S]: a } })).map((x) => x.json);
+  assert.deepEqual(alerts.map((x) => x.kind), ['other']);
+  assert.deepEqual(await runCode(WF, ALERT, { items: [{}], refs: { [S]: a } }), [], 'already logged: no second alert');
+  assert.match(node('Escalate (KG broker no-show / console dispute)').parameters.query, /split_part\(COALESCE\(e\.note, ''\), ';', 1\) = split_part\(COALESCE\(\$7, ''\), ';', 1\)/);
+  assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => [LOG, 'Escalate (KG broker no-show / console dispute)'].includes(n.name)) })), []);
+});
+
+test('W12.json Store outbound records the sender reason in failed_reason (twilio_content_sid_missing), never a NULL recipient', () => {
+  const send = { to: 'lead', wa: { to: '+27600000001', type: 'template' }, lead_id: 'L', brand_id: 'B', broker_id: 'R', template: 'reach_check', key: 'w12:reach_check:bk' };
+  const P = 'options.queryReplacement';
+  const q = node('Store outbound').parameters.query;
+  assert.match(q, /failed_reason/); assert.match(q, /COALESCE\(NULLIF\(\$3, ''\), 'unknown'\)/);
+  const at = (json, env = { DRY_RUN_SENDS: 'false' }) => evalParam(WF, 'Store outbound', P, { json, env, refs: { 'Live send?': { send } } });
+  const failed = at({ ok: false, external_id: null, error: 'twilio_content_sid_missing' });
+  assert.deepEqual([failed[4], failed[5], failed[11]], ['failed', 'failed:w12:reach_check:bk', 'twilio_content_sid_missing']);
+  const ok = at({ ok: true, messages: [{ id: 'SM1' }] });
+  assert.deepEqual([ok[4], ok[5], ok[11]], ['sent', 'SM1', '']);
+  assert.equal(at({ error: { message: '(#131047) Re-engagement message' } })[11], '(#131047) Re-engagement message');
+  const dry = at({ send }, { DRY_RUN_SENDS: 'true' });
+  assert.deepEqual([dry[4], dry[11]], ['sent', '']);
+  const logged = JSON.parse(evalParam(WF, 'Log send failed (once; W22 reads it)', P, { json: { ok: false, error: 'twilio_content_sid_missing' }, refs: { 'Live send?': { send } } })[3]);
+  assert.equal(logged.error, 'twilio_content_sid_missing', 'the string error from smc-whatsapp-send, not "no wamid"');
+  assert.deepEqual(checkSql(workflowSql({ nodes: [node('Store outbound')] })), []);
+});
+
+// ============================================================================================
+// Portal-marked outcomes (19 Oct 2026): the broker portal (src/pages/portal/Leads.tsx MarkOne.save) writes outcomes
+// directly. The tick resolves those rows with the same two-sided rules and runs the follow-ups once, behind the
+// w12:outcome:{bk} claim the sweep's own insert writes (so a WhatsApp-resolved booking is never followed up twice).
+// ============================================================================================
+const PEND = '2026-10-15T10:30:00+02:00';
+const prow = (over = {}) => ({ outcome_id: 'out_p', outcome: 'attended', disposition_code: 'fit_proceeding', booking_id: 'bkg_p', lead_id: 'lead_p', brand_id: 'brand_smc', broker_id: BK.broker_id,
+  appointment_date: '2026-10-15T10:00:00+02:00', slot_end: PEND, first_name: 'Thandi', last_name: 'N', phone: '+27600000009', language: 'en', opted_out_at: null,
+  adviser_name: BK.adviser_name, contact_person: BK.adviser_name, adviser_whatsapp: BK.adviser_whatsapp, whatsapp_number: BK.adviser_whatsapp, reach: null, ...over });
+const pat = (min) => ms(PEND) + min * MIN;
+const fus = (c) => R.claimedFollowUps(c);
+const kinds = (c) => fus(c).map((x) => x.fu).sort();
+
+test('Portal attended: thank-you + W29 at once; CAPI Attended goes through the I-51b gate (held until the lead answered or her window closed)', () => {
+  const c = R.portalResolution(prow(), pat(10));
+  assert.deepEqual([c.fu, c.via, c.outcome_id, c.r.outcome, c.dispute_open, c.appointment_status, c.lead_stage], ['claim', 'portal', 'out_p', 'attended', false, 'attended', 'dispositioned']);
+  assert.deepEqual(kinds(c), ['capi_hold', 'send', 'w29']);
+  const thanks = fus(c).find((x) => x.fu === 'send');
+  assert.deepEqual([thanks.send.to, thanks.send.template, thanks.send.wa.to, thanks.send.key], ['lead', 'attended_thanks', '+27600000009', 'w12:attended_thanks:bkg_p']);
+  assert.equal(fus(c).find((x) => x.fu === 'capi_hold').reason, 'awaiting_lead');
+  assert.equal(fus(c).find((x) => x.fu === 'w29').outcome_id, 'out_p');
+  // lead said yes -> Attended now, same event id as the WhatsApp path
+  const yes = fus(R.portalResolution(prow({ reach: 'yes' }), pat(40))).find((x) => x.fu === 'capi');
+  assert.deepEqual([yes.event_name, yes.event_id, yes.action_source, yes.event_time], ['Attended', 'evt_lead_p_attended', 'system_generated', PEND]);
+  // no disposition on the row yet -> stage attended (W29 moves it on)
+  assert.equal(R.portalResolution(prow({ disposition_code: null }), pat(10)).lead_stage, 'attended');
+  // unreachable disposition -> Attended dropped with its reason (I-51b c)
+  const un = fus(R.portalResolution(prow({ disposition_code: 'unreachable', reach: 'yes' }), pat(40))).find((x) => x.fu === 'capi_release');
+  assert.deepEqual([un.decision, un.reason], ['drop', 'unreachable_disposition']);
+  // opted-out lead: no thank-you
+  assert.ok(!kinds(R.portalResolution(prow({ opted_out_at: '2026-10-15T09:00:00+02:00' }), pat(10))).includes('send'));
+});
+
+test('Portal no-show: waits for the lead reach window (end + 30 min + 2 h), then W13 no_show (missed_you + 48-h clock); never a W12 send', () => {
+  const row = prow({ outcome: 'no_show', disposition_code: null });
+  const confirm = 30 + 120;
+  assert.equal(R.portalResolution(row, pat(confirm) - 1), null, 'pending: the next tick looks again (no claim)');
+  const c = R.portalResolution(row, pat(confirm));
+  assert.deepEqual([c.r.outcome, c.appointment_status, c.lead_stage, c.dispute_open], ['no_show', 'no_show', 'no_show', false]);
+  assert.deepEqual(kinds(c), ['w13', 'w29']);
+  const w13 = fus(c).find((x) => x.fu === 'w13');
+  assert.deepEqual(w13, { fu: 'w13', ...R.w13NoShow('out_p', { id: 'bkg_p' }, 'lead_p', iso(pat(confirm))) });
+  assert.equal(w13.idempotency_key, 'w12:no_show:bkg_p', 'same key as a WhatsApp no-show: W13 runs once');
+});
+
+test('Portal mark vs the lead answer (R6-03): disagreement opens the dispute for KG, nothing to the lead, no W13, Attended held', () => {
+  const att = R.portalResolution(prow({ reach: 'no' }), pat(40));
+  assert.deepEqual([att.dispute_open, att.appointment_status], [true, 'attended'], 'as the WhatsApp path: the row says attended, the dispute is open');
+  assert.deepEqual(kinds(att), ['alert', 'capi_hold', 'w29']);
+  assert.equal(fus(att).find((x) => x.fu === 'capi_hold').reason, 'conflict_pending_kg');
+  assert.match(fus(att).find((x) => x.fu === 'alert').note, /^esc_kind=outcome_disputed; .*broker marked attended \(portal\), lead answered no/);
+  const ns = R.portalResolution(prow({ outcome: 'no_show', disposition_code: null, reach: 'yes' }), pat(40));
+  assert.equal(ns.dispute_open, true); assert.deepEqual(kinds(ns), ['alert', 'w29']);
+  const rs = R.portalResolution(prow({ outcome: 'rescheduled', disposition_code: null, reach: 'no' }), pat(40));
+  assert.equal(rs.dispute_open, true); assert.ok(!kinds(rs).includes('w10'), 'no W10 offer until KG decides');
+});
+
+test('Portal rescheduled -> W10 rebook (broker_rescheduled); outside the sweep window or before the slot ended -> nothing', () => {
+  const c = R.portalResolution(prow({ outcome: 'rescheduled', disposition_code: null }), pat(20));
+  assert.deepEqual([c.appointment_status, c.lead_stage], ['rescheduled', null]);
+  const w10 = fus(c).find((x) => x.fu === 'w10');
+  assert.deepEqual([w10.source, w10.reason, w10.schedule_d], ['W12', 'broker_rescheduled', false]);
+  assert.equal(R.portalResolution(prow(), ms(PEND) + R.STALE_AFTER_END), null, 'stale (48 h): never a late thank-you');
+  assert.equal(R.portalResolution(prow(), ms(PEND) - 1), null);
+  assert.equal(R.portalResolution(prow({ outcome: 'broker_no_show' }), pat(40)), null, 'not a portal button');
+  assert.equal(R.portalResolution(prow({ outcome_id: null }), pat(40)), null);
+});
+
+test('W12.json: tick reads portal rows without a w12:outcome claim; they and the W11 row run follow-ups only after winning that claim (no double sends)', async () => {
+  const to = (from, out = 0) => ((WF.connections[from] || {}).main || [])[out]?.map((x) => x.node) || [];
+  const Q = 'Portal-marked outcomes (no W12 follow-ups yet)';
+  const RES = 'Portal resolution (w12.portalResolution)';
+  const CL = 'Claim W12 follow-ups (w12:outcome, once per booking)';
+  const FU = 'Claimed follow-ups (w12.claimedFollowUps)';
+  assert.ok(to('Op', 0).includes(Q), 'tick output'); for (let i = 1; i < 8; i++) assert.ok(!to('Op', i).includes(Q), `op output ${i}`);
+  assert.deepEqual(to(Q), [RES]); assert.deepEqual(to(RES), ['Claim source']);
+  assert.deepEqual(to('Load auto-attended outcome (W11)'), ['Auto-attended resolution (w12.autoAttendedResolution)']);
+  assert.deepEqual(to('Auto-attended resolution (w12.autoAttendedResolution)'), ['Claim source']);
+  assert.deepEqual(to('Claim source'), [CL]); assert.deepEqual(to(CL), [FU]); assert.deepEqual(to(FU), ['Follow-up']);
+  const sql = node(Q).parameters.query;
+  assert.match(sql, /o\.marked_via = 'portal' AND o\.dispute_status = 'none'/);
+  assert.match(sql, /o\.outcome IN \('attended', 'no_show', 'rescheduled'\)/);
+  assert.match(sql, /NOT EXISTS \(SELECT 1 FROM public\.lead_activities c WHERE c\.idempotency_key = 'w12:outcome:' \|\| a\.id::text\)/);
+  assert.match(sql, /interval '48 hours'/); assert.match(sql, /NOT \$2::boolean OR l\.is_synthetic/);
+  // ONE key for "follow-ups ran": the sweep's insert writes it with its own row, the claim takes it for every other writer
+  assert.match(node('Insert outcome + appointment + stage + timeline').parameters.query, /'outcome_recorded'[\s\S]*'w12:outcome:' \|\| o\.booking_id::text/);
+  const cl = node(CL).parameters.query;
+  assert.match(cl, /'outcome_recorded'[\s\S]*'w12:outcome:' \|\| \$4::text\)\s+ON CONFLICT \(idempotency_key\) DO NOTHING\s+RETURNING id/);
+  for (const t of ['outcomes', 'appointments', 'leads']) assert.match(cl, new RegExp(`UPDATE public\\.${t} [\\s\\S]*?EXISTS \\(SELECT 1 FROM c\\)`), `${t} written only by the claim winner`);
+  assert.deepEqual(checkSql(workflowSql({ nodes: WF.nodes.filter((n) => n.name === Q || n.name === CL) })), [], 'physical columns only');
+  // the real Code nodes, as n8n runs them
+  const [c, ...rest] = (await runCode(WF, RES, { items: [prow(), prow({ booking_id: 'bkg_q', outcome: 'no_show', disposition_code: null })], refs: { 'Classify + validate (w12.classifyOp)': { now_iso: iso(pat(10)) } } })).map((x) => x.json);
+  assert.equal(c.row.booking_id, 'bkg_p'); assert.equal(rest.length, 0, 'the no-show inside its reach window waits');
+  const src = (await runCode(WF, 'Claim source', { json: c })).json;
+  assert.deepEqual(evalParam(WF, CL, 'options.queryReplacement', { json: src }),
+    ['lead_p', 'brand_smc', BK.broker_id, 'bkg_p', 'attended', 'portal', 'attended', 'none', false, 'attended', 'dispositioned']);
+  assert.deepEqual((await claimed(c)).map((x) => x.fu).sort(), ['capi_hold', 'send', 'w29']);
+  assert.deepEqual(await claimed(c, false), [], 'claim lost: nothing sent');
+});
+
+test('v4b16: "Yes, we spoke" while the outcome is open -> one short reply (claimed key); later attended_thanks is not sent again', async () => {
+  const fx = lead('L01');
+  const END = endOf(fx);
+  const base = mrow(fx, { first_name: 'Lerato', phone: '+27600000001', reach: 'yes', reach_at: iso(ms(END) + 35 * MIN), sent_outcome_check: true, sent_reach_check: true });
+  const now = iso(ms(END) + 40 * MIN);
+  const items = await sweep(base, now);
+  const reply = items.find((x) => x.fu === 'send' && x.send.key === 'w12:reach_thanks:' + base.booking_id);
+  assert.ok(reply, 'reply item');
+  assert.deepEqual([reply.send.to, reply.send.wa.type, reply.send.wa.to, reply.send.template, reply.send.claim], ['lead', 'text', '+27600000001', null, true]);
+  const adv = BK.adviser_name.split(' ')[0];
+  assert.equal(reply.send.wa.text.body, `Thanks, Lerato. Glad you and ${adv} could talk. ${adv} will follow up with you directly.`);
+  assert.ok(!/R\s?\d|price|fee|free|AI|commission/i.test(reply.send.wa.text.body));
+  assert.ok(!items.some((x) => x.fu === 'resolve'), 'broker has not marked yet: still pending');
+  // already sent / opted out / tap outside the 24-h window -> nothing
+  for (const over of [{ sent_reach_thanks: true }, { opted_out_at: now }, { reach_at: iso(ms(now) - 24 * H) }]) {
+    assert.ok(!(await sweep({ ...base, ...over }, now)).some((x) => x.send && x.send.key.startsWith('w12:reach_thanks:')), JSON.stringify(over));
+  }
+  // the broker marks attended later: attended_thanks is skipped because she already got the reply
+  const later = { ...base, broker_mark: 'attended', sent_reach_thanks: true };
+  const [res] = (await sweep(later, iso(ms(END) + 2 * H))).filter((x) => x.fu === 'resolve');
+  assert.equal(res.o.outcome, 'attended');
+  const fu = await follow({ ...res, row: later }, 'out_L01');
+  assert.ok(!fu.some((x) => x.fu === 'send'), 'no second thank-you');
+  assert.ok(fu.some((x) => x.fu === 'w29'));
+  // both sides in the same pass (L01): no reach reply, attended_thanks as before
+  const same = await sweep({ ...base, broker_mark: 'attended' }, now);
+  assert.ok(!same.some((x) => x.send && x.send.key.startsWith('w12:reach_thanks:')));
+  // the state query carries the two columns the rule reads
+  const q = WF.nodes.find((n) => n.name === 'Meeting state (ended, no outcome yet)').parameters.query;
+  assert.match(q, /'w12:reach_thanks:' \|\| a\.id::text\) AS sent_reach_thanks/);
+  assert.match(q, /AS reach_at/);
 });

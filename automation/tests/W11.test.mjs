@@ -12,7 +12,7 @@ const B = broker();
 const BR = { id: B.broker_id, contact_person: B.adviser_name };
 const mk = (fx, last, extra = {}) => {
   const r = fx.booking_request;
-  return { id: 'bk_' + fx.fixture_id, client_id: fx.lead_id, broker_id: B.broker_id, brand_id: 'smc', cycle_id: 'cyc_test_001', appointment_date: r.slot_start, ends_at: iso(ms(r.slot_start) + 30 * MIN), method: r.method, status: 'booked', reschedule_count: 0, join_url: r.method === 'teams' ? 'https://teams.microsoft.com/l/meetup-join/test' : null, lead: { first_name: fx.submission.first_name || fx.submission.profile_name || 'Anele', last_name: last }, ...extra };
+  return { id: 'bk_' + fx.fixture_id, client_id: fx.lead_id, broker_id: B.broker_id, brand_id: 'smc', appointment_date: r.slot_start, ends_at: iso(ms(r.slot_start) + 30 * MIN), method: r.method, status: 'booked', reschedule_count: 0, join_url: r.method === 'teams' ? 'https://teams.microsoft.com/l/meetup-join/test' : null, lead: { first_name: fx.submission.first_name || fx.submission.profile_name || 'Anele', last_name: last }, ...extra };
 };
 const L01 = lead('L01'); const L02 = lead('L02'); const L03 = lead('L03'); const L04 = lead('L04');
 const BOOKINGS = [mk(L01, 'Mokoena'), mk(L04, 'van Wyk'), mk(L02, 'Dlamini'), mk(L03, 'Khumalo')];
@@ -100,8 +100,21 @@ test('L03 (broker silent, lead said "No, not yet"): backstop does NOT auto-atten
   assert.equal(d.action, 'queue'); assert.equal(d.escalation.kind, 'outcome_unmarked');
 });
 
-test('two unconfirmed in a cycle -> Jonathan calls the broker (4.12a)', () => {
+test('two unconfirmed for one broker within 30 days -> Jonathan calls the broker (4.12a; D7: no cycles)', () => {
   assert.equal(K.unconfirmedCall(1), false); assert.equal(K.unconfirmedCall(2), true);
+  const ins = WF.nodes.find((n) => n.name.startsWith('Insert auto-attended outcome')).parameters.query;
+  assert.match(ins, /x\.broker_id = o\.broker_id AND x\.unconfirmed AND x\.marked_at > now\(\) - interval '30 days'/);
+  assert.doesNotMatch(JSON.stringify(WF.nodes.filter((n) => n.parameters.query)), /cycle_id|in_cycle/);
+  const gate = WF.nodes.find((n) => n.name === 'Two unconfirmed in 30 days? (4.12a)');
+  assert.match(JSON.stringify(gate.parameters), /\$json\.unconfirmed_30d/);
+  assert.ok(WF.connections['Inserted?'].main[0].some((c) => c.node === gate.name));
+});
+
+test("pre-call brief corpus = this broker's last 5 outcomes.summary (no insights table)", () => {
+  const q = WF.nodes.find((n) => n.name === 'Meetings starting within 15 min, not yet briefed').parameters.query;
+  assert.doesNotMatch(q, /public\.insights/);
+  assert.match(q, /FROM public\.outcomes o WHERE o\.broker_id = b\.id AND NULLIF\(btrim\(o\.summary\), ''\) IS NOT NULL ORDER BY o\.marked_at DESC LIMIT 5/);
+  assert.equal(K.briefInput({ first_name: 'Anele', last_name: 'Dlamini' }, { appointment_date: '2026-10-14T12:00:00Z', method: 'teams' }, [], {}, ['a', 'b', 'c', 'd', 'e', 'f']).adviser_corpus.length, 5);
 });
 
 test('W11.json: physical columns only; outcome insert cannot override W12; brief claim before send; schedules', () => {
@@ -162,4 +175,56 @@ test('I-57a: an empty minute (alwaysOutputData -> {skip:true}) stops at an IF an
   assert.match(node.parameters.conditions.conditions[0].leftValue, /\$json\.skip !== true/);
   assert.deepEqual(prev(gate[0]), ['Brief input (w11.briefInput)']);
   assert.equal(WF.connections[gate[0]].main.length, 1, 'only the true output is wired');
+});
+
+// ---------- /start/ v4 (20 Oct 2026): income band, topics, guest joining, call / alt number in the brief ----------
+test('v4 brief: income band + topics replace the missing budget band; Teams guest named as "one guest joining", never the address', async () => {
+  const ld = { first_name: 'Naledi', last_name: 'Khumalo', phone: '+27600000011', age_band: '35_44', budget_band: null, income_band: '30k_50k', alt_number: '+27600000012', best_time: 'mornings', language: 'en',
+    conv_state: { via: 'start_page', start: { topics: ['life', 'new_bond', 'will'], via: 'start_page' } } };
+  const b = { ...mk(L01, 'Khumalo'), guest_email: 'synthetic-guest@example.test' };
+  const input = K.briefInput(ld, b, [], {}, []);
+  assert.equal(input.lead.income_band, 'R30,000 to R50,000 a month');
+  assert.deepEqual(input.lead.topics, ['life cover', 'cover for a new bond', 'a will (passed to a person)']);
+  assert.equal(input.contact.guest_joining, true); assert.equal(input.contact.alt_number, '+27600000012');
+  assert.ok(!JSON.stringify(input).includes('@'), 'the guest address never reaches the model');
+  const fb = K.fallbackBrief(ld, b, input);
+  assert.equal(fb.template_vars[3], 'Teams (one guest joining)');
+  assert.equal(fb.template_vars[7], 'not asked (income R30,000 to R50,000 a month)');
+  assert.match(fb.template_vars[8], /^Wants help with: life cover, cover for a new bond, a will \(passed to a person\)$/);
+  assert.match(fb.portal.who, /35-44, income R30,000 to R50,000 a month, Wants help with: life cover/);
+  assert.match(fb.portal.practical, /^Teams \(one guest joining\), Teams link in the event, backup number \+27600000012, mornings, English$/);
+  const c = briefCheck(fb, { last_name: 'Khumalo' });
+  assert.equal(c.pass, true, JSON.stringify(c.issues));
+  assert.match(renderBody('precall_brief', K.briefVarsArray(fb)), /by Teams \(one guest joining\)\. Number to call: Teams link in the event\..*budget band not asked \(income R30,000 to R50,000 a month\)\. Asked before the call: Wants help with: life cover/);
+  // phone: number + backup in var 4 (unchanged rule); no guest on a phone call; prefer_not / no income -> "not given"
+  const ph = { ...mk(L04, 'Khumalo'), guest_email: 'synthetic-guest@example.test' };
+  const pi = K.briefInput({ ...ld, income_band: 'prefer_not', call_number: '+27600000013' }, ph, [], {}, []);
+  const pf = K.fallbackBrief({ ...ld, call_number: '+27600000013' }, ph, pi);
+  assert.equal(pi.contact.guest_joining, false);
+  assert.equal(pf.template_vars[4], '+27600000013 (not the WhatsApp number) (if no answer: +27600000012)');
+  assert.equal(pf.template_vars[7], 'not given');
+  // a chat lead with a budget band keeps it
+  assert.equal(K.fallbackBrief({ ...ld, budget_band: '1500_plus' }, b, K.briefInput({ ...ld, budget_band: '1500_plus' }, b, [], {}, [])).template_vars[7], 'R1,500+ a month (priority)');
+});
+
+test('v4 brief wiring: W11 reads income_band, conv_state and the guest fact (not the address); Brief input passes them; W11 stays inactive, relay only', async () => {
+  const q = WF.nodes.find((n) => n.name === 'Meetings starting within 15 min, not yet briefed').parameters.query;
+  assert.match(q, /l\.income_band, l\.conv_state/);
+  assert.match(q, /EXISTS \(SELECT 1 FROM public\.lead_activities g WHERE g\.idempotency_key = 'w05:guest:' \|\| a\.id AND g\.activity_type = 'booking_guest' AND g\.payload \? 'guest_email'\) AS guest_joining/);
+  assert.doesNotMatch(q, /guest_email'\s*AS|->>'guest_email'/, 'the address is not selected');
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  assert.equal(WF.active, false);
+  const { runCode } = await import('./_n8ncode.mjs');
+  const row = { id: 'bk_v4', client_id: 'l1', broker_id: 'b', brand_id: 'smc', appointment_date: '2026-10-21T10:00:00+02:00', method: 'teams', status: 'booked', join_url: 'https://teams.microsoft.com/l/meetup-join/test',
+    first_name: 'Naledi', last_name: 'Khumalo', phone: '+27600000011', age_band: '35_44', budget_band: null, income_band: '50k_80k', conv_state: { start: { topics: ['disability_income'] } }, guest_joining: true,
+    lead_call_number: null, alt_number: null, best_time: null, language: 'en', whatsapp_number: '+27600000099', themes: [], corpus: [] };
+  const o = await runCode(WF, 'Brief input (w11.briefInput)', { json: row });
+  assert.equal(o.json.input.lead.income_band, 'R50,000 to R80,000 a month');
+  assert.deepEqual(o.json.input.lead.topics, ['disability and income protection']);
+  assert.equal(o.json.input.contact.guest_joining, true);
+  assert.equal(o.json.body.model, 'relay-default');
+  assert.match(o.json.body.system, /income_band|Wants help with/, 'the system prompt read from precall-brief.md covers the v4 inputs');
+  const relay = WF.nodes.find((n) => n.name === 'Pre-call brief LLM (relay)');
+  assert.equal(relay.parameters.url, '={{ $env.LLM_RELAY_URL }}');
+  assert.doesNotMatch(JSON.stringify(WF), /anthropic|claude-|x-api-version/i);
 });

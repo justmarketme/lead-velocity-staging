@@ -42,6 +42,7 @@ import { AICallDialog } from "@/components/calls/AICallDialog";
 import { ReferralPipeline } from "./ReferralPipeline";
 import { LayoutGrid, List } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 interface Referral {
   id: string;
@@ -114,7 +115,7 @@ const AdminReferrals = () => {
       if (error) throw error;
 
       setReferrals(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching referrals:", error);
       toast({
         title: "Error",
@@ -275,10 +276,10 @@ const AdminReferrals = () => {
         content: "Manually resent welcome email.",
         status: 'sent'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Resend Failed",
-        description: error.message,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -316,10 +317,10 @@ const AdminReferrals = () => {
         content: "Manually resent success notification.",
         status: 'sent'
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Resend Failed",
-        description: error.message,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -428,7 +429,7 @@ const AdminReferrals = () => {
           <p className="text-muted-foreground">Track and convert referrals from your AI campaigns</p>
         </div>
 
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="hidden sm:block">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "table" | "pipeline")} className="hidden sm:block">
           <TabsList className="bg-muted/50 p-1">
             <TabsTrigger value="pipeline" className="gap-2">
               <LayoutGrid className="h-4 w-4" /> Pipeline

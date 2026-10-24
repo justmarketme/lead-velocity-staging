@@ -14,6 +14,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import LeadConversation from "@/components/leads/LeadConversation";
 import { HeldLowBudgetLeads, useHeldLowBudgetLeads } from "@/components/leads/HeldLowBudgetLeads";
+import { LeadOptinPanel, OPTIN_CHANNELS, channelLabel, useLeadOptinChannels } from "@/components/leads/LeadOptins";
 import { LOW_BUDGET } from "@/lib/lowBudget";
 import { UnifiedCommunicationHub } from "@/components/communications/UnifiedCommunicationHub";
 import { AICallDialog } from "@/components/calls/AICallDialog";
@@ -138,6 +139,8 @@ const LeadsTable = () => {
   const { leadsWithUnread } = useLeadsWithUnread('admin');
   const held = useHeldLowBudgetLeads();
   const [showHeld, setShowHeld] = useState(false);
+  const optins = useLeadOptinChannels();
+  const [optinFilter, setOptinFilter] = useState("all");
 
   const [columnWidths, setColumnWidths] = useState(() => {
     const saved = localStorage.getItem('leads-table-column-widths');
@@ -183,6 +186,7 @@ const LeadsTable = () => {
         () => {
           fetchLeads();
           held.reload();
+          optins.reload();
         }
       )
       .subscribe();
@@ -210,8 +214,16 @@ const LeadsTable = () => {
       );
     }
 
+    // Opt-in channel filter
+    if (optinFilter !== "all") {
+      filtered = filtered.filter((lead) => {
+        const channels = optins.byLead.get(lead.id);
+        return optinFilter === "none" ? !channels : !!channels?.includes(optinFilter as keyof typeof OPTIN_CHANNELS);
+      });
+    }
+
     setFilteredLeads(filtered);
-  }, [searchTerm, leads]);
+  }, [searchTerm, leads, optinFilter, optins.byLead]);
 
   const fetchLeads = async () => {
     const { data, error } = await supabase
@@ -396,6 +408,20 @@ const LeadsTable = () => {
             className="pl-10"
           />
         </div>
+        {optins.available && (
+          <Select value={optinFilter} onValueChange={setOptinFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Opt-in channel" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All opt-in channels</SelectItem>
+              {Object.entries(OPTIN_CHANNELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+              <SelectItem value="none">No opt-in recorded</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         {held.available && (
           <Button
             variant={showHeld ? "default" : "outline"}
@@ -485,6 +511,11 @@ const LeadsTable = () => {
                 </TableCell>
                 <TableCell>
                   <div className="overflow-hidden px-2">
+                    {optins.byLead.get(lead.id) && (
+                      <Badge variant="outline" className="text-[10px] bg-primary/5 whitespace-nowrap mb-1" title="Opt-in channel (first opt-in)">
+                        {channelLabel(optins.byLead.get(lead.id)![0])}
+                      </Badge>
+                    )}
                     {lead.source?.includes('|') ? (
                       <div className="text-xs space-y-1 overflow-hidden">
                         <Badge variant="outline" className="text-[10px] uppercase bg-primary/5 whitespace-nowrap">{lead.source.split('|')[0].replace('_', ' ')}</Badge>
@@ -622,6 +653,8 @@ const LeadsTable = () => {
                   <p className="text-sm text-muted-foreground">{selectedLead.brokers.contact_person}</p>
                 </div>
               )}
+
+              <LeadOptinPanel leadId={selectedLead.id} />
 
               {selectedLead.notes && (
                 <div>

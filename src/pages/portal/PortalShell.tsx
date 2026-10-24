@@ -5,7 +5,7 @@
  */
 import { createContext, type CSSProperties, ReactNode, useContext } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
-import { BarChart3, Calendar, CreditCard, Database, HelpCircle, IdCard, Mic, Rocket, UserCircle } from "lucide-react";
+import { Calendar, MessageSquare, CreditCard, Database, HelpCircle, IdCard, Mic, Rocket, UserCircle } from "lucide-react";
 import BrokerLayout, { type BrokerMenuItem } from "@/components/broker/BrokerLayout";
 import "../../../brand/tokens.css";
 import "./portal.css";
@@ -17,16 +17,16 @@ export const SMC_MENU: BrokerMenuItem[] = [
   { id: "start", label: "Start here", icon: Rocket, path: "/broker/start" },
   { id: "leads", label: "My leads", icon: Database, path: "/broker/leads" },
   { id: "calendar", label: "Calendar & availability", icon: Calendar, path: "/broker/calendar" },
-  { id: "reports", label: "Reports", icon: BarChart3, path: "/broker/reports" },
   { id: "profile", label: "Profile", icon: UserCircle, path: "/broker/profile" },
   { id: "card", label: "Intro card", icon: IdCard, path: "/broker/intro-card" },
   { id: "media", label: "Voice note & video", icon: Mic, path: "/broker/intro-media" },
-  { id: "agreement", label: "Agreement & billing", icon: CreditCard, path: "/broker/agreement" },
+  { id: "agreement", label: "Agreement & order", icon: CreditCard, path: "/broker/agreement" },
+  { id: "messages", label: "Message us", icon: MessageSquare, path: "/broker/messages" },
   { id: "help", label: "Help", icon: HelpCircle, path: "/broker/help" },
 ];
 const TABS = [
   { to: "/broker/start", label: "Start" }, { to: "/broker/leads", label: "My leads" }, { to: "/broker/calendar", label: "Calendar" },
-  { to: "/broker/reports", label: "Reports" }, { to: "/broker/help", label: "Help" },
+  { to: "/broker/help", label: "Help" },
 ];
 
 /** WCAG AA: the CRM --primary (280 90% 60%) gives 4.17:1 with white; scoped darker value for SMC surfaces only (axe 2026-10-03). */
@@ -44,7 +44,7 @@ export function usePortal(): Ctx {
 interface Props { title: string | ((b: SmcBroker) => string); children: ReactNode; wide?: boolean; progress?: boolean }
 
 export default function PortalShell({ title, children, wide, progress }: Props) {
-  const { broker, userId, loading, error, reload } = useCurrentBroker({ heartbeat: true });
+  const { broker, userId, loading, error, reload } = useCurrentBroker();
   const { pathname } = useLocation();
 
   if (loading) return <BrokerLayout menuItems={SMC_MENU}><div className="smc-portal"><div className="app"><main className="main"><p className="muted">Loading…</p></main></div></div></BrokerLayout>;

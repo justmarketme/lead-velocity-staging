@@ -13,6 +13,6 @@ for (const name of order) {
   const job = jobOf[name] || 'judge';
   if (!allow(cfg, job, est)) { skipped.push({ rubric: name, reason: 'cap' }); continue; }
   charge(cfg, job, est);
-  out.push({ json: { rubric: name, sampled: s.samples.length, skipped, body: anthropicBody(cfg.models.fast, PROMPTS.judge_system, user, 2500) } });
+  out.push({ json: { rubric: name, sampled: s.samples.length, skipped, body: relayBody(cfg.models.fast, PROMPTS.judge_system, user, 2500) } });
 }
 return out;

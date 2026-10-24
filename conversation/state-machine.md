@@ -1,4 +1,4 @@
-# Thandi: conversation state machine (4.6 CTWA steps 1-7, 4.11, 4.12, 4.12a)
+# Lindi: conversation state machine (4.6 CTWA steps 1-7, 4.11, 4.12, 4.12a)
 
 | | |
 |---|---|
@@ -8,13 +8,13 @@
 | Order of steps | Matches the approved design references (`docs/design/sortmycover-end-to-end.html`, `sortmycover-chat-replay.html`) where they are explicit. |
 
 **L1** = Layer 1, deterministic: buttons, lists, Flow screens, templates, fixed lines. Zero generated text. About 90% of turns.
-**L2** = Layer 2, LLM: the lead typed free text. Intent/slot (Haiku) → `decide()` → reply (Haiku) → `outputGate` → guardrail classifier → `toneCheck` → send. About 10% of turns.
+**L2** = Layer 2, LLM: the lead typed free text. Lindi labels + reply (one call, ElevenLabs via `smc-lindi-chat`) → `decide()` → `outputGate` → guardrail classifier → `toneCheck` → send. About 10% of turns.
 
 ## 1. Entry points
 
 | Entry | Trigger | First state | First message (< 60 s) |
 |---|---|---|---|
-| **Web, booked on page** | W01 → route (1.3) → W05 | `booked_await_commit` | `broker_intro_booked` template (L1). Commitment ask: in the session if the window is open; otherwise the lead's first reply opens it and Thandi's first reply carries `DISCLOSE` + `COMMIT_ASK` (see section 6). |
+| **Web, booked on page** | W01 → route (1.3) → W05 | `booked_await_commit` | `broker_intro_booked` template (L1). Commitment ask: in the session if the window is open; otherwise the lead's first reply opens it and Lindi's first reply carries `DISCLOSE` + `COMMIT_ASK` (see section 6). |
 | **Web, not booked** | W01 → route | `unbooked` | `broker_intro_slots` (or `_v2` with the Flow button when `brands.booking_ui = flow`) (L1) |
 | **Meta instant form** | W02 | as web | as web |
 | **Click-to-WhatsApp** | W03, prefilled "Hi, I'd like to check my life cover" + CTWA referral (ad id stored) | `consent_pending` | `DISCLOSE_PRE_ROUTE` + `ctwa-*-v3` consent (L1, session message; the lead opened a 72-h free entry window) |
@@ -24,7 +24,7 @@
 | State | What the lead sees | Layer | Leaves on | Next |
 |---|---|---|---|---|
 | `consent_pending` | Disclosure + consent, `Yes, continue` · `No thanks` | L1 (typed text → L2) | Yes / No / STOP | `q_age` / `closed_no_consent` / `opted_out` |
-| `q_age` | "Great. Four quick taps… which age band are you in?" list | L1 | band tapped or typed | `q_budget`, or `closed_oob` if `Under 35` / `51 or over` |
+| `q_age` | "Great. Four quick taps… which age band are you in?" list | L1 | band tapped or typed | `q_budget` (every age band books, 18 Oct 2026) |
 | `q_budget` | "Roughly what could you put towards cover each month?" list | L1 | band | `q_bond`; `Under R750` → `closed_oob`; `Not sure yet` → `q_budget_clarify` |
 | `q_budget_clarify` | "No problem, a rough idea is fine…" | L1 | band | `q_bond`; `Under R750` / `Really not sure` → `closed_oob` |
 | `q_bond` | "Do you have a bond or people who depend on your income?" list (bond and dependants in one tap) | L1 | tapped or typed | `q_method` (`q_dependants` is kept only for rows written before NH-59 and also moves to `q_method`) |
@@ -66,7 +66,7 @@ Priority order, exactly as `decide()` implements it:
 | `consent_pending` | "yes ok" / "ja" | `consent_yes` → Q1 |
 | `consent_pending` | "no" / "nee dankie" | `consent_no` → `CLOSE_NO_CONSENT` |
 | `consent_pending` | a question | `answer:FAQ-xx` (+ `defer`) + `consent_reask` (buttons again) |
-| `q_*` | a typed answer ("I'm 42", "yes we have a bond") | `record_answer` + `next_question` (out of band → `close_oob`) |
+| `q_*` | a typed answer ("I'm 42", "yes we have a bond") | `record_answer` + `next_question` (an age never closes; an out-of-band budget → `close_oob`) |
 | `q_*` | something else | answer/defer + `repeat_question` |
 | `unbooked`, `booking`, `no_show`, `closed_unbooked` | "can we do friday after 2" | `offer_slots` (W04 slots for Friday afternoon, 3 buttons) |
 | same | "book me" / "when can he do" | `send_slots` |
@@ -111,7 +111,7 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 
 ## 6. Channel rules that shape the machine (respond.io / Gupshup / Clickatell; Meta Cloud API)
 
-- **24-h customer-service window.** Free-form (L2) and session interactive messages only go out inside a window the lead opened by messaging or tapping. Everything scheduled is a utility template. A template sent by us does not open the window, so on a web lead Thandi cannot send the replay's proactive intro until the lead replies or taps; the first such reply carries `DISCLOSE`.
+- **24-h customer-service window.** Free-form (L2) and session interactive messages only go out inside a window the lead opened by messaging or tapping. Everything scheduled is a utility template. A template sent by us does not open the window, so on a web lead Lindi cannot send the replay's proactive intro until the lead replies or taps; the first such reply carries `DISCLOSE`.
 - **CTWA leads** open a 72-h free entry window, which is why the CTWA stall nudges fit inside 72 h.
 - **Buttons**: reply buttons max 3, list rows max 10, button text max 20 characters (lists 24): the fixed lists in `deferral-lines.md` respect this.
 - **No typing delay is added.** The typing indicator (sent with the read receipt) shows only during real LLM latency.
@@ -126,7 +126,7 @@ Multi-intent: answers first, then the deferral, then the operational action (its
 
 ## 8. Out-of-band close (3.3, 2.1.7)
 
-- Tapped or typed age `Under 35` / `51 or over` → `CLOSE_OOB_AGE`. Budget `Under R750` (or `Really not sure` after the clarify step) → `CLOSE_OOB_BUDGET`. No hand-over to any broker, no adviser named.
+- Any age band is recorded and the questions go on (18 Oct 2026: every age books and counts; there is no age close). Budget `Under R750` (or `Really not sure` after the clarify step) → `CLOSE_OOB_BUDGET`. No hand-over to any broker, no adviser named.
 - Data: deleted within 24 h; for CTWA "no consent", only a hashed number is kept for suppression.
 - After booking, a contradiction is not auto-closed: it is flagged for a human (SUMMARY `needs_human`).
 

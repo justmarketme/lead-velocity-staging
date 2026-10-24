@@ -96,7 +96,12 @@ export function applyRepoMigrations(pg) {
     pg.file(join(D, 'real-seed-synthetic.sql'));
     pg.sql('ALTER DATABASE postgres SET search_path = "$user", public, extensions');
     const MIGR = join(ROOT, 'supabase', 'migrations');
-    for (const f of readdirSync(MIGR).filter((x) => /^\d{14}_smc_.*\.sql$/.test(x)).sort()) pg.file(join(MIGR, f), ['-1']);
+    // every migration after the captured live schema (2026-10-10): the smc_* chain AND the later CRM migrations that are not named
+    // smc_ (broker_*, appointment_*, ...), in timestamp order. undo/ and backup/ are directories, never picked up.
+    // `create extension pg_cron | pg_net` cannot be satisfied by a throwaway Postgres: the cron.* and net.* stand-ins in pg-stub.sql cover the calls.
+    for (const f of readdirSync(MIGR).filter((x) => /^\d{14}_.*\.sql$/.test(x) && x.slice(0, 14) >= '20261011000000').sort()) {
+      pg.sql(readFileSync(join(MIGR, f), 'utf8').replace(/create extension if not exists (pg_cron|pg_net)[^;]*;/gi, '-- pg_cron / pg_net: stubbed in pg-stub.sql'), ['-1']);
+    }
     return;
   }
   const MIG = join(ROOT, 'supabase', 'migrations');

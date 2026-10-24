@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -127,9 +128,9 @@ export function AICallDialog({
       console.log('Bridge call response:', data);
       toast.success(data.message || 'Ayanda is connecting your phone now...');
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error initiating bridge call:', error);
-      toast.error(`Failed to connect: ${error.message}`);
+      toast.error(`Failed to connect: ${errorMessage(error)}`);
     } finally {
       setIsInitiating(false);
     }
@@ -179,9 +180,9 @@ export function AICallDialog({
       setCallTarget('client');
       setCallPurpose('');
       setAdditionalDetails('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error initiating AI call:', error);
-      toast.error(error.message || 'Failed to initiate AI call. Please try again.');
+      toast.error(errorMessage(error) || 'Failed to initiate AI call. Please try again.');
     } finally {
       setIsInitiating(false);
     }

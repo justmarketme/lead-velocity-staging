@@ -48,7 +48,7 @@ const BrokerReferrals = () => {
   const checkAuthAndFetchData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      navigate("/login");
+      navigate("/broker");
       return;
     }
 
@@ -61,7 +61,7 @@ const BrokerReferrals = () => {
       .maybeSingle();
 
     if (!roleData) {
-      navigate("/login");
+      navigate("/broker");
       return;
     }
 
@@ -83,7 +83,7 @@ const BrokerReferrals = () => {
       if (error) throw error;
 
       setReferrals(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching referrals:", error);
       toast({
         title: "Error",

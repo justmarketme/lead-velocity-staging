@@ -58,7 +58,7 @@ const BrokerCalendar = () => {
   const checkAuthAndFetchData = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      navigate("/login");
+      navigate("/broker");
       return;
     }
 
@@ -70,7 +70,7 @@ const BrokerCalendar = () => {
       .maybeSingle();
 
     if (!roleData) {
-      navigate("/login");
+      navigate("/broker");
       return;
     }
 
@@ -98,7 +98,7 @@ const BrokerCalendar = () => {
       if (error) throw error;
 
       setAppointments(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching appointments:", error);
       toast({
         title: "Error",

@@ -154,21 +154,23 @@ const BrokerLeads = () => {
         setStartDate(startOfDay(today));
         setEndDate(endOfDay(today));
         break;
-      case 'yesterday':
+      case 'yesterday': {
         const yesterday = subDays(today, 1);
         setStartDate(startOfDay(yesterday));
         setEndDate(endOfDay(yesterday));
         break;
+      }
       case 'thisWeek':
         setStartDate(startOfWeek(today, { weekStartsOn: 1 }));
         setEndDate(endOfWeek(today, { weekStartsOn: 1 }));
         break;
-      case 'lastWeek':
+      case 'lastWeek': {
         const lastWeekStart = startOfWeek(subDays(today, 7), { weekStartsOn: 1 });
         const lastWeekEnd = endOfWeek(subDays(today, 7), { weekStartsOn: 1 });
         setStartDate(lastWeekStart);
         setEndDate(lastWeekEnd);
         break;
+      }
       case 'thisMonth':
         setStartDate(startOfMonth(today));
         setEndDate(endOfMonth(today));
@@ -184,7 +186,7 @@ const BrokerLeads = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
 
@@ -195,7 +197,7 @@ const BrokerLeads = () => {
       });
 
       if (!hasRole) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
 

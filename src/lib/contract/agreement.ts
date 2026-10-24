@@ -57,7 +57,7 @@ export interface ResolvedAgreement {
 
 export const AGREEMENT_TITLE = "Lead Generation Services Agreement";
 export const AGREEMENT_MD: string = agreementMd;
-export const TEMPLATE_VERSION: string = (agreementMd.match(/Version:\s*([A-Za-z0-9.\-]+)/) || [])[1] || "unknown";
+export const TEMPLATE_VERSION: string = (agreementMd.match(/Version:\s*([A-Za-z0-9.-]+)/) || [])[1] || "unknown";
 
 const GENERIC_VERSION_TAIL =
   "Template for any authorised FSP client · Client-specific details appear only in the Parties block and Schedule 1.";

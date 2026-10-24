@@ -1,10 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { communicationEmail } from "../_shared/lv_emails.ts";
+import { smcCommunicationEmail, smcLeadIds, SMC_FROM, SMC_REPLY_TO } from "../_shared/smc_email.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+/** Resend attachment: base64 `content` or a remote `path`. */
+interface EmailAttachment {
+  filename?: string;
+  content?: string;
+  path?: string;
+  content_type?: string;
+}
 
 interface CommunicationPayload {
   channel: 'email' | 'sms' | 'whatsapp' | 'call';
@@ -15,7 +25,7 @@ interface CommunicationPayload {
   lead_id?: string;
   referral_id?: string;
   broker_id?: string;
-  attachments?: any[];
+  attachments?: EmailAttachment[];
 }
 
 serve(async (req) => {
@@ -85,7 +95,11 @@ serve(async (req) => {
 
     switch (channel) {
       case 'email':
-        result = await sendEmail(recipient_contact, subject || 'Message from Lead Velocity', content || '', attachments);
+        {
+          // SortMyCover leads get the SortMyCover layout from hello@sortmycover.co.za; everyone else is unchanged.
+          const isSmc = recipient_type === 'lead' && !!lead_id && (await smcLeadIds(supabase, [lead_id])).has(lead_id);
+          result = await sendEmail(recipient_contact, subject || (isSmc ? 'Message from SortMyCover' : 'Message from Lead Velocity'), content || '', attachments, isSmc);
+        }
         break;
       case 'sms':
         result = await sendSMS(recipient_contact, content || '');
@@ -203,18 +217,22 @@ serve(async (req) => {
   }
 });
 
-async function sendEmail(to: string, subject: string, content: string, attachments?: any[]) {
+async function sendEmail(to: string, subject: string, content: string, attachments?: EmailAttachment[], smc = false) {
   const resendApiKey = Deno.env.get('RESEND_API_KEY');
   if (!resendApiKey) {
     return { success: false, error: 'RESEND_API_KEY not configured' };
   }
 
   try {
-    const payload: any = {
-      from: 'Lead Velocity <noreply@resend.dev>',
+    // Lead Velocity layout; the CRM sends plain text (compose box) or simple HTML (invoices, contracts, proposals).
+    const mail = smc ? smcCommunicationEmail({ content, subject }) : communicationEmail({ content, subject });
+    const payload: Record<string, unknown> = {
+      from: smc ? SMC_FROM : 'Lead Velocity <howzit@leadvelocity.co.za>',
+      ...(smc ? { reply_to: SMC_REPLY_TO } : {}),
       to: [to],
-      subject,
-      html: content,
+      subject: mail.subject,
+      html: mail.html,
+      text: mail.text,
     };
     if (attachments && attachments.length > 0) {
       payload.attachments = attachments;

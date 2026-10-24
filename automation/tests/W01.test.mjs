@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { FIX, MODE, lead, broker, order, clone, ms, iso, D, H, MIN, sha256, online } from './_harness.mjs';
-import { runCode, PG_CRED, NOT_RUN, ifBranch } from './_n8ncode.mjs';
+import { runCode, PG_CRED, NOT_RUN, ifBranch, evalParam } from './_n8ncode.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W01 from '../lib/w01.mjs';
 
@@ -47,6 +47,8 @@ const N = {
   inserted: 'Inserted? (a same-event_id race inserts nothing: answer, send nothing)',
   leadAd: 'Lead ad -> submission (w01.normaliseLeadAd + screen)',
   route: 'Route (w01.routeExisting)',
+  bandIf: 'Quiz v2: ask the band on WhatsApp? (web lead, budget pending)',
+  bandQuestion: 'Budget question (w01.budgetQuestion)',
 };
 
 // ============================================================================================
@@ -67,7 +69,7 @@ function orderFields(brokerId, attachedNow) {
 }
 
 function offlineSystem() {
-  const db = { leads: new Map(), capi: [], jobs: [], activities: [], suppression: [], messages: [], events: [] };
+  const db = { leads: new Map(), capi: [], jobs: [], activities: [], suppression: [], messages: [], events: [], sends: [] };
   const brokersOf = (brand) => FIX.brokers.filter((b) => b.brand_id === brand).map((b) => ({ ...dbBroker(b), ...orderFields(b.broker_id, [...db.leads.values()].filter((l) => l.broker_id === b.broker_id).length) }));
 
   /** "Context: counters, prior lead, suppression, brokers" (the SQL, in memory; counts are taken before this request). */
@@ -118,6 +120,11 @@ function offlineSystem() {
       if (c && !db.capi.some((e) => e.event_id === c.event_id && e.event_name === c.event_name)) db.capi.push(c); // CAPI Send: unique(event_id, event_name)
       const ft = ins.json.first_touch;
       if (ft) db.jobs.push({ workflow: ft.workflow, lead_id: ft.lead_id, not_before: ft.not_before, op: ft.op });
+      // quiz v2 (2026-10-14): the branch "Quiz v2: ask the band on WhatsApp?" -> "Budget question (w01.budgetQuestion)" -> WhatsApp Send
+      if (ifBranch(RUN, N.bandIf, { json: ins.json })) {
+        const [bq] = await runCode(RUN, N.bandQuestion, { items: [ins.json], env });
+        db.sends.push(bq.json);
+      }
     }
     return { http: out.http, decision: out.decision, result: out.result };
   }
@@ -539,16 +546,16 @@ test(`W03 parity [${MODE}] CTWA consent-no (L05): no lead row, only a hashed num
   } else assert.ok(!JSON.stringify(msgs).includes(broker().practice_name), 'broker not named to a non-consenting person');
 });
 
-test(`W03 parity [${MODE}] CTWA out-of-band age (L06): polite close, no hand-over, deleted within 24 h`, async () => {
+test(`W03 parity [${MODE}] CTWA over-50 (L06, 18 Oct 2026): the age is recorded and the budget asked next; no close, no 24-h delete`, async () => {
   const sys = fresh();
   const fx = lead('L06');
   const { lead: l, messages } = await sys.ctwa(fx);
   const e = fx.expected.W01;
-  assert.equal(l.qualified, false);
-  assert.equal(l.disqualified_reason, e.disqualified_reason);
-  assert.equal(l.broker_id ?? null, null);
-  assert.equal(ms(l.retention_delete_after), ms(e.delete_after));
-  assert.ok(messages.some((m) => m.kind === 'polite_close'));
+  assert.equal(l.age_band, e.age_band);
+  assert.equal(l.disqualified_reason ?? null, null);
+  assert.equal(l.retention_delete_after ?? null, null);
+  assert.equal(messages.some((m) => m.kind === 'polite_close'), false);
+  assert.match(messages.at(-1).text, /put towards cover each month/, 'the budget question is next');
 });
 
 // ============================================================================================
@@ -742,10 +749,13 @@ test('I-53l: page lead with no TURNSTILE_SECRET_KEY / test hook: Guard runs with
 const TC_AT = '2026-10-13T12:00:00+02:00';
 const TC_NOW = Date.parse(TC_AT);
 const tcBroker = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000b0c01', broker_id: '00000000-0000-4000-8000-0000000b0c01', brand_id: 'smc', status: 'active', routing_on: true,
-  practice_name: 'Synthetic Practice', fsp_number: 'TEST-00000', consent_mode: 'generic', methods_supported: ['phone'], order_capacity: 5, order_attached: 0, order_remaining: 5, ...over });
-const tcSub = (budget) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text', consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic',
+  practice_name: 'Synthetic Practice', fsp_number: 'TEST-00000', consent_mode: 'named', methods_supported: ['phone'], order_capacity: 5, order_attached: 0, order_remaining: 5, ...over });
+// 19 Oct 2026: these fixtures use NAMED consent (the practice every tcBroker has). A generic-consent lead is routed only after
+// adviser_disclosed for that broker (lib/w01.mjs isGenericConsent), pinned by the generic-consent tests at the end of this file.
+const TC_CONSENT = 'synthetic consent text naming Synthetic Practice (FSP TEST-00000)';
+const tcSub = (budget) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: TC_CONSENT, consent_version: 'CONSENT-NAMED-v1', consent_mode: 'named',
   age_band: '35_44', budget_band: budget, bond: 'yes', dependants: 'kids', work_cover: 'no', lang: 'en', started_at: TC_NOW - 60e3, request_id: 'req-tc-0001', context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000c1' } }, {});
-const tcCtx = (brokers) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000171', lead_id: '00000000-0000-4000-8000-0000000a0c01', brand_id: 'smc', brokers, consent_mode: 'generic' });
+const tcCtx = (brokers) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000171', lead_id: '00000000-0000-4000-8000-0000000a0c01', brand_id: 'smc', brokers, consent_mode: 'named' });
 
 test('tier C: the band map, tierOf, and the React quiz band 750_1499 (was unmapped, so wrongly out of band)', () => {
   assert.deepEqual(['lt750', '750_1250', '750_1499', '1250_1499', '1250plus', '1500_plus', null].map(W01.tierOf), ['C', 'B', 'B', 'B', 'B', 'A', null]);
@@ -778,7 +788,7 @@ test('tier C page lead, a broker with the standing yes and room: routed like any
 });
 
 test('tier C hand-over (W01 Lead core routeExisting): held -> held_low_budget + notice; standing yes -> routed + W06', () => {
-  const lead = { id: '00000000-0000-4000-8000-0000000a0c03', brand_id: 'smc', origin: 'ctwa', phone: '+27600000173', first_name: 'Thabo', budget_band: 'lt750', consent_mode: 'generic', consent_text: 'x' };
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c03', brand_id: 'smc', origin: 'ctwa', phone: '+27600000173', first_name: 'Thabo', budget_band: 'lt750', consent_mode: 'named', consent_text: TC_CONSENT };
   const h = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
   assert.deepEqual([h.action, h.update.routing_reason, h.notice.template], ['held', 'held_low_budget', 'lead_low_budget_held']);
   const r = W01.routeExisting(lead, { brokers: [tcBroker({ accepts_low_budget: true })], now: TC_NOW });
@@ -837,7 +847,7 @@ test('wills angles: product_interest wills, routed only to a handles_wills broke
   assert.equal(ok.row.broker_id, wills.broker_id, 'only the wills broker');
   const lifeLead = W01.decide(willsSub('new-bond'), tcCtx([life]));
   assert.deepEqual([lifeLead.row.product_interest, lifeLead.row.broker_id], ['life_cover', life.broker_id]);
-  const rt = W01.routeExisting({ id: 'x', brand_id: 'smc', product_interest: 'wills', consent_mode: 'generic', consent_text: 'x' }, { brokers: [life], now: TC_NOW });
+  const rt = W01.routeExisting({ id: 'x', brand_id: 'smc', product_interest: 'wills', consent_mode: 'named', consent_text: TC_CONSENT }, { brokers: [life], now: TC_NOW });
   assert.deepEqual([rt.action, rt.update.routing_reason], ['held', 'held_no_wills_broker']);
   assert.match(WF.nodes.find((n) => n.name === N.context).parameters.query, /'handles_wills', b\.handles_wills/);
   assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /product_interest/);
@@ -845,8 +855,8 @@ test('wills angles: product_interest wills, routed only to a handles_wills broke
 
 // lv-site fc89d5a (2026-10-11): /book/ asks cover vs will and estate (or ?for=) and sends product_interest in the /lead body
 test('page product_interest: whitelisted life_cover | wills is stored and routes; absent or unknown -> derived from the angle; a wills angle always wins', () => {
-  const sub = (angle, product_interest) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic consent text',
-    consent_version: 'CONSENT-GENERIC-v1', consent_mode: 'generic', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3,
+  const sub = (angle, product_interest) => W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: TC_CONSENT,
+    consent_version: 'CONSENT-NAMED-v1', consent_mode: 'named', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3,
     request_id: 'req-pi-0001', angle, ...(product_interest === undefined ? {} : { product_interest }), context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000d1' } }, {});
   assert.equal(sub('cover', 'wills').product_interest, 'wills');
   assert.equal(sub('cover', ' WILLS ').product_interest, 'wills', 'trimmed, case-insensitive');
@@ -864,4 +874,455 @@ test('page product_interest: whitelisted life_cover | wills is stored and routes
   assert.equal(row(sub('will-myth', 'life_cover')).product_interest, 'wills');
   // the Screen Code node passes the field through unchanged (same normaliseSubmission as n8n runs)
   assert.match(WF.nodes.find((n) => n.name.startsWith('Screen (w01')).parameters.jsCode, /normaliseSubmission\(body/);
+});
+
+// ============================================================================================
+// Quiz v2 (lv-site a206f12, 2026-10-13): the landing page no longer asks the budget. /lead carries budget_pending: true
+// and help_with instead of budget_band. Spec: lv-site deliverables/website/quiz-v2-and-whatsapp-step.md section 2a.
+// ============================================================================================
+const v2Body = (over = {}, { tc = true } = {}) => {
+  const fx = clone(lead('L01'));
+  const s = fx.submission;
+  if (s.quiz) delete s.quiz.budget_band;
+  delete s.budget_band;
+  // named consent for the tcBroker practice (tcCtx is named since 19 Oct 2026; generic now needs adviser_disclosed first)
+  // (tc: false keeps the fixture's own named text for the seeded broker: the offline system routes to that broker)
+  if (tc) { if (s.consent && typeof s.consent === 'object') s.consent.text = TC_CONSENT; else s.consent_text = TC_CONSENT; }
+  return { fx, sub: { ...s, budget_pending: true, help_with: 'review', product_interest: 'life_cover', ...over } };
+};
+
+test('quiz v2: a web lead with budget_pending is routed (not out of band), gets the lead_token, help_with kept in conv_state, and the band question goes out on WhatsApp', async () => {
+  const { fx, sub: pageSub } = v2Body({}, { tc: false });
+  const { sub } = v2Body();
+  const sys = offlineSystem();
+  const r = await sys.page(fx, { sub: pageSub });
+  assert.equal(r.body.status, 'accepted'); assert.ok(!r.body.out_of_band, 'no neutral exit');
+  assert.ok(r.body.lead_token && LT.verifyLeadToken(r.body.lead_token, { secret: SECRET }).lead_id === r.body.lead_id, 'token minted: the booking widget opens');
+  assert.deepEqual(r.body.methods_supported, broker().methods_supported);
+  const l = (await sys.state(r.body.lead_id)).lead;
+  assert.equal(l.broker_id, broker().broker_id); assert.equal(l.budget_band ?? null, null); assert.equal(l.disqualified_reason ?? null, null);
+  assert.ok(!String(l.routing_reason).startsWith('held_'), 'routed, not held');
+  // the band question: the approved qualify_budget template through the shared sender, once (correlation); the W06 first touch is unchanged
+  assert.equal(sys.db.sends.length, 1);
+  const q = sys.db.sends[0];
+  assert.deepEqual([q.kind, q.template, q.to, q.lead_id, q.correlation], ['template', 'qualify_budget', l.phone, l.id, `w01:ask_budget:${l.id}`]);
+  assert.deepEqual(q.buttons.map((b) => b.quick_reply), W01.BUDGET_TAP_IDS, 'the template taps are W03 ids');
+  assert.deepEqual(sys.db.jobs.map((j) => [j.workflow, j.op]), [['W06', 'routed']], 'the disclosure first touch is still W06');
+  // lib level: the same decision, with the conv_state and timeline entry the insert writes
+  const s = W01.normaliseSubmission(sub, {});
+  assert.deepEqual([s.budget_pending, s.help_with, s.product_interest, s.quiz.budget_band], [true, 'review', 'life_cover', null]);
+  const d = W01.decide(s, tcCtx([tcBroker()]));
+  assert.deepEqual([d.kind, d.outcome, d.mint_token, d.first_touch.workflow, d.budget_question], ['insert', 'accepted', true, 'W06', true]);
+  assert.deepEqual(d.row.conv_state, { state: 'q_budget', budget_pending: true, help_with: 'review' }, 'q_budget is a qualifying state: W07 already sends the tap to W03');
+  assert.ok(W01.QUALIFYING_STATES.has(d.row.conv_state.state));
+  assert.ok(d.activities.some((a) => a.activity_type === 'budget_question_pending' && a.payload.help_with === 'review'));
+  assert.ok(d.activities.some((a) => a.activity_type === 'routed' && a.payload.provisional_tier === 'B'));
+  assert.ok(d.capi, 'CAPI Lead at routing, as for any routed page lead');
+  // provisional tier B: any routable broker (no standing yes needed); no room -> held_no_capacity (not held_low_budget) and the band is STILL asked
+  // (live today no broker is routable yet, so every v2 lead starts here)
+  const held = W01.decide(s, tcCtx([tcBroker({ order_remaining: 0 })]));
+  assert.deepEqual([held.outcome, held.row.routing_reason, held.budget_question, held.first_touch], ['held', 'held_no_capacity', true, null]);
+  assert.deepEqual(held.row.conv_state, { state: 'q_budget', budget_pending: true, help_with: 'review' });
+  assert.equal(held.response.body.status, 'held');
+  // the insert SQL stores conv_state (the help_with home: no help_with column on public.leads, no DDL)
+  assert.match(WF.nodes.find((n) => n.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query, /j->'conv_state'/);
+  // wiring: Inserted? -> IF -> the SAME nodes the lead-ad path uses -> smc-whatsapp-send
+  const to = (n) => (WF.connections[n]?.main || []).flat().map((c) => c.node);
+  assert.ok(to(N.inserted).includes(N.bandIf)); assert.deepEqual(to(N.bandIf), [N.bandQuestion]);
+  assert.deepEqual(to(N.bandQuestion), ['WhatsApp Send (qualify_budget)']);
+  assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp Send (qualify_budget)').parameters.workflowId.value, 'smc-whatsapp-send');
+  // not for v1 web leads (they send a band) and not for a suppressed number
+  assert.ok(!W01.decide(tcSub('750_1499'), tcCtx([tcBroker()])).budget_question, 'v1 web lead: no band question');
+  assert.ok(!W01.decide(s, { ...tcCtx([tcBroker()]), suppressed: true }).budget_question, 'suppressed: nothing is sent');
+});
+
+test('quiz v2: no-JS form strings ("true"), help_with whitelisted, product derived from help_with; no band and no flag is still out of band', () => {
+  const base = { first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: TC_CONSENT, consent_version: 'CONSENT-NAMED-v1', consent_mode: 'named',
+    age_band: '35_44', lang: 'en', started_at: TC_NOW - 60e3, request_id: 'req-v2-0001', context: { event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000000e1' } };
+  const s = W01.normaliseSubmission({ ...base, budget_pending: 'true', help_with: 'wills' }, {});
+  assert.deepEqual([s.budget_pending, s.help_with, s.product_interest], [true, 'wills', 'wills'], 'no-JS: wills derived from help_with');
+  for (const h of ['life', 'disability_income', 'severe_illness', 'review']) assert.equal(W01.normaliseSubmission({ ...base, help_with: h }, {}).product_interest, 'life_cover', h);
+  assert.equal(W01.normaliseSubmission({ ...base, help_with: 'funeral' }, {}).help_with, null);
+  assert.equal(W01.normaliseSubmission({ ...base, budget_pending: 'yes' }, {}).budget_pending, false);
+  const none = W01.decide(W01.normaliseSubmission(base, {}), tcCtx([tcBroker()]));
+  assert.deepEqual([none.outcome, none.row.disqualified_reason], ['not_qualified', 'budget_band'], 'no band, no budget_pending: unchanged rule');
+  const wills = W01.decide(s, tcCtx([tcBroker()]));
+  assert.deepEqual([wills.outcome, wills.row.routing_reason, wills.row.conv_state.help_with], ['held', 'held_no_wills_broker', 'wills'], 'wills still only to a wills broker');
+  // age is still judged on the page: 51+ with budget_pending -> out of band
+  assert.equal(W01.decide(W01.normaliseSubmission({ ...base, age_band: '51plus', budget_pending: true }, {}), tcCtx([tcBroker()])).row.disqualified_reason, 'age_band');
+});
+
+test('quiz v2: a v1 web lead that still sends a band is unchanged (routed on its tier, no conv_state, no budget-pending entry)', () => {
+  const d = W01.decide(tcSub('750_1499'), tcCtx([tcBroker()]));
+  assert.equal(d.outcome, 'accepted'); assert.equal(d.row.budget_band, '750_1499'); assert.equal(d.row.conv_state, undefined);
+  assert.ok(!d.activities.some((a) => a.activity_type === 'budget_question_pending'));
+  assert.equal(W01.decide(tcSub('lt750'), tcCtx([tcBroker()])).row.routing_reason, 'held_low_budget', 'tier C unchanged');
+  // a band AND budget_pending (stale client): the band wins, nothing pending
+  const both = W01.decide({ ...tcSub('1500_plus'), budget_pending: true }, tcCtx([tcBroker()]));
+  assert.equal(both.row.conv_state, undefined); assert.equal(both.row.budget_band, '1500_plus');
+});
+
+test('quiz v2: the Meta instant-form path is unchanged (no band -> held_budget_pending, q_budget, W03 ask_budget, no token)', () => {
+  const ad = W01.normaliseLeadAd({ lead: { origin: 'lead_ad', brand_id: 'smc', leadgen_id: 'lg_v2_1', form_id: 'f1', full_name: 'Synthetic Lerato', mobile_raw: '+27600000141',
+    age_band: '35_44', consent: { given: true, text: 'synthetic consent', text_version: 'x-v1', captured_at: TC_AT } } }, { consent_texts: { 'x-v1': 'synthetic consent' } });
+  const d = W01.decide({ ...ad, budget_pending: true, help_with: 'review' }, tcCtx([tcBroker()]));
+  assert.deepEqual([d.outcome, d.row.routing_reason, d.row.broker_id, d.row.conv_state.state, d.mint_token, d.first_touch.workflow, d.first_touch.op],
+    ['budget_pending', 'held_budget_pending', null, 'q_budget', false, 'W03', 'ask_budget']);
+  assert.equal(d.row.conv_state.help_with, undefined, 'help_with is a page field only');
+});
+
+test('quiz v2: the band arrives later on the qualify_budget template -> recorded, qualified, routed if held, W05 finalize hands the held booking over', async () => {
+  const W5 = await import('../lib/w05.mjs');
+  const d = W01.decide(W01.normaliseSubmission(v2Body().sub, {}), tcCtx([tcBroker()]));
+  const lead = { ...d.row }; // conv_state is q_budget straight from W01
+  const ctx = { at: TC_AT, mobile: lead.phone, brand: { brand_id: 'smc', consent_mode: 'generic' }, existing_open_lead_id: lead.id, lead, broker: null };
+  // the question a page lead sees on a re-ask is the template's five bands, forward-looking (never "what do you pay now")
+  const t = W3.threadFromLead(lead);
+  assert.deepEqual([t.origin, t.stage, t.from_lead], ['page', 'q_budget', true]);
+  const q = W3.question('q_budget', null, t);
+  assert.deepEqual(q.rows.map((r) => r.id), W01.BUDGET_TAP_IDS);
+  assert.doesNotMatch(q.body, /current|paying|premium/i);
+  // a template button arrives as { payload } (Twilio ButtonPayload through wa-provider normaliseTwilioInbound)
+  const tapMsg = (id) => ({ type: 'button', payload: id });
+  const r = W3.step(null, tapMsg('budget_750_1250'), ctx);
+  const upd = r.actions.find((a) => a.kind === 'update_lead');
+  assert.deepEqual(upd.set, { budget_band: '750_1250', conv_state_state: 'unbooked', qualified_at: TC_AT, stage: 'qualified' }, 'band recorded, lead qualified (age + reason came from the page)');
+  assert.deepEqual(r.actions.filter((a) => ['route_and_first_touch', 'finalize_booking'].includes(a.kind)).map((a) => a.kind), ['route_and_first_touch', 'finalize_booking'], 'route first (no-op when routed), then finalize');
+  assert.deepEqual(r.actions.find((a) => a.kind === 'finalize_booking'), { kind: 'finalize_booking', op: 'finalize', lead_id: lead.id });
+  assert.equal(r.actions.find((a) => a.kind === 'send').message.body, 'Thanks, that helps the adviser prepare.');
+  // the routing core is a no-op for a lead that already has its broker
+  assert.equal(W01.routeExisting({ ...lead, suppressed: false }, { brokers: [tcBroker()], now: TC_NOW }).action, 'already_routed');
+  // offerable: the lead now carries a tier and W05 hands over the held booking (email verified)
+  const after = { ...lead, budget_band: upd.set.budget_band, email: 'a@gmail.com', email_verified: true };
+  assert.equal(W01.tierOf(after.budget_band), 'B');
+  const hold = { id: 'hv2', status: 'pending_verification', appointment_date: '2026-10-15T10:00:00+02:00', method: 'phone', booked_via: 'page', idempotency_key: 'page:v2:1', verify_by: '2026-10-14T10:00:00+02:00' };
+  assert.equal(W5.finalizeRequest(hold, { ...after, budget_band: null }, TC_NOW), null, 'before the band: still held');
+  assert.equal(W5.finalizeRequest(hold, after, TC_NOW).finalize_booking_id, 'hv2');
+  // every template button: R1,500+ (A), R1,250-R1,499, and the two under-R750 buttons (tier C: band only, never qualified, no thank-you;
+  // the database trigger re-holds it unless the broker has the standing yes, and route_and_first_touch sends the one honest held notice)
+  const tap = (id) => W3.step(null, tapMsg(id), ctx).actions;
+  assert.equal(tap('budget_1500_plus').find((a) => a.kind === 'update_lead').set.budget_band, '1500_plus');
+  assert.equal(tap('budget_1250_1499').find((a) => a.kind === 'update_lead').set.budget_band, '1250_1499');
+  for (const id of ['budget_under_500', 'budget_500_750']) {
+    const a = tap(id);
+    assert.deepEqual(a.find((x) => x.kind === 'update_lead').set, { budget_band: 'lt750', conv_state_state: 'unbooked' }, id);
+    assert.ok(!a.some((x) => x.kind === 'send'), 'tier C: no thank-you; the held notice (if held) is the one message');
+    assert.deepEqual(a.map((x) => x.kind).filter((k) => k === 'route_and_first_touch' || k === 'finalize_booking'), ['route_and_first_touch', 'finalize_booking']);
+  }
+  // not sure (typed through W07's NLU) -> one re-ask with the same five bands
+  const u1 = W3.step(null, { type: 'text', text: 'not sure' }, { ...ctx, typed: { slots: { budget_band: 'unsure' } } });
+  assert.equal(u1.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget_clarify');
+  assert.deepEqual(u1.actions.find((a) => a.kind === 'send').message.rows.map((x) => x.id), q.rows.map((x) => x.id), 'the re-ask keeps the five bands');
+  // a held lead (no broker yet) is routed by the same action once the band is known
+  const heldLead = { ...lead, broker_id: null, routed_at: null, routing_reason: 'held_no_capacity' };
+  const hr = W01.routeExisting({ ...heldLead, budget_band: '750_1250', suppressed: false }, { brokers: [tcBroker()], now: TC_NOW });
+  assert.equal(hr.action, 'routed'); assert.equal(hr.first_touch.workflow, 'W06');
+});
+
+test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the same way with no W06 first touch; a held tier-C lead still gets its notice', async () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c38', brand_id: 'smc', origin: 'ctwa', phone: '+27600000178', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'named', consent_text: TC_CONSENT };
+  const a = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW });
+  const b = W01.routeExisting(lead, { brokers: [tcBroker()], now: TC_NOW, first_touch: false });
+  assert.deepEqual(b.update, a.update, 'same broker, same routing');
+  assert.equal(a.first_touch.workflow, 'W06');
+  assert.equal(b.first_touch, null, 'the page shows the slots: no broker_intro_slots card');
+  const held = W01.routeExisting({ ...lead, budget_band: 'lt750' }, { brokers: [tcBroker()], now: TC_NOW, first_touch: false });
+  assert.deepEqual([held.action, held.notice.template], ['held', 'lead_low_budget_held']);
+  assert.ok(W01.QUALIFYING_STATES.has('start_page'), 'the low-budget hand-off waits while the page is pending');
+  // the W01.json nodes: the flag rides from the caller through "Load CTWA lead + brokers" ($2) into Route; W06 only for first_touch
+  const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
+  assert.match(load.parameters.query, /\$2 <> 'false' AS first_touch/);
+  assert.match(load.parameters.query, /NULLIF\(\$3, ''\) AS expect_broker_id, \$4 = 'true' AS hold_only/);
+  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}");
+  const routeOut = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: false }] });
+  assert.equal(routeOut[0].json.r.first_touch, null);
+  const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': routeOut[0].json } });
+  assert.deepEqual(w06, [], 'no W06 first touch for the page');
+  const ctwa = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: true }] });
+  const w06b = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': ctwa[0].json } });
+  assert.deepEqual(w06b.map((i) => i.json), [{ op: 'routed', lead_id: lead.id, origin: 'ctwa' }], 'W03 path unchanged');
+});
+
+test('W39 disclosure before routing: expect_broker_id routes only the confirmed adviser; hold_only records a hold and never routes', async () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a0c39', brand_id: 'smc', origin: 'ctwa', phone: '+27600000179', first_name: 'Thandi', budget_band: '1500_plus', consent_mode: 'named', consent_text: TC_CONSENT };
+  const B = tcBroker();
+  const ok = W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, expect_broker_id: B.id });
+  assert.equal(ok.action, 'routed'); assert.equal(ok.update.broker_id, B.id);
+  assert.deepEqual(W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, expect_broker_id: '00000000-0000-4000-8000-00000000ffff' }), { action: 'skip', reason: 'broker_changed' });
+  assert.deepEqual(W01.routeExisting(lead, { brokers: [B], now: TC_NOW, first_touch: false, hold_only: true }), { action: 'skip', reason: 'not_disclosed' }, 'a broker that became free is not routed without the card');
+  const held = W01.routeExisting({ ...lead, budget_band: 'lt750' }, { brokers: [B], now: TC_NOW, first_touch: false, hold_only: true });
+  assert.deepEqual([held.action, held.update.routing_reason, held.notice.template], ['held', 'held_low_budget', 'lead_low_budget_held']);
+  const [rt] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [B], first_touch: false, expect_broker_id: 'someone-else', hold_only: false }] });
+  assert.deepEqual(rt.json.r, { action: 'skip', reason: 'broker_changed' }, 'the Route node passes the options through');
+  const [h] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [B], first_touch: false, expect_broker_id: null, hold_only: true }] });
+  assert.equal(h.json.r.reason, 'not_disclosed');
+});
+
+// ============================================================================================
+// /start/ page web intake (desktop "Book" without a token, Jono 18 Oct 2026): POST /lead with start_page: true
+// ============================================================================================
+const OPW = { ...tcBroker(), practice_name: 'Oracle Private Wealth', fsp_number: '28418', consent_mode: 'named' };
+const spBody = (over = {}) => ({ first_name: 'Thandi', mobile: '0600000181', consent: true,
+  consent_text: W01.consentRegistry(OPW)['CONSENT-NAMED-v5web'], consent_version: 'CONSENT-NAMED-v5web', consent_mode: 'named',
+  consent_ads: true, consent_ads_text: W01.WEB_CONSENT.ads.text, consent_ads_version: W01.WEB_CONSENT.ads.version,
+  page_url: 'https://sortmycover.co.za/start/?ref=w-book&via=google', started_at: TC_NOW - 60e3, request_id: 'req-sp-web-0001', honeypot: '',
+  context: { ref: 'w-book', utm: { utm_source: 'google' }, event_id: '5b0f7a2e-00c1-4c1a-9a51-0000000005b1' }, start_page: true, ...over });
+const spCtx = (over = {}) => ({ now: TC_NOW, line_type: 'mobile', mobile: '+27600000181', lead_id: '00000000-0000-4000-8000-0000000a05b1', brand_id: 'smc', brokers: [OPW], consent_mode: 'named', ...over });
+
+test('start page web intake: stored with the named v5web consent, NOT routed (start_page_pending), no first touch / WhatsApp / CAPI yet, a lead_token', () => {
+  const sub = W01.normaliseSubmission(spBody(), {});
+  assert.equal(sub.start_page, true); assert.equal(sub.consent.ads, true, 'the separate ad-measurement choice is recorded');
+  const d = W01.decide(sub, spCtx());
+  assert.deepEqual([d.kind, d.outcome, d.mint_token], ['insert', 'start_page', true]);
+  assert.deepEqual([d.row.broker_id, d.row.routed_at, d.row.routing_reason, d.row.stage, d.row.disqualified_reason], [null, null, 'start_page_pending', 'new', null]);
+  assert.deepEqual(d.row.conv_state, { state: 'start_page', via: 'start_page' });
+  assert.equal(d.first_touch, null); assert.equal(d.capi, null, 'CAPI Lead at the hand-over (W39 confirm), like a held page lead'); assert.equal(d.notice, undefined);
+  assert.equal(d.row.consent_text, W01.consentRegistry(OPW)['CONSENT-NAMED-v5web']);
+  assert.match(d.row.consent_text, /Oracle Private Wealth \(FSP 28418\)/);
+  assert.ok(d.row.consent_ads_at, 'ads consent recorded');
+  assert.deepEqual(W01.consentAudit(sub, W01.consentRegistry(OPW)), { version: 'CONSENT-NAMED-v5web', known_version: true, matches_registry: true }, 'registry check: the exact text for Mark\'s practice');
+  assert.equal(W01.consentAudit(W01.normaliseSubmission(spBody({ consent_text: 'edited' }), {}), W01.consentRegistry(OPW)).matches_registry, false);
+  assert.deepEqual(W01.pageResponse(d, 'lt1.tok'), { http_status: 200, body: { ok: true, status: 'accepted', lead_id: d.row.id, lead_token: 'lt1.tok' } });
+  assert.ok(d.activities.some((a) => a.activity_type === 'start_page_pending'));
+  // no answers yet, any age: never out of band here (W39 decides on the page)
+  for (const over of [{}, { age_band: '51plus' }, { age_band: 'lt35', budget_band: 'lt750' }]) assert.equal(W01.decide(W01.normaliseSubmission(spBody(over), {}), spCtx()).outcome, 'start_page', JSON.stringify(over));
+  // the same body without the flag is the old quiz path (no answers -> out of band)
+  assert.equal(W01.decide(W01.normaliseSubmission(spBody({ start_page: false }), {}), spCtx()).outcome, 'not_qualified');
+  // a STOPped number stays suppressed, never a token
+  const sup = W01.decide(sub, spCtx({ suppressed: true }));
+  assert.deepEqual([sup.outcome, sup.mint_token], ['suppressed', false]);
+  // a 90-day duplicate gets a fresh token for the EXISTING lead, routed or not (opted out: none)
+  const prior = { id: '00000000-0000-4000-8000-0000000a05b0', brand_id: 'smc', created_at: TC_AT, broker_id: null, opted_out_at: null };
+  const dup = W01.decide(sub, spCtx({ prior }));
+  assert.deepEqual([dup.kind, dup.lead_id, dup.mint_token], ['duplicate', prior.id, true]);
+  assert.equal(W01.decide(sub, spCtx({ prior: { ...prior, opted_out_at: TC_AT } })).mint_token, false);
+  assert.equal(W01.decide(W01.normaliseSubmission(spBody({ start_page: false }), {}), spCtx({ prior })).mint_token, false, 'the old rule for other page posts');
+});
+
+test('start page web lead at the hand-over (W39 confirm): routed like any page lead, CAPI Lead now (start_page_pending counts as held), named consent strict', () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a05b1', brand_id: 'smc', origin: 'page', routing_reason: 'start_page_pending', budget_band: '1500_plus', consent_mode: 'named',
+    consent_text: W01.consentRegistry(OPW)['CONSENT-NAMED-v5web'], consent_ads_at: TC_AT, lead_event_id: 'evt-sp', created_at: TC_AT, phone: '+27600000181', first_name: 'Thandi' };
+  const r = W01.routeExisting(lead, { brokers: [OPW], now: TC_NOW, first_touch: false, expect_broker_id: OPW.id });
+  assert.equal(r.action, 'routed'); assert.equal(r.first_touch, null);
+  assert.equal(r.capi.event_name, 'Lead');
+  const other = { ...OPW, practice_name: 'Another Practice' };
+  assert.equal(W01.routeExisting(lead, { brokers: [other], now: TC_NOW, first_touch: false, expect_broker_id: OPW.id }).update.routing_reason, 'held_consent_names_other_practice', 'named consent: only the practice named in the text');
+});
+
+// ============================================================================================
+// Lead-ad disclosure before hand-over (18 Oct 2026): a form lead is routed only after the SortMyCover disclosure
+// ============================================================================================
+const LD_BROKER = { ...OPW, contact_person: 'Mark Smith' };
+const LD_LEAD = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000a1d01', brand_id: 'smc', origin: 'lead_ad', routing_reason: 'held_budget_pending', budget_band: '1500_plus',
+  consent_mode: 'named', consent_text: W01.consentRegistry(OPW)['CONSENT-NAMED-v5web'], consent_ads_at: TC_AT, lead_event_id: 'evt-ld', created_at: TC_AT,
+  phone: '+27600000191', first_name: 'Thandi', disclosed: [], ...over });
+const V3_ENV = { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: JSON.stringify({ broker_intro_slots_v3: 'HXv3' }) };
+const DISCLOSURE = 'Before I introduce you: Mark Smith from Oracle Private Wealth, an authorised financial services provider (FSP 28418), will be the one on the call with you. Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.';
+
+test('lead-ad disclosure: the route REFUSES a lead-ad lead without adviser_disclosed for that broker and asks for the disclosure first', () => {
+  const opts = { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(LD_LEAD(), {}) };
+  assert.equal(opts.require_disclosure, true);
+  const r = W01.routeExisting(LD_LEAD(), opts);
+  assert.equal(r.action, 'disclose'); assert.equal(r.update, undefined, 'nothing to write: no broker_id'); assert.equal(r.first_touch, undefined);
+  assert.deepEqual(r.disclose.send, { to: '+27600000191', kind: 'text', text: DISCLOSURE, lead_id: LD_LEAD().id, correlation: `w01:disclosure:${LD_LEAD().id}:${LD_BROKER.id}` });
+  assert.ok(r.disclose.send.text.length <= 1024);
+  assert.doesNotMatch(r.disclose.send.text, /\bfree\b|\bAI\b|Lead Velocity/i);
+  assert.deepEqual(r.disclose.activity, { activity_type: 'adviser_disclosed', idempotency_key: `w01:disclosed:${LD_LEAD().id}:${LD_BROKER.id}`, broker_id: LD_BROKER.id,
+    payload: { broker_id: LD_BROKER.id, fsp: '28418', firm: 'Oracle Private Wealth', adviser: 'Mark Smith', disclosure_version: 'LEADAD-DISCLOSE-v1', via: 'whatsapp_session' } });
+  // disclosed for ANOTHER broker is not enough
+  assert.equal(W01.routeExisting(LD_LEAD({ disclosed: ['someone-else'] }), opts).action, 'disclose');
+  // disclosed for him: routed, first touch W06, CAPI Lead at the hand-over (held_budget_pending)
+  const ok = W01.routeExisting(LD_LEAD({ disclosed: [LD_BROKER.id] }), opts);
+  assert.deepEqual([ok.action, ok.update.broker_id, ok.first_touch.workflow, ok.capi.event_name], ['routed', LD_BROKER.id, 'W06', 'Lead']);
+  // after the send: routed with the row, held visibly without it
+  assert.equal(W01.routeAfterDisclosure(LD_LEAD(), opts, LD_BROKER.id).action, 'routed');
+  assert.deepEqual(W01.routeAfterDisclosure(LD_LEAD(), opts, null), { action: 'held', update: { routing_reason: 'held_disclosure_failed' }, notice: null });
+  // nobody can take the lead: no disclosure (the held path sends no intro), the held notice as today
+  const held = W01.routeExisting(LD_LEAD({ budget_band: 'lt750' }), opts);
+  assert.deepEqual([held.action, held.notice.template], ['held', 'lead_low_budget_held']);
+});
+
+test('lead-ad disclosure: v3 configured -> no interim text (the card carries it); CTWA and /start/ (W39) leads are unchanged', () => {
+  assert.equal(W01.introV3Ready(V3_ENV), true);
+  assert.equal(W01.introV3Ready({ WHATSAPP_PROVIDER: 'meta', TWILIO_CONTENT_SIDS: V3_ENV.TWILIO_CONTENT_SIDS }), false, 'Meta provider: the v3 SID means nothing');
+  assert.equal(W01.introV3Ready({ WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: '{bad' }), false);
+  assert.equal(W01.disclosureRequired(LD_LEAD(), V3_ENV), false);
+  assert.equal(W01.routeExisting(LD_LEAD(), { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(LD_LEAD(), V3_ENV) }).action, 'routed');
+  for (const origin of ['ctwa', 'page', 'comment', 'dm']) {
+    const l = LD_LEAD({ origin });
+    assert.equal(W01.disclosureRequired(l, {}), false, origin);
+    assert.equal(W01.routeExisting(l, { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(l, {}) }).action, 'routed', origin);
+  }
+  // W39 (origin page / ctwa, expect_broker_id): unchanged
+  assert.equal(W01.routeExisting(LD_LEAD({ origin: 'page' }), { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, expect_broker_id: LD_BROKER.id }).action, 'routed');
+});
+
+test('W01.json lead-ad disclosure branch: Route -> disclosure text -> WhatsApp Send (waits) -> adviser_disclosed row -> Route again -> write; the real Code nodes', async () => {
+  const conn = (from) => WF.connections[from].main.map((o) => o.map((l) => l.node));
+  assert.ok(conn('Route (w01.routeExisting)')[0].includes('Disclose first? (lead ad, before routing)'));
+  assert.deepEqual(conn('Disclose first? (lead ad, before routing)'), [['Disclosure text (w01.leadAdDisclosure)']]);
+  assert.deepEqual(conn('Disclosure text (w01.leadAdDisclosure)'), [['WhatsApp Send (disclosure, waits)']]);
+  assert.deepEqual(conn('WhatsApp Send (disclosure, waits)'), [['Log adviser_disclosed (after the send)']]);
+  assert.deepEqual(conn('Log adviser_disclosed (after the send)'), [['Route after the disclosure (w01.routeExisting)']]);
+  assert.deepEqual(conn('Route after the disclosure (w01.routeExisting)'), [['Routed or held? (write it)']]);
+  const send = WF.nodes.find((n) => n.name === 'WhatsApp Send (disclosure, waits)');
+  assert.equal(send.parameters.options.waitForSubWorkflow, true, 'the route waits for the send');
+  assert.equal(send.parameters.workflowId.value, 'smc-whatsapp-send');
+  const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
+  assert.match(load, /a\.activity_type = 'adviser_disclosed'\) AS disclosed/); assert.match(load, /'contact_person', b\.contact_person/);
+  const logq = WF.nodes.find((n) => n.name === 'Log adviser_disclosed (after the send)').parameters.query;
+  assert.match(logq, /AND \$4 <> ''/, 'no message id, no row');
+  // the Code nodes
+  const lead = LD_LEAD();
+  const [rt] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead, brokers: [LD_BROKER], first_touch: true, expect_broker_id: null, hold_only: false }] });
+  assert.equal(rt.json.r.action, 'disclose'); assert.equal(rt.json.routed, false);
+  assert.equal(ifBranch(WF, 'Routed or held? (write it)', { json: rt.json }), false, 'no write, no W06, no CAPI on the first pass');
+  const [v3] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead, brokers: [LD_BROKER], first_touch: true }] , env: V3_ENV });
+  assert.equal(v3.json.r.action, 'routed', 'v3 configured: no interim text');
+  const [tx] = await runCode(WF, 'Disclosure text (w01.leadAdDisclosure)', { items: [rt.json] });
+  assert.equal(tx.json.text, DISCLOSURE);
+  const refs = { 'Route (w01.routeExisting)': rt.json, 'Load CTWA lead + brokers': { lead, brokers: [LD_BROKER], first_touch: true, expect_broker_id: null, hold_only: false } };
+  const p = evalParam(WF, 'Log adviser_disclosed (after the send)', 'options.queryReplacement', { json: { ok: true, external_id: 'dry:w01:disclosure', messages: [{ id: 'dry:w01:disclosure' }] }, refs });
+  assert.deepEqual([p[0], p[1], p[3], p[4]], [lead.id, LD_BROKER.id, 'dry:w01:disclosure', `w01:disclosed:${lead.id}:${LD_BROKER.id}`]);
+  assert.equal(evalParam(WF, 'Log adviser_disclosed (after the send)', 'options.queryReplacement', { json: { ok: false, error: 'outside_24h_window' }, refs })[3], '', 'a failed send writes no row');
+  const [after] = await runCode(WF, 'Route after the disclosure (w01.routeExisting)', { items: [{ broker_id: LD_BROKER.id }], refs });
+  assert.deepEqual([after.json.r.action, after.json.update.broker_id], ['routed', LD_BROKER.id]);
+  const [failed] = await runCode(WF, 'Route after the disclosure (w01.routeExisting)', { items: [{}], refs });
+  assert.deepEqual(failed.json.update, { routing_reason: 'held_disclosure_failed' });
+  // the hand-over nodes see the second pass: W06 first touch + CAPI for the routed lead
+  const both = { 'Route (w01.routeExisting)': rt.json, 'Route after the disclosure (w01.routeExisting)': after.json };
+  const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: LD_BROKER.id }], refs: both });
+  assert.deepEqual(w06.map((i) => i.json), [{ op: 'routed', lead_id: lead.id, origin: 'ctwa' }]);
+  const capi = await runCode(WF, 'CAPI Lead at hand-over (held -> routed)', { items: [{ lead_id: lead.id, broker_id: LD_BROKER.id }], refs: both });
+  assert.equal(capi.length, 1);
+});
+
+// ============================================================================================
+// Generic consent (19 Oct 2026): the CTWA consent becomes GENERIC (CTWA-GENERIC-v4, names no adviser / firm). A lead's details
+// may go to a broker only AFTER that adviser was named to the lead (adviser_disclosed for THAT broker). Named consent: unchanged.
+// "No broker notice" = no routing write, no W06 first touch (the intro card / broker side), no CAPI Lead, no tier-C notice.
+// ============================================================================================
+const GEN_LEAD = (over = {}) => ({ id: '00000000-0000-4000-8000-0000000a9e01', brand_id: 'smc', origin: 'ctwa', routing_reason: null, budget_band: '1500_plus',
+  consent_mode: 'generic', consent_text_version: 'CTWA-GENERIC-v4', consent_text: 'I agree that SortMyCover may share my details with an authorised adviser ...',
+  consent_ads_at: TC_AT, created_at: TC_AT, phone: '+27600000291', first_name: 'Ayanda', disclosed: [], window_open: true, ...over });
+const noNotice = (r, label) => {
+  assert.notEqual(r.action, 'routed', label);
+  assert.ok(!r.update || !r.update.broker_id, `${label}: no broker written`);
+  assert.ok(!r.first_touch, `${label}: no W06 first touch`);
+  assert.ok(!r.capi, `${label}: no CAPI Lead`);
+  assert.ok(!r.notice, `${label}: no notice`);
+};
+
+test('generic consent rule: which consents count; a named lead keeps today\'s behaviour', () => {
+  for (const l of [{ consent_mode: 'generic' }, { consent_text_version: 'CTWA-GENERIC-v4' }, { consent_text_version: 'ctwa-generic-v3' }, { consent_text_version: 'CONSENT-GENERIC-v5web' }])
+    assert.equal(W01.isGenericConsent(l), true, JSON.stringify(l));
+  for (const l of [{ consent_mode: 'named', consent_text_version: 'ctwa-named-v3' }, { consent_mode: 'named', consent_text_version: 'CONSENT-NAMED-v5web' }, null])
+    assert.equal(W01.isGenericConsent(l), false, JSON.stringify(l));
+  assert.equal(W01.disclosureRequired(GEN_LEAD(), V3_ENV), true, 'the v3 card comes after routing: never enough for a generic consent');
+  // named consent, CTWA: routed at once, exactly as before (no disclosure step)
+  const named = W01.routeExisting({ ...LD_LEAD(), origin: 'ctwa' }, { brokers: [LD_BROKER], now: TC_NOW });
+  assert.deepEqual([named.action, named.first_touch.workflow], ['routed', 'W06']);
+});
+
+test('(c) generic CTWA lead, old tap path (start_page off): band tap -> route_and_first_touch -> the session disclosure, THEN routing; never before', () => {
+  // the tap flow emits route_and_first_touch (W03); W01 core then decides
+  const lead = GEN_LEAD();
+  for (const require_disclosure of [false, true]) { // enforced by routeExisting itself, whatever the caller passes
+    const r = W01.routeExisting(lead, { brokers: [LD_BROKER], now: TC_NOW, require_disclosure });
+    assert.equal(r.action, 'disclose');
+    noNotice(r, `first pass, require_disclosure ${require_disclosure}`);
+    assert.equal(r.disclose.send.text, DISCLOSURE, 'adviser, practice, FSP + the SortMyCover disclosure');
+    assert.deepEqual([r.disclose.send.kind, r.disclose.activity.activity_type, r.disclose.activity.payload.disclosure_version, r.disclose.activity.broker_id],
+      ['text', 'adviser_disclosed', 'CHAT-DISCLOSE-v1', LD_BROKER.id]);
+  }
+  // after the send logged adviser_disclosed for him: routed, W06 first touch, CAPI once
+  const after = W01.routeAfterDisclosure(lead, { brokers: [LD_BROKER], now: TC_NOW }, LD_BROKER.id);
+  assert.deepEqual([after.action, after.update.broker_id, after.first_touch.workflow], ['routed', LD_BROKER.id, 'W06']);
+  // a failed send: held, nothing to the broker
+  noNotice(W01.routeAfterDisclosure(lead, { brokers: [LD_BROKER], now: TC_NOW }, null), 'send failed');
+  // disclosed for ANOTHER broker only: asks again for this one
+  assert.equal(W01.routeExisting({ ...lead, disclosed: ['00000000-0000-4000-8000-0000000b0fff'] }, { brokers: [LD_BROKER], now: TC_NOW }).action, 'disclose');
+  // no open session (the 24-h window closed): held visibly, no text, no routing
+  const shut = W01.routeExisting(GEN_LEAD({ window_open: false }), { brokers: [LD_BROKER], now: TC_NOW });
+  assert.deepEqual([shut.action, shut.update], ['held', { routing_reason: 'held_disclosure_pending' }]);
+  noNotice(shut, 'window closed');
+});
+
+test('(a) chat path: a start_here lead that replies instead of tapping Start here -> taps -> route_and_first_touch -> disclosure first', () => {
+  // W03: a message while the page is pending falls back to the tap questions; nothing is routed on that message
+  const row = { id: '00000000-0000-4000-8000-0000000a9e02', brand_id: 'smc', origin: 'lead_ad', phone: '+27600000292', first_name: 'Thandi',
+    routing_reason: 'start_page_pending', conv_state: { state: 'start_page', via: 'start_page' } };
+  const s = W3.step(null, { from: '27600000292', type: 'text', text: 'hi', payload: null }, { at: TC_AT, mobile: row.phone, lead_id: row.id, lead: row, existing_open_lead_id: row.id,
+    brand: { brand_id: 'smc', consent_mode: 'named' }, broker: null });
+  assert.ok(!s.actions.some((a) => a.kind === 'route_and_first_touch'), 'no routing on the reply');
+  // the band tap's route_and_first_touch: named lead-ad (interim rule) and a generic one both disclose first
+  for (const l of [LD_LEAD({ routing_reason: 'start_page_pending' }), GEN_LEAD({ origin: 'lead_ad', routing_reason: 'start_page_pending' })]) {
+    const r = W01.routeExisting(l, { brokers: [LD_BROKER], now: TC_NOW, require_disclosure: W01.disclosureRequired(l, {}) });
+    assert.equal(r.action, 'disclose', l.consent_mode);
+    noNotice(r, l.consent_mode);
+  }
+});
+
+test('(b) Instant Form -> start_here -> /start/: W39 logged adviser_disclosed before calling W01 core -> routed with no extra text; never before it', () => {
+  const l = GEN_LEAD({ origin: 'lead_ad', routing_reason: 'start_page_pending', window_open: false });
+  const opts = { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, expect_broker_id: LD_BROKER.id, require_disclosure: W01.disclosureRequired(l, {}) };
+  noNotice(W01.routeExisting(l, opts), 'before W39 disclosed');
+  const r = W01.routeExisting({ ...l, disclosed: [LD_BROKER.id] }, opts);
+  assert.deepEqual([r.action, r.update.broker_id, r.first_touch], ['routed', LD_BROKER.id, null]);
+  assert.equal(r.capi.event_name, 'Lead', 'the one CAPI Lead at the hand-over');
+});
+
+test('intake: a generic-consent page / form lead is never routed at intake (held_disclosure_pending); a named one is, as before', () => {
+  const genBroker = tcBroker({ consent_mode: 'generic' });
+  const sub = W01.normaliseSubmission({ first_name: 'Nomsa', mobile: '0600000171', consent: true, consent_text: 'synthetic generic consent', consent_version: 'CONSENT-GENERIC-v5web',
+    consent_mode: 'generic', age_band: '35_44', budget_band: '1500_plus', lang: 'en', started_at: TC_NOW - 60e3 }, {});
+  const d = W01.decide(sub, { ...tcCtx([genBroker]), consent_mode: 'generic' });
+  assert.deepEqual([d.outcome, d.row.broker_id, d.row.routed_at, d.row.routing_reason, d.first_touch, d.capi], ['held', null, null, 'held_disclosure_pending', null, null]);
+  assert.equal(d.notice, null);
+  // quiz v2 (band pending): still held, the band question still goes out (its tap opens the session for the disclosure)
+  const v2 = W01.decide({ ...sub, budget_pending: true, quiz: { ...sub.quiz, budget_band: null } }, { ...tcCtx([genBroker]), consent_mode: 'generic' });
+  assert.deepEqual([v2.row.routing_reason, v2.budget_question, v2.first_touch], ['held_disclosure_pending', true, null]);
+  // named: routed at intake exactly as before
+  assert.equal(W01.decide(tcSub('1500_plus'), tcCtx([tcBroker()])).outcome, 'accepted');
+  // at the hand-over the held lead discloses first (CAPI then goes once, held_* rule)
+  const r = W01.routeExisting({ ...d.row, disclosed: [], window_open: true }, { brokers: [genBroker], now: TC_NOW });
+  assert.equal(r.action, 'disclose');
+});
+
+test('/start/ step 0 generic consent on a named-mode brand is stored as generic, so W39 can route after the adviser card (20 Oct 2026)', () => {
+  // KG's desktop test, 20 Oct 2026: the brand default (named) overrode the page's generic consent and W39 held the lead
+  // (held_consent_names_other_practice), so no times were shown.
+  const sub = W01.normaliseSubmission({ first_name: 'Test', mobile: '0600000172', consent: true, consent_text: 'synthetic generic consent', consent_version: 'CONSENT-GENERIC-v5web',
+    consent_mode: 'generic', start_page: true, lang: 'en', started_at: TC_NOW - 60e3 }, { channel: 'page' });
+  const d = W01.decide({ ...sub, channel: 'page', start_page: true }, { ...tcCtx([tcBroker()]), consent_mode: 'named' });
+  assert.equal(d.row.consent_mode, 'generic');
+  assert.ok(!W01.routingFor(d.row.consent_text, d.row.consent_mode, [tcBroker()], d.row.brand_id, 'B').held, 'a generic lead is routable (the page discloses first)');
+  // a named page consent on the same brand stays named
+  assert.equal(W01.decide(tcSub('1500_plus'), { ...tcCtx([tcBroker()]), consent_mode: 'named' }).row.consent_mode, 'named');
+});
+
+test('(d) admin assignment (tier C sweep): a generic lead an admin assigned is NOT handed off (W06) until its adviser was named', async () => {
+  const assigned = { id: '00000000-0000-4000-8000-0000000a9e03', brand_id: 'smc', origin: 'ctwa', broker_id: LD_BROKER.id, routing_reason: 'manual_low_budget',
+    order_state: 'attached', first_message_at: null, opted_out_at: null, conv_state: { state: 'unbooked' }, consent_mode: 'generic', consent_text_version: 'CTWA-GENERIC-v4', disclosed: [] };
+  assert.equal(W01.lowBudgetHandoff(assigned), null, 'undisclosed generic: no intro');
+  assert.equal(W01.lowBudgetHandoff({ ...assigned, disclosed: [LD_BROKER.id] }).op, 'routed');
+  assert.equal(W01.lowBudgetHandoff({ ...assigned, consent_mode: 'named', consent_text_version: 'ctwa-named-v3' }).op, 'routed', 'named: as before');
+  const out = await runCode(WF, 'Plan (w01.lowBudgetHandoff / lowBudgetClose)', { env: ENV, items: [assigned] });
+  assert.deepEqual(out, []);
+});
+
+test('W01.json: the core Load query gives routeExisting the consent version, the disclosed brokers and the 24-h window; the Route node holds / discloses a generic lead', async () => {
+  const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
+  assert.match(load, /l\.consent_text_version/);
+  assert.match(load, /cm\.direction = 'inbound'[\s\S]*interval '24 hours'\) AS window_open/);
+  const sweep = WF.nodes.find((n) => n.name === 'Tier-C leads: assigned (hand off) or held 7 days (close)').parameters.query;
+  assert.match(sweep, /l\.consent_mode, l\.consent_text_version/); assert.match(sweep, /AS disclosed/);
+  const [rt] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: GEN_LEAD(), brokers: [LD_BROKER], first_touch: true }] });
+  assert.equal(rt.json.r.action, 'disclose');
+  assert.equal(ifBranch(WF, 'Routed or held? (write it)', { json: rt.json }), false, 'no write, no W06, no CAPI');
+  assert.equal(ifBranch(WF, 'Disclose first? (lead ad, before routing)', { json: rt.json }), true, 'the session text goes first');
+  const [held] = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: GEN_LEAD({ window_open: false }), brokers: [LD_BROKER], first_touch: true }] });
+  assert.deepEqual([held.json.r.action, held.json.update], ['held', { routing_reason: 'held_disclosure_pending' }]);
+  const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: GEN_LEAD().id, broker_id: null }], refs: { 'Route (w01.routeExisting)': held.json } });
+  assert.deepEqual(w06, [], 'a hold never reaches W06');
 });

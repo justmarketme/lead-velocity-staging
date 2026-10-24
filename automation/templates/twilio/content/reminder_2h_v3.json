@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "key": "reminder_2h_v3",
+    "source": "automation/templates/reminder_2h.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_reminder_2h_v3",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1,
+        "v1_index": 0
+      }
+    ],
+    "core": false,
+    "base": "reminder_2h",
+    "header": "reminder"
+  },
+  "content": {
+    "friendly_name": "smc_reminder_2h_v3",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark",
+      "3": "082 123 4567",
+      "4": "10:00",
+      "5": "yes_confirmed:sample",
+      "6": "reschedule:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, {{2}} will call you on {{3}} today at *{{4}}*. If you can't make it, reply here or tap Reschedule.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Yes, confirmed",
+            "id": "{{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Reschedule",
+            "id": "{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

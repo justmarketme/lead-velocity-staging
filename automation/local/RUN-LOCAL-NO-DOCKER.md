@@ -127,17 +127,17 @@ Note: workflows with `saveDataSuccessExecution: "none"` (W04, W05, CAPI Send, W2
 
 ## 6. Egress guard (zero egress for the local smoke, I-46a)
 
-Why: on 2026-10-03 the "Intent-slot LLM" node reached api.anthropic.com (refused on the synthetic key) even with `HTTP(S)_PROXY=127.0.0.1:9`, because the sandbox's `NO_PROXY` lists api.anthropic.com and n8n then connects directly. n8n also calls api.n8n.io at start (MCP registry). The local smoke must never leave the box.
+Why (historical, 2026-10-03, before W07 moved to ElevenLabs only): an LLM node reached a public model host (refused on the synthetic key) even with `HTTP(S)_PROXY=127.0.0.1:9`, because the sandbox's `NO_PROXY` listed that host and n8n then connected directly. n8n also calls api.n8n.io at start (MCP registry). The local smoke must never leave the box.
 
 | Piece (all in `$S/egress/`, outside the repo) | What it does |
 |---|---|
 | `stub.mjs`, `stub.sh start|stop` | Local stub: HTTP `127.0.0.1:18080`, HTTPS `127.0.0.1:18443` (cert from a throwaway local CA `ca.pem`). Answers `/v1/messages` with canned intent-slot / reply / classifier JSON and Graph `/messages` with a fake wamid. Logs every request (host, path, kind) to `stub.log`. |
 | `egress-guard.cjs` + `bin/node` | `bin/node` = node24 `--require egress-guard.cjs`, first on PATH, so the n8n main process **and** the task runner (spawned as `node`) load it. Every TCP connect that is not loopback on an allowlisted port (5678, 5679, 54329, 18080, 18443) is logged to `guard.log` and redirected to the stub (port 80 to :18080, anything else to :18443). Other loopback ports (e.g. a host proxy) are refused. `dns.lookup` of public names answers 127.0.0.1, `dns.resolve*` fail ENOTFOUND, except `resolveMx` for the synthetic domains in `MX_STUB_DOMAINS` (below). Nothing queries a resolver. |
-| `env.egress` (sourced by `n8n2.sh` after `n8n.env`) | `ANTHROPIC_BASE_URL=http://127.0.0.1:18080`, every proxy variable empty, `NO_PROXY=*`, `NODE_EXTRA_CA_CERTS=egress/ca.pem`. |
+| `env.egress` (sourced by `n8n2.sh` after `n8n.env`) | `LINDI_BRAIN_URL=http://127.0.0.1:18080/v1/messages` and `LLM_RELAY_URL=http://127.0.0.1:18080/v1/messages` (the stub's canned path), every proxy variable empty, `NO_PROXY=*`, `NODE_EXTRA_CA_CERTS=egress/ca.pem`. |
 | `MX_STUB_DOMAINS` (in `env.egress`; default `example.test,synthetic.test`) | Allow-list for the W05 email check: `resolveMx` (callback, promises and `Resolver` forms) of exactly these domains answers one synthetic record `{ exchange: 'mx.<domain>', priority: 10 }` without any network, logged as `dns.resolveMx ... answer: stub` in `guard.log`. Every other domain stays ENOTFOUND, so a real address still fails `email_no_mx` locally. Use a fixture address such as `lerato@example.test` to exercise the Teams/Zoom/Meet branch. Scratch guard only: the repo workflows always do a real MX lookup. |
 | `sockwatch.cjs <log>` | Stands in for `ss -tnp` (iproute2 is not installed here). It samples `/proc/net/tcp{,6}` every 200 ms and logs any socket owned by a scratchpad process whose remote address is not loopback. |
 
-Workflows: the Anthropic nodes in W07, W23, W30 and W31 now use `{{ ($env.ANTHROPIC_BASE_URL || "https://api.anthropic.com") }}/v1/messages`. Production is unchanged when the variable is unset. Graph, Paystack, Microsoft and Twilio hosts are still hard-coded, so the guard redirects them at socket level.
+Workflows (19 Oct 2026, no Anthropic API in this system): W07's Lindi calls use exactly `$env.LINDI_BRAIN_URL` (smc-lindi-chat in production) and every other LLM call uses `$env.LLM_RELAY_URL`, with no fallback host; unset = no call. Graph, Paystack, Microsoft and Twilio hosts are still hard-coded, so the guard redirects them at socket level.
 
 Order: `egress/stub.sh start` → `nohup node egress/sockwatch.cjs egress/sock.log &` → `n8n2.sh start` → wait about 20 s until the webhooks are registered (the first POST after healthz returned 404) → `node send-wa2.mjs <from> text "<body>"` → read `stub.log`, `guard.log` and `sock.log`.
 

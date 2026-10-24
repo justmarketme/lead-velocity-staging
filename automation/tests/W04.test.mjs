@@ -220,3 +220,29 @@ test('I-54a F13 W04 sub-calls: {now, is_synthetic} is honoured only with TEST_HO
   assert.equal(free(shifted).free, true);
   assert.equal(free(Date.now()).free, false);
 });
+
+// getSchedule asks only for the mailbox the broker connected (brokers.calendar_email from ms-oauth Graph /me), never his login email.
+test('getSchedule: schedules = calendar_email only; no connected mailbox -> empty list (fails closed)', async () => {
+  const { getScheduleRequest } = await import('../lib/w04.mjs');
+  const now = ms('2026-10-13T09:00:00+02:00');
+  const r = getScheduleRequest({ calendar_email: 'mark@oracle.co.za', email: 'login@gmail.com', horizon_days: 14 }, now);
+  assert.deepEqual(r.body.schedules, ['mark@oracle.co.za']);
+  assert.equal(r.url, 'https://graph.microsoft.com/v1.0/me/calendar/getSchedule');
+  assert.deepEqual(getScheduleRequest({ calendar_email: null, email: 'login@gmail.com' }, now).body.schedules, []);
+});
+
+test('W07 hand-off is send_list, recognised by source or by W07 route (17 Oct 2026: no source -> list -> nothing sent)', () => {
+  const lead = { id: 'lead_1', broker_id: B.broker_id };
+  const msg = { wamid: 'SM1', from: '+27725548057' };
+  for (const j of [{ source: 'W07', lead, msg }, { route: 'W04', lead, msg, delegate: { to: 'W04', action: 'send_slots' } }, { route: 'W04_list', lead, msg }]) {
+    const r = W4.subcallInput(j);
+    assert.equal(r.op, 'send_list', JSON.stringify(j));
+    assert.equal(r.lead_id, 'lead_1');
+  }
+  assert.equal(W4.subcallInput({ route: 'W04', lead: { broker_id: B.broker_id }, msg }).op, 'reject', 'no lead id');
+  // other callers keep their shapes: a W28/W06 list row, W15 graph_token, an explicit op from a W07-shaped item
+  assert.equal(W4.subcallInput({ broker_id: B.broker_id, limit: 10 }).op, 'list');
+  assert.equal(W4.subcallInput({ op: 'graph_token', broker_id: B.broker_id }).op, 'graph_token');
+  assert.equal(W4.subcallInput({ route: 'W04', msg, op: 'list', broker_id: B.broker_id }).op, 'list');
+  assert.equal(W4.subcallInput({ route: 'W10', msg, broker_id: B.broker_id }).op, 'list', 'a W10 item is not a W07 hand-off');
+});

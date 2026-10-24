@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>03 The campaign</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .am { position: absolute; left: 120px; top: 300px; width: 1080px; height: 640px; overflow: hidden; }
+  .am .bar { display: flex; align-items: center; gap: 14px; padding: 18px 26px; border-bottom: 1.5px solid var(--line); }
+  .am .bar .meta { width: 34px; height: 34px; border-radius: 9px; background: #0866ff; color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 20px; }
+  .am .bar b { font-size: 21px; color: var(--ink); }
+  .am .bar .st { margin-left: auto; }
+  .tree { padding: 18px 26px 0; }
+  .lvl { display: flex; align-items: center; gap: 12px; font-size: 19px; color: var(--ink); font-weight: 700; padding: 9px 0; }
+  .lvl.l2 { padding-left: 34px; } .lvl.l3 { padding-left: 68px; font-weight: 600; color: var(--slate); }
+  .lvl .k { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); width: 82px; }
+  .rows { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 18px 26px; }
+  .row { display: flex; align-items: center; gap: 16px; padding: 16px 18px; border: 1.5px solid var(--line); border-radius: 16px; background: var(--paper); }
+  .row .k { font-size: 14px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .row .v { font-size: 24px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+  .row .v small { font-size: 16px; color: var(--muted); font-weight: 600; }
+  .side { position: absolute; left: 1260px; top: 300px; width: 540px; }
+  .big { padding: 30px 32px; }
+  .big .n { font-size: 120px; font-weight: 800; color: var(--ink); letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .big .t { font-size: 24px; font-weight: 700; color: var(--slate); margin-top: 8px; }
+  .map { margin-top: 18px; height: 200px; border-radius: 18px; background: var(--soft); position: relative; overflow: hidden; }
+  .map i { position: absolute; width: 12px; height: 12px; margin: -6px; border-radius: 50%; background: var(--y-2); box-shadow: 0 0 0 4px rgba(245,180,0,.18); }
+  .ready { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 10px; }
+</style></head>
+<body data-scene="s03"><div class="stage">
+  <div class="top"><div class="eyebrow">The campaign</div><h1 class="h">Click-to-WhatsApp, <em>built and checked</em></h1></div>
+  <div class="card am">
+    <div class="bar"><div class="meta">f</div><b>Ads Manager · SortMyCover</b><span class="pill y st"><i></i>Draft</span></div>
+    <div class="tree">
+      <div class="lvl l1"><span class="k">Campaign</span>SMC | Leads | Cycle 1 | WhatsApp vs Instant Form</div>
+      <div class="lvl l2"><span class="k">Ad set</span>SMC | WhatsApp | ZA metros | 35-50</div>
+      <div class="lvl l3"><span class="k">Ads</span>New bond · Salary stops · Owners and directors · Adviser conversation</div>
+    </div>
+    <div class="rows">
+      <div class="row r1"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="k">Where people land</div><div class="v">WhatsApp chat</div></div></div>
+      <div class="row r2"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="k">Who</div><div class="v">Ages 35 to 50 <small>hard limit</small></div></div></div>
+      <div class="row r3"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="k">Where</div><div class="v">78 suburbs <small>all provinces</small></div></div></div>
+      <div class="row r4"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="k">Placements</div><div class="v">FB + IG <small>feeds, stories, reels</small></div></div></div>
+      <div class="row r5"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="k">Budget</div><div class="v" id="bud">R0 <small>a day</small></div></div></div>
+      <div class="row r6"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div><div class="k">Meta AI options</div><div class="v">All off <small>runs as made</small></div></div></div>
+    </div>
+  </div>
+  <div class="side">
+    <div class="card big"><div class="lbl">Well-off suburbs targeted</div><div class="n" id="n">0</div><div class="t">across every province</div><div class="map" id="map"></div></div>
+    <div class="ready"><span class="pill green p1"><i></i>Review: 0 errors</span><span class="pill grey p2"><i></i>Nothing published</span><span class="pill ink p3"><i style="background:var(--y)"></i>Ready for you to publish</span></div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  // 78 dots scattered deterministically over the map card (a pseudo-random but fixed layout)
+  const map = $('#map'); let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 78; i++) { const d = document.createElement('i'); d.style.left = (8 + rnd() * 84) + '%'; d.style.top = (12 + rnd() * 76) + '%'; map.appendChild(d); }
+  const dots = [...map.querySelectorAll('i')];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.am', t, cue('Ads') - .3, { y: 40, scale: .98, dur: 1 });
+    rv('.lvl', t, cue('click') - .2, { x: -16, y: 0, stagger: .2, dur: .5 });
+    const T = [cue('click') + .4, cue('ages'), cue('seventy-eight'), cue('Facebook'), cue('seventy-five', 1), cue('AI')];
+    $$('.row').forEach((r, i) => { rv(r, t, T[i] - .3, { y: 14, dur: .5 }); tick(r.querySelector('.tick'), t, T[i] + .2); });
+    $('#bud').innerHTML = 'R' + Math.round(75 * P(t, T[4], 1, E.out5)) + ' <small>a day</small>';
+    rv('.big', t, cue('seventy-eight') - .4, { x: 30, y: 0, dur: .7 });
+    $('#n').textContent = Math.round(78 * P(t, cue('seventy-eight'), 1.4, E.out5));
+    dots.forEach((d, i) => { const p = P(t, cue('seventy-eight') + i * .016, .35, E.back); d.style.opacity = p; d.style.transform = `scale(${p.toFixed(3)})`; });
+    rv('.ready .pill', t, cue('draft') - .2, { y: 12, stagger: .25, dur: .5 });
+  };
+</script></body></html>

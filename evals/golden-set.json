@@ -61,7 +61,7 @@
     "faq"
    ],
    "first_free_text": true,
-   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. It takes about 30 minutes, and you can join from your phone."
+   "reference_reply": "Hi Lerato, I'm Lindi from SortMyCover, here to book your call with Mark. You can ask for a person at any time. It takes about 30 minutes, and you can join from your phone."
   },
   {
    "id": "G002",
@@ -139,7 +139,7 @@
     "faq",
     "disclosure"
    ],
-   "reference_reply": "Yes, I'm Thandi, an AI booking assistant run by Lead Velocity. You can ask for a person at any time."
+   "reference_reply": "Yes, I'm Lindi, an AI booking assistant run by Lead Velocity. You can ask for a person at any time."
   },
   {
    "id": "G005",
@@ -242,7 +242,7 @@
     "faq"
    ],
    "first_free_text": true,
-   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. Fair question. You can look Mark up on the FSCA website."
+   "reference_reply": "Hi Lerato, I'm Lindi from SortMyCover, here to book your call with Mark. You can ask for a person at any time. Fair question. You can look Mark up on the FSCA website."
   },
   {
    "id": "G009",
@@ -343,12 +343,12 @@
     "deferral": false,
     "redact": false,
     "actions": [
-     "close_oob"
+     "answer:FAQ-12"
     ]
    },
    "tags": [
     "faq",
-    "out_of_band"
+    "any_age"
    ]
   },
   {
@@ -861,7 +861,7 @@
     "deferral"
    ],
    "first_free_text": true,
-   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
+   "reference_reply": "Hi Lerato, I'm Lindi from SortMyCover, here to book your call with Mark. You can ask for a person at any time. That's exactly what Mark will go through with you on the call. I've made a note so Mark comes prepared for it."
   },
   {
    "id": "G033",
@@ -2671,11 +2671,11 @@
     "deferral": false,
     "redact": false,
     "actions": [
-     "close_oob"
+     "answer:FAQ-12"
     ]
    },
    "tags": [
-    "out_of_band"
+    "any_age"
    ]
   },
   {
@@ -4496,7 +4496,7 @@
     "book"
    ],
    "first_free_text": true,
-   "reference_reply": "Hi Lerato, I'm Thandi, Lead Velocity's booking assistant for Mark. I'm an AI assistant, and you can ask for a person at any time. Here are the next open times with Mark."
+   "reference_reply": "Hi Lerato, I'm Lindi from SortMyCover, here to book your call with Mark. You can ask for a person at any time. Here are the next open times with Mark."
   },
   {
    "id": "G176",
@@ -5366,12 +5366,13 @@
     "deferral": false,
     "redact": false,
     "actions": [
-     "close_oob"
+     "record_answer",
+     "next_question"
     ]
    },
    "tags": [
     "qualify",
-    "out_of_band"
+    "any_age"
    ]
   },
   {
@@ -5444,12 +5445,13 @@
     "deferral": false,
     "redact": false,
     "actions": [
-     "close_oob"
+     "record_answer",
+     "next_question"
     ]
    },
    "tags": [
     "qualify",
-    "out_of_band"
+    "tier_c"
    ]
   },
   {
@@ -5548,11 +5550,11 @@
     "deferral": false,
     "redact": false,
     "actions": [
-     "close_oob"
+     "none"
     ]
    },
    "tags": [
-    "out_of_band"
+    "any_age"
    ]
   },
   {
@@ -5573,11 +5575,11 @@
     "deferral": false,
     "redact": false,
     "actions": [
-     "flag_band_conflict"
+     "none"
     ]
    },
    "tags": [
-    "out_of_band",
+    "any_age",
     "memory"
    ]
   },
@@ -5812,7 +5814,7 @@
    "lang": "en",
    "state": "booked",
    "ctx": "booked_teams",
-   "text": "Thanks Thandi",
+   "text": "Thanks Lindi",
    "expected": {
     "intent": "other",
     "secondary_intents": [],

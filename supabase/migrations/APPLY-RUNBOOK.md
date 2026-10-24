@@ -24,6 +24,7 @@ Security: `rls_enabled_no_policy` x4 (EMMA tables), `anon_security_definer_funct
 ## 3. Pre-checks (read-only SELECTs)
 
 ### 3.1 Fingerprint (`supabase/drift/live-fingerprint.sql`)
+**Known drift since this capture (2026-10-12):** `20261012120000_broker_documents.sql` was applied live. It adds four nullable columns to `admin_documents` (broker_id, kind, signed_at, signed_by), the FK + check constraint `admin_documents_kind_check`, index `admin_documents_broker_id_idx`, and policies "Brokers can view their own documents" (admin_documents) and "Brokers can read their own documents" (storage.objects). The columns / constraints / indexes / policies md5s below therefore no longer match; re-capture the fingerprint and re-run the rehearsal with that migration in the mirror before applying the chain. The chain does not touch those columns.
 Re-checked live 2026-10-11 (identical to the 2026-10-10 capture and to the local mirror):
 
 | part | n | md5 |

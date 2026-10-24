@@ -5,6 +5,7 @@
 // (body <= 1024, header text <= 60, footer <= 60, button text <= 25, <= 10 buttons, <= 2 URL buttons,
 // quick replies grouped, one header variable max, no variable at the start or end of the body).
 import { readFileSync, readdirSync } from 'node:fs';
+const NO_STOP_LINE = new Set(['start_here']); // v4 templates (19 Oct 2026): no "Reply STOP to opt out."
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,6 +26,7 @@ const BANNED = [
 ];
 // Marketing jargon is banned in anything a broker or lead reads (W14 R03, portal rule 3); ops_* templates go to Jonathan/KG only.
 const JARGON = [/\bCPL\b/, /\bCPC\b/, /\bCTR\b/, /\bCAPI\b/, /\bEMQ\b/, /\bROAS\b/, /\battribution\b/i, /\bfunnel\b/i, /\bSLA\b/];
+const DISCLOSURE_OK = /SortMyCover gives no financial advice, product comparisons or premium quotes\./g;
 const EMOJI = /\p{Extended_Pictographic}/u;
 const vars = (s) => [...String(s).matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]));
 
@@ -80,16 +82,21 @@ for (const f of files) {
     }
   }
   const all = JSON.stringify(t.components);
-  for (const re of BANNED) if (re.test(all)) err(n, `banned word ${re}`);
+  // The approved SortMyCover disclosure (site footer line, W39 START-DISCLOSE-v1) names what we do NOT give; it is not premium talk.
+  const scan = all.replace(DISCLOSURE_OK, '');
+  for (const re of BANNED) if (re.test(scan)) err(n, `banned word ${re}`);
   if (!n.startsWith('ops_')) for (const re of JARGON) if (re.test(all)) err(n, `jargon ${re} in a broker/lead template`);
   if (EMOJI.test(all)) err(n, 'emoji in template');
-  if (!isInternal(n) && !/Reply STOP to opt out\.\s*$/.test(text)) err(n, 'lead-facing body must end with "Reply STOP to opt out."');
+  // Jono, 19 Oct 2026 (FINAL): the v4 templates carry no STOP line (only the W03 consent keeps it; Meta requires honouring an
+  // opt-out, not wording in each message). Existing v1 files keep theirs (approved as submitted).
+  if (!isInternal(n) && !NO_STOP_LINE.has(n) && !/Reply STOP to opt out\.\s*$/.test(text)) err(n, 'lead-facing body must end with "Reply STOP to opt out."');
+  if (NO_STOP_LINE.has(n) && /\bSTOP\b/.test(text)) err(n, 'v4 template must not mention STOP');
   if (isInternal(n)) {
     // POPIA 4.10a: a lead appears outside the portal only as first name + initial. Flag any two capitalised words in examples
     // that look like "Firstname Surname" unless it is the adviser/practice (known fixture names).
     const allowed = /(Mark Smith|Smith Financial|Lead Velocity|SortMyCover|Outlook calendar|Microsoft Teams)/;
     for (const e of [...ex, ...(header?.example?.header_text || [])]) {
-      const m = String(e).match(/\b(Lerato|Sipho|Pieter|Thandi|Ayanda|Nomsa|Johan|Zanele) [A-Z][a-z]+/);
+      const m = String(e).match(/\b(Lerato|Sipho|Pieter|Lindi|Ayanda|Nomsa|Johan|Zanele) [A-Z][a-z]+/);
       if (m && !allowed.test(e)) err(n, `example "${e}" looks like a lead full name (use "Lerato M.")`);
     }
   }

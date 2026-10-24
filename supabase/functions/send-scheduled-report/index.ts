@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { scheduledReportEmail, type ReportAnalytics } from "../_shared/lv_emails.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,9 +92,8 @@ serve(async (req) => {
   }
 });
 
-// deno-lint-ignore no-explicit-any
 async function generateAndSendReport(
-  supabase: any,
+  supabase: SupabaseClient,
   report: ScheduledReport,
   resendApiKey: string | undefined
 ): Promise<{ status: string; recipients_count?: number; reason?: string; error?: string }> {
@@ -127,8 +127,7 @@ async function generateAndSendReport(
       .select('id')
       .eq('broker_id', report.broker_id);
     
-    // deno-lint-ignore no-explicit-any
-    const leadIds = brokerLeads?.map((l: any) => l.id) || [];
+    const leadIds = brokerLeads?.map((l: { id: string }) => l.id) || [];
     query = query.in('lead_id', leadIds);
   }
 
@@ -145,8 +144,11 @@ async function generateAndSendReport(
     return { status: 'skipped', reason: 'no_recipients' };
   }
 
-  // Generate email HTML
-  const emailHtml = generateReportEmail(report, analytics, startDate, now);
+  // Lead Velocity layout + plain-text part
+  const mail = scheduledReportEmail({
+    name: report.name, frequency: report.frequency, start: startDate, end: now, generatedAt: new Date(),
+    analytics: analytics as unknown as ReportAnalytics,
+  });
 
   // Send email
   if (resendApiKey) {
@@ -157,10 +159,11 @@ async function generateAndSendReport(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Lead Velocity <noreply@resend.dev>',
+        from: 'Lead Velocity <howzit@leadvelocity.co.za>',
         to: recipients,
-        subject: `${report.name} - ${formatDateRange(startDate, now)}`,
-        html: emailHtml,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
       }),
     });
 
@@ -182,9 +185,8 @@ async function generateAndSendReport(
   return { status: 'sent', recipients_count: recipients.length };
 }
 
-// deno-lint-ignore no-explicit-any
 async function getRecipients(
-  supabase: any,
+  supabase: SupabaseClient,
   report: ScheduledReport
 ): Promise<string[]> {
   const emails: string[] = [];
@@ -196,8 +198,7 @@ async function getRecipients(
         .select('user_id')
         .eq('role', 'admin');
       
-      // deno-lint-ignore no-explicit-any
-      for (const role of adminRoles || [] as any[]) {
+      for (const role of adminRoles || [] as { user_id: string }[]) {
         const { data: userData } = await supabase.auth.admin.getUserById(role.user_id);
         if (userData?.user?.email) {
           emails.push(userData.user.email);
@@ -234,8 +235,7 @@ async function getRecipients(
         .select('email')
         .eq('status', 'Active');
       
-      // deno-lint-ignore no-explicit-any
-      for (const broker of brokers || [] as any[]) {
+      for (const broker of brokers || [] as { email: string | null }[]) {
         if (broker.email) {
           emails.push(broker.email);
         }
@@ -309,119 +309,4 @@ function calculateAnalytics(communications: unknown[], sections: string[]) {
   }
 
   return analytics;
-}
-
-function formatDateRange(start: Date, end: Date): string {
-  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
-}
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  
-  if (hours > 0) return `${hours}h ${mins}m`;
-  return `${mins}m`;
-}
-
-function generateReportEmail(
-  report: ScheduledReport,
-  analytics: Record<string, unknown>,
-  startDate: Date,
-  endDate: Date
-): string {
-  const summary = analytics.summary as { total: number; outbound: number; inbound: number; success_rate: number } | undefined;
-  const channels = analytics.channels as Record<string, { total: number; successful: number }> | undefined;
-  const responseTimes = analytics.response_times as { count: number; average: number; min: number; max: number } | undefined;
-
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
-      <div style="background-color: #1e293b; color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 24px;">📊 ${report.name}</h1>
-        <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 14px;">
-          ${formatDateRange(startDate, endDate)}
-        </p>
-      </div>
-      
-      <div style="background-color: white; padding: 30px; border-radius: 0 0 8px 8px;">
-        ${summary ? `
-        <div style="margin-bottom: 30px;">
-          <h2 style="color: #374151; margin: 0 0 15px 0; font-size: 18px;">Summary</h2>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Total Communications</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; font-weight: bold; text-align: right;">${summary.total}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Outbound</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${summary.outbound}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Inbound</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${summary.inbound}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Success Rate</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; font-weight: bold; text-align: right; color: ${summary.success_rate >= 80 ? '#059669' : summary.success_rate >= 60 ? '#d97706' : '#dc2626'};">${summary.success_rate}%</td>
-            </tr>
-          </table>
-        </div>
-        ` : ''}
-        
-        ${channels ? `
-        <div style="margin-bottom: 30px;">
-          <h2 style="color: #374151; margin: 0 0 15px 0; font-size: 18px;">Channel Breakdown</h2>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr style="background-color: #f3f4f6;">
-              <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: left;">Channel</th>
-              <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">Total</th>
-              <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">Successful</th>
-              <th style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">Rate</th>
-            </tr>
-            ${Object.entries(channels).map(([channel, stats]) => `
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-transform: capitalize;">${channel}</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${stats.total}</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${stats.successful}</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${stats.total > 0 ? Math.round((stats.successful / stats.total) * 100) : 0}%</td>
-            </tr>
-            `).join('')}
-          </table>
-        </div>
-        ` : ''}
-        
-        ${responseTimes && responseTimes.count > 0 ? `
-        <div style="margin-bottom: 30px;">
-          <h2 style="color: #374151; margin: 0 0 15px 0; font-size: 18px;">Response Times</h2>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Average Response Time</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; font-weight: bold; text-align: right;">${formatDuration(responseTimes.average)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Fastest Response</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${formatDuration(responseTimes.min)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 12px; border: 1px solid #e5e7eb;">Slowest Response</td>
-              <td style="padding: 12px; border: 1px solid #e5e7eb; text-align: right;">${formatDuration(responseTimes.max)}</td>
-            </tr>
-          </table>
-        </div>
-        ` : ''}
-        
-        <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
-          <p>This is an automated report from Lead Velocity.</p>
-          <p>Generated on ${new Date().toLocaleString()}</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
 }

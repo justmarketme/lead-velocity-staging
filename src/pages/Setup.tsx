@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,7 @@ const Setup = () => {
             // Upsert role
             const { error: roleError } = await supabase
                 .from('user_roles')
-                .upsert({ user_id: userId, role: 'admin' as any }, { onConflict: 'user_id,role' });
+                .upsert({ user_id: userId, role: 'admin' }, { onConflict: 'user_id,role' });
 
             if (roleError) throw roleError;
 
@@ -86,10 +87,10 @@ const Setup = () => {
                 window.location.href = "/admin";
             }, 2000);
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast({
                 title: "Setup Failed",
-                description: error.message,
+                description: errorMessage(error),
                 variant: "destructive",
             });
         } finally {

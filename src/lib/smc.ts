@@ -6,20 +6,17 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useBrokerPreview } from "@/lib/brokerPreview";
 import type { SmcBroker, SmcDispositionCode, SmcMethod, SmcStepKey, SmcOnboardingProgress, OpsFaculty } from "@/integrations/supabase/smc-types";
 
 const env = import.meta.env;
 
 export const SMC_ENABLED: boolean = env.VITE_SMC_ENABLED === "true";
-/** NH-61: Instant EFT and card (Paystack) are built but off. Default off; the portal then offers payment by EFT, in advance, per 30-day cycle only. */
-export const PAYSTACK_ENABLED: boolean = env.VITE_PAYSTACK_ENABLED === "true";
 /** n8n webhook base, e.g. https://n8n.example/webhook (no trailing slash). Empty = actions show "not connected yet". */
 export const N8N_BASE: string = String(env.VITE_N8N_WEBHOOK_BASE || "").replace(/\/+$/, "");
 /** Deprecated (I-41a): the portal now calls W20 {N8N_BASE}/ms/connect with the broker JWT; kept only so old .env files still parse. */
 export const MS_OAUTH_URL: string = String(env.VITE_MS_OAUTH_URL || "");
 export const MS_ADMIN_CONSENT_URL: string = String(env.VITE_MS_ADMIN_CONSENT_URL || "");
-/** billing/checkout/ page (billing-automation). Same hosting serves it; override per environment. */
-export const CHECKOUT_URL: string = String(env.VITE_SMC_CHECKOUT_URL || "/checkout/");
 /** portal/intro-media/ static app (intro-media-producer). */
 export const INTRO_MEDIA_URL: string = String(env.VITE_SMC_INTRO_MEDIA_URL || "/portal/intro-media/index.html");
 export const EXPLAINER_URL: string = String(env.VITE_SMC_EXPLAINER_URL || "/media/explainer/en/explainer.mp4");
@@ -185,35 +182,31 @@ export function useIsAdmin() {
 
 /**
  * The signed-in broker's own row (brokers.user_id = auth.uid(); RLS enforces it server-side, INV-A06).
- * Also stamps first_login_at / last_seen_at through smc_portal_touch() on load and every 60 s while visible.
+ * Inside an admin broker preview it loads the previewed broker by id instead (admin RLS).
+ * (The smc_portal_touch heartbeat was removed 20 Oct 2026: the RPC was dropped with the CRM-nurture chain, D5.)
  */
-export function useCurrentBroker(opts: { heartbeat?: boolean } = {}) {
+export function useCurrentBroker() {
   const [broker, setBroker] = useState<SmcBroker | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const previewId = useBrokerPreview()?.brokerId || null;
 
   const reload = useCallback(async () => {
     const { data: u } = await supabase.auth.getUser();
     const uid = u.user?.id || null;
     setUserId(uid);
     if (!uid) { setBroker(null); setLoading(false); return null; }
-    const { data, error: e } = await smcDb.from("brokers").select("*").eq("user_id", uid).maybeSingle();
+    const { data, error: e } = previewId
+      ? await smcDb.from("brokers").select("*").eq("id", previewId).maybeSingle()
+      : await smcDb.from("brokers").select("*").eq("user_id", uid).maybeSingle();
     if (e) setError(errText(e));
     setBroker((data as SmcBroker) || null);
     setLoading(false);
     return (data as SmcBroker) || null;
-  }, []);
+  }, [previewId]);
 
   useEffect(() => { void reload(); }, [reload]);
-
-  useEffect(() => {
-    if (!opts.heartbeat || !broker?.brand_id) return;
-    const touch = () => { if (document.visibilityState === "visible") void smcDb.rpc("smc_portal_touch"); };
-    touch();
-    const t = window.setInterval(touch, 60_000);
-    return () => window.clearInterval(t);
-  }, [opts.heartbeat, broker?.brand_id]);
 
   return { broker, userId, loading, error, reload, setBroker };
 }
@@ -228,6 +221,7 @@ export async function portalEvent(type: PortalEventType, step: string | null = n
 
 /** Banned words for the light client-side no-advice pre-check (the server gate in W20 is authoritative). */
 const BANNED = [/\bbest\b/i, /\bcheapest\b/i, /#\s?1\b/, /\bguarantee(d|s)?\b/i, /\bpremiums?\b/i, /\bR\s?\d/, /\breturns?\b/i,
+  /\bsav(e|es|ing)\s+(you\s+|them\s+|clients\s+)?money\b/i, // benefit promise (agreement 3.8), e.g. "saving money"
   /\bdiscovery\b/i, /\bsanlam\b/i, /\bold mutual\b/i, /\bliberty\b/i, /\bmomentum\b/i, /\bhollard\b/i, /\bbrightrock\b/i];
 export function noAdviceTrip(text: string): string | null {
   for (const r of BANNED) { const m = text.match(r); if (m) return m[0]; }

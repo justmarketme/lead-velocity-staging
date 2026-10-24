@@ -9,7 +9,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-01",
@@ -43,7 +43,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-03",
@@ -897,40 +897,43 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "name": "x-api-key",
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: $env.ANTHROPIC_MODEL_CHECK, max_tokens: 200, temperature: 0, messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $json.thumb_b64 } }, { type: 'text', text: 'This is a frame from a financial adviser recording a short intro video for a lead. Reply with JSON only: {\"face_present\":bool,\"single_person\":bool,\"face_centred\":bool,\"well_lit\":bool,\"notes\":\"one plain-English sentence for the adviser, or empty\"}. Do not identify anyone.' } ] }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'relay-default', max_tokens: 200, temperature: 0, messages: [{ role: 'user', content: [ { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: $json.thumb_b64 } }, { type: 'text', text: 'This is a frame from a financial adviser recording a short intro video for a lead. Reply with JSON only: {\"face_present\":bool,\"single_person\":bool,\"face_centred\":bool,\"well_lit\":bool,\"notes\":\"one plain-English sentence for the adviser, or empty\"}. Do not identify anyone.' } ] }] }) }}",
         "options": {
-          "timeout": 60000
+          "timeout": 60000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
         }
       },
       "id": "w23-34",
-      "name": "AI picture check (Haiku, thumbnail only)",
+      "name": "AI picture check (relay, thumbnail only)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
         5760,
         -60
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "Anthropic API key (x-api-key)"
-        }
-      },
       "alwaysOutputData": true,
-      "continueOnFail": true
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1610,7 +1613,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-x01",
@@ -1777,7 +1780,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-x09",
@@ -1944,7 +1947,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-x17",
@@ -2064,7 +2067,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-x23",
@@ -2316,7 +2319,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-x35",
@@ -2508,7 +2511,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst b = $json; const lang = ['en', 'af'].includes($('Verify broker JWT (script-generate)').item.json.body.lang) ? $('Verify broker JWT (script-generate)').item.json.body.lang : (/^[a-z]{2,8}$/.test(String($('Verify broker JWT (script-generate)').item.json.body.lang || '')) ? $('Verify broker JWT (script-generate)').item.json.body.lang : 'en');\nconst facts = { practice: b.practice_name, fsp: b.fsp_number, verified_credentials: b.verified_credentials };\nreturn M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) }) }));"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst b = $json; const lang = ['en', 'af'].includes($('Verify broker JWT (script-generate)').item.json.body.lang) ? $('Verify broker JWT (script-generate)').item.json.body.lang : (/^[a-z]{2,8}$/.test(String($('Verify broker JWT (script-generate)').item.json.body.lang || '')) ? $('Verify broker JWT (script-generate)').item.json.body.lang : 'en');\nconst facts = { practice: b.practice_name, fsp: b.fsp_number, verified_credentials: b.verified_credentials };\nreturn M.ANGLES.map((m) => ({ json: Object.assign({}, m, { facts, lang, attempt: 1, broker: { adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, answers: b.positioning_answers, req: M.genRequest({ adviser_name: b.adviser_name, practice_name: b.practice_name, fsp_number: b.fsp_number, verified_credentials: b.verified_credentials }, b.positioning_answers, m.angle, lang, { model: 'relay-default' }) }) }));"
       },
       "id": "w23-y06",
       "name": "Explode 3 angles",
@@ -2522,17 +2525,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -2553,7 +2552,7 @@
         }
       },
       "id": "w23-y07",
-      "name": "Generate variant (Sonnet) (1)",
+      "name": "Generate variant (relay) (1)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -2564,7 +2563,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Explode 3 angles').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Explode 3 angles').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: 'relay-default' }) : null }) }];"
       },
       "id": "w23-y08",
       "name": "Check variant (1)",
@@ -2621,17 +2620,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -2652,7 +2647,7 @@
         }
       },
       "id": "w23-y11",
-      "name": "Script gate LLM (Haiku, fails closed) (1)",
+      "name": "Script gate LLM (relay, fails closed) (1)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -2663,7 +2658,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check variant (1)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check variant (1)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, recheck_body: g.needs_recheck ? M.gateRequest(src.text, src.facts, src.lang, { model: 'relay-default' }) : null }) }];"
       },
       "id": "w23-y12",
       "name": "Parse gate (1)",
@@ -2685,7 +2680,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.gate.needs_sonnet !== true }}",
+              "leftValue": "={{ $json.gate.needs_recheck !== true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -2707,17 +2702,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -2727,7 +2718,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.sonnet_body) }}",
+        "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
         "options": {
           "timeout": 15000,
           "response": {
@@ -2738,7 +2729,7 @@
         }
       },
       "id": "w23-y14",
-      "name": "Script gate re-check (Sonnet) (1)",
+      "name": "Script gate re-check (relay) (1)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -2806,17 +2797,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -2837,7 +2824,7 @@
         }
       },
       "id": "w23-y20",
-      "name": "Generate variant (Sonnet) (2)",
+      "name": "Generate variant (relay) (2)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -2848,7 +2835,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Retry prep (generate)').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Retry prep (generate)').item.json; const text = M.parseGenerated($json, src.angle); const det = M.detCheck(text, src.facts, src.lang);\nreturn [{ json: Object.assign({}, src, { text, det, gate: null, gate_body: det.pass ? M.gateRequest(text, src.facts, src.lang, { model: 'relay-default' }) : null }) }];"
       },
       "id": "w23-y21",
       "name": "Check variant (2)",
@@ -2905,17 +2892,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -2936,7 +2919,7 @@
         }
       },
       "id": "w23-y24",
-      "name": "Script gate LLM (Haiku, fails closed) (2)",
+      "name": "Script gate LLM (relay, fails closed) (2)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -2947,7 +2930,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check variant (2)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check variant (2)').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, recheck_body: g.needs_recheck ? M.gateRequest(src.text, src.facts, src.lang, { model: 'relay-default' }) : null }) }];"
       },
       "id": "w23-y25",
       "name": "Parse gate (2)",
@@ -2969,7 +2952,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.gate.needs_sonnet !== true }}",
+              "leftValue": "={{ $json.gate.needs_recheck !== true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -2991,17 +2974,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -3011,7 +2990,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.sonnet_body) }}",
+        "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
         "options": {
           "timeout": 15000,
           "response": {
@@ -3022,7 +3001,7 @@
         }
       },
       "id": "w23-y27",
-      "name": "Script gate re-check (Sonnet) (2)",
+      "name": "Script gate re-check (relay) (2)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -3165,7 +3144,7 @@
         "authentication": "none",
         "responseMode": "responseNode",
         "options": {
-          "allowedOrigins": "={{ $env.PUBLIC_ALLOWED_ORIGINS || 'https://leadvelocity.co.za,https://www.leadvelocity.co.za' }}"
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
         }
       },
       "id": "w23-x39",
@@ -3310,7 +3289,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst b = $('Verify broker JWT (script-recheck)').item.json.body; const br = $json; const text = String(b.text || '');\nconst lang = ['en', 'af'].includes(b.lang) ? b.lang : (/^[a-z]{2,8}$/.test(String(b.lang || '')) ? b.lang : 'en');\nconst facts = { practice: br.practice_name, fsp: br.fsp_number, verified_credentials: br.verified_credentials };\nconst tooLong = text.length > 1500;\nconst det = tooLong || !text.trim() ? { pass: false, verdict: 'block', issues: ['empty or over 1,500 characters'], rule: 'invalid_input' } : M.detCheck(text, facts, lang);\nreturn [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: $env.ANTHROPIC_MODEL_FAST || undefined }) : null } }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst b = $('Verify broker JWT (script-recheck)').item.json.body; const br = $json; const text = String(b.text || '');\nconst lang = ['en', 'af'].includes(b.lang) ? b.lang : (/^[a-z]{2,8}$/.test(String(b.lang || '')) ? b.lang : 'en');\nconst facts = { practice: br.practice_name, fsp: br.fsp_number, verified_credentials: br.verified_credentials };\nconst tooLong = text.length > 1500;\nconst det = tooLong || !text.trim() ? { pass: false, verdict: 'block', issues: ['empty or over 1,500 characters'], rule: 'invalid_input' } : M.detCheck(text, facts, lang);\nreturn [{ json: { text, facts, lang, det, choose: b.choose === true, gate: null, gate_body: det.pass ? M.gateRequest(text, facts, lang, { model: 'relay-default' }) : null } }];"
       },
       "id": "w23-y40",
       "name": "Check edited text",
@@ -3437,17 +3416,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -3468,7 +3443,7 @@
         }
       },
       "id": "w23-y48",
-      "name": "Script gate LLM (Haiku, fails closed) (recheck)",
+      "name": "Script gate LLM (relay, fails closed) (recheck)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -3479,7 +3454,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check edited text').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, sonnet_body: g.needs_sonnet ? M.gateRequest(src.text, src.facts, src.lang, { model: $env.ANTHROPIC_MODEL_STRONG || undefined }) : null }) }];"
+        "jsCode": "const M = require('lv-automation').introScript;\nconst src = $('Check edited text').item.json; const g = M.parseGate($json);\nreturn [{ json: Object.assign({}, src, { gate: g, recheck_body: g.needs_recheck ? M.gateRequest(src.text, src.facts, src.lang, { model: 'relay-default' }) : null }) }];"
       },
       "id": "w23-y49",
       "name": "Parse gate (recheck)",
@@ -3501,7 +3476,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.gate.needs_sonnet !== true }}",
+              "leftValue": "={{ $json.gate.needs_recheck !== true }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -3523,17 +3498,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.ANTHROPIC_BASE_URL || \"https://api.anthropic.com\").replace(/\\/+$/, \"\") }}/v1/messages",
+        "url": "={{ $env.LLM_RELAY_URL }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $env.ANTHROPIC_API_KEY }}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
+              "value": "={{ $env.LLM_RELAY_TOKEN }}"
             },
             {
               "name": "content-type",
@@ -3543,7 +3514,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.sonnet_body) }}",
+        "jsonBody": "={{ JSON.stringify($json.recheck_body) }}",
         "options": {
           "timeout": 15000,
           "response": {
@@ -3554,7 +3525,7 @@
         }
       },
       "id": "w23-y51",
-      "name": "Script gate re-check (Sonnet) (recheck)",
+      "name": "Script gate re-check (relay) (recheck)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -3758,6 +3729,294 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// lib/wa-route.cjs: \"Reply on WhatsApp with the reason\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:true (the sub writes the communications row).\nconst wa = { messaging_product: 'whatsapp', to: ($('Compose rejection').first().json.source === 'whatsapp' ? $('Compose rejection').first().json.to_number : ''), type: 'text', text: { body: ($('Compose rejection').first().json.reject_reason) } };\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: true, caller: \"W23\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W23:Reply on WhatsApp with the reason:\" + exec + ':' + idx,\n} };"
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-0",
+      "name": "LLM relay set? (AI picture check (relay, thumbnail only))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5700,
+        60
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-1",
+      "name": "LLM relay set? (Generate variant (relay) (1))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        4120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-2",
+      "name": "LLM relay set? (Script gate LLM (relay, fails closed) (1))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        4120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-3",
+      "name": "LLM relay set? (Script gate re-check (relay) (1))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        4120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-4",
+      "name": "LLM relay set? (Generate variant (relay) (2))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        4120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-5",
+      "name": "LLM relay set? (Script gate LLM (relay, fails closed) (2))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        4120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-6",
+      "name": "LLM relay set? (Script gate re-check (relay) (2))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        4120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-7",
+      "name": "LLM relay set? (Script gate LLM (relay, fails closed) (recheck))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        5120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!String($env.LLM_RELAY_URL || '').trim()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "relay-guard-w23-8",
+      "name": "LLM relay set? (Script gate re-check (relay) (recheck))",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        5120
+      ],
+      "notes": "Fails closed: LLM_RELAY_URL unset -> no call; false = the same path as a failed call (lib/llm-relay.cjs)."
     }
   ],
   "connections": {
@@ -4186,14 +4445,14 @@
       "main": [
         [
           {
-            "node": "AI picture check (Haiku, thumbnail only)",
+            "node": "LLM relay set? (AI picture check (relay, thumbnail only))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "AI picture check (Haiku, thumbnail only)": {
+    "AI picture check (relay, thumbnail only)": {
       "main": [
         [
           {
@@ -4864,7 +5123,7 @@
         ]
       ]
     },
-    "Script gate LLM (Haiku, fails closed) (1)": {
+    "Script gate LLM (relay, fails closed) (1)": {
       "main": [
         [
           {
@@ -4897,14 +5156,14 @@
         ],
         [
           {
-            "node": "Script gate re-check (Sonnet) (1)",
+            "node": "LLM relay set? (Script gate re-check (relay) (1))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Script gate re-check (Sonnet) (1)": {
+    "Script gate re-check (relay) (1)": {
       "main": [
         [
           {
@@ -4926,7 +5185,7 @@
         ]
       ]
     },
-    "Generate variant (Sonnet) (1)": {
+    "Generate variant (relay) (1)": {
       "main": [
         [
           {
@@ -4952,7 +5211,7 @@
       "main": [
         [
           {
-            "node": "Script gate LLM (Haiku, fails closed) (1)",
+            "node": "LLM relay set? (Script gate LLM (relay, fails closed) (1))",
             "type": "main",
             "index": 0
           }
@@ -4981,7 +5240,7 @@
       "main": [
         [
           {
-            "node": "Generate variant (Sonnet) (1)",
+            "node": "LLM relay set? (Generate variant (relay) (1))",
             "type": "main",
             "index": 0
           }
@@ -5006,7 +5265,7 @@
         ]
       ]
     },
-    "Script gate LLM (Haiku, fails closed) (2)": {
+    "Script gate LLM (relay, fails closed) (2)": {
       "main": [
         [
           {
@@ -5039,14 +5298,14 @@
         ],
         [
           {
-            "node": "Script gate re-check (Sonnet) (2)",
+            "node": "LLM relay set? (Script gate re-check (relay) (2))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Script gate re-check (Sonnet) (2)": {
+    "Script gate re-check (relay) (2)": {
       "main": [
         [
           {
@@ -5068,7 +5327,7 @@
         ]
       ]
     },
-    "Generate variant (Sonnet) (2)": {
+    "Generate variant (relay) (2)": {
       "main": [
         [
           {
@@ -5094,7 +5353,7 @@
       "main": [
         [
           {
-            "node": "Script gate LLM (Haiku, fails closed) (2)",
+            "node": "LLM relay set? (Script gate LLM (relay, fails closed) (2))",
             "type": "main",
             "index": 0
           }
@@ -5123,7 +5382,7 @@
       "main": [
         [
           {
-            "node": "Generate variant (Sonnet) (2)",
+            "node": "LLM relay set? (Generate variant (relay) (2))",
             "type": "main",
             "index": 0
           }
@@ -5272,7 +5531,7 @@
         ]
       ]
     },
-    "Script gate LLM (Haiku, fails closed) (recheck)": {
+    "Script gate LLM (relay, fails closed) (recheck)": {
       "main": [
         [
           {
@@ -5305,14 +5564,14 @@
         ],
         [
           {
-            "node": "Script gate re-check (Sonnet) (recheck)",
+            "node": "LLM relay set? (Script gate re-check (relay) (recheck))",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Script gate re-check (Sonnet) (recheck)": {
+    "Script gate re-check (relay) (recheck)": {
       "main": [
         [
           {
@@ -5327,7 +5586,7 @@
       "main": [
         [
           {
-            "node": "Script gate LLM (Haiku, fails closed) (recheck)",
+            "node": "LLM relay set? (Script gate LLM (relay, fails closed) (recheck))",
             "type": "main",
             "index": 0
           }
@@ -5477,6 +5736,168 @@
         [
           {
             "node": "Reply on WhatsApp with the reason",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (AI picture check (relay, thumbnail only))": {
+      "main": [
+        [
+          {
+            "node": "AI picture check (relay, thumbnail only)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Interpret picture check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Generate variant (relay) (1))": {
+      "main": [
+        [
+          {
+            "node": "Generate variant (relay) (1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check variant (1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Script gate LLM (relay, fails closed) (1))": {
+      "main": [
+        [
+          {
+            "node": "Script gate LLM (relay, fails closed) (1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse gate (1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Script gate re-check (relay) (1))": {
+      "main": [
+        [
+          {
+            "node": "Script gate re-check (relay) (1)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse re-check (1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Generate variant (relay) (2))": {
+      "main": [
+        [
+          {
+            "node": "Generate variant (relay) (2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check variant (2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Script gate LLM (relay, fails closed) (2))": {
+      "main": [
+        [
+          {
+            "node": "Script gate LLM (relay, fails closed) (2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse gate (2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Script gate re-check (relay) (2))": {
+      "main": [
+        [
+          {
+            "node": "Script gate re-check (relay) (2)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse re-check (2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Script gate LLM (relay, fails closed) (recheck))": {
+      "main": [
+        [
+          {
+            "node": "Script gate LLM (relay, fails closed) (recheck)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse gate (recheck)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM relay set? (Script gate re-check (relay) (recheck))": {
+      "main": [
+        [
+          {
+            "node": "Script gate re-check (relay) (recheck)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse re-check (recheck)",
             "type": "main",
             "index": 0
           }

@@ -9,6 +9,12 @@ const capi = require('../capi/capi.js');
 
 const EVENTS = ['Lead', 'Schedule', 'Qualified', 'Attended', 'GoodFit'];
 const SOURCES = ['website', 'business_messaging', 'system_generated'];
+// Conversions API for Business Messaging takes a fixed list of event names (developers.facebook.com/docs/marketing-api/
+// conversions-api/business-messaging, FAQ: Purchase, LeadSubmitted, ..., QualifiedLead, RatingProvided, ReviewProvided) and
+// only for what happens in the chat; any other name fails the whole request (code 100 / 2804066 "Invalid event type for
+// messaging event"). Our stage names stay as they are in capi_log; only the name Meta sees changes. A stage with no
+// messaging name (Schedule, Attended, GoodFit) is skipped for a click-to-WhatsApp lead, with the reason, not sent to fail.
+export const MESSAGING_EVENT_NAME = { Lead: 'LeadSubmitted', Qualified: 'QualifiedLead' };
 
 export function normalise(input = {}) {
   const i = input || {};
@@ -61,7 +67,14 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
   const brand_id = n.brand_id || ctx.lead_brand_id || null;
   const log = { lead_id: n.lead_id, brand_id, event_name: n.event_name, event_id: n.event_id, action_source: n.action_source };
   if (!n.valid) return { action: 'skip', reason: 'invalid_input', missing: n.missing, log };
-  const consent = n.lead_id ? !!ctx.consent_ads_at : n.consent_ads;
+  const metaName = n.action_source === 'business_messaging' ? MESSAGING_EVENT_NAME[n.event_name] : n.event_name;
+  if (!metaName) return { action: 'skip', reason: 'no_messaging_event_type', log };
+  if (metaName !== n.event_name) log.meta_event_name = metaName;
+  // Click-to-WhatsApp (Jono, 18 Oct 2026): business-messaging events carry the ad-click reference ONLY (ctwa_clid + the
+  // WABA id Meta requires): no hashed phone, name, country or external_id, and no ads-consent gate. Instant Form and web
+  // events keep the gate. CAPI_CTWA_CLID_ONLY=false restores the old behaviour (gate + hashed user data).
+  const clidOnly = n.action_source === 'business_messaging' && String(env.CAPI_CTWA_CLID_ONLY ?? '').toLowerCase() !== 'false';
+  const consent = clidOnly || (n.lead_id ? !!ctx.consent_ads_at : n.consent_ads);
   if (!consent) return { action: 'skip', reason: 'capi_skipped_no_consent', log };
   if (ctx.duplicate === true || ctx.duplicate === 't') return { action: 'duplicate', reason: 'already_sent', log };
   const pixel = n.action_source === 'website' ? (ctx.pixel_id || env.PIXEL_ID) : (ctx.dataset_id || env.DATASET_ID || ctx.pixel_id || env.PIXEL_ID);
@@ -72,7 +85,7 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
   if (n.action_source === 'system_generated') { custom.event_source = 'crm'; custom.lead_event_source = 'SortMyCover'; }
   if (n.value != null && n.value !== '') { custom.value = Number(n.value); custom.currency = custom.currency || 'ZAR'; }
   const ev = capi.buildEvent({
-    eventName: n.event_name,
+    eventName: metaName,
     eventId: n.event_id,
     eventTime: n.event_time ? Math.floor(Date.parse(n.event_time) / 1000) || Number(n.event_time) : Math.floor(nowMs / 1000),
     actionSource: n.action_source,
@@ -80,9 +93,14 @@ export function build(n, ctx = {}, env = {}, nowMs = Date.now()) {
     user,
     custom,
   });
+  if (clidOnly) {
+    const waba = ctx.waba_id || env.WABA_ID;
+    ev.user_data = { ctwa_clid: n.ctwa_clid, ...(waba ? { whatsapp_business_account_id: waba } : {}) };
+    log.clid_only = true;
+  }
   const body = { data: [ev] };
   if (env.CAPI_TEST_EVENT_CODE) body.test_event_code = env.CAPI_TEST_EVENT_CODE;
-  const version = env.META_GRAPH_VERSION || 'v21.0';
+  const version = env.META_GRAPH_VERSION || env.META_API_VERSION || 'v25.0';
   const url = `https://graph.facebook.com/${version}/${encodeURIComponent(pixel)}/events`;
   if (String(env.DRY_RUN_SENDS || '').toLowerCase() === 'true') return { action: 'dry', reason: 'dry_run', log, test_event_code: env.CAPI_TEST_EVENT_CODE || null };
   return { action: 'send', url, body, log, test_event_code: env.CAPI_TEST_EVENT_CODE || null };

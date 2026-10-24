@@ -1,3 +1,4 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { useEffect, useState, useCallback } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,7 +58,7 @@ const PipelineBoard = ({ orderId }: PipelineBoardProps) => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any).rpc("broker_get_pipeline", { p_order_id: orderId });
+    const { data, error } = await supabaseUntyped.rpc("broker_get_pipeline", { p_order_id: orderId });
     if (error) {
       console.error("broker_get_pipeline error:", error);
       toast({ title: "Error", description: "Failed to load your pipeline.", variant: "destructive" });
@@ -82,7 +83,7 @@ const PipelineBoard = ({ orderId }: PipelineBoardProps) => {
     const prev = leads;
     setLeads((cur) => cur.map((l) => (l.lead_id === draggableId ? { ...l, pipeline_stage: newStage } : l)));
 
-    const { error } = await (supabase as any).rpc("broker_set_lead_stage", {
+    const { error } = await supabaseUntyped.rpc("broker_set_lead_stage", {
       p_order_id: orderId,
       p_lead_id: draggableId,
       p_stage: newStage,
@@ -250,7 +251,7 @@ const NoteDialog = ({
     const trimmed = text.trim();
     if (!trimmed) return;
     setSaving(true);
-    const { error } = await (supabase as any).rpc("broker_add_lead_note", {
+    const { error } = await supabaseUntyped.rpc("broker_add_lead_note", {
       p_order_id: orderId,
       p_lead_id: lead.lead_id,
       p_note: trimmed,
@@ -316,7 +317,7 @@ const FeedbackDialog = ({
     const trimmed = text.trim();
     if (!trimmed) return;
     setSaving(true);
-    const { error } = await (supabase as any).rpc("broker_send_feedback", {
+    const { error } = await supabaseUntyped.rpc("broker_send_feedback", {
       p_order_id: orderId,
       p_message: trimmed,
       p_lead_id: lead?.lead_id ?? null,

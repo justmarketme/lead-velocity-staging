@@ -157,6 +157,15 @@ test('session interactive: buttons and lists use the generic Content templates (
   const defs = buildAll();
   assert.equal(defs['smc_session_list_3.json'].content.types['twilio/list-picker'].items.length, 3);
   assert.equal(defs['smc_session_buttons_2.json']._meta.approval, null, 'session types need no WhatsApp approval');
+  // the /start/ page link (18 Oct 2026): a session card, static header image, '#lt=' STATIC and the token alone as the URL suffix
+  const cta = defs['smc_start_cta.json'];
+  assert.equal(cta._meta.approval, null); assert.equal(cta._meta.session_only, true);
+  const card = cta.content.types['twilio/card'];
+  assert.deepEqual(card.actions, [{ type: 'URL', title: 'Start here', url: 'https://sortmycover.co.za/start/#lt={{2}}' }]);
+  assert.deepEqual(card.media, ['https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png']);
+  assert.equal(card.title, '{{1}}');
+  assert.ok(card.actions[0].title.length <= 20);
+  assert.doesNotMatch(cta.content.variables['1'], /\bfree\b|\bAI\b|Lead Velocity/i);
 });
 
 // ------------------------------------------------------------------ one transport for every workflow send
@@ -241,26 +250,26 @@ test('W23: a Twilio MediaUrl is downloaded with Basic auth (API key); a Meta med
 // ------------------------------------------------------------------ email verification (clause 5.8(b))
 const SECRET = 'x'.repeat(40);
 const lead = (o = {}) => ({ id: '61000000-0000-4000-8000-000000000001', first_name: 'Lerato', email: 'lerato@example.com', email_verified: false, adviser_name: 'Mark Smith', ...o });
-test('email verification: Resend email from hello@sortmycover.co.za with code + link; only the hash is stored; 10-min gap', () => {
+test('email verification: Resend email from hello@sortmycover.co.za with the link only; 10-min gap', () => {
   const now = Date.parse('2026-10-11T10:00:00Z');
   const p = EV.issuePlan(lead(), { EMAIL_VERIFY_SECRET: SECRET, RESEND_API_KEY: 're_test' }, now);
   assert.equal(p.action, 'send');
   assert.equal(p.resend.url, 'https://api.resend.com/emails');
   assert.equal(p.resend.body.from, 'SortMyCover <hello@sortmycover.co.za>');
   assert.deepEqual(p.resend.body.to, ['lerato@example.com']);
-  const code = /code: (\d{6})/.exec(p.resend.body.text)[1];
+  assert.doesNotMatch(p.resend.body.text, /\bcode\b|\b\d{6}\b/, 'link only (18 Oct 2026): no code in the email');
   assert.match(p.resend.body.text, /https:\/\/sortmycover\.co\.za\/v\/ev1\./);
-  assert.ok(!JSON.stringify(p.set).includes(code), 'the code itself is never stored');
   assert.match(p.resend.headers['Idempotency-Key'], /^ev:61000000/);
   assert.equal(EV.issuePlan(lead({ email_verify_sent_at: new Date(now - 60_000).toISOString() }), { EMAIL_VERIFY_SECRET: SECRET, RESEND_API_KEY: 'k' }, now).reason, 'recently_sent');
   assert.equal(EV.issuePlan(lead({ email_verified: true }), { EMAIL_VERIFY_SECRET: SECRET, RESEND_API_KEY: 'k' }, now).reason, 'already_verified');
   assert.equal(EV.issuePlan(lead(), { RESEND_API_KEY: 'k' }, now).reason, 'secret_missing');
-  // the typed code (W07 -> smc-email-verify op code)
+  // 17 Oct 2026: no Resend key on the n8n server -> the smc-email-send relay with the n8n relay token
+  const r = EV.issuePlan(lead(), { EMAIL_VERIFY_SECRET: SECRET, LINDI_RELAY_TOKEN: 'relay-token' }, now);
+  assert.equal(r.action, 'send');
+  assert.equal(r.resend.url, 'https://cmsylaupctrbsvzrgzwy.supabase.co/functions/v1/smc-email-send');
+  assert.equal(r.resend.headers.Authorization, 'Bearer relay-token');
+  assert.equal(EV.issuePlan(lead(), { EMAIL_VERIFY_SECRET: SECRET }, now).reason, 'resend_key_missing');
   const stored = { ...lead(), ...p.set };
-  assert.deepEqual([EV.codePlan(stored, code, now + 1000).ok, EV.codePlan(stored, code, now + 1000).set.email_verified_via], [true, 'code']);
-  const wrong = EV.codePlan(stored, '000000' === code ? '111111' : '000000', now);
-  assert.deepEqual([wrong.ok, wrong.set.email_verify_attempts, wrong.reply], [false, 1, EV.REPLY.wrong]);
-  assert.equal(EV.codePlan(stored, code, now + 25 * 3600_000).reissue, true, 'expired -> a fresh code is sent');
   // the one-tap link
   const token = /\/v\/(ev1\.[^\s]+)/.exec(p.resend.body.text)[1];
   assert.equal(EV.leadIdFromToken(token), stored.id);
@@ -269,13 +278,13 @@ test('email verification: Resend email from hello@sortmycover.co.za with code + 
   assert.equal(EV.interpretResend({ statusCode: 200, body: { id: 're_123' } }).external_id, 're_123');
 });
 
-test('email verification is wired: W05 issues after an invite booking, W07 routes a typed code, the sub is DRY_RUN-gated and logs to communications', async () => {
+test('email verification is wired: W05 issues after an invite booking, a typed 6-digit number is an ordinary message, the sub is DRY_RUN-gated and logs to communications', async () => {
   const W05 = load('W05.json');
   assert.deepEqual(W05.connections['Save event ids + lead (stage, broker, invite email)'].main[0].map((x) => x.node).sort(), ['Email verification item (invite email stored)', 'Timeline: booked']);
   assert.equal(W05.nodes.find((n) => n.name === '-> Email verify (smc-email-verify issue)').parameters.workflowId.value, 'smc-email-verify');
-  // W07 route: only a 6-digit message while a code is outstanding
+  // W07 route: link only since 18 Oct 2026, so a 6-digit message is never taken for a code
   const msg = (text) => ({ text, payload: null, list_id: null, from: LEAD });
-  assert.equal(routeInbound(msg('482 913'), { lead: { id: 'l', email_verify_pending: true, conv_state: {} } }).route, 'email_code');
+  assert.notEqual(routeInbound(msg('482 913'), { lead: { id: 'l', email_verify_pending: true, conv_state: {} } }).route, 'email_code');
   assert.notEqual(routeInbound(msg('482913'), { lead: { id: 'l', email_verify_pending: false, conv_state: {} } }).route, 'email_code');
   assert.equal(routeInbound(msg('STOP'), { lead: { id: 'l', email_verify_pending: true, conv_state: {} } }).route, 'W15');
   const route = W07.nodes.find((n) => n.name === 'Route');
@@ -302,6 +311,7 @@ test('booking_confirmed carries the Teams join link; GET /j/{id} redirects only 
   const bk = '71000000-0000-4000-8000-000000000001';
   assert.equal(confirmDetail('teams', bk), `Microsoft Teams (join link: https://sortmycover.co.za/j/${bk})`);
   assert.equal(confirmDetail('phone', bk), 'phone call');
+  assert.equal(confirmDetail('phone', bk, undefined, '+27820000399'), 'phone call on 082 000 0399', '19 Oct 2026: the number he will call (booking_confirmed_phone_v3 reads it)');
   const wa = bookingConfirmed({ lead: { first_name: 'Lerato', phone: LEAD }, broker: { adviser_name: 'Mark Smith' } }, { start: '2026-10-14T10:00:00+02:00', method: 'teams' }, { id: bk });
   assert.match(wa.template.components.find((c) => c.type === 'body').parameters[4].text, /\/j\/71000000/);
   const live = { id: bk, method: 'teams', status: 'confirmed', join_url: 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_x' };

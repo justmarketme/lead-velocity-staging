@@ -1,7 +1,11 @@
 /** 01 Start here (portal/spec/01-start-here.md; prototype start.html). Intercom/Appcues checklist + Loom/Wistia video. */
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PortalShell, { usePortal } from "./PortalShell";
+import { BioReviewCard } from "@/components/broker/smc/LvReview";
+import AdConsentCard from "@/components/broker/smc/AdConsentCard";
+import AdApprovals from "@/components/broker/smc/AdApprovals";
+import { fspVerifiedBadge, focusWhenReady } from "@/lib/brokerReview";
 import { EXPLAINER_URL, EXPLAINER_VTT, STEPS, fmtDay, fmtDayTime, portalEvent, progressSummary, stepDone } from "@/lib/smc";
 
 const CHAPTERS: [string, number][] = [
@@ -13,6 +17,8 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
 
 function Body() {
   const { broker, reload } = usePortal();
+  const navigate = useNavigate();
+  const fspBadge = fspVerifiedBadge(broker.fsp_check, broker.fsp_verified_at);
   const video = useRef<HTMLVideoElement>(null);
   const [sent, setSent] = useState(false);
   const p = progressSummary(broker.onboarding_progress);
@@ -46,6 +52,7 @@ function Body() {
         <section className="card"><h2>You're done. Final checks next.</h2><p className="muted">We run a final check, then Jonathan taps "Go live" and leads start. We'll message you on WhatsApp the moment you're live.</p></section>
       )}
       {blocked && <div className="alert" role="alert">{blocked} <Link to="/broker/help">Or message us.</Link></div>}
+      <BioReviewCard broker={broker} skin="portal" onDecided={() => { void reload(); }} onRewrite={() => { navigate("/broker/profile#bio"); focusWhenReady("bio"); }} />
 
       <section className="card" aria-labelledby="vh" id="explainer">
         <h2 id="vh">{watched && status !== "onboarding" ? "Watch again" : "Start here: 3 minutes, then you're set"}</h2>
@@ -74,7 +81,7 @@ function Body() {
             const st = prog?.[s.key]?.status;
             const done = stepDone(prog, s.key);
             const now = p.current?.key === s.key;
-            const sub = done ? (st === "skipped" ? "Skipped. Come back any time." : st === "defaulted" ? "We used the standard settings. Change them any time." : s.key === "profile" ? "FSP checked on the FSCA register" : "Done")
+            const sub = done ? (st === "skipped" ? "Skipped. Come back any time." : st === "defaulted" ? "We used the standard settings. Change them any time." : s.key === "profile" ? (fspBadge ? fspBadge.title : "FSP checked on the FSCA register") : "Done")
               : st === "blocked" ? "Needs a fix. Tap to see what." : `${s.reason} · ${s.minutes} min`;
             return (
               <li key={s.key} style={{ listStyle: "none" }}>
@@ -94,6 +101,11 @@ function Body() {
         <p style={{ margin: "4px 0 8px" }}>Three things must be done: <b>FSP checked</b>, <b>calendar connected</b>, <b>agreement signed</b>. We also need your intro card approved. Your video can come later.</p>
         <p className="muted" style={{ margin: 0 }}>After that we run a final check. Then Jonathan taps "Go live" and leads start.</p>
       </section>
+
+      <AdApprovals broker={broker} skin="portal" onChanged={() => { void reload(); }} />
+      <section className="card"><h2>Message Lead Velocity</h2><p className="muted">Questions, notes or something not right? Write to us and we reply here.</p><Link className="btn" to="/broker/messages">Write to us</Link></section>
+      <AdConsentCard broker={broker} skin="portal" onChanged={() => { void reload(); }} />
+      <p className="small" style={{ marginTop: -4 }}>Optional. Not needed to go live.</p>
 
       {p.current && status !== "active" && <Link className="btn" to={p.current.path}>Next: {p.current.title.toLowerCase()}</Link>}
       <p className="small" style={{ textAlign: "center" }}>Stuck? <Link to="/broker/help">Help</Link> · or WhatsApp us. No call needed.</p>

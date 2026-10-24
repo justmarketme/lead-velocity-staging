@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "key": "invite_email_bounced_v2",
+    "source": "automation/templates/invite_email_bounced.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_invite_email_bounced_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      }
+    ],
+    "core": false,
+    "base": "invite_email_bounced",
+    "header": "invite"
+  },
+  "content": {
+    "friendly_name": "smc_invite_email_bounced_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Teams",
+      "3": "Mark Smith"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, the {{2}} invite for your call with {{3}} didn't reach your inbox, so when you have a moment, please reply with the email address you'd like us to use.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png"
+        ]
+      }
+    }
+  }
+}

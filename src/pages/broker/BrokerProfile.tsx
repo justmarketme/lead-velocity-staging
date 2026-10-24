@@ -1,3 +1,4 @@
+import type { Tables } from "@/integrations/supabase/types";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import IntroCardEditor from "@/components/broker/smc/IntroCardEditor";
 
 const BrokerProfile = () => {
     const [loading, setLoading] = useState(true);
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<Tables<"profiles"> | null>(null);
 
     const fetchProfile = async () => {
         const { data: { user } } = await supabase.auth.getUser();

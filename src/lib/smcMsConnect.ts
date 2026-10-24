@@ -20,7 +20,7 @@ export const msUrl = (u: unknown): string =>
  */
 export const CALENDAR_PERMISSIONS: { key: string; scope: string; label: string }[] = [
   { key: "freebusy", scope: "Calendars.ReadWrite", label: "See when you are free or busy (not what your meetings are about)" },
-  { key: "events", scope: "Calendars.ReadWrite", label: "Add and remove the meetings SortMyCover books for you" },
+  { key: "events", scope: "Calendars.ReadWrite", label: "Add and remove the meetings Lead Velocity books for you" },
   { key: "teams", scope: "OnlineMeetings.ReadWrite", label: "Create a Teams link for each of those meetings" },
 ];
 
@@ -119,7 +119,7 @@ export function callbackNotice(search: string): { tone: "ok" | "info" | "error";
 /** The one paragraph a broker forwards to his IT admin (also the body of the "Email my IT admin" button). */
 export function adminConsentNote(opts: { brokerName?: string | null; consentUrl: string }): string {
   const who = (opts.brokerName || "").trim();
-  return `Hi, I'd like to connect my Outlook calendar to SortMyCover (Lead Velocity (Pty) Ltd) so clients can book meetings with me. `
+  return `Hi, I'd like to connect my Outlook calendar to the Lead Velocity app (Lead Velocity (Pty) Ltd) so clients can book meetings with me. `
     + `The app only checks when I'm free and creates meetings in my own calendar, with a Teams link. It cannot read my email or anyone else's calendar. `
     + `Microsoft is asking for administrator approval because user consent is switched off for our organisation. `
     + `Please open this link, sign in as an administrator and choose Accept: ${opts.consentUrl} . It takes about two minutes. Thanks${who ? `, ${who}` : ""}.`;

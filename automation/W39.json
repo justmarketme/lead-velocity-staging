@@ -1,0 +1,2724 @@
+{
+  "id": "smc-w39",
+  "name": "W39 Start page API",
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 380,
+        "content": "W39 Start page API (automation-engineer, 18 Oct 2026). The hidden page sortmycover.co.za/start/#lt=<lt1 token> (W03 sends the link as ONE call-to-action when brands.start_page = on) replaces the WhatsApp qualifying taps. Caddy rewrites https://n8n.sortmycover.co.za/webhook/smc/<path> to /webhook/<path>. Header X-Lead-Token, lead path only (a broker JWT is 401), lead row check as W04 (unknown / opted out / erased -> 401 try_again). GET /start -> first name, adviser (practice + FSP from his row), methods (teams / phone only), answers so far, live booking (held = waiting on the email link). POST /start/answers -> bands + conv_state.start, help_with, one timeline row per request_id (idempotent), W03 stall cancelled; will -> a person (escalation) + Lindi says so; other -> Lindi asks for a sentence; age out of band -> OUT_OF_BAND_AGE_BOOKS (lib/w39.mjs); else the adviser card first: phase (a) returns next adviser + the broker W01 would pick (no routing); the confirm call (confirm_adviser = that id) logs adviser_disclosed, THEN W01 Lead core routes only that broker, WITHOUT the W06 first touch -> next slots | chat. Slots and booking stay W04 GET /slots and W05 POST /book. Logic automation/lib/w39.mjs, tests automation/tests/W39.test.mjs. CORS PUBLIC_ALLOWED_ORIGINS. Env LEAD_TOKEN_SECRET (+ _PREVIOUS)."
+      }
+    },
+    {
+      "id": "n02",
+      "name": "GET /start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "start",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
+        }
+      },
+      "webhookId": "w39-start-get"
+    },
+    {
+      "id": "n03",
+      "name": "Resolve caller (start)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nreturn [{ json: c.ok ? { ok: true, lead_id: c.lead_id } : { ok: false, status: c.status, body: c.body, reason: c.reason } }];"
+      }
+    },
+    {
+      "id": "n04",
+      "name": "Caller ok? (start)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n05",
+      "name": "Load lead, adviser, live booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The broker comes from leads.broker_id (CONTRACTS.md lead_token); the live booking is the lead's own (held or booked).\n-- v4: while the lead is not routed, the preview pick (lib/w39.mjs pickAdviser over the W01 broker list) shows the card first.\nSELECT (SELECT to_jsonb(x) || jsonb_build_object('routed_at', p.routed_at, 'consent_text', p.consent_text, 'consent_mode', p.consent_mode, 'suppressed', p.suppressed)\n          FROM (SELECT l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,\n         l.age_band, l.budget_band, l.income_band, l.product_interest, l.disqualified_reason, l.call_number, l.alt_number FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x, (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.budget_band, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) p) AS lead,\n       (SELECT to_jsonb(k) || jsonb_build_object('adviser_name', b.adviser_name, 'bio_short', b.bio_short, 'bio_review', b.onboarding_progress->'bio_review',\n                  'intro_card_url', b.intro_card_url, 'card_approved_at', b.onboarding_progress->'card'->>'approved_at', 'methods_supported', b.methods_supported,\n                  'headshot_approved_url', (SELECT m.url FROM public.broker_media m WHERE m.broker_id = b.id AND m.kind = 'headshot' AND m.state = 'approved' ORDER BY m.version DESC LIMIT 1)) FROM (SELECT b.id, b.contact_person, b.firm_name, b.practice_name, b.fsp_number\n                                   FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n                                  WHERE l.id::text = $1 AND l.brand_id IS NOT NULL AND b.brand_id IS NOT NULL) k JOIN public.brokers b ON b.id = k.id) AS broker,\n       (SELECT CASE WHEN q.broker_id IS NULL THEN COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,\n                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),\n                  'firm_name', b.firm_name, 'contact_person', b.contact_person) || jsonb_build_object('adviser_name', b.adviser_name, 'bio_short', b.bio_short, 'bio_review', b.onboarding_progress->'bio_review',\n                  'intro_card_url', b.intro_card_url, 'card_approved_at', b.onboarding_progress->'card'->>'approved_at', 'methods_supported', b.methods_supported,\n                  'headshot_approved_url', (SELECT m.url FROM public.broker_media m WHERE m.broker_id = b.id AND m.kind = 'headshot' AND m.state = 'approved' ORDER BY m.version DESC LIMIT 1)))\n                   FROM public.brokers b\n                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining\n                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true\n                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) END FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.budget_band, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q) AS brokers,\n       (SELECT to_jsonb(a) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) a) AS booking;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n06",
+      "name": "View (w39.startView)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst g = L.leadGate(r.lead);\nif (!g.ok) return [{ json: { status: g.status, body: g.body, reason: g.reason } }];\nreturn [{ json: L.startView({ lead: r.lead, broker: r.broker, brokers: r.brokers || null, booking: r.booking }) }];"
+      }
+    },
+    {
+      "id": "n07",
+      "name": "Respond (start)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n08",
+      "name": "POST /start/answers",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start/answers",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
+        }
+      },
+      "webhookId": "w39-start-answers-post"
+    },
+    {
+      "id": "n09",
+      "name": "Resolve caller + parse (answers)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseAnswers(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, answers: p.answers, request_id: p.request_id, confirm_adviser: p.confirm_adviser, key: L.answersKey(c.lead_id, p.request_id, !!p.confirm_adviser) } }];"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Caller + body ok? (answers)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Load lead + earlier answer (same request_id)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(x) FROM (SELECT l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,\n         l.age_band, l.budget_band, l.income_band, l.product_interest, l.disqualified_reason, l.call_number, l.alt_number FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,\n       (SELECT a.payload FROM public.lead_activities a WHERE a.idempotency_key = $2 LIMIT 1) AS prior;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n12",
+      "name": "Decide (w39.decideAnswers)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst q = $('Resolve caller + parse (answers)').first().json;\nconst plan = L.decideAnswers({ lead: r.lead, answers: q.answers, request_id: q.request_id, confirm_adviser: q.confirm_adviser || null, prior: r.prior || null, now: Date.now(), oobAgeBooks: L.OUT_OF_BAND_AGE_BOOKS });\nreturn [{ json: { lead_id: q.lead_id, plan } }];"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Plan?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        960,
+        200
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "work",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "work"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "replay",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "replay"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Reject (401)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst p = $json.plan;\nreturn [{ json: { status: p.status || 401, body: p.body || { error: 'try_again' }, reason: p.reason || null } }];"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Save answers + timeline + cancel stall (one statement)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH claim AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT l.id, l.brand_id, l.broker_id, 'W39', 'lead', $3::jsonb->>'activity_type', $3::jsonb->'payload', now(), $3::jsonb->>'idempotency_key'\n    FROM public.leads l WHERE l.id = $1::uuid\n  ON CONFLICT DO NOTHING\n  RETURNING lead_id),\nu AS (\n  UPDATE public.leads l\n     SET age_band               = coalesce($2::jsonb->>'age_band', l.age_band),\n         budget_band            = coalesce($2::jsonb->>'budget_band', l.budget_band),\n         income_band            = coalesce($2::jsonb->>'income_band', l.income_band),\n         work_cover             = coalesce(($2::jsonb->>'work_cover')::boolean, l.work_cover),\n         product_interest       = coalesce($2::jsonb->>'product_interest', l.product_interest),\n         reasons                = CASE WHEN jsonb_typeof($2::jsonb->'reasons') = 'array' THEN ARRAY(SELECT jsonb_array_elements_text($2::jsonb->'reasons')) ELSE l.reasons END,\n         qualified_at           = coalesce(l.qualified_at, ($2::jsonb->>'qualified_at')::timestamptz),\n         disqualified_reason    = coalesce($2::jsonb->>'disqualified_reason', l.disqualified_reason),\n         broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE l.broker_id END,\n         retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, l.retention_delete_after) END,\n         stage                  = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(l.stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))\n                                       THEN $2::jsonb->>'stage' ELSE l.stage END,\n         stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(l.stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))\n                                       THEN now() ELSE l.stage_entered_at END,\n         conv_state             = coalesce(l.conv_state, '{}'::jsonb) || coalesce($2::jsonb->'conv_state', '{}'::jsonb) || jsonb_build_object('last_turn_at', now()),\n         updated_at             = now()\n   WHERE l.id = $1::uuid AND EXISTS (SELECT 1 FROM claim)\n  RETURNING l.id, l.brand_id, l.broker_id, l.phone),\nth AS (\n  UPDATE public.wa_threads t\n     SET state = coalesce(t.state, '{}'::jsonb) || jsonb_build_object('stage', $5::text), stage = $5::text, stall_due_at = NULL, updated_at = now()\n    FROM u\n   WHERE t.brand_id = u.brand_id AND u.phone IS NOT NULL AND t.mobile_hash = public.smc_hash_contact(u.phone)\n  RETURNING t.mobile_hash),\nnotes AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT u.id, u.brand_id, u.broker_id, 'W39', 'system', x->>'activity_type', x->'payload', now(), x->>'idempotency_key'\n    FROM u, jsonb_array_elements($4::jsonb) x\n  ON CONFLICT DO NOTHING\n  RETURNING id)\nSELECT (SELECT count(*) FROM claim)::int AS claimed, (SELECT count(*) FROM u)::int AS updated, (SELECT count(*) FROM th)::int AS threads, (SELECT count(*) FROM notes)::int AS notes;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, JSON.stringify($json.plan.set || {}), JSON.stringify($json.plan.activity), JSON.stringify($json.plan.notes || []), $json.plan.thread_stage || 'done'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n16",
+      "name": "Cover path? (adviser card first)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Decide (w39.decideAnswers)').first().json.plan.cover === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Load lead + brokers (pick)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The same lead columns and broker list as W01 \"Load CTWA lead + brokers\" (routingFor reads them), plus the card's\n-- display columns (adviser, practice, FSP, approved bio + picture). Nothing is written here.\nSELECT to_jsonb(q) AS lead, COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,\n                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),\n                  'firm_name', b.firm_name, 'contact_person', b.contact_person) || jsonb_build_object('adviser_name', b.adviser_name, 'bio_short', b.bio_short, 'bio_review', b.onboarding_progress->'bio_review',\n                  'intro_card_url', b.intro_card_url, 'card_approved_at', b.onboarding_progress->'card'->>'approved_at', 'methods_supported', b.methods_supported,\n                  'headshot_approved_url', (SELECT m.url FROM public.broker_media m WHERE m.broker_id = b.id AND m.kind = 'headshot' AND m.state = 'approved' ORDER BY m.version DESC LIMIT 1)))\n                   FROM public.brokers b\n                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining\n                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true\n                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.budget_band, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q;",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n18",
+      "name": "Adviser step (w39.coverStep)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nreturn [{ json: { lead_id: d.lead_id, step: L.coverStep({ plan: d.plan, lead: r.lead || { id: d.lead_id }, brokers: r.brokers || [] }) } }];"
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Disclose? (confirmed adviser)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(($json.step.steps || []).includes('disclose')) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Log adviser_disclosed (before routing)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The page showed this adviser's card (name, practice, FSP number) and the lead confirmed it. Written BEFORE the routing call;\n-- once per lead and broker (idempotency key w39:disclosed:<lead>:<broker>).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, $2::uuid, 'W39', 'lead', 'adviser_disclosed', $3::jsonb, now(), $4\n  FROM public.leads l WHERE l.id = $1::uuid\nON CONFLICT DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Adviser step (w39.coverStep)').first().json.step; return [$('Adviser step (w39.coverStep)').first().json.lead_id, s.disclose.broker_id, JSON.stringify(s.disclose.payload), s.disclose.idempotency_key]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n21",
+      "name": "W01 call? (route the confirmed adviser | record a hold)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String((() => { const s = $('Adviser step (w39.coverStep)').first().json.step; return !!(s.route || s.hold); })()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n22",
+      "name": "W01 Lead core input (no first touch)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst s = $('Adviser step (w39.coverStep)').first().json.step;\nreturn [{ json: s.route || s.hold }];"
+      }
+    },
+    {
+      "id": "n23",
+      "name": "W01 Lead core (route, no W06 first touch; waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        400
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w01",
+          "cachedResultName": "W01 Lead core"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n24",
+      "name": "Re-read broker_id",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.broker_id FROM public.leads l WHERE l.id::text = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n25",
+      "name": "Answer (w39.answer)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nlet claimed = false;\ntry { claimed = Number($('Save answers + timeline + cancel stall (one statement)').first().json.claimed) > 0; } catch (e) { claimed = false; } // replay: Save did not run\nlet step = null;\ntry { step = $('Adviser step (w39.coverStep)').first().json.step; } catch (e) { step = null; } // not a cover path\nreturn [{ json: L.answer({ plan: d.plan, step, broker_id: $input.first().json.broker_id || null, claimed }) }];"
+      }
+    },
+    {
+      "id": "n26",
+      "name": "Respond (answers)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n27",
+      "name": "Effects (claimed request only)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nreturn $('Answer (w39.answer)').first().json.effects.map((e) => ({ json: e }));"
+      }
+    },
+    {
+      "id": "n28",
+      "name": "Effect?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        720,
+        600
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "send"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.kind }}",
+                    "rightValue": "escalate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "escalate"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n29",
+      "name": "WhatsApp input (Lindi line)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\n// decided shape (smc-whatsapp-send writes the communications row; correlation w39:<path>:<lead> = once per lead)\nreturn $input.all().map((i) => ({ json: i.json.message }));"
+      }
+    },
+    {
+      "id": "n30",
+      "name": "WhatsApp Send (Lindi line)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "n31",
+      "name": "Escalate to a person (wills / web lead)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nSELECT l.brand_id, 'human_handoff', 'normal', 'leads', l.id::text, l.id, now(), left($2, 500)\n  FROM public.leads l\n WHERE l.id::text = $1\n   AND NOT EXISTS (SELECT 1 FROM public.escalations e WHERE e.lead_id = l.id AND e.kind = 'human_handoff' AND e.raised_at > now() - interval '1 day')\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id, $json.note || ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "n32",
+      "name": "POST /start/answers [adviser]",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        600
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start/adviser",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
+        }
+      },
+      "webhookId": "w39-start-adviser-post"
+    },
+    {
+      "id": "n33",
+      "name": "Resolve caller + parse (answers) [adviser]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseAdviser(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, request_id: p.request_id, confirm_adviser: p.confirm_adviser, key: L.adviserKey(c.lead_id, p.request_id, !!p.confirm_adviser) } }];"
+      }
+    },
+    {
+      "id": "n34",
+      "name": "Caller + body ok? (answers) [adviser]",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        240,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n35",
+      "name": "Load lead + earlier answer (same request_id) [adviser]",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(x) FROM (SELECT l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,\n         l.age_band, l.budget_band, l.income_band, l.product_interest, l.disqualified_reason, l.call_number, l.alt_number FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,\n       (SELECT a.payload FROM public.lead_activities a WHERE a.idempotency_key = $2 LIMIT 1) AS prior;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n36",
+      "name": "Decide (w39.decideAdviser)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst q = $('Resolve caller + parse (answers) [adviser]').first().json;\nconst plan = L.decideAdviser({ lead: r.lead, request_id: q.request_id, confirm_adviser: q.confirm_adviser || null, prior: r.prior || null, now: Date.now() });\nreturn [{ json: { lead_id: q.lead_id, plan } }];"
+      }
+    },
+    {
+      "id": "n37",
+      "name": "Plan? [adviser]",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        960,
+        800
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "work",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "work"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "replay",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "replay"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n38",
+      "name": "Reject (401) [adviser]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst p = $json.plan;\nreturn [{ json: { status: p.status || 401, body: p.body || { error: 'try_again' }, reason: p.reason || null } }];"
+      }
+    },
+    {
+      "id": "n39",
+      "name": "Save answers + timeline + cancel stall (one statement) [adviser]",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        800
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH claim AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT l.id, l.brand_id, l.broker_id, 'W39', 'lead', $3::jsonb->>'activity_type', $3::jsonb->'payload', now(), $3::jsonb->>'idempotency_key'\n    FROM public.leads l WHERE l.id = $1::uuid\n  ON CONFLICT DO NOTHING\n  RETURNING lead_id),\nu AS (\n  UPDATE public.leads l\n     SET age_band               = coalesce($2::jsonb->>'age_band', l.age_band),\n         budget_band            = coalesce($2::jsonb->>'budget_band', l.budget_band),\n         income_band            = coalesce($2::jsonb->>'income_band', l.income_band),\n         work_cover             = coalesce(($2::jsonb->>'work_cover')::boolean, l.work_cover),\n         product_interest       = coalesce($2::jsonb->>'product_interest', l.product_interest),\n         reasons                = CASE WHEN jsonb_typeof($2::jsonb->'reasons') = 'array' THEN ARRAY(SELECT jsonb_array_elements_text($2::jsonb->'reasons')) ELSE l.reasons END,\n         qualified_at           = coalesce(l.qualified_at, ($2::jsonb->>'qualified_at')::timestamptz),\n         disqualified_reason    = coalesce($2::jsonb->>'disqualified_reason', l.disqualified_reason),\n         broker_id              = CASE WHEN $2::jsonb ? 'disqualified_reason' THEN NULL ELSE l.broker_id END,\n         retention_delete_after = CASE WHEN $2::jsonb ? 'qualified_at' THEN NULL ELSE coalesce(($2::jsonb->>'retention_delete_after')::timestamptz, l.retention_delete_after) END,\n         stage                  = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(l.stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))\n                                       THEN $2::jsonb->>'stage' ELSE l.stage END,\n         stage_entered_at       = CASE WHEN $2::jsonb ? 'stage' AND ($2::jsonb->>'stage' IN ('disqualified', 'opted_out') OR coalesce(l.stage, 'new') IN ('new', 'disclosed', 'verified', 'qualified'))\n                                       THEN now() ELSE l.stage_entered_at END,\n         conv_state             = coalesce(l.conv_state, '{}'::jsonb) || coalesce($2::jsonb->'conv_state', '{}'::jsonb) || jsonb_build_object('last_turn_at', now()),\n         updated_at             = now()\n   WHERE l.id = $1::uuid AND EXISTS (SELECT 1 FROM claim)\n  RETURNING l.id, l.brand_id, l.broker_id, l.phone),\nth AS (\n  UPDATE public.wa_threads t\n     SET state = coalesce(t.state, '{}'::jsonb) || jsonb_build_object('stage', $5::text), stage = $5::text, stall_due_at = NULL, updated_at = now()\n    FROM u\n   WHERE t.brand_id = u.brand_id AND u.phone IS NOT NULL AND t.mobile_hash = public.smc_hash_contact(u.phone)\n  RETURNING t.mobile_hash),\nnotes AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT u.id, u.brand_id, u.broker_id, 'W39', 'system', x->>'activity_type', x->'payload', now(), x->>'idempotency_key'\n    FROM u, jsonb_array_elements($4::jsonb) x\n  ON CONFLICT DO NOTHING\n  RETURNING id)\nSELECT (SELECT count(*) FROM claim)::int AS claimed, (SELECT count(*) FROM u)::int AS updated, (SELECT count(*) FROM th)::int AS threads, (SELECT count(*) FROM notes)::int AS notes;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, JSON.stringify($json.plan.set || {}), JSON.stringify($json.plan.activity), JSON.stringify($json.plan.notes || []), $json.plan.thread_stage || 'done'] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n40",
+      "name": "Cover path? (adviser card first) [adviser]",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($('Decide (w39.decideAdviser)').first().json.plan.cover === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n41",
+      "name": "Load lead + brokers (pick) [adviser]",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The same lead columns and broker list as W01 \"Load CTWA lead + brokers\" (routingFor reads them), plus the card's\n-- display columns (adviser, practice, FSP, approved bio + picture). Nothing is written here.\nSELECT to_jsonb(q) AS lead, COALESCE((SELECT jsonb_agg(jsonb_build_object('id', b.id, 'broker_id', b.id, 'brand_id', b.brand_id, 'status', b.status, 'routing_on', b.routing_on,\n                  'active', b.active, 'bookings_paused', b.bookings_paused, 'practice_name', b.firm_name, 'fsp_number', b.fsp_number,\n                  'consent_mode', b.consent_mode, 'accepts_low_budget', b.accepts_low_budget, 'handles_wills', b.handles_wills,\n                  'order_capacity', COALESCE(oc.capacity, 0), 'order_attached', COALESCE(oc.attached, 0), 'order_remaining', COALESCE(oc.remaining, 0),\n                  'firm_name', b.firm_name, 'contact_person', b.contact_person) || jsonb_build_object('adviser_name', b.adviser_name, 'bio_short', b.bio_short, 'bio_review', b.onboarding_progress->'bio_review',\n                  'intro_card_url', b.intro_card_url, 'card_approved_at', b.onboarding_progress->'card'->>'approved_at', 'methods_supported', b.methods_supported,\n                  'headshot_approved_url', (SELECT m.url FROM public.broker_media m WHERE m.broker_id = b.id AND m.kind = 'headshot' AND m.state = 'approved' ORDER BY m.version DESC LIMIT 1)))\n                   FROM public.brokers b\n                   LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining\n                                        FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true\n                  WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers\n  FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,\n               l.routing_reason, l.budget_band, l.product_interest,\n               EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed\n          FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) q;",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w39.decideAdviser)').first().json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n42",
+      "name": "Adviser step (w39.coverStep) [adviser]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst d = $('Decide (w39.decideAdviser)').first().json;\nreturn [{ json: { lead_id: d.lead_id, step: L.coverStep({ plan: d.plan, lead: r.lead || { id: d.lead_id }, brokers: r.brokers || [] }) } }];"
+      }
+    },
+    {
+      "id": "n43",
+      "name": "Disclose? (confirmed adviser) [adviser]",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(($json.step.steps || []).includes('disclose')) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n44",
+      "name": "Log adviser_disclosed (before routing) [adviser]",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The page showed this adviser's card (name, practice, FSP number) and the lead confirmed it. Written BEFORE the routing call;\n-- once per lead and broker (idempotency key w39:disclosed:<lead>:<broker>).\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, $2::uuid, 'W39', 'lead', 'adviser_disclosed', $3::jsonb, now(), $4\n  FROM public.leads l WHERE l.id = $1::uuid\nON CONFLICT DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const s = $('Adviser step (w39.coverStep) [adviser]').first().json.step; return [$('Adviser step (w39.coverStep) [adviser]').first().json.lead_id, s.disclose.broker_id, JSON.stringify(s.disclose.payload), s.disclose.idempotency_key]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n45",
+      "name": "W01 call? (route the confirmed adviser | record a hold) [adviser]",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String((() => { const s = $('Adviser step (w39.coverStep) [adviser]').first().json.step; return !!(s.route || s.hold); })()) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n46",
+      "name": "W01 Lead core input (no first touch) [adviser]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst s = $('Adviser step (w39.coverStep) [adviser]').first().json.step;\nreturn [{ json: s.route || s.hold }];"
+      }
+    },
+    {
+      "id": "n47",
+      "name": "W01 Lead core (route, no W06 first touch; waits) [adviser]",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        1000
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w01",
+          "cachedResultName": "W01 Lead core"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n48",
+      "name": "Re-read broker_id [adviser]",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        1000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.broker_id FROM public.leads l WHERE l.id::text = $1;",
+        "options": {
+          "queryReplacement": "={{ [$('Decide (w39.decideAdviser)').first().json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n49",
+      "name": "Answer (w39.answer) [adviser]",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst d = $('Decide (w39.decideAdviser)').first().json;\nlet claimed = false;\ntry { claimed = Number($('Save answers + timeline + cancel stall (one statement) [adviser]').first().json.claimed) > 0; } catch (e) { claimed = false; } // replay: Save did not run\nlet step = null;\ntry { step = $('Adviser step (w39.coverStep) [adviser]').first().json.step; } catch (e) { step = null; } // not a cover path\nreturn [{ json: L.answer({ plan: d.plan, step, broker_id: $input.first().json.broker_id || null, claimed }) }];"
+      }
+    },
+    {
+      "id": "n50",
+      "name": "Respond (answers) [adviser]",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n51",
+      "name": "POST /start/contact",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        480,
+        1200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start/contact",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
+        }
+      },
+      "webhookId": "w39-start-contact-post"
+    },
+    {
+      "id": "n52",
+      "name": "Resolve caller + parse (contact)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseContact(j.body);\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, request_id: p.request_id, call_number: p.call_number, alt_number: p.alt_number, key: L.contactKey(c.lead_id, p.request_id) } }];"
+      }
+    },
+    {
+      "id": "n53",
+      "name": "Caller + body ok? (contact)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n54",
+      "name": "Load lead + earlier call (contact)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1200,
+        1200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(x) FROM (SELECT l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,\n         l.age_band, l.budget_band, l.income_band, l.product_interest, l.disqualified_reason, l.call_number, l.alt_number FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,\n       (SELECT a.payload FROM public.lead_activities a WHERE a.idempotency_key = $2 LIMIT 1) AS prior;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, $json.key] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n55",
+      "name": "Decide (w39.decideContact)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        1200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst q = $('Resolve caller + parse (contact)').first().json;\nconst plan = L.decideContact({ lead: r.lead, call_number: q.call_number, alt_number: q.alt_number, request_id: q.request_id, prior: r.prior || null, now: Date.now() });\nreturn [{ json: { lead_id: q.lead_id, plan } }];"
+      }
+    },
+    {
+      "id": "n56",
+      "name": "Write? (contact)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.plan.kind === 'work') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n57",
+      "name": "Save contact numbers (one statement)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        0,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH claim AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT l.id, l.brand_id, l.broker_id, 'W39', 'lead', $3::jsonb->>'activity_type', $3::jsonb->'payload', now(), $3::jsonb->>'idempotency_key'\n    FROM public.leads l WHERE l.id = $1::uuid\n  ON CONFLICT DO NOTHING\n  RETURNING lead_id)\nUPDATE public.leads l\n   SET call_number           = NULLIF($2::jsonb->>'call_number', ''),\n       call_number_line_type = CASE WHEN ($2::jsonb->>'call_number_changed')::boolean THEN NULL ELSE l.call_number_line_type END,\n       call_number_verified  = CASE WHEN ($2::jsonb->>'call_number_changed')::boolean THEN NULL ELSE l.call_number_verified END,\n       alt_number            = NULLIF($2::jsonb->>'alt_number', ''),\n       alt_purpose           = NULLIF($2::jsonb->>'alt_purpose', ''),\n       updated_at            = now()\n WHERE l.id = $1::uuid AND EXISTS (SELECT 1 FROM claim)\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id, JSON.stringify($json.plan.set || {}), JSON.stringify($json.plan.activity)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n58",
+      "name": "Answer (w39.contactAnswer)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nreturn [{ json: L.contactAnswer($('Decide (w39.decideContact)').first().json.plan) }];"
+      }
+    },
+    {
+      "id": "n59",
+      "name": "Respond (contact)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "n60",
+      "name": "POST /start/move",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start/move",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://sortmycover.co.za,https://www.sortmycover.co.za,https://adviser-conversation.sortmycover.co.za,https://new-bond.sortmycover.co.za,https://salary-stops.sortmycover.co.za,https://cover-gap.sortmycover.co.za,https://owners-directors.sortmycover.co.za,https://new-baby.sortmycover.co.za,https://children-guardian.sortmycover.co.za,https://will-myth.sortmycover.co.za,https://will-and-cover.sortmycover.co.za,https://where-is-the-will.sortmycover.co.za,https://leadvelocity.co.za,https://www.leadvelocity.co.za"
+        }
+      },
+      "webhookId": "w39-start-move-post"
+    },
+    {
+      "id": "n61",
+      "name": "Resolve caller + parse (move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst j = $input.first().json;\nconst c = L.resolveCaller(j.headers || {}, $env, Date.now());\nif (!c.ok) return [{ json: { ok: false, status: c.status, body: c.body, reason: c.reason } }];\nconst p = L.parseMove(j.body, Date.now());\nif (!p.ok) return [{ json: { ok: false, status: p.status, body: p.body, reason: p.reason } }];\nreturn [{ json: { ok: true, lead_id: c.lead_id, req: p } }];"
+      }
+    },
+    {
+      "id": "n62",
+      "name": "Caller + body ok? (move)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        1400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n63",
+      "name": "Load lead + live booking (move)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        1400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT to_jsonb(x) FROM (SELECT l.id, l.brand_id, l.broker_id, l.origin, l.routing_reason, l.first_name, l.phone, l.opted_out_at, (l.phone IS NULL) AS erased, l.stage, l.conv_state,\n         l.age_band, l.budget_band, l.income_band, l.product_interest, l.disqualified_reason, l.call_number, l.alt_number FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x) AS lead,\n       (SELECT to_jsonb(a) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a\n                                  WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()\n                                  ORDER BY a.appointment_date LIMIT 1) a) AS booking;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n64",
+      "name": "Plan move (w39.moveRequest)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst r = $input.first().json;\nconst q = $('Resolve caller + parse (move)').first().json;\nreturn [{ json: { lead_id: q.lead_id, plan: L.moveRequest({ lead: r.lead, booking: r.booking, req: q.req, now: Date.now() }), booking_id: r.booking ? r.booking.id : null } }];"
+      }
+    },
+    {
+      "id": "n65",
+      "name": "Move?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        0,
+        1600
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "move",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "move"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "same",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "same"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "method_only",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "method_only"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "none"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.plan.kind }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reject"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "n66",
+      "name": "W10 input (move)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nreturn [{ json: $('Plan move (w39.moveRequest)').first().json.plan.w10 }];"
+      }
+    },
+    {
+      "id": "n67",
+      "name": "W10 Reschedule / cancel (move; waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w10",
+          "cachedResultName": "W10 Reschedule / cancel"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n68",
+      "name": "Method change? (move)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        1600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$('Plan move (w39.moveRequest)').first().json.plan.method) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n69",
+      "name": "W10 input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nreturn [{ json: $('Plan move (w39.moveRequest)').first().json.plan.method }];"
+      }
+    },
+    {
+      "id": "n70",
+      "name": "W10 Reschedule / cancel (method; waits)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        1600
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-w10",
+          "cachedResultName": "W10 Reschedule / cancel"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n71",
+      "name": "Re-read booking (move)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1440,
+        1600
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT to_jsonb(a) AS after FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a\n  WHERE a.id::text = $1 AND a.client_id::text = $2) a;",
+        "options": {
+          "queryReplacement": "={{ [String($('Plan move (w39.moveRequest)').first().json.booking_id || ''), $('Plan move (w39.moveRequest)').first().json.lead_id] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "n72",
+      "name": "Answer (w39.moveAnswer)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        1600
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w39;\nconst d = $('Plan move (w39.moveRequest)').first().json;\nlet after = null;\ntry { after = $('Re-read booking (move)').first().json.after || null; } catch (e) { after = null; } // reject / none: not read\nreturn [{ json: L.moveAnswer({ plan: d.plan, after }) }];"
+      }
+    },
+    {
+      "id": "n73",
+      "name": "Respond (move)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "GET /start": {
+      "main": [
+        [
+          {
+            "node": "Resolve caller (start)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve caller (start)": {
+      "main": [
+        [
+          {
+            "node": "Caller ok? (start)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller ok? (start)": {
+      "main": [
+        [
+          {
+            "node": "Load lead, adviser, live booking",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (start)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead, adviser, live booking": {
+      "main": [
+        [
+          {
+            "node": "View (w39.startView)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "View (w39.startView)": {
+      "main": [
+        [
+          {
+            "node": "Respond (start)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /start/answers": {
+      "main": [
+        [
+          {
+            "node": "Resolve caller + parse (answers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve caller + parse (answers)": {
+      "main": [
+        [
+          {
+            "node": "Caller + body ok? (answers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller + body ok? (answers)": {
+      "main": [
+        [
+          {
+            "node": "Load lead + earlier answer (same request_id)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (answers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + earlier answer (same request_id)": {
+      "main": [
+        [
+          {
+            "node": "Decide (w39.decideAnswers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w39.decideAnswers)": {
+      "main": [
+        [
+          {
+            "node": "Plan?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan?": {
+      "main": [
+        [
+          {
+            "node": "Save answers + timeline + cancel stall (one statement)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cover path? (adviser card first)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (401)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reject (401)": {
+      "main": [
+        [
+          {
+            "node": "Respond (answers)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save answers + timeline + cancel stall (one statement)": {
+      "main": [
+        [
+          {
+            "node": "Cover path? (adviser card first)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cover path? (adviser card first)": {
+      "main": [
+        [
+          {
+            "node": "Load lead + brokers (pick)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read broker_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + brokers (pick)": {
+      "main": [
+        [
+          {
+            "node": "Adviser step (w39.coverStep)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adviser step (w39.coverStep)": {
+      "main": [
+        [
+          {
+            "node": "Disclose? (confirmed adviser)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disclose? (confirmed adviser)": {
+      "main": [
+        [
+          {
+            "node": "Log adviser_disclosed (before routing)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W01 call? (route the confirmed adviser | record a hold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log adviser_disclosed (before routing)": {
+      "main": [
+        [
+          {
+            "node": "W01 call? (route the confirmed adviser | record a hold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 call? (route the confirmed adviser | record a hold)": {
+      "main": [
+        [
+          {
+            "node": "W01 Lead core input (no first touch)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read broker_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 Lead core input (no first touch)": {
+      "main": [
+        [
+          {
+            "node": "W01 Lead core (route, no W06 first touch; waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 Lead core (route, no W06 first touch; waits)": {
+      "main": [
+        [
+          {
+            "node": "Re-read broker_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-read broker_id": {
+      "main": [
+        [
+          {
+            "node": "Answer (w39.answer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer (w39.answer)": {
+      "main": [
+        [
+          {
+            "node": "Respond (answers)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Effects (claimed request only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Effects (claimed request only)": {
+      "main": [
+        [
+          {
+            "node": "Effect?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Effect?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp input (Lindi line)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate to a person (wills / web lead)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp input (Lindi line)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Send (Lindi line)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /start/answers [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Resolve caller + parse (answers) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve caller + parse (answers) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Caller + body ok? (answers) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller + body ok? (answers) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Load lead + earlier answer (same request_id) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (answers) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + earlier answer (same request_id) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Decide (w39.decideAdviser)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w39.decideAdviser)": {
+      "main": [
+        [
+          {
+            "node": "Plan? [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan? [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Save answers + timeline + cancel stall (one statement) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cover path? (adviser card first) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject (401) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reject (401) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Respond (answers) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save answers + timeline + cancel stall (one statement) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Cover path? (adviser card first) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cover path? (adviser card first) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Load lead + brokers (pick) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read broker_id [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + brokers (pick) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Adviser step (w39.coverStep) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Adviser step (w39.coverStep) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Disclose? (confirmed adviser) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Disclose? (confirmed adviser) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Log adviser_disclosed (before routing) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W01 call? (route the confirmed adviser | record a hold) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log adviser_disclosed (before routing) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "W01 call? (route the confirmed adviser | record a hold) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 call? (route the confirmed adviser | record a hold) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "W01 Lead core input (no first touch) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read broker_id [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 Lead core input (no first touch) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "W01 Lead core (route, no W06 first touch; waits) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W01 Lead core (route, no W06 first touch; waits) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Re-read broker_id [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-read broker_id [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Answer (w39.answer) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer (w39.answer) [adviser]": {
+      "main": [
+        [
+          {
+            "node": "Respond (answers) [adviser]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /start/contact": {
+      "main": [
+        [
+          {
+            "node": "Resolve caller + parse (contact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve caller + parse (contact)": {
+      "main": [
+        [
+          {
+            "node": "Caller + body ok? (contact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller + body ok? (contact)": {
+      "main": [
+        [
+          {
+            "node": "Load lead + earlier call (contact)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (contact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + earlier call (contact)": {
+      "main": [
+        [
+          {
+            "node": "Decide (w39.decideContact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide (w39.decideContact)": {
+      "main": [
+        [
+          {
+            "node": "Write? (contact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write? (contact)": {
+      "main": [
+        [
+          {
+            "node": "Save contact numbers (one statement)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer (w39.contactAnswer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save contact numbers (one statement)": {
+      "main": [
+        [
+          {
+            "node": "Answer (w39.contactAnswer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer (w39.contactAnswer)": {
+      "main": [
+        [
+          {
+            "node": "Respond (contact)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /start/move": {
+      "main": [
+        [
+          {
+            "node": "Resolve caller + parse (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve caller + parse (move)": {
+      "main": [
+        [
+          {
+            "node": "Caller + body ok? (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Caller + body ok? (move)": {
+      "main": [
+        [
+          {
+            "node": "Load lead + live booking (move)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load lead + live booking (move)": {
+      "main": [
+        [
+          {
+            "node": "Plan move (w39.moveRequest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan move (w39.moveRequest)": {
+      "main": [
+        [
+          {
+            "node": "Move?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move?": {
+      "main": [
+        [
+          {
+            "node": "W10 input (move)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read booking (move)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Method change? (move)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer (w39.moveAnswer)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Answer (w39.moveAnswer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W10 input (move)": {
+      "main": [
+        [
+          {
+            "node": "W10 Reschedule / cancel (move; waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W10 Reschedule / cancel (move; waits)": {
+      "main": [
+        [
+          {
+            "node": "Method change? (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method change? (move)": {
+      "main": [
+        [
+          {
+            "node": "W10 input (method)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Re-read booking (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W10 input (method)": {
+      "main": [
+        [
+          {
+            "node": "W10 Reschedule / cancel (method; waits)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W10 Reschedule / cancel (method; waits)": {
+      "main": [
+        [
+          {
+            "node": "Re-read booking (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-read booking (move)": {
+      "main": [
+        [
+          {
+            "node": "Answer (w39.moveAnswer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Answer (w39.moveAnswer)": {
+      "main": [
+        [
+          {
+            "node": "Respond (move)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "booking"
+    },
+    {
+      "name": "intake"
+    }
+  ],
+  "meta": {
+    "notes": "automation-engineer. W39 /start/ page API; logic automation/lib/w39.mjs; tests automation/tests/W39.test.mjs. Generated by automation/build-w39.mjs; do not hand-edit."
+  }
+}

@@ -44,8 +44,10 @@ export const TEMPLATE_BODY = {
   broker_intro_booked: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* will be your adviser for your {{5}} call on *{{6}} at {{7}}*. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
   broker_intro_slots: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below.\n1. {{5}}\n2. {{6}}\n3. {{7}}\nOur WhatsApp assistant uses AI. Reply STOP to opt out.',
   broker_intro_slots_v2: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below. Our WhatsApp assistant uses AI. Reply STOP to opt out.',
+  // lead-ad intro WITH the SortMyCover disclosure (18 Oct 2026); used only when its SID is in TWILIO_CONTENT_SIDS (ctx.intro_v3)
+  broker_intro_slots_v3: 'Hi {{1}}, thanks for your insurance and financial planning enquiry. Your details have been passed to *{{2}} (FSP {{3}})*, an authorised financial services provider. *{{4}}* can do a 30-minute call. Pick a time below.\n1. {{5}}\n2. {{6}}\n3. {{7}}\nIntroduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything. Reply STOP to opt out.',
 };
-export const VAR_COUNT = { broker_intro_booked: 7, broker_intro_slots: 7, broker_intro_slots_v2: 4 };
+export const VAR_COUNT = { broker_intro_booked: 7, broker_intro_slots: 7, broker_intro_slots_v2: 4, broker_intro_slots_v3: 7 };
 export const DISCLOSURE_TEMPLATES = new Set(Object.keys(TEMPLATE_BODY));
 
 export function renderBody(name, vars) {
@@ -78,12 +80,24 @@ export function blockReason(l) {
  * lead creation for page / lead-ad leads). ctx = { booking?: {created_at}, skipAt? }
  */
 export function firstTouchTrigger(l, ctx = {}) {
-  const clock = msOf(l.routed_at);
+  // 18 Oct 2026: a lead given a broker by hand has no routed_at (NaN crashed isoSast, W06 "Invalid time value"), and a
+  // non-page lead whose first touch was never sent got the routed slots card after booking. The booking is then the clock
+  // and the card is broker_intro_booked.
+  const routed = msOf(l.routed_at);
+  const booked = ctx.booking ? msOf(ctx.booking.created_at) : NaN;
+  const clock = Number.isFinite(routed) ? routed : Number.isFinite(booked) ? booked : Date.now();
   let reason; let trigger;
-  if (l.origin === 'page') {
-    const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', msOf(ctx.booking.created_at)] : null]
+  if (l.origin === 'page' && ctx.booking_event === true && ctx.booking && Number.isFinite(booked)) {
+    // 18 Oct 2026: a booking event that wins the one-card claim IS the first touch, however long after routing it came. A
+    // /start/ page web lead is routed by W39 only after the adviser card and books minutes later: the 45-s hold had already
+    // "expired" on paper, so the min() below picked 'hold' and planned a slots card (no slots on a booking event -> Flow card).
+    [reason, trigger] = ['booking', booked];
+  } else if (l.origin === 'page') {
+    const cands = [['hold', clock + HOLD_S * 1000], ctx.skipAt ? ['skip', msOf(ctx.skipAt)] : null, ctx.booking ? ['booking', booked] : null]
       .filter(Boolean).sort((x, y) => x[1] - y[1]);
     [reason, trigger] = cands[0];
+  } else if (ctx.booking && Number.isFinite(booked)) {
+    [reason, trigger] = ['booking', booked];
   } else {
     [reason, trigger] = ['routed', clock];
   }
@@ -129,7 +143,8 @@ export function planFirstTouch(l, b, ctx = {}) {
   const offers = pickOffers(ctx.slots || [], 3);
   if (offers.length < 3) return { template: null, ...base, variables: common, buttons: [], blocked: 'not_enough_slots', fallback: ctx.slotsFallback || 'alert' };
   return {
-    template: 'broker_intro_slots', ...base,
+    // a lead-ad lead gets the v3 card (same variables and buttons + the SortMyCover disclosure) once it is configured
+    template: ctx.intro_v3 === true && l.origin === 'lead_ad' ? 'broker_intro_slots_v3' : 'broker_intro_slots', ...base,
     variables: [...common, ...offers.map((s) => slotLabel(s.start))].map(cleanVar),
     // Payload "slot_<ISO>": W07's router sends /^slot_/ taps to W05 (lib/w07.mjs routeCore). "other_times" -> W07.
     buttons: [...offers.map((s) => ({ type: 'quick_reply', payload: `slot_${s.start}` })), { type: 'quick_reply', payload: 'other_times' }],
@@ -242,8 +257,8 @@ export function lateBookingConfirmed(l, booking) {
 }
 
 export function ctxFromEvent(input = {}, now = Date.now()) {
-  const ctx = { bookingUi: input.booking_ui === 'flow' ? 'flow' : 'list', slots: input.slots || [] };
-  if (input.op === 'booking' && input.booking) ctx.booking = { id: input.booking.id, created_at: input.booking.created_at || now, start: input.booking.start, method: input.booking.method };
+  const ctx = { bookingUi: input.booking_ui === 'flow' ? 'flow' : 'list', slots: input.slots || [], ...(input.intro_v3 === true ? { intro_v3: true } : {}) };
+  if (input.op === 'booking' && input.booking) { ctx.booking = { id: input.booking.id, created_at: input.booking.created_at || now, start: input.booking.start, method: input.booking.method }; ctx.booking_event = true; }
   if (input.op === 'skip') ctx.skipAt = now;
   return ctx;
 }

@@ -20,7 +20,7 @@
       "Lead-ad and CTWA leads have no page booking step, so their first touch is sent as soon as routing is written.",
       "REACH_CHECK_WINDOW_H = 2: a broker 'No-show' becomes a lead no-show only if the lead has not answered reach_check 2 h after it was sent (Schedule C: 'did not answer the T+30 check').",
       "reach_check is sent T+30 min after the slot ENDS (same anchor as the broker's T+15).",
-      "intro_media 'straight after booking' (4.12, bookings < 3 days out) = T0 + 15 min, i.e. after what_to_expect at T0 + 10 min.",
+      "intro_media (Jono, 19 Oct 2026) = T0 + 24 h (a day after booking); when the call is under 24 h away it goes 'straight after booking' = T0 + 15 min, i.e. after what_to_expect at T0 + 10 min.",
       "max_meetings_per_week counts Monday 00:00 to Sunday 24:00 Africa/Johannesburg.",
       "Buffer applies against every busy block (Outlook events and our own bookings): a slot is free only if [start - buffer, end + buffer) touches nothing busy."
     ]
@@ -164,7 +164,7 @@
           "compressed": false,
           "schedule": [
             { "touch": "what_to_expect", "at": "2026-10-12T08:24:41+02:00" },
-            { "touch": "intro_media", "at": "2026-10-13T10:00:00+02:00" },
+            { "touch": "intro_media", "at": "2026-10-13T08:14:41+02:00" },
             { "touch": "reminder_24h", "at": "2026-10-14T10:00:00+02:00" },
             { "touch": "prep_nudge", "at": "2026-10-14T10:00:00+02:00" },
             { "touch": "reminder_2h", "at": "2026-10-15T08:00:00+02:00" },
@@ -378,7 +378,7 @@
           "compressed": false,
           "schedule": [
             { "touch": "what_to_expect", "at": "2026-10-12T19:18:00+02:00" },
-            { "touch": "intro_media", "at": "2026-10-12T19:23:00+02:00" },
+            { "touch": "intro_media", "at": "2026-10-13T19:08:00+02:00" },
             { "touch": "reminder_24h", "at": "2026-10-14T14:00:00+02:00" },
             { "touch": "prep_nudge", "at": "2026-10-14T14:00:00+02:00" },
             { "touch": "reminder_2h", "at": "2026-10-15T12:00:00+02:00" },
@@ -414,7 +414,7 @@
     {
       "fixture_id": "L06",
       "lead_id": "lead_test_L06",
-      "branches": ["out_of_band_age"],
+      "branches": ["any_age_books"],
       "origin": "ctwa",
       "lookup": { "line_type": "mobile" },
       "submission": {
@@ -429,7 +429,7 @@
         "consent_text_version": "ctwa-generic-v3"
       },
       "expected": {
-        "W01": { "via": "W03", "qualified": false, "disqualified_reason": "age_band", "broker_id": null, "first_touch": false, "delete_after": "2026-10-14T07:30:45+02:00", "polite_close": true }
+        "W01": { "via": "W03", "age_band": "51plus", "disqualified_reason": null, "next_question": "q_budget", "polite_close": false, "_note": "18 Oct 2026 (Jono): every age books and counts; was out_of_band_age (closed, deleted in 24 h)" }
       }
     },
 
@@ -575,7 +575,7 @@
           "compressed": false,
           "schedule": [
             { "touch": "what_to_expect", "at": "2026-10-19T10:10:30+02:00" },
-            { "touch": "intro_media", "at": "2026-10-20T15:00:00+02:00" },
+            { "touch": "intro_media", "at": "2026-10-20T10:00:30+02:00" },
             { "touch": "reminder_24h", "at": "2026-10-21T15:00:00+02:00" },
             { "touch": "prep_nudge", "at": "2026-10-21T15:00:00+02:00" },
             { "touch": "reminder_2h", "at": "2026-10-22T13:00:00+02:00" },

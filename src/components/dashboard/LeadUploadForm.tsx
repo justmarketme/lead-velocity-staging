@@ -6,11 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
 import { z } from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import { CLIENT_STATUSES } from "@/lib/brokerCampaign";
 
 const leadSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(50, "First name must be less than 50 characters"),
@@ -92,7 +94,7 @@ const LeadUploadForm = () => {
     const { data, error } = await supabase
       .from("brokers")
       .select("id, firm_name, contact_person")
-      .eq("status", "Active")
+      .in("status", CLIENT_STATUSES)
       .order("firm_name");
 
     if (!error && data) {
@@ -215,7 +217,6 @@ const LeadUploadForm = () => {
           company: validated.company || undefined,
           role: validated.role || undefined,
           address: validated.address || undefined,
-          source: validated.source || undefined,
           date_uploaded: validated.date ? new Date(validated.date).toISOString() : undefined,
           notes: validated.notes || undefined,
         });
@@ -394,16 +395,16 @@ const LeadUploadForm = () => {
                   <Label htmlFor="company">Company</Label>
                   <Input
                     id="company"
-                    value={(formData as any).company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value } as any)}
+                    value={formData.company}
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
                   <Input
                     id="role"
-                    value={(formData as any).role}
-                    onChange={(e) => setFormData({ ...formData, role: e.target.value } as any)}
+                    value={formData.role}
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   />
                 </div>
               </div>
@@ -411,8 +412,8 @@ const LeadUploadForm = () => {
                 <Label htmlFor="address">Address</Label>
                 <Input
                   id="address"
-                  value={(formData as any).address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value } as any)}
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
               </div>
               <div className="space-y-2">

@@ -80,8 +80,8 @@ test('after the meeting (W12 broker Rescheduled / rebook after no-show): NEW boo
   assert.equal(R.replacementEffect('rebooked_after_no_show').w13, 'stop_clock');
 });
 
-test('cancel: button cancels at once, typed asks first; Graph delete, W09 cancel, ONE rebooking offer, no replacement', () => {
-  assert.equal(R.classifyOp({ msg: { payload: 'cancel:bk_L03' } }), 'cancel');
+test('cancel: a Cancel tap and a typed cancel both open the cancel card; Yes cancels; Graph delete, W09 cancel, ONE rebooking offer, no replacement', () => {
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel:bk_L03' } }), 'cancel_ask', 'cancel card (Jono, 2026-10-19; was: cancel at once)');
   assert.equal(R.classifyOp({ delegate: { action: 'cancel_confirm' } }), 'cancel_ask');
   assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_L03' } }), 'cancel');
   assert.equal(R.classifyOp({ msg: { payload: 'keep_it:bk_L03' } }), 'keep');
@@ -326,4 +326,391 @@ test('W10 held slot: move in place, stays held, verify_by = min(booked_at + 24 h
   const { runCode } = await import('./_n8ncode.mjs');
   const out = await runCode(WF, 'Held move reply (lead only)', { items: [{ lead_id: 'l1' }], refs: { 'Decide move (w10.applyReschedule)': { d: far, new_start: '2026-10-16T11:00:00+02:00', ld: { phone: '+27600000310' } } } });
   assert.equal(out.length, 1); assert.equal(out[0].json.to, 'lead'); assert.match(out[0].json.wa.text.body, /holding .* confirm your email/);
+});
+
+// x14 (17 Oct 2026): a second slot tap whose re-check finds no alternatives must still get a reply.
+test('slotTakenWa: with offer slots it sends the open-times list (unchanged)', () => {
+  const offer = [{ start: '2026-10-20T07:00:00.000Z' }, { start: '2026-10-20T08:00:00.000Z' }];
+  const wa = R.slotTakenWa({ phone: '+27600000003', offer, booking: bk(), lead: ld(), broker: BR });
+  assert.equal(wa.interactive.type, 'list');
+  assert.equal(wa.interactive.action.sections[0].rows.length, 2);
+  assert.match(wa.interactive.action.sections[0].rows[0].id, /^slot_2026-10-20T07:00:00.000Z:resched:bk_L03$/);
+});
+test('slotTakenWa: with no offer slots it sends one "See open times" button, never silence or a calendar error', () => {
+  const wa = R.slotTakenWa({ phone: '+27600000003', offer: [], booking: bk(), lead: ld(), broker: BR });
+  assert.ok(wa, 'a payload is always returned');
+  assert.equal(wa.interactive.type, 'button');
+  assert.deepEqual(wa.interactive.action.buttons.map((b) => b.reply.id), ['see_open_times']);
+  assert.match(wa.interactive.body.text, /^Sorry, that time was just taken\. Tap below/);
+  assert.doesNotMatch(wa.interactive.body.text, /calendar|error|system|problem/i);
+  const af = R.slotTakenWa({ phone: '+27600000003', offer: null, booking: bk(), lead: ld({ language: 'af' }), broker: BR });
+  assert.equal(af.interactive.action.buttons[0].reply.title, 'Sien oop tye');
+});
+test('W10 "Slot taken: next 3" node uses slotTakenWa', () => {
+  const n = WF.nodes.find((x) => x.name === 'Slot taken: next 3');
+  assert.match(n.parameters.jsCode, /L\.slotTakenWa\(/);
+});
+
+// 17 Oct 2026 live cancel test (booking 997c6752): W04 rejected every W10 call, the client heard nothing after "Yes, cancel".
+test('offerMessage after a cancel: confirms in words, with times as a list or alone as text', () => {
+  const slots = slotsAt(RESCHED_TAP, [bk()]);
+  const withTimes = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
+  assert.equal(withTimes.kind, 'list_session');
+  assert.match(withTimes.body, /^Done, your call is cancelled\. If you'd like another time, pick one below/);
+  assert.ok(withTimes.rows.length > 0, 'times offered');
+  for (const r of withTimes.rows) assert.equal(r.id, `slot_${slots.find((s) => r.id === `slot_${s.start}`)?.start}`, 'a pick after a cancel is a new booking (W05), never a move of the cancelled one');
+  const tpl = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'rebook_after_cancel' });
+  assert.ok(tpl.buttons.slice(0, 3).every((b) => /^slot_/.test(b) && !b.includes(':resched:')));
+  const none = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
+  assert.deepEqual(none, { kind: 'text_session', body: "Done, your call is cancelled. If you'd like another time later, just say." });
+  const af = R.offerMessage({ booking: bk(), lead: ld({ language: 'af' }), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'rebook_after_cancel' });
+  assert.match(af.body, /^Klaar, jou oproep is gekanselleer/);
+  // a lead reschedule with no times still escalates (unchanged); outside the window a cancel never sends free text
+  assert.equal(R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP }).kind, 'no_slots');
+  assert.equal(R.offerMessage({ booking: bk(), lead: ld(), broker: BR, slots: [], now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'rebook_after_cancel' }).kind, 'no_slots');
+});
+
+test('W10 sends W04 its documented request at every W04 call (never W10\'s own item)', () => {
+  const into = (name) => Object.entries(WF.connections).filter(([, o]) => (o.main || []).some((l) => (l || []).some((t) => t.node === name))).map(([s]) => s);
+  const calls = WF.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow' && n.parameters.workflowId.value === 'smc-w04');
+  assert.equal(calls.length, 4);
+  for (const n of calls) {
+    const src = into(n.name);
+    assert.equal(src.length, 1, `${n.name} has one input`);
+    assert.match(src[0], /^W04 request \(/, `${n.name} is fed by a W04 request node`);
+    const req = WF.nodes.find((x) => x.name === src[0]).parameters.jsCode;
+    assert.match(req, /op: '(list|is_free|graph_token)', broker_id: /);
+  }
+});
+
+test('W10 build offer sends the text confirmation; Merge context carries the brand code and verified email', () => {
+  const offer = WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode;
+  assert.match(offer, /o\.kind === 'text_session'\) wa = \{ type: 'text', text: \{ body: o\.body \} \}/);
+  const merge = WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode;
+  assert.match(merge, /code: r\.brand_code/);
+  assert.match(merge, /email_verified: r\.email_verified === true/);
+  const q = WF.nodes.find((x) => x.name === 'Load booking, lead, broker, brand').parameters.query;
+  assert.match(q, /br\.code AS brand_code/);
+  assert.match(q, /b\.fsp_number, b\.practice_name, b\.firm_name/);
+});
+
+test('SortMyCover W10 emails: adviser notice via smc-email-send, client cancel / move via smc-client-email', () => {
+  const brand = { code: 'SMC' };
+  const relay = R.smcBrokerRelay({ brand, bk_id: 'bk_L03', email_kind: 'cancelled', email: { to: 'adviser@example.co.za', subject: 'SortMyCover booking cancelled', body: 'Anele K. cancelled.' } }, 120_000);
+  assert.equal(relay.body.from, 'SortMyCover <hello@sortmycover.co.za>');
+  assert.deepEqual(relay.body.to, ['adviser@example.co.za']);
+  assert.equal(relay.body.text, 'Anele K. cancelled.');
+  assert.deepEqual(relay.body.tags, [{ name: 'kind', value: 'broker_booking_changed' }]);
+  assert.equal(relay.idempotency_key, 'w10:broker:bk_L03:cancelled:2');
+  assert.equal(R.smcBrokerRelay({ brand: { code: 'LV' }, email: { to: 'a@b.co' } }), null);
+  assert.equal(R.smcBrokerRelay({ brand, email: { to: null } }), null);
+
+  const j = { brand, bk: bk({ calendar_provider: null }), ld: ld({ email: 'anele@example.co.za', email_verified: true }), br: { ...BR, fsp_number: '12345', practice_name: 'Test Practice' } };
+  const cancel = R.smcClientChangeEmail(j, 'booking_cancelled', 0);
+  assert.equal(cancel.kind, 'booking_cancelled');
+  assert.equal(cancel.to, 'anele@example.co.za');
+  assert.equal(cancel.booking_id, 'bk_L03');
+  assert.equal(Date.parse(cancel.slot_start), ms(start0));
+  const moved = R.smcClientChangeEmail(j, 'booking_updated', 0, { start: iso(ms(start0) + 24 * H), end: iso(ms(start0) + 24 * H + 30 * MIN) });
+  assert.equal(moved.kind, 'booking_updated');
+  assert.equal(Date.parse(moved.slot_start), ms(start0) + 24 * H);
+  assert.equal(R.smcClientChangeEmail({ ...j, ld: ld({ email: 'anele@example.co.za', email_verified: false }) }, 'booking_cancelled', 0), null, 'never to an unverified email');
+  assert.equal(R.smcClientChangeEmail({ ...j, brand: { code: 'LV' } }, 'booking_cancelled', 0), null);
+});
+
+test('W10 email wiring: SMC adviser relay before howzit@, client email gated by DRY_RUN, both never stop the flow', () => {
+  const C = WF.connections;
+  const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  assert.deepEqual(outs('Email to broker?'), ['Adviser email route (w10.smcBrokerRelay)']);
+  assert.deepEqual(outs('SortMyCover adviser email?', 0), ['Email adviser from SortMyCover (smc-email-send)']);
+  assert.deepEqual(outs('SortMyCover adviser email?', 1), ['Email broker from howzit@ (Graph sendMail)']);
+  const howzit = WF.nodes.find((x) => x.name === 'Email broker from howzit@ (Graph sendMail)');
+  assert.equal(howzit.parameters.authentication, 'genericCredentialType');
+  assert.ok(!JSON.stringify(howzit.parameters).includes('howzit_token'));
+  for (const name of ['Email adviser from SortMyCover (smc-email-send)', 'Email client from SortMyCover (smc-client-email)', 'Email broker from howzit@ (Graph sendMail)']) {
+    assert.equal(WF.nodes.find((x) => x.name === name).onError, 'continueRegularOutput', name);
+  }
+  assert.match(WF.nodes.find((x) => x.name === 'SortMyCover client email + live?').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.ok(outs('Broker notice (cancelled) + rebook once?').includes('SMC client email (cancelled)'));
+  assert.ok(outs('Lead + broker messages (moved)').includes('SMC client email (moved)'));
+});
+
+test('cancelDoneWa: a cancel with no rebooking offer is still confirmed (in window, not opted out)', () => {
+  const wa = R.cancelDoneWa({ booking: bk(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP });
+  assert.deepEqual(wa, { messaging_product: 'whatsapp', to: '+27600000003', type: 'text', text: { body: "Done, your call is cancelled. If you'd like another time later, just say." } });
+  assert.equal(R.cancelDoneWa({ booking: bk(), lead: ld({ opted_out_at: '2026-10-13T08:00:00Z' }), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP }), null, 'W15 owns the STOP confirmation');
+  assert.equal(R.cancelDoneWa({ booking: bk(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H }), null, 'never free text outside the window');
+  const C = WF.connections['Offer rebooking once?'].main;
+  assert.deepEqual(C[1].map((t) => t.node), ['Cancel confirmation (no rebook offer)']);
+  assert.deepEqual(WF.connections['Cancel confirmation (no rebook offer)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
+});
+
+test('Build offer passes W10\'s op: a cancel tap (op "cancel") gets the cancel confirmation, not the reschedule intro', () => {
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_L03' } }), 'cancel');
+  const slots = slotsAt(RESCHED_TAP, [bk()]);
+  const o = R.offerMessage({ booking: bk(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'cancel' });
+  assert.match(o.body, /^Done, your call is cancelled\./);
+  assert.doesNotMatch(o.body, /other times|Same as before/);
+  assert.match(WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode, /reason: j\.op/);
+});
+
+// /start/ v4 (Jono, 2026-10-19): the optional Teams guest gets the change / cancel emails; a W39 page move sends no "slot taken" WhatsApp
+test('W10 guest: a Teams booking with a guest -> the cancel and the move email go to the guest too (smc-client-email guest_email)', () => {
+  const brand = { code: 'SMC' };
+  const j = { brand, bk: bk({ method: 'teams', calendar_provider: null, guest_email: 'thabo@gmail.com' }), ld: ld({ email: 'anele@example.co.za', email_verified: true }), br: { ...BR, fsp_number: '12345', practice_name: 'Test Practice' } };
+  const cancel = R.smcClientChangeEmail(j, 'booking_cancelled', 0);
+  assert.deepEqual([cancel.to, cancel.guest_email], ['anele@example.co.za', 'thabo@gmail.com']);
+  const moved = R.smcClientChangeEmail(j, 'booking_updated', 0, { start: iso(ms(start0) + 24 * H), end: iso(ms(start0) + 24 * H + 30 * MIN) });
+  assert.equal(moved.guest_email, 'thabo@gmail.com');
+  assert.equal(R.smcClientChangeEmail({ ...j, bk: bk({ method: 'teams', guest_email: null }) }, 'booking_cancelled', 0).guest_email, undefined, 'no guest -> client only');
+  assert.equal(R.smcClientChangeEmail({ ...j, bk: bk({ method: 'phone', guest_email: 'thabo@gmail.com' }) }, 'booking_cancelled', 0).guest_email, undefined, 'Teams only');
+  const q = WF.nodes.find((x) => x.name === 'Load booking, lead, broker, brand').parameters.query;
+  assert.match(q, /'w05:guest:' \|\| a\.id::text LIMIT 1\) AS guest_email/);
+  assert.match(WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode, /guest_email: r\.guest_email \|\| null/);
+});
+
+test('W10 W39 move: source W39 -> no "slot taken" WhatsApp (the page re-fetches /slots); every other source unchanged', () => {
+  assert.equal(R.pageOwnsSlotTaken('W39'), true);
+  for (const s of [undefined, null, 'W07', 'W05', 'W12']) assert.equal(R.pageOwnsSlotTaken(s), false, String(s));
+  const code = WF.nodes.find((x) => x.name === 'Slot taken: next 3').parameters.jsCode;
+  assert.match(code, /wa: L\.pageOwnsSlotTaken\(j\.source\) \? null : L\.slotTakenWa\(/);
+  // wa null never reaches the sender
+  assert.match(JSON.stringify(WF.nodes.find((x) => x.name === 'Has WhatsApp payload + live?').parameters), /!!\$json\.wa/);
+});
+
+// ============================================================================================
+// The cancel card (Jono, 2026-10-19, mockup frames 15-16): banner image first, then "Choose a reason"
+// ============================================================================================
+const cBkLive = (over = {}) => bk({ id: 'bk_C1', appointment_date: '2026-10-21T08:00:00Z', ends_at: '2026-10-21T08:30:00Z', status: 'booked', brand_id: 'brand_smc', ...over });
+const NO_SALES = /\bfree\b|licensed|\bAI\b|artificial|assistant|bot\b|Lead Velocity/i;
+
+test('cancel card: the list (body, "Choose a reason", six reasons + Keep my call as the last row) within WhatsApp limits; copy rules', () => {
+  const l = R.cancelCardList(cBkLive(), ld());
+  const i = l.interactive;
+  assert.equal(i.type, 'list'); assert.equal(i.header, undefined, 'a list takes no image header');
+  assert.equal(i.body.text, "We understand, Anele, plans change. Before I cancel your call on Wed 21 Oct at 10:00, can you tell me why? If it's something we can sort out, we'd love to help.");
+  assert.equal(i.action.button, 'Choose a reason');
+  const rows = i.action.sections[0].rows;
+  assert.deepEqual(rows.map((r) => r.id), ['reschedule:bk_C1', 'cancel_reason:not_ready:bk_C1', 'cancel_reason:sorted_cover:bk_C1', 'cancel_reason:not_expected:bk_C1', 'cancel_reason:went_wrong:bk_C1', 'cancel_reason:other:bk_C1', 'keep_it:bk_C1']);
+  assert.deepEqual(rows.map((r) => r.title), ['I need a different time', "I'm not ready yet", "I've sorted my cover", "I didn't expect a call", 'Something went wrong', 'Another reason', 'Keep my call']);
+  for (const r of rows) { assert.ok(r.title.length <= 24, r.title); assert.ok(!r.description || r.description.length <= 72); assert.ok(r.id.length <= 200); }
+  assert.ok(i.action.button.length <= 20 && i.body.text.length <= 1024 && i.action.sections[0].title.length <= 24);
+  assert.equal(R.cancelCardList(cBkLive(), ld({ first_name: '' })).interactive.body.text.slice(0, 33), 'We understand, plans change. Befo', 'no name -> no dangling comma');
+  for (const k of Object.keys(R.CANCEL_COPY)) assert.doesNotMatch(R.cancelLine(k, ld(), cBkLive()), NO_SALES, k);
+  for (const r of rows) assert.doesNotMatch(r.title + (r.description || ''), NO_SALES);
+});
+
+test('cancel card: the header-cancel image goes FIRST (WA_SESSION_BANNERS=on, both providers); off -> the list alone', () => {
+  for (const WHATSAPP_PROVIDER of ['meta', 'twilio']) {
+    const c = R.cancelCard(cBkLive(), ld(), { WA_SESSION_BANNERS: 'on', WHATSAPP_PROVIDER });
+    assert.deepEqual(c.banner, { messaging_product: 'whatsapp', recipient_type: 'individual', to: '+27600000003', type: 'image', image: { link: 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-cancel.png' } });
+    assert.equal(c.wa.interactive.type, 'list');
+  }
+  const off = R.cancelCard(cBkLive(), ld(), {});
+  assert.equal(off.banner, null); assert.equal(off.wa.interactive.type, 'list');
+  // W10.json: card -> (banner, gated by DRY_RUN_SENDS) -> done -> the list through the normal live gate
+  const C = WF.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const op = WF.nodes.find((x) => x.name === 'Op'); const ix = (k) => op.parameters.rules.values.findIndex((r) => r.outputKey === k);
+  assert.deepEqual(outs('Op', ix('cancel_ask')), ['Cancel card (w10.cancelCard)']);
+  assert.deepEqual(outs('Cancel card (w10.cancelCard)'), ['Cancel banner first? (live)']);
+  assert.deepEqual(outs('Cancel banner first? (live)', 0), ['SUB input (Send cancel banner)']);
+  assert.deepEqual(outs('Cancel banner first? (live)', 1), ['Has WhatsApp payload + live?']);
+  assert.deepEqual(outs('SUB input (Send cancel banner)'), ['Send cancel banner']);
+  assert.deepEqual(outs('Send cancel banner'), ['Cancel banner done'], 'the list waits for the image');
+  assert.deepEqual(outs('Cancel banner done'), ['Has WhatsApp payload + live?']);
+  assert.match(WF.nodes.find((x) => x.name === 'Cancel banner first? (live)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.match(WF.nodes.find((x) => x.name === 'Has WhatsApp payload + live?').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.equal(WF.nodes.find((x) => x.name === 'Send cancel banner').onError, 'continueRegularOutput', 'a failed image never blocks the list');
+  assert.equal(WF.nodes.find((x) => x.name === 'Send cancel banner').parameters.options.waitForSubWorkflow, true);
+  // the no-call confirm (C1A b with a live booking) keeps the plain Yes / Keep question
+  assert.deepEqual(outs('Booking still live? (confirm cancel first)', 0), ['Cancel confirm buttons']);
+});
+
+test('cancel card: each reason -> its action (offer / cancel / problem / other / keep); a cancel reason closes with its own line through the existing cancel', () => {
+  assert.equal(R.classifyOp({ delegate: { action: 'cancel_confirm' } }), 'cancel_ask', 'typed "cancel"');
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel:bk_C1' } }), 'cancel_ask', 'Cancel tap');
+  const tap = (id) => ({ msg: { list_id: id } });
+  assert.equal(R.classifyOp(tap('reschedule:bk_C1')), 'offer', 'I need a different time -> the reschedule card (W07) / W10 offer');
+  for (const c of ['not_ready', 'sorted_cover', 'not_expected']) { assert.equal(R.classifyOp(tap(`cancel_reason:${c}:bk_C1`)), 'cancel', c); assert.deepEqual(R.cancelReasonOf(tap(`cancel_reason:${c}:bk_C1`)), { code: c }); }
+  assert.equal(R.classifyOp(tap('cancel_reason:went_wrong:bk_C1')), 'cancel_problem');
+  assert.equal(R.classifyOp(tap('cancel_reason:other:bk_C1')), 'cancel_other');
+  assert.equal(R.classifyOp(tap('keep_it:bk_C1')), 'keep', 'Keep my call -> no change');
+  assert.equal(R.classifyOp(tap('cancel_reason:bogus:bk_C1')), 'cancel_ask', 'unknown reason -> the card again');
+  assert.deepEqual(R.parseCancelReason('cancel_reason:other:bk_C1'), { code: 'other', booking_id: 'bk_C1' });
+  // closing lines ride the delegate body the cancel path already uses (cancelDoneWa / Build offer)
+  const lines = { not_ready: "No problem, Anele. Your call on Wed 21 Oct at 10:00 is cancelled. Say hi here any time and we'll find a new time.",
+    sorted_cover: 'Thanks for letting us know, Anele, and well done on sorting your cover. Your call on Wed 21 Oct at 10:00 is cancelled.',
+    not_expected: 'Thanks for telling us, Anele. Your call on Wed 21 Oct at 10:00 is cancelled. If you would like one later, just say hi here.' };
+  for (const [code, line] of Object.entries(lines)) {
+    const del = R.reasonDelegate({ code }, ld(), cBkLive());
+    assert.equal(del.body, line, code);
+    const done = R.cancelDoneWa({ booking: cBkLive(), lead: ld(), broker: BR, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, delegate: del });
+    assert.equal(done.text.body, line);
+    const o = R.offerMessage({ booking: cBkLive(), lead: ld(), broker: BR, brand: { booking_ui: 'list' }, slots: slotsAt(RESCHED_TAP, []), now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP, reason: 'cancel', delegate: del });
+    assert.equal(o.body, line, 'the one rebooking offer carries the same line');
+  }
+  assert.equal(R.reasonDelegate(null, ld(), cBkLive(), null), null, 'no reason -> the existing copy');
+  // C1A unchanged: the same applyCancel whatever the reason; "I didn't expect a call" is not a C1A (b) no-call
+  const a = R.applyCancel(cBkLive(), ld(), { now_ms: RESCHED_TAP });
+  assert.deepEqual([a.action, a.rebook_offer, a.replacement, a.w09], ['cancel', true, 'none', 'cancel_all']);
+  assert.equal(R.isNoCall({ list_id: 'cancel_reason:not_expected:bk_C1', text: "I didn't expect a call" }), false);
+  assert.equal(R.classifyOp(tap('cancel_reason:not_expected:bk_C1')), 'cancel', 'not no_call');
+});
+
+test('cancel card: Something went wrong -> hello@ + Keep my call / Cancel it; Another reason -> type it (30-min wait for this booking) -> cancel with the text', () => {
+  const p = R.cancelProblemWa(cBkLive(), ld());
+  assert.equal(p.interactive.body.text, "I'm sorry to hear that. Please email hello@sortmycover.co.za and a person from our team will reply within 48 hours.");
+  assert.deepEqual(p.interactive.action.buttons.map((b) => [b.reply.id, b.reply.title]), [['keep_it:bk_C1', 'Keep my call'], ['cancel_yes:bk_C1', 'Cancel it']]);
+  assert.equal(R.classifyOp({ msg: { payload: 'cancel_yes:bk_C1' } }), 'cancel', 'Cancel it = the existing cancel');
+  const o = R.cancelOtherWa(cBkLive(), ld());
+  assert.deepEqual(o.interactive.action.buttons.map((b) => b.reply.id), ['cancel_yes:bk_C1', 'keep_it:bk_C1']);
+  const now = Date.parse('2026-10-19T10:00:00Z');
+  const wait = R.cancelReasonPending(cBkLive(), now);
+  assert.deepEqual(wait, { booking_id: 'bk_C1', until: '2026-10-19T10:30:00.000Z' });
+  const typed = { delegate: { action: 'cancel_reason_text' }, msg: { text: 'My husband   handles it' } };
+  assert.equal(R.classifyOp(typed), 'cancel');
+  assert.deepEqual(R.cancelReasonOf(typed), { code: 'other', text: 'My husband   handles it', typed: true });
+  assert.deepEqual(R.reasonParams(R.cancelReasonOf(typed)), ['other', 'My husband handles it']);
+  assert.equal(R.reasonDelegate({ code: 'other' }, ld(), cBkLive()).body, "Thank you, I've passed that on to the team. Your call on Wed 21 Oct at 10:00 is cancelled.");
+  const lw = ld({ conv_state: { cancel_reason_pending: wait } });
+  assert.equal(R.typedReasonValid(lw, cBkLive(), now + 60_000), true);
+  assert.equal(R.typedReasonValid(lw, cBkLive(), now + 31 * 60_000), false, 'the wait expired');
+  assert.equal(R.typedReasonValid(lw, cBkLive({ id: 'bk_other' }), now), false, 'another booking');
+  assert.equal(R.typedReasonValid(lw, cBkLive({ status: 'cancelled' }), now), false, 'already cancelled');
+  assert.equal(R.typedReasonValid(ld(), cBkLive(), now), false, 'no wait');
+  const merge = WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode;
+  assert.match(merge, /!W\.typedReasonValid\(__o\.ld, __o\.bk, Date\.now\(\)\)\) __o\.op = 'cancel_reason_stale'/);
+  assert.match(merge, /__o\.delegate = W\.reasonDelegate\(__o\.op === 'cancel'/);
+});
+
+test('cancel card: the reason is stored (lead_activities cancel_reason, one row per booking); Keep ends the typed-reason wait; SQL columns exist', () => {
+  const q = (n) => WF.nodes.find((x) => x.name === n).parameters.query;
+  for (const n of ['Save cancel reason (+ typed-reason wait)', 'Timeline: cancelled']) {
+    assert.match(q(n), /'cancel_reason', jsonb_build_object\('booking_id', \$4::text, 'reason', \$\d::text\), NULLIF\(\$\d, ''\), now\(\), 'w10:cancel_reason:' \|\| \$4 WHERE \$\d <> ''/, n);
+    assert.match(q(n), /ON CONFLICT \(idempotency_key\) DO UPDATE SET payload = EXCLUDED\.payload/, n);
+  }
+  assert.match(q('Timeline: cancelled'), /conv_state - 'cancel_reason_pending'/);
+  assert.match(WF.nodes.find((x) => x.name === 'Timeline: cancelled').parameters.options.queryReplacement, /\(j\.reason_params \|\| \['', ''\]\)\[0\]/);
+  assert.match(q('Keep: clear the typed-reason wait'), /conv_state - 'cancel_reason_pending'/);
+  const C = WF.connections; const op = WF.nodes.find((x) => x.name === 'Op'); const ix = (k) => op.parameters.rules.values.findIndex((r) => r.outputKey === k);
+  assert.deepEqual(C.Op.main[ix('keep')].map((t) => t.node), ['Keep it', 'Keep: clear the typed-reason wait']);
+  for (const k of ['cancel_problem', 'cancel_other']) assert.deepEqual(C.Op.main[ix(k)].map((t) => t.node), ['Save cancel reason (+ typed-reason wait)'], k);
+  assert.deepEqual(C['Save cancel reason (+ typed-reason wait)'].main[0].map((t) => t.node), ['Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)']);
+  assert.deepEqual(C['Cancel reason reply (w10.cancelProblemWa / cancelOtherWa)'].main[0].map((t) => t.node), ['Has WhatsApp payload + live?']);
+  assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /cancel reason|Timeline: cancelled|typed-reason/.test(x.node))), []);
+});
+
+test('reschedule_card: out of the 24-h window a start-page brand lead with a live booking gets the reschedule_card template; anything missing -> reschedule_offer as before', async () => {
+  const LT = (await import('node:module')).createRequire(import.meta.url)('../security/lead-token.js');
+  const token = LT.mintLeadToken('lead_L03', { secret: 'w10-test-lead-token-secret-0123456789abcdef', nowMs: RESCHED_TAP }).token;
+  const env = { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: JSON.stringify({ reschedule_card: 'HXtest' }) };
+  const slots = slotsAt(RESCHED_TAP, []);
+  const live = bk({ appointment_date: '2026-10-21T08:00:00Z', status: 'booked' });
+  const out = (over = {}) => R.offerMessage({ booking: live, lead: ld({ phone: '+27600000003' }), broker: BR, brand: { booking_ui: 'list' }, slots, now_ms: RESCHED_TAP, last_inbound_ms: RESCHED_TAP - 30 * H, reason: 'broker_rescheduled', card: { start_page: true, token, env }, ...over });
+  const o = out();
+  assert.equal(o.kind, 'prebuilt'); assert.equal(o.template, 'reschedule_card');
+  const t = o.wa.template;
+  assert.equal(t.name, 'reschedule_card');
+  assert.deepEqual(t.components[0].parameters.map((p) => p.text), ['Anele', String(BR.contact_person).split(' ')[0], 'Wed 21 Oct', '10:00'], 'first name, adviser, date, time');
+  assert.deepEqual(t.components[1], { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: token }] }, 'the token is the URL suffix');
+  assert.deepEqual(t.components[2].parameters, [{ type: 'payload', payload: `keep_it:${live.id}` }]);
+  // unchanged: in the window, start_page off, no token, no SID, Meta provider, a cancelled / held booking, a cancel rebook offer
+  assert.equal(out({ last_inbound_ms: RESCHED_TAP }).kind, 'list_session', 'in the window: as before (W07 sends the card there)');
+  for (const [why, over] of [['start_page off', { card: { start_page: false, token, env } }], ['no token', { card: { start_page: true, token: null, env } }],
+    ['no SID', { card: { start_page: true, token, env: { WHATSAPP_PROVIDER: 'twilio' } } }], ['meta', { card: { start_page: true, token, env: { ...env, WHATSAPP_PROVIDER: 'meta' } } }],
+    ['no card', { card: null }], ['booking not live', { booking: bk({ status: 'no_show' }) }], ['cancel', { reason: 'cancel' }]]) {
+    const r = out(over);
+    assert.equal(r.kind === 'template' ? r.template : r.kind, why === 'cancel' ? 'reschedule_offer' : 'reschedule_offer', why);
+  }
+  assert.equal(out({ brand: { booking_ui: 'flow' }, card: null }).template, 'reschedule_offer_v2', 'Flow brand without the card: unchanged');
+  assert.equal(out({ brand: { booking_ui: 'flow' } }).template, 'reschedule_card', 'Flow brand with the card');
+  // W10.json: the load reads brands.start_page (to_jsonb, no column dependency); Merge carries it; Build offer mints + sends
+  assert.match(WF.nodes.find((x) => x.name === 'Load booking, lead, broker, brand').parameters.query, /to_jsonb\(br\)->>'start_page' AS brand_start_page/);
+  assert.match(WF.nodes.find((x) => x.name === 'Merge context').parameters.jsCode, /start_page: r\.brand_start_page === 'on'/);
+  const b = WF.nodes.find((x) => x.name === 'Build offer (Flow / list / template)').parameters.jsCode;
+  assert.match(b, /leadToken\.mintLeadToken\(j\.ld\.id, \{ secret: \$env\.LEAD_TOKEN_SECRET \}\)\.token/);
+  assert.match(b, /else if \(o\.kind === 'prebuilt'\) wa = o\.wa;/);
+  assert.match(b, /TWILIO_CONTENT_SIDS: \$env\.TWILIO_CONTENT_SIDS/);
+});
+
+// v4b21 (20 Oct 2026 live bug): W10's sub-calls get the callee's documented request
+test('v4b21: after-meeting rebooking -> W05 documented book, accepted by W05 parseSub AND decide() (not subcall_rejected)', async () => {
+  const W5 = await import('../lib/w05.mjs');
+  const old = bk({ id: '11111111-1111-4111-8111-111111111111', status: 'no_show', method: 'phone' });
+  const newStart = '2026-10-21T10:00:00+02:00';
+  const d = R.applyReschedule(old, { start: newStart, end: '2026-10-21T10:30:00+02:00' }, { now_ms: RESCHED_TAP, free: true, after_meeting: true, idempotency_key: 'k', seen_keys: new Set() });
+  assert.equal(d.action, 'new_booking');
+  const j = { d, bk: old, ld: ld({ id: L03.lead_id }), new_start: newStart };
+  const r = R.rebookRequest(j);
+  assert.equal(r.ok, true, r.reason);
+  assert.deepEqual(r.req, { op: 'book', lead_id: L03.lead_id, slot_start: newStart, method: 'phone', booked_via: 'chat', previous_booking_id: old.id, idempotency_key: `w10:rebook:${old.id}:${newStart}` });
+  const p = W5.parseSub(r.req, {}, RESCHED_TAP);
+  assert.equal(p.op, 'book', JSON.stringify(p)); assert.equal(p.previous_booking_id, old.id); assert.equal(p.booked_via, 'chat');
+  assert.equal(Date.parse(p.slot_start), Date.parse(newStart));
+  // W05's decide() takes it to the re-check (a verified lead, a call method): the booking is made, a rebooking (booking_confirmed)
+  const lead = { id: L03.lead_id, broker_id: broker().broker_id, first_name: 'Anele', phone: '+27600000003', email: 'anele@gmail.com', email_verified: true, budget_band: '1500_plus' };
+  const dec = W5.decide({ lane: 'sub', req: p, lead, broker: broker(), live: null, now: RESCHED_TAP });
+  assert.equal(dec.action, 'check'); assert.equal(dec.plan.previous_booking_id, old.id); assert.equal(dec.plan.hold, false);
+  // the item W10 used to send is what W05 rejected
+  assert.equal(W5.parseSub({ ...j, op: 'pick' }, {}, RESCHED_TAP).op, 'reject');
+  // anything W05 would reject is caught before the call
+  assert.equal(R.rebookRequest({ ...j, d: { ...d, insert: { ...d.insert, method: 'fax' } } }).ok, false);
+  assert.equal(R.rebookRequest({ ...j, d: { action: 'move' } }).ok, false);
+  // the W10.json request node runs and hands W05 exactly that request
+  const { runCode } = await import('./_n8ncode.mjs');
+  const out = await runCode(WF, 'W05 rebook request (w10.rebookRequest)', { items: [{}], refs: { 'Decide move (w10.applyReschedule)': j } });
+  const item = Array.isArray(out) ? (out[0].json || out[0]) : (out.json || out);
+  assert.equal(item._ok, true); assert.equal(item.idempotency_key, r.req.idempotency_key); assert.equal(W5.parseSub(item, {}, RESCHED_TAP).op, 'book');
+});
+
+test('v4b21 W10.json: W05 waits; old booking -> rescheduled and messages only after the row is booked; failure -> holding line + owner alert, old booking kept', () => {
+  const C = WF.connections; const outs = (n, i = 0) => ((C[n] && C[n].main[i]) || []).map((t) => t.node);
+  const mr = WF.nodes.find((x) => x.name === 'Move result'); const ix = mr.parameters.rules.values.findIndex((r) => r.outputKey === 'new_booking');
+  assert.deepEqual(outs('Move result', ix), ['W05 rebook request (w10.rebookRequest)']);
+  assert.deepEqual(outs('W05 rebook request (w10.rebookRequest)'), ['Rebook request ok?']);
+  assert.deepEqual(outs('Rebook request ok?', 0), ['-> W05 new booking (after the meeting)']);
+  assert.deepEqual(outs('Rebook request ok?', 1), ['Rebook failed: holding line (w07.neverSilentText)', 'Rebook failed: owner alert (w07.neverSilentAlert)']);
+  const w5 = WF.nodes.find((x) => x.name === '-> W05 new booking (after the meeting)');
+  assert.equal(w5.parameters.options.waitForSubWorkflow, true); assert.equal(w5.onError, 'continueErrorOutput');
+  assert.deepEqual(outs('-> W05 new booking (after the meeting)', 0), ['Rebooking stored? (re-read by idempotency key)']);
+  assert.deepEqual(outs('-> W05 new booking (after the meeting)', 1), ['Rebook failed: holding line (w07.neverSilentText)', 'Rebook failed: owner alert (w07.neverSilentAlert)']);
+  assert.match(WF.nodes.find((x) => x.name === 'Rebooking stored? (re-read by idempotency key)').parameters.query, /WHERE a\.idempotency_key = \$1/);
+  assert.deepEqual(outs('Rebooking stored? (re-read by idempotency key)'), ['Rebooked? (booked / confirmed)']);
+  assert.deepEqual(outs('Rebooked? (booked / confirmed)', 0), ['Old booking -> rescheduled'], 'the old booking moves only once the new one exists');
+  assert.deepEqual(outs('Rebooked? (booked / confirmed)', 1), [], 'not booked: W05 answered the lead itself (held / slot taken); W07 never-silent guards the rest');
+  assert.deepEqual(outs('Rebook failed: holding line (w07.neverSilentText)'), ['Has WhatsApp payload + live?']);
+  assert.deepEqual(outs('Rebook failed: owner alert (w07.neverSilentAlert)'), ['Live alert? (rebook failed)']);
+  assert.match(WF.nodes.find((x) => x.name === 'Live alert? (rebook failed)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
+  assert.deepEqual(outs('Live alert? (rebook failed)', 0), ['Notify Jono (EMMA /api/notify, rebook failed)']);
+  assert.match(WF.nodes.find((x) => x.name === 'Lead + broker messages (moved)').parameters.jsCode, /if \(j\.d\.action !== 'move'\) return \[\];/);
+  // nothing reaches "Old booking -> rescheduled" except the booked branch
+  const into = Object.entries(C).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === 'Old booking -> rescheduled'))).map(([k]) => k);
+  assert.deepEqual(into, ['Rebooked? (booked / confirmed)']);
+});
+
+test('v4b21: the holding line + owner alert come from W07\'s never-silent lib (warm, no failure words, no number)', async () => {
+  const W7 = await import('../lib/w07.mjs');
+  const t = W7.neverSilentText('W10', { first_name: 'Anele' });
+  assert.match(t, /^Thanks, Anele! I'm Lindi from SortMyCover\./); assert.doesNotMatch(t, /error|fail|calendar|system/i);
+  const a = W7.neverSilentAlert({ route: 'W10', lead: { id: L03.lead_id, first_name: 'Anele' } });
+  assert.match(a.message, /Anele is waiting on a reschedule/); assert.doesNotMatch(a.message, /\+27/);
+});
+
+test('v4b21: W09 rebuild / cancel_all and W05 update_method get their documented requests (were a Graph response / a Save row)', async () => {
+  const W9 = await import('../lib/w09.mjs'); const W5 = await import('../lib/w05.mjs');
+  const b = bk({ id: '22222222-2222-4222-8222-222222222222' });
+  const rb = R.w09Rebuild(b, '2026-10-21T10:00:00+02:00');
+  assert.deepEqual(rb, { op: 'rebuild', booking_id: b.id, idempotency_key: `w09:rebuild:${b.id}:2026-10-21T10:00:00+02:00` });
+  assert.equal(W9.classifyOp(rb), 'rebuild'); assert.deepEqual(W9.validateInput('rebuild', rb).missing || [], []);
+  const ca = R.w09CancelAll(b);
+  assert.equal(W9.classifyOp(ca), 'cancel_all'); assert.deepEqual(W9.validateInput('cancel_all', ca).missing || [], []);
+  const um = R.w05UpdateMethod(b, 'teams');
+  assert.equal(um.ok, true); assert.equal(W5.parseSub(um.req).op, 'update_method');
+  assert.equal(R.w05UpdateMethod(b, 'fax').ok, false);
+  const C = WF.connections; const outs = (n) => ((C[n] && C[n].main[0]) || []).map((t) => t.node);
+  for (const [req, target] of [['W09 request (rebuild, move)', 'W09 rebuild reminders'], ['W09 request (cancel_all, cancel)', 'W09 cancel all reminders'], ['W05 request (update_method)', 'W05 update event method (Teams link / body)']]) {
+    assert.deepEqual(outs(req), [target], req);
+    const into = Object.entries(C).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === target))).map(([k]) => k);
+    assert.deepEqual(into, [req], `${target} is fed only by its request node`);
+  }
 });

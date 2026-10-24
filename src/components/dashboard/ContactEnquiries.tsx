@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
+import type { AuditLogEntry } from "@/types/groupA-audit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +54,7 @@ const ContactEnquiries = () => {
   const [filter, setFilter] = useState<string>("all");
 
   const load = useCallback(async () => {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabaseUntyped
       .from("contact_submissions")
       .select("*")
       .order("created_at", { ascending: false });
@@ -167,7 +169,7 @@ const EnquiryDrawer = ({
   const [form, setForm] = useState({ name: "", email: "", phone: "", company: "" });
   const [notes, setNotes] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<AuditLogEntry[]>([]);
 
   useEffect(() => {
     if (!enquiry) return;
@@ -180,9 +182,9 @@ const EnquiryDrawer = ({
     });
     setNotes(enquiry.admin_notes || "");
     (async () => {
-      const h = await (supabase as any).from("audit_log").select("*")
+      const h = await supabaseUntyped.from("audit_log").select("*")
         .eq("record_id", enquiry.id).order("changed_at", { ascending: false }).limit(20);
-      setHistory((h.data || []) as any[]);
+      setHistory((h.data || []) as AuditLogEntry[]);
     })();
   }, [enquiry?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -195,7 +197,7 @@ const EnquiryDrawer = ({
   };
 
   const update = async (p: Partial<Enquiry>, label: string) => {
-    const { error } = await (supabase as any).from("contact_submissions").update(p).eq("id", enquiry.id);
+    const { error } = await supabaseUntyped.from("contact_submissions").update(p).eq("id", enquiry.id);
     if (error) { toast({ title: "Update failed", description: error.message, variant: "destructive" }); return false; }
     onPatched(enquiry.id, p);
     notifyChange(`${label} — ${enquiry.name}`);

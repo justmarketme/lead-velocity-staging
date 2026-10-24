@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "key": "booking_confirm_chat_v2",
+    "source": "automation/templates/booking_confirm_chat.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_booking_confirm_chat_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      }
+    ],
+    "core": false,
+    "base": "booking_confirm_chat",
+    "header": "booked"
+  },
+  "content": {
+    "friendly_name": "smc_booking_confirm_chat_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark",
+      "3": "Tue 21 Oct at 10:00",
+      "4": "yes_let_s_chat:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, your SortMyCover call with {{2}} is booked for {{3}}. Can we just confirm a few things before the call?",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-booked.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Yes, let's chat",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

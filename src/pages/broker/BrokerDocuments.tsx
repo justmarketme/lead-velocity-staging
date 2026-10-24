@@ -1,15 +1,16 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import BrokerLayout from "@/components/broker/BrokerLayout";
-import OrderAgreements from "@/components/broker/OrderAgreements";
+import OrderAgreements, { type LeadOrder } from "@/components/broker/OrderAgreements";
 
 // Read-only documents home: the broker's Agreement + Invoice (view / sign / download).
 // No uploads — brokers never add documents here.
 const BrokerDocuments = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [order, setOrder] = useState<any | null>(null);
+  const [order, setOrder] = useState<LeadOrder | null>(null);
   const [broker, setBroker] = useState<{ contact_person: string | null; firm_name: string | null; email: string | null }>({
     contact_person: null,
     firm_name: null,
@@ -20,7 +21,7 @@ const BrokerDocuments = () => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
       const { data: b } = await supabase
@@ -34,18 +35,18 @@ const BrokerDocuments = () => {
         return;
       }
       setBroker({
-        contact_person: (b as any).contact_person ?? null,
-        firm_name: (b as any).firm_name ?? null,
-        email: (b as any).email ?? null,
+        contact_person: b.contact_person ?? null,
+        firm_name: b.firm_name ?? null,
+        email: b.email ?? null,
       });
 
-      const { data: orders } = await (supabase as any)
+      const { data: orders } = await supabaseUntyped
         .from("lead_orders")
         .select("*")
-        .eq("broker_id", (b as any).id)
+        .eq("broker_id", b.id)
         .order("created_at", { ascending: false });
 
-      setOrder((orders && orders[0]) || null);
+      setOrder(((orders && orders[0]) || null) as LeadOrder | null);
       setLoading(false);
     };
     init();
@@ -53,7 +54,7 @@ const BrokerDocuments = () => {
   }, []);
 
   const handleSigned = (result: { signedAt: string | null; signature: string | null; signatureImage?: string | null; status: string }) => {
-    setOrder((prev: any) =>
+    setOrder((prev) =>
       prev
         ? {
             ...prev,

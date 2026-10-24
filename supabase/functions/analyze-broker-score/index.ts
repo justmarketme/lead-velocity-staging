@@ -105,16 +105,37 @@ Do not invent data. Explain the deterministic results only.
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error in analyze-broker-score:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 });
 
-async function updateAnalysis(supabase: any, id: string, explanation: string) {
+// Minimal shape of the supabase client used here (the Deno-imported client is untyped).
+interface SupabaseLike {
+    from(table: string): {
+        update(values: Record<string, unknown>): { eq(column: string, value: string): PromiseLike<{ error: unknown }> };
+    };
+}
+
+interface Analysis {
+    operational_score: number;
+    budget_score: number;
+    success_probability: number;
+    success_band: string;
+    risk_flags: string[];
+}
+
+interface Responses {
+    crm_usage?: string;
+    speed_to_contact?: string;
+    pricing_comfort?: string;
+}
+
+async function updateAnalysis(supabase: SupabaseLike, id: string, explanation: string) {
     const { error } = await supabase
         .from('broker_analysis')
         .update({ ai_explanation: explanation })
@@ -122,7 +143,7 @@ async function updateAnalysis(supabase: any, id: string, explanation: string) {
     if (error) console.error('Error updating record:', error);
 }
 
-function generateFallbackExplanation(analysis: any, responses: any) {
+function generateFallbackExplanation(analysis: Analysis, responses: Responses) {
     let text = `Operational readiness is ${analysis.operational_score >= 80 ? 'strong' : 'limited'}. `;
     if (responses.crm_usage === 'none') text += "The lack of a CRM system typically lowers conversion efficiency. ";
     if (responses.speed_to_contact === 'nextDay') text += "Delayed lead contact is a significant barrier to success. ";

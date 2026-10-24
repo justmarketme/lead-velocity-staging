@@ -148,7 +148,9 @@ export interface SmcAdminDocument {
   id: Uuid; name: string; description: string | null; file_path: string | null; file_type: string | null;
   category: string | null; content_data: Record<string, unknown> | null; created_at: Ts;
   brand_id: Uuid | null; broker_id: Uuid | null; kind: string | null; version: string | null;
-  doc_sha256: string | null; signed_at: Ts | null; signed_by_name: string | null;
+  doc_sha256: string | null; signed_at: Ts | null;
+  /** migration 20261012120000: who signed, e.g. "Mark Weston (Client); Kgomotso Pule, Director (Lead Velocity)". */
+  signed_by: string | null;
   /** smc_08 (I-30b/c): IP captured server-side from x-forwarded-for; acceptances ticked at signing. */
   signer_ip?: string | null; signer_ip_source?: "x-forwarded-for" | "x-real-ip" | "none" | null;
   acceptances?: SmcAgreementAcceptances | null;

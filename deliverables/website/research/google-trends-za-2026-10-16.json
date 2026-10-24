@@ -1,0 +1,371 @@
+{
+  "geo": "ZA",
+  "period": "past 12 months",
+  "fetched": "2026-10-16T14:24:32.591Z",
+  "groups": [
+    {
+      "terms": [
+        "life insurance",
+        "life cover",
+        "funeral cover",
+        "how to write a will",
+        "estate duty"
+      ],
+      "average": {
+        "life insurance": 54,
+        "life cover": 51,
+        "funeral cover": 76,
+        "how to write a will": 7,
+        "estate duty": 6
+      },
+      "related": {
+        "life insurance": {
+          "top": [
+            "life cover (100)",
+            "life insurance south africa (92)",
+            "what is life insurance (69)",
+            "best life insurance (44)",
+            "discovery life insurance (44)",
+            "credit life insurance (40)",
+            "one life insurance (37)",
+            "life insurance policies (28)",
+            "all life insurance (27)",
+            "sanlam life insurance (24)"
+          ],
+          "rising": [
+            "aig life insurance (+190%)",
+            "shield life insurance (+180%)",
+            "1 life insurance contact details (+110%)",
+            "budget life insurance (+70%)",
+            "best life insurance (+70%)",
+            "what is life insurance (+60%)",
+            "metropolitan life insurance company (+60%)",
+            "standard bank credit life insurance (+50%)",
+            "what is credit life insurance (+50%)",
+            "group life insurance (+40%)"
+          ]
+        },
+        "life cover": {
+          "top": [
+            "life insurance (100)",
+            "life cover insurance (100)",
+            "funeral cover (77)",
+            "what is life cover (57)",
+            "life cover policy (55)",
+            "life policy (54)",
+            "life cover for parents (46)",
+            "sanlam life cover (41)",
+            "life cover old mutual (40)",
+            "old mutual (40)"
+          ],
+          "rising": [
+            "dischem life cover (+60%)",
+            "all life life cover (+40%)",
+            "all life cover (+40%)"
+          ]
+        },
+        "funeral cover": {
+          "top": [
+            "capitec funeral cover (100)",
+            "avbob funeral (76)",
+            "avbob funeral cover (76)",
+            "avbob (76)",
+            "life cover (69)",
+            "funeral policy (64)",
+            "old mutual (62)",
+            "old mutual funeral cover (61)",
+            "fnb funeral cover (60)",
+            "assupol (51)"
+          ],
+          "rising": [
+            "outsurance funeral cover prices (+90%)",
+            "dischem funeral cover (+70%)",
+            "affordable funeral cover (+70%)",
+            "nedbank funeral cover prices (+60%)",
+            "1life funeral cover contact details (+60%)"
+          ]
+        },
+        "how to write a will": {
+          "top": [],
+          "rising": []
+        },
+        "estate duty": {
+          "top": [
+            "estate duty south africa (100)",
+            "estate duty tax (72)",
+            "what is estate duty (70)",
+            "estate duty act (60)"
+          ],
+          "rising": []
+        }
+      }
+    },
+    {
+      "terms": [
+        "life cover",
+        "income protection",
+        "dread disease cover",
+        "disability cover",
+        "critical illness"
+      ],
+      "average": {
+        "life cover": 66,
+        "income protection": 4,
+        "dread disease cover": 0,
+        "disability cover": 1,
+        "critical illness": 1
+      },
+      "related": {
+        "life cover": {
+          "top": [
+            "life insurance (100)",
+            "life cover insurance (100)",
+            "funeral cover (77)",
+            "what is life cover (57)",
+            "life cover policy (55)",
+            "life policy (54)",
+            "life cover for parents (46)",
+            "sanlam life cover (41)",
+            "life cover old mutual (40)",
+            "old mutual (40)"
+          ],
+          "rising": [
+            "dischem life cover (+60%)",
+            "all life life cover (+40%)",
+            "all life cover (+40%)"
+          ]
+        },
+        "income protection": {
+          "top": [
+            "income protection insurance (100)",
+            "income protection cover (45)",
+            "pps income protection (17)",
+            "life insurance (15)",
+            "income protection plan (15)",
+            "what is income protection insurance (8)",
+            "disability income protection insurance (7)",
+            "salary protection insurance (7)"
+          ],
+          "rising": [
+            "disability income protection insurance (Breakout)",
+            "what is income protection insurance (+140%)",
+            "salary protection insurance (+80%)"
+          ]
+        },
+        "dread disease cover": {
+          "top": [],
+          "rising": []
+        },
+        "disability cover": {
+          "top": [],
+          "rising": []
+        },
+        "critical illness": {
+          "top": [
+            "critical illness cover (100)",
+            "critical illness insurance (57)",
+            "critical illness meaning (8)"
+          ],
+          "rising": [
+            "critical illness insurance (+60%)"
+          ]
+        }
+      }
+    },
+    {
+      "terms": [
+        "how to write a will",
+        "executor of estate",
+        "letters of executorship",
+        "inheritance tax",
+        "testamentary trust"
+      ],
+      "average": {
+        "how to write a will": 45,
+        "executor of estate": 23,
+        "letters of executorship": 0,
+        "inheritance tax": 11,
+        "testamentary trust": 2
+      },
+      "related": {
+        "how to write a will": {
+          "top": [],
+          "rising": []
+        },
+        "executor of estate": {
+          "top": [
+            "what is an executor of an estate (100)",
+            "executor of estate meaning (43)"
+          ],
+          "rising": []
+        },
+        "letters of executorship": {
+          "top": [],
+          "rising": []
+        },
+        "inheritance tax": {
+          "error": "failed https://trends.google.com/trends/api/widgetdata/relatedsearches?hl=en-ZA&tz=-120&req=%7B%2"
+        },
+        "testamentary trust": {
+          "top": [
+            "testamentary trust meaning (100)"
+          ],
+          "rising": []
+        }
+      }
+    },
+    {
+      "terms": [
+        "life cover",
+        "credit life insurance",
+        "bond protection",
+        "key person insurance",
+        "buy and sell agreement"
+      ],
+      "average": {
+        "life cover": 66,
+        "credit life insurance": 2,
+        "bond protection": 0,
+        "key person insurance": 0,
+        "buy and sell agreement": 0
+      },
+      "related": {
+        "life cover": {
+          "top": [
+            "life insurance (100)",
+            "life cover insurance (100)",
+            "funeral cover (77)",
+            "what is life cover (57)",
+            "life cover policy (55)",
+            "life cover for parents (46)",
+            "sanlam life cover (41)",
+            "life cover old mutual (40)",
+            "old mutual (40)",
+            "what is a life cover (31)"
+          ],
+          "rising": [
+            "dischem life cover (+60%)",
+            "all life life cover (+40%)"
+          ]
+        },
+        "credit life insurance": {
+          "top": [
+            "what is credit life insurance (100)",
+            "credit life insurance south africa (83)",
+            "credit life insurance standard bank (41)",
+            "absa credit life insurance (40)",
+            "credit life insurance meaning (29)",
+            "nedbank credit life insurance (22)",
+            "wesbank credit life insurance (9)"
+          ],
+          "rising": [
+            "wesbank credit life insurance (+150%)"
+          ]
+        },
+        "bond protection": {
+          "top": [
+            "bond protection plan (100)"
+          ],
+          "rising": []
+        },
+        "key person insurance": {
+          "top": [],
+          "rising": []
+        },
+        "buy and sell agreement": {
+          "top": [],
+          "rising": []
+        }
+      }
+    },
+    {
+      "terms": [
+        "life cover",
+        "financial adviser",
+        "financial planning",
+        "estate planning",
+        "retirement annuity"
+      ],
+      "average": {
+        "life cover": 66,
+        "financial adviser": 3,
+        "financial planning": 16,
+        "estate planning": 3,
+        "retirement annuity": 39
+      },
+      "related": {
+        "life cover": {
+          "top": [
+            "life insurance (100)",
+            "life cover insurance (100)",
+            "funeral cover (77)",
+            "what is life cover (57)",
+            "life cover policy (55)",
+            "life cover for parents (46)",
+            "sanlam life cover (41)",
+            "life cover old mutual (40)",
+            "old mutual (40)",
+            "what is a life cover (31)"
+          ],
+          "rising": [
+            "dischem life cover (+60%)",
+            "all life life cover (+40%)"
+          ]
+        },
+        "financial adviser": {
+          "top": [
+            "standard bank financial adviser debarment (100)"
+          ],
+          "rising": [
+            "standard bank financial adviser debarment (Breakout)"
+          ]
+        },
+        "financial planning": {
+          "top": [
+            "diploma in financial planning (100)",
+            "financial planning jobs (42)",
+            "financial planning courses (41)",
+            "financial planning course (34)",
+            "succession financial planning (26)",
+            "financial planning institute (24)",
+            "cfp (16)",
+            "post graduate diploma in financial planning (14)",
+            "6 steps of financial planning (12)",
+            "six steps of financial planning (8)"
+          ],
+          "rising": [
+            "world financial planning day (Breakout)",
+            "freedom financial planning (+50%)",
+            "succession financial planning (+50%)"
+          ]
+        },
+        "estate planning": {
+          "top": [
+            "what is estate planning (100)",
+            "estate planning meaning (39)",
+            "estate planning attorney (36)",
+            "estate planning lawyer (24)"
+          ],
+          "rising": []
+        },
+        "retirement annuity": {
+          "top": [
+            "retirement annuity fund (100)",
+            "retirement annuity south africa (92)",
+            "what is retirement annuity (58)",
+            "sanlam retirement annuity (55)",
+            "old mutual retirement annuity (43)",
+            "retirement annuity calculator (42)",
+            "retirement calculator (42)",
+            "best retirement annuity (41)",
+            "what is a retirement annuity (37)",
+            "discovery retirement annuity (28)"
+          ],
+          "rising": [
+            "ninety one retirement annuity dispute (Breakout)"
+          ]
+        }
+      }
+    }
+  ]
+}

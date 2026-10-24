@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>15 What's left before launch</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .list { position: absolute; left: 120px; top: 290px; width: 1240px; }
+  .it { display: flex; align-items: center; gap: 18px; padding: 15px 22px; margin-bottom: 10px; }
+  .it .n { width: 38px; height: 38px; border-radius: 50%; background: var(--soft); border: 2px solid var(--line); display: grid; place-items: center; font-weight: 800; color: var(--ink); font-size: 16px; flex: none; }
+  .it.on .n { background: var(--y); border-color: var(--y); color: var(--y-text); }
+  .it b { font-size: 22px; color: var(--ink); }
+  .it span.s { display: block; font-size: 15px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+  .it .who { margin-left: auto; }
+  .side { position: absolute; left: 1420px; top: 290px; width: 380px; padding: 24px 26px; }
+  .side .big { font-size: 64px; font-weight: 800; color: var(--ink); letter-spacing: -.03em; line-height: 1; }
+  .side p { font-size: 17px; color: var(--muted); font-weight: 600; margin-top: 8px; }
+  .side .row { display: flex; justify-content: space-between; font-size: 17px; font-weight: 700; color: var(--ink); padding: 10px 0; border-top: 1px solid var(--soft); margin-top: 6px; }
+</style></head>
+<body data-scene="s15"><div class="stage">
+  <div class="top"><div class="eyebrow">Before launch</div><h1 class="h">What's left, <em>in order</em></h1></div>
+  <div class="list">
+    <div class="card it i1"><div class="n">1</div><div><b>Upload the new website</b><span class="s">Built and checked; your OK to go live. Plus a SortMyCover Cal.com account for the desktop calendar</span></div><span class="who jono">Jono</span></div>
+    <div class="card it i2"><div class="n">2</div><div><b>leadvelocity.co.za email records</b><span class="s">Remove the duplicate DMARC, add Outlook to SPF (GoDaddy)</span></div><span class="who jono">Jono</span></div>
+    <div class="card it i3"><div class="n">3</div><div><b>3 reminder templates + a brand-new-number test</b><span class="s">What to expect, prep tip, 10-minute reminder; then one first contact end to end</span></div><span class="who claude">Claude</span></div>
+    <div class="card it i4"><div class="n">4</div><div><b>Mark approves his ads</b><span class="s">8 waiting in his portal</span></div><span class="who mark">Mark</span></div>
+    <div class="card it i5"><div class="n">5</div><div><b>Test adviser off, route leads to Mark</b><span class="s">And cancel the test booking</span></div><span class="who claude">Claude</span></div>
+    <div class="card it i6"><div class="n">6</div><div><b>Publish</b><span class="s">Small budget this weekend, full run from Monday</span></div><span class="who jono">Jono</span></div>
+    <div class="card it i7"><div class="n">7</div><div><b>Tell Mark</b><span class="s">Last, once it's all live</span></div><span class="who claude">Last</span></div>
+  </div>
+  <div class="card side"><div class="lbl">Mark's order</div><div class="big">20</div><p>leads paid for · SortMyCover Bronze</p>
+    <div class="row"><span>Paid</span><span>R16,500</span></div><div class="row"><span>Delivered so far</span><span>0</span></div><div class="row"><span>Counts when</span><span>booked + attended</span></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    const at = [cue('upload'), cue('leadvelocity'), cue('templates'), cue('approves'), cue('switch'), cue('Publish'), cue('tell')];
+    $$('.it').forEach((el, i) => { rv(el, t, at[i] - .4, { x: -24, y: 0, dur: .5 }); el.classList.toggle('on', t >= at[i] && (i === 6 || t < at[i + 1])); });
+    rv('.side', t, 1.2, { x: 30, y: 0, dur: .8 });
+  };
+</script></body></html>

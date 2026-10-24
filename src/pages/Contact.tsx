@@ -1,3 +1,4 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { useState } from "react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
@@ -49,7 +50,7 @@ const Contact = () => {
       contactSchema.parse(formData);
 
       // Persist the enquiry — this form previously discarded every submission.
-      const { data: saved, error: saveError } = await (supabase as any)
+      const { data: saved, error: saveError } = await supabaseUntyped
         .from("contact_submissions")
         .insert({
           name: formData.name.trim(),

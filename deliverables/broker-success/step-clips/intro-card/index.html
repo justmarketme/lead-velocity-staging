@@ -1,0 +1,541 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your Intro Card</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=Inter:wght@400;500;600;700;800;900&display=swap">
+<style>
+/* Portrait step clip, 720x1280. Every visual is a pure function of the clock (window.seek), so frames are exact.
+   Outside the phone: the Lead Velocity film look (paper, navy, pink-to-purple). Inside the phone: the /broker-elite
+   portal as it renders on a phone (dark #050816, pink/rose accents, Inter), copy verbatim from the components. */
+:root {
+  --navy: #0f172a; --ink: #1e293b; --slate: #475569; --muted: #64748b; --line: #e2e8f0;
+  --paper: #f7f5fb; --pink: #db2777; --purple: #9333ea; --grad: linear-gradient(100deg, #db2777, #9333ea);
+  --lv: "DM Sans", "Segoe UI", system-ui, sans-serif; --app: "Inter", "Segoe UI", system-ui, sans-serif;
+  /* portal (tailwind) */
+  --bg: #050816; --s200: #e2e8f0; --s300: #cbd5e1; --s400: #94a3b8; --s500: #64748b; --pk4: #f472b6; --pk5: #ec4899; --pk6: #db2777;
+  --ro4: #fb7185; --ro6: #e11d48; --em4: #34d399; --em5: #10b981; --am3: #fcd34d;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #1b1530; }
+body { font-family: var(--lv); -webkit-font-smoothing: antialiased; }
+.holder { display: grid; place-items: center; min-height: 100vh; padding: 16px; gap: 12px; }
+.render .holder { padding: 0; min-height: 0; display: block; }
+#stage { position: relative; width: 720px; height: 1280px; overflow: hidden; background: var(--paper); color: var(--slate); transform-origin: top left; }
+#stage::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(70% 45% at 0% 0%, rgba(219,39,119,.13), transparent 70%),
+  radial-gradient(70% 45% at 100% 100%, rgba(147,51,234,.14), transparent 70%); }
+.top { position: absolute; left: 0; right: 0; top: 0; height: 176px; z-index: 5; pointer-events: none;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper) 96%, rgba(247,245,251,0) 100%); }
+.top::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 8px; background: var(--grad); }
+.brand { position: absolute; left: 40px; right: 40px; top: 22px; height: 82px; display: flex; align-items: center; gap: 14px; }
+.brand img { width: 56px; height: 56px; }
+.brand .nm { font-weight: 800; color: var(--navy); font-size: 24px; letter-spacing: -.01em; line-height: 1.1; }
+.brand .nm small { display: block; font-size: 15px; font-weight: 700; color: var(--pink); letter-spacing: .12em; text-transform: uppercase; }
+.dots { margin-left: auto; display: flex; gap: 6px; }
+.dots i { width: 30px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; position: relative; }
+.dots i b { position: absolute; inset: 0; background: var(--grad); transform-origin: left; transform: scaleX(0); }
+
+/* scene layer: the step strip under the brand bar + callouts (above the phone) */
+.scene { position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0; }
+.strip { position: absolute; left: 40px; right: 40px; top: 106px; height: 56px; display: flex; align-items: center; gap: 14px; }
+.strip .n { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--grad); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 22px; }
+.strip .t { font-size: 30px; font-weight: 800; color: var(--navy); letter-spacing: -.02em; }
+.call { position: absolute; left: 36px; right: 36px; background: #fff; border-radius: 20px; padding: 16px 20px 16px 22px; border-left: 7px solid var(--pink);
+  box-shadow: 0 2px 4px rgba(15,23,42,.06), 0 24px 44px -20px rgba(15,23,42,.45); color: var(--navy); font-size: 26px; font-weight: 800; line-height: 1.22; letter-spacing: -.01em; opacity: 0; }
+.call small { display: block; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; color: var(--pink); margin-bottom: 4px; }
+
+/* phone */
+#phone { position: absolute; left: 125px; top: 172px; width: 470px; height: 896px; border-radius: 52px; background: #0b0d14; z-index: 2; transform-origin: 0 0;
+  box-shadow: 0 0 0 2px #2b2f3d, 0 40px 80px -30px rgba(15,23,42,.65), 0 10px 24px -8px rgba(15,23,42,.35); }
+#phone .screen { position: absolute; inset: 10px; border-radius: 42px; overflow: hidden; background: var(--bg); }
+.ui { position: absolute; left: 0; top: 0; width: 390px; height: 759px; transform: scale(1.153846); transform-origin: 0 0; font-family: var(--app); color: var(--s200); font-size: 14px; line-height: 1.43; }
+.pv { position: absolute; inset: 0; background: var(--bg); overflow: hidden; opacity: 0; visibility: hidden; }
+.pv .glow { position: absolute; left: 0; right: 0; top: 0; height: 420px; background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(236,72,153,.10), transparent 70%); pointer-events: none; }
+.sbar { position: absolute; left: 0; right: 0; top: 0; height: 30px; display: flex; align-items: center; justify-content: space-between; padding: 4px 26px 0 30px; font-size: 14px; font-weight: 600; color: #fff; z-index: 3; }
+.sbar svg { height: 12px; }
+.hdr { position: absolute; left: 0; right: 0; top: 30px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 16px; z-index: 3; background: rgba(5,8,22,.85); }
+.hdr .l { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.hdr img { width: 32px; height: 32px; object-fit: contain; }
+.hdr .f { font-size: 14px; font-weight: 600; color: #fff; line-height: 1.35; }
+.hdr .p { font-size: 12px; color: var(--s400); line-height: 1.3; }
+.hdr .av { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); display: grid; place-items: center; font-size: 14px; font-weight: 600; color: #fff; flex: none; }
+.vp { position: absolute; left: 0; right: 0; top: 94px; bottom: 78px; overflow: hidden; }
+.sc { padding: 8px 16px 40px; }
+.bnav { position: absolute; left: 0; right: 0; bottom: 0; height: 78px; border-top: 1px solid rgba(255,255,255,.08); background: rgba(7,11,26,.95); display: grid; grid-template-columns: repeat(5, 1fr); padding-bottom: 18px; z-index: 3; }
+.bnav span { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--s400); }
+.bnav span svg { width: 20px; height: 20px; }
+.bnav span.on { color: #fff; } .bnav span.on svg { color: var(--pk4); }
+.bnav span.on::before { content: ""; position: absolute; top: 0; left: 50%; width: 40px; height: 2px; margin-left: -20px; border-radius: 2px; background: var(--pk4); }
+.bnav::after { content: ""; position: absolute; left: 50%; bottom: 7px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: rgba(255,255,255,.85); }
+svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* dashboard: Getting started */
+h1.hi { margin: 0; font-size: 24px; line-height: 32px; font-weight: 700; color: #fff; }
+.firmline { margin: 4px 0 0; color: var(--s400); font-size: 16px; }
+.gs { margin-top: 24px; border-radius: 28px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(180deg, rgba(255,255,255,.04), transparent); }
+.gs .h { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
+.gs .h b { display: block; font-size: 20px; line-height: 28px; font-weight: 700; color: #fff; }
+.gs .h small { display: block; font-size: 14px; color: var(--s400); margin-top: 4px; }
+.gs .bar { margin-top: 12px; height: 6px; width: 192px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; }
+.gs .bar i { display: block; height: 100%; width: 50%; border-radius: 99px; background: linear-gradient(90deg, var(--pk5), var(--ro4)); }
+.gs .chev { flex: none; border-radius: 50%; border: 1px solid rgba(255,255,255,.1); padding: 8px; color: var(--s300); display: grid; transform: rotate(180deg); }
+.gs .chev svg { width: 20px; height: 20px; }
+.gs .bd { padding: 0 20px 24px; }
+.gs h3 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #fff; }
+.st { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.st li { border-radius: 16px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.02); padding: 16px; display: flex; align-items: flex-start; gap: 12px; }
+.st li.dn { border-color: rgba(16,185,129,.2); background: rgba(16,185,129,.04); }
+.st .ck { margin-top: 2px; flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); display: grid; place-items: center; }
+.st li.dn .ck { border-color: var(--em4); background: var(--em4); color: #020617; }
+.st li.dn .ck svg { width: 16px; height: 16px; stroke-width: 3; }
+.st .tx { flex: 1; min-width: 0; }
+.st .tx b { display: block; font-weight: 500; color: #fff; font-size: 16px; line-height: 24px; }
+.st li.dn .tx b { color: var(--s300); }
+.st .tx span { display: block; font-size: 14px; color: var(--s400); margin-top: 2px; line-height: 20px; }
+.act { flex: none; display: inline-flex; min-height: 44px; align-items: center; gap: 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,.15); padding: 0 12px; font-size: 14px; font-weight: 600; color: #fff; }
+.st li.on { box-shadow: 0 0 0 2px var(--pk4), 0 0 30px -6px rgba(236,72,153,.6); }
+
+/* intro card editor (tone elite) */
+.card { background: rgba(15,23,42,.4); border: 1px solid rgba(255,255,255,.05); border-radius: 24px; color: var(--s200); }
+.card .chd { padding: 24px 24px 12px; display: grid; gap: 6px; }
+.card .ttl { font-size: 18px; line-height: 28px; font-weight: 900; color: #fff; letter-spacing: -.025em; }
+.card .dsc { font-size: 14px; color: var(--s400); }
+.card .cct { padding: 0 24px 24px; display: grid; gap: 20px; }
+.box-warn { padding: 12px; font-size: 14px; border-radius: 8px; background: rgba(245,158,11,.1); color: var(--am3); border: 1px solid rgba(245,158,11,.2); }
+.box-ok { border-radius: 8px; padding: 8px 12px; font-size: 14px; background: rgba(16,185,129,.1); color: var(--em4); border: 1px solid rgba(16,185,129,.2); }
+.cl { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.cl li { display: flex; align-items: center; gap: 8px; }
+.cl .yes { color: var(--em5); } .cl .no { color: var(--s400); }
+.cl li .yes { display: none; } .cl li.done .yes { display: block; } .cl li.done .no { display: none; }
+.f { display: grid; gap: 8px; }
+.lbl { font-size: 14px; font-weight: 500; line-height: 1; color: var(--s200); }
+.hs { display: flex; align-items: center; gap: 16px; }
+.hs .ph { width: 64px; height: 64px; border-radius: 50%; flex: none; display: grid; place-items: center; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.05); color: var(--s400); overflow: hidden; position: relative; }
+.hs .ph svg.i { width: 24px; height: 24px; }
+.hs .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.hs .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.hb { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; padding: 0 16px; font-size: 14px; font-weight: 600; }
+.hb.pri { background: linear-gradient(90deg, var(--pk6), var(--ro6)); color: #fff; }
+.hb.sec { border: 1px solid rgba(226,232,240,.2); color: var(--s200); }
+.hb.sec.on { box-shadow: 0 0 0 2px var(--pk4), 0 0 26px -4px rgba(236,72,153,.7); }
+.xs { font-size: 12px; line-height: 16px; color: var(--s400); margin: 0; }
+.ta { position: relative; min-height: 80px; border-radius: 6px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); padding: 8px 12px; font-size: 14px; line-height: 20px; color: #fff; }
+.ta.on { border-color: rgba(244,114,182,.7); box-shadow: 0 0 0 2px rgba(236,72,153,.25); }
+.ta .ph2 { color: var(--s500); }
+.caret { display: inline-block; width: 1.5px; height: 17px; background: #fff; vertical-align: -3px; margin-left: 1px; }
+.in2 { height: 40px; border-radius: 6px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); padding: 0 12px; display: flex; align-items: center; font-size: 14px; color: #fff; }
+.langs { display: flex; flex-wrap: wrap; gap: 8px; }
+.langs span { border-radius: 99px; padding: 6px 12px; font-size: 12px; line-height: 16px; font-weight: 600; border: 1px solid rgba(255,255,255,.1); color: var(--s300); }
+.langs span.on { background: var(--pk6); border-color: var(--pk6); color: #fff; }
+.save { height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 500; color: #fff; background: linear-gradient(90deg, var(--pk6), var(--ro6)); }
+.spin { width: 16px; height: 16px; }
+.gr { overflow: hidden; }
+.pvl { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; color: var(--s400); margin: 24px 0 8px; }
+/* WhatsApp preview (IntroCardPreview) */
+.wa { border-radius: 16px; padding: 12px; background: #0b141a; margin: 0; }
+.wa .bub { max-width: 340px; border-radius: 12px; overflow: hidden; background: #202c33; color: #e9edef; box-shadow: 0 10px 15px -3px rgba(0,0,0,.3); }
+.wa .hd { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 20px; text-align: center; background: linear-gradient(160deg,#0f3d3e 0%,#14532d 55%,#052e16 100%); }
+.wa .hd img { width: 112px; height: 112px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 4px rgba(255,255,255,.2); }
+.wa .nmx { font-size: 20px; line-height: 1.25; font-weight: 800; }
+.wa .fm { font-size: 14px; font-weight: 600; opacity: .9; }
+.wa .fs { font-size: 12px; opacity: .8; }
+.wa .bio { font-size: 12px; opacity: .9; max-width: 260px; line-height: 1.375; }
+.wa .lg { font-size: 11px; opacity: .75; }
+.wa .by { margin-top: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; border-radius: 99px; padding: 4px 12px; background: rgba(255,255,255,.12); }
+.wa .msg { padding: 8px 12px; font-size: 13px; line-height: 1.375; }
+.wa .tm { text-align: right; font-size: 10px; margin-top: 4px; color: #8696a0; }
+.wa figcaption { font-size: 11px; margin-top: 8px; color: #8696a0; }
+.vid { margin-top: 24px; padding: 24px; }
+.vid b { font-size: 16px; color: #fff; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+
+/* camera (the phone's own camera app) */
+.cam { background: #000; }
+.cam .vf { position: absolute; left: 0; right: 0; top: 96px; height: 520px; overflow: hidden; }
+.cam .vf img { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.cam .tb { position: absolute; left: 0; right: 0; top: 34px; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; color: #fff; }
+.cam .tb span { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.14); display: grid; place-items: center; }
+.cam .mode { position: absolute; left: 0; right: 0; top: 628px; text-align: center; font-size: 13px; font-weight: 700; letter-spacing: .12em; color: #ffd60a; }
+.cam .ctl { position: absolute; left: 0; right: 0; top: 656px; height: 80px; display: flex; align-items: center; justify-content: space-between; padding: 0 44px; }
+.cam .thumb { width: 46px; height: 46px; border-radius: 10px; background: #2a2a2e; border: 1px solid #444; }
+.cam .shut { width: 74px; height: 74px; border-radius: 50%; border: 4px solid #fff; display: grid; place-items: center; }
+.cam .shut i { width: 60px; height: 60px; border-radius: 50%; background: #fff; display: block; }
+.cam .flip { width: 46px; height: 46px; border-radius: 50%; background: rgba(255,255,255,.14); display: grid; place-items: center; color: #fff; }
+.cam .flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+.cam .own { position: absolute; left: 0; right: 0; top: 108px; text-align: center; }
+.cam .own span { font-size: 12px; font-weight: 600; color: #fff; background: rgba(0,0,0,.5); padding: 4px 10px; border-radius: 99px; }
+
+/* captions + touch */
+.cap { position: absolute; left: 0; right: 0; bottom: 0; height: 210px; display: grid; place-items: center; padding: 0 44px 28px; z-index: 8; }
+.cap span { font-size: 31px; line-height: 1.25; font-weight: 700; color: #fff; text-align: center; background: rgba(15,23,42,.86); padding: 12px 20px; border-radius: 16px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.cap span:empty { display: none; }
+.finger { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; z-index: 9; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 40% 35%, rgba(255,255,255,.62), rgba(255,255,255,.38)); border: 2px solid rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(15,23,42,.35), 0 6px 14px rgba(15,23,42,.35); }
+.ring { position: absolute; left: 0; top: 0; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; border: 3px solid var(--pk5); z-index: 9; opacity: 0; pointer-events: none; }
+
+/* poster (title card), shown only by render.mjs */
+.poster { display: none; position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+.posterOn .poster { display: block; }
+.posterOn #stage { background: #0b0f24; }
+.posterOn #stage::before { background: radial-gradient(60% 40% at 10% 0%, rgba(219,39,119,.35), transparent 70%), radial-gradient(60% 40% at 100% 30%, rgba(147,51,234,.35), transparent 70%), radial-gradient(50% 30% at 80% 100%, rgba(249,115,22,.22), transparent 70%); }
+.posterOn .top, .posterOn .scene, .posterOn .cap, .posterOn .finger, .posterOn .ring { display: none; }
+.poster .pb { position: absolute; left: 48px; top: 56px; display: flex; align-items: center; gap: 14px; }
+.poster .pb img { width: 60px; height: 60px; }
+.poster .pb span { font-size: 18px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #fff; }
+.poster .pe { position: absolute; left: 48px; top: 170px; font-size: 19px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #f9a8d4; }
+.poster h1 { position: absolute; left: 48px; right: 48px; top: 206px; margin: 0; font-size: 76px; line-height: .98; font-weight: 800; letter-spacing: -.035em; color: #fff; }
+.poster h1 em { font-style: normal; background: linear-gradient(95deg, #f472b6, #c084fc 55%, #fb923c); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.poster .ps { position: absolute; left: 48px; right: 48px; top: 470px; font-size: 25px; line-height: 1.35; color: #cbd5e1; font-weight: 500; }
+.poster .play { position: absolute; right: 48px; top: 56px; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); border-radius: 99px; padding: 8px 18px 8px 8px; color: #fff; font-size: 20px; font-weight: 700; }
+.poster .play i { width: 44px; height: 44px; border-radius: 50%; background: var(--grad); display: grid; place-items: center; }
+.poster .play i::after { content: ""; border-left: 15px solid #fff; border-top: 10px solid transparent; border-bottom: 10px solid transparent; margin-left: 4px; }
+
+.ctlp { display: flex; gap: 10px; align-items: center; color: #e2e8f0; font: 600 14px var(--lv); }
+.ctlp button { border: 0; border-radius: 99px; padding: 10px 18px; background: var(--grad); color: #fff; font: inherit; cursor: pointer; }
+.render .ctlp { display: none; }
+@media (prefers-reduced-motion: reduce) { .finger, .ring { display: none; } }
+</style>
+
+<!-- lucide icons used by the portal -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-fold" viewBox="0 0 24 24"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+  <symbol id="i-img" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+  <symbol id="i-okc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-circ" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-load" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+  <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+</svg>
+
+<div class="holder">
+<div id="stage">
+  <div class="top"><div class="brand"><img src="logo.png" alt=""><div class="nm"><small>Lead Velocity · Getting started</small>Add your photo and a short bio</div><div class="dots" id="dots"></div></div></div>
+
+  <!-- scene layers: step strip + callouts. Phone beats below name their scene with data-s. -->
+  <section class="scene" data-id="s01">
+    <div class="strip"><span class="n">1</span><span class="t">Your photo</span></div>
+  </section>
+  <section class="scene" data-id="s02">
+    <div class="strip"><span class="n">2</span><span class="t">Two lines about you</span></div>
+    <div class="call b" data-at="'40-0.2" data-until="No-0.25" style="top:860px"><small>Two lines about you</small>40 to 220 characters</div>
+    <div class="call b" data-at="No" data-until="Tap-0.4" style="top:860px"><small>The rule under the box</small>Who you help and how you work. No product names, prices, “best” or promises.</div>
+  </section>
+
+  <div id="phone" data-zoom="s01:0=>1; s01:photo#1-0.3=>1.18,235,420; s01:This-0.2=>1; s02:0.15=>1.42,235,430; s02:Tap-0.7=>1; s02:Below+0.3=>1.12,235,520">
+    <div class="screen"><div class="ui">
+
+      <!-- 1. Dashboard: Getting started (GettingStarted.tsx) -->
+      <div class="pv v" data-s="s01" data-at="0" data-until="This" data-anim="tab">
+        <div class="glow"></div>
+        <div class="sbar"><span>09:41</span><svg viewBox="0 0 64 12" fill="#fff"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><path d="M27 4.5a8 8 0 0 1 11 0l-1.4 1.4a6 6 0 0 0-8.2 0zM29.8 7.3a4 4 0 0 1 5.4 0L32.5 10z"/><rect x="44" y="1" width="18" height="10" rx="3" fill="none" stroke="#fff" stroke-width="1.2"/><rect x="46" y="3" width="13" height="6" rx="1.5"/><rect x="62.5" y="4" width="1.5" height="4" rx=".7"/></svg></div>
+        <div class="hdr"><div class="l"><img src="logo.png" alt=""><div><div class="f">Daniels Financial Planning</div><div class="p">Bronze plan</div></div></div><div class="av">SD</div></div>
+        <div class="vp"><div class="sc" data-scroll="s01:0=>0; s01:find-0.1=>@st-intro-190">
+          <h1 class="hi">Hi Sam</h1>
+          <p class="firmline">Daniels Financial Planning</p>
+          <section class="gs">
+            <div class="h"><div><b>Getting started</b><small>3 of 6 done</small><div class="bar"><i></i></div></div><span class="chev"><svg class="i"><use href="#i-chev"/></svg></span></div>
+            <div class="bd">
+              <h3>What you need to do</h3>
+              <ol class="st">
+                <li class="dn"><span class="ck"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><b>Review your signed agreement</b><span>Signed and saved in Documents.</span></div><span class="act">Open</span></li>
+                <li class="dn"><span class="ck"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><b>Pay your first invoice</b><span>Paid on 12 October 2026.</span></div></li>
+                <li class="dn"><span class="ck"><svg class="i"><use href="#i-check"/></svg></span><div class="tx"><b>Confirm your FSP number</b><span>FSP 12345 · Daniels Financial Planning</span></div><span class="act">Edit</span></li>
+                <li id="st-intro" data-at="photo#1" data-until="This"><span class="ck"></span><div class="tx"><b>Add your photo and a short bio</b><span>Clients see these when they book a call with you.</span></div><span class="act" data-click="them.">Add them</span></li>
+                <li><span class="ck"></span><div class="tx"><b>Confirm your business WhatsApp number</b><span>New leads and bookings are sent to this number.</span></div><span class="act">Add it</span></li>
+                <li><span class="ck"></span><div class="tx"><b>Connect your Outlook calendar</b><span>So clients can book a Teams call in your real free time.</span></div><span class="act">What you'll be asked</span></li>
+              </ol>
+            </div>
+          </section>
+        </div></div>
+        <nav class="bnav"><span class="on"><svg class="i"><use href="#i-dash"/></svg>Home</span><span><svg class="i"><use href="#i-db"/></svg>Leads</span><span><svg class="i"><use href="#i-cal"/></svg>Appointments</span><span><svg class="i"><use href="#i-fold"/></svg>Documents</span><span><svg class="i"><use href="#i-more"/></svg>More</span></nav>
+      </div>
+
+      <!-- 2. Your intro card (IntroCardEditor.tsx, tone elite; on phones the tab sits under More) -->
+      <div class="pv v" data-s="s01" data-at="This" data-anim="tab">
+        <div class="glow"></div>
+        <div class="sbar"><span>09:41</span><svg viewBox="0 0 64 12" fill="#fff"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><path d="M27 4.5a8 8 0 0 1 11 0l-1.4 1.4a6 6 0 0 0-8.2 0zM29.8 7.3a4 4 0 0 1 5.4 0L32.5 10z"/><rect x="44" y="1" width="18" height="10" rx="3" fill="none" stroke="#fff" stroke-width="1.2"/><rect x="46" y="3" width="13" height="6" rx="1.5"/><rect x="62.5" y="4" width="1.5" height="4" rx=".7"/></svg></div>
+        <div class="hdr"><div class="l"><img src="logo.png" alt=""><div><div class="f">Daniels Financial Planning</div><div class="p">Bronze plan</div></div></div><div class="av">SD</div></div>
+        <div class="vp"><div class="sc" data-scroll="s01:0=>0; s02:0=>@f-bio-150; s02:Tap-0.7=>@save-330; s02:Below-0.1=>@pvl-30">
+          <div class="card">
+            <div class="chd"><div class="ttl">Your intro card</div><div class="dsc">What a SortMyCover client sees on WhatsApp the moment they book a call with you.</div></div>
+            <div class="cct">
+              <div class="box-warn">Almost there. Finish the items below.</div>
+              <ul class="cl">
+                <li id="ck-photo"><svg class="i yes"><use href="#i-okc"/></svg><svg class="i no"><use href="#i-circ"/></svg>A headshot</li>
+                <li id="ck-bio"><svg class="i yes"><use href="#i-okc"/></svg><svg class="i no"><use href="#i-circ"/></svg>Two lines about you</li>
+                <li class="done"><svg class="i yes"><use href="#i-okc"/></svg><svg class="i no"><use href="#i-circ"/></svg>Practice name</li>
+                <li class="done"><svg class="i yes"><use href="#i-okc"/></svg><svg class="i no"><use href="#i-circ"/></svg>FSP number (required before you go live)</li>
+                <li class="done"><svg class="i yes"><use href="#i-okc"/></svg><svg class="i no"><use href="#i-circ"/></svg>At least one language</li>
+              </ul>
+              <div class="f">
+                <div class="lbl">Headshot</div>
+                <div class="hs">
+                  <div class="ph"><svg class="i"><use href="#i-cam"/></svg><img class="headshot sh" data-s="s01" data-at="Or-0.35" alt=""></div>
+                  <div class="btns">
+                    <span class="hb pri" data-s="s01" data-click="Take"><svg class="i"><use href="#i-cam"/></svg>Take photo</span>
+                    <span class="hb sec" data-s="s01" data-at="Choose" data-until="s02:0.2" data-point="Choose"><svg class="i"><use href="#i-img"/></svg>Choose file</span>
+                  </div>
+                </div>
+                <p class="xs sh" data-s="s01" data-at="0" data-until="Or-0.35">Plain background, looking at the camera. Any photo works; we resize it. Stored privately; only you and Lead Velocity can open it.</p>
+                <p class="xs sh" data-s="s01" data-at="Or-0.35" data-until="s02:Save+0.7">New photo ready. Tap Save my intro card to keep it.</p>
+                <p class="xs sh" data-s="s02" data-at="Save+0.7">Plain background, looking at the camera. Any photo works; we resize it. Stored privately; only you and Lead Velocity can open it.</p>
+              </div>
+              <div class="f" id="f-bio">
+                <div class="lbl">Two lines about you</div>
+                <div class="ta" data-s="s02" data-at="write-0.3" data-until="characters.+0.6"><span class="ph2" id="bio-ph">I help young families in Cape Town make sure their cover fits their life. Calm, plain-language calls.</span><span id="bio" data-s="s02" data-type="write=>characters.-0.2" data-text="I help young families and small business owners in Pretoria make sure their cover fits their life. Calm, plain-language calls."></span></div>
+                <p class="xs">Who you help and how you work. No product names, prices, "best" or promises. <span id="bio-n">0</span>/220</p>
+              </div>
+              <div class="f"><div class="lbl">Practice name</div><div class="in2">Daniels Financial Planning</div></div>
+              <div class="f" style="margin-top:-4px"><div class="lbl">FSP number</div><div class="in2">12345</div></div>
+              <p class="xs" style="margin-top:-12px">As on your FSP licence. We check it on the FSCA register.</p>
+              <div class="f"><div class="lbl">Languages you advise in</div>
+                <div class="langs"><span class="on">English</span><span>Afrikaans</span><span>isiZulu</span><span>isiXhosa</span><span>Sesotho</span><span>Setswana</span><span>Sepedi</span><span>Xitsonga</span><span>Tshivenda</span><span>siSwati</span><span>isiNdebele</span></div></div>
+              <div><!-- CardContent is space-y-5: the saved note and the button each get a 20 px top margin -->
+                <div class="gr" data-s="s02" data-at="Save+0.7"><div class="box-ok" style="margin-bottom:20px">Saved. Your card updates in a minute.</div></div>
+                <div class="save" id="save" data-s="s02" data-click="Save">
+                  <span class="sh" data-s="s02" data-at="0" data-until="Save+0.05">Save my intro card</span>
+                  <span class="sh" data-s="s02" data-at="Save+0.05" data-until="Save+0.7" style="display:flex;align-items:center;gap:8px"><svg class="i spin" id="spin"><use href="#i-load"/></svg>Saving…</span>
+                  <span class="sh" data-s="s02" data-at="Save+0.7">Save my intro card</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="pvl" id="pvl">Preview: what the client sees</p>
+          <figure class="wa">
+            <div class="bub">
+              <div class="hd">
+                <img class="headshot" alt="">
+                <div class="nmx">Sam Daniels</div>
+                <div class="fm">Daniels Financial Planning</div>
+                <div class="fs">FSP 12345 · Authorised financial services provider</div>
+                <div class="bio" id="wa-bio"></div>
+                <div class="lg">Speaks English</div>
+                <div class="by">Introduced by SortMyCover</div>
+              </div>
+              <div class="msg">Hi Lerato, thanks for your insurance and financial planning enquiry. Your details have been passed to <b>Daniels Financial Planning (FSP 12345)</b>, an authorised financial services provider. <b>Sam Daniels</b> will be your adviser for your Teams call on <b>Tue 6 Oct at 10:00</b>. Our WhatsApp assistant uses AI. Reply STOP to opt out.<div class="tm">09:41</div></div>
+            </div>
+            <figcaption>Example only: fictional client and time. The disclosure wording is fixed by our compliance check and is the same for every client.</figcaption>
+          </figure>
+          <div class="card vid"><b><svg class="i"><use href="#i-video"/></svg>Intro video (optional)</b><p class="xs" style="margin-top:6px;font-size:14px;line-height:20px">A 25-second hello that clients get before the call. Not needed to go live.</p></div>
+        </div></div>
+        <nav class="bnav"><span><svg class="i"><use href="#i-dash"/></svg>Home</span><span><svg class="i"><use href="#i-db"/></svg>Leads</span><span><svg class="i"><use href="#i-cal"/></svg>Appointments</span><span><svg class="i"><use href="#i-fold"/></svg>Documents</span><span class="on"><svg class="i"><use href="#i-more"/></svg>More</span></nav>
+      </div>
+
+      <!-- 3. The phone's own camera (HeadshotPicker: capture="user" opens the front camera on phones) -->
+      <div class="pv v cam" data-s="s01" data-at="open" data-until="Or-0.45" data-anim="up">
+        <div class="tb"><span><svg class="i" style="width:18px;height:18px"><use href="#i-bolt"/></svg></span><span style="background:none"></span></div>
+        <div class="vf"><img class="headshot" alt=""></div>
+        <div class="own"><span>Your phone's camera</span></div>
+        <div class="mode">PHOTO</div>
+        <div class="ctl"><span class="thumb"></span><span class="shut" data-s="s01" data-click="picture.-0.15"><i></i></span><span class="flip"><svg class="i" style="width:22px;height:22px"><use href="#i-flip"/></svg></span></div>
+        <div class="flash b" data-s="s01" data-at="picture.-0.12" data-until="picture.+0.02"></div>
+      </div>
+
+    </div></div>
+  </div>
+
+  <div class="poster">
+    <div class="pb"><img src="logo.png" alt=""><span>Lead Velocity</span></div>
+    <div class="play"><i></i><span id="pdur">0:00</span></div>
+    <div class="pe">Getting started · Your intro card</div>
+    <h1>Add your <em>photo</em> and a short <em>bio</em></h1>
+    <div class="ps">Take a photo, write two lines about you, save. This is what clients see on WhatsApp when they book.</div>
+  </div>
+
+  <div class="finger" id="finger"></div>
+  <div class="ring" id="ring"></div>
+  <div class="cap"><span id="cap"></span></div>
+</div>
+<div class="ctlp"><button id="play" type="button">Play</button><span id="time"></span></div>
+</div>
+<audio id="vo" preload="auto"></audio>
+<script src="timings.js"></script>
+<script>
+(() => {
+  const T = window.TIMINGS, LEAD = T.lead, FADE = .45;
+  const qs = location.search;
+  const render = qs.includes('render');
+  if (render) document.documentElement.classList.add('render');
+  const reduce = !render && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stage = document.getElementById('stage'), finger = document.getElementById('finger'), ring = document.getElementById('ring'), cap = document.getElementById('cap');
+  const phone = document.getElementById('phone');
+  const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = x => 1 - Math.pow(1 - x, 3);
+  const inout = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+
+  // Illustrated (not a real person) headshot, used in the camera, the 64 px circle and the WhatsApp card.
+  const FACE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dfe3ea"/><stop offset="1" stop-color="#c6ccd6"/></linearGradient></defs>
+<rect width="300" height="300" fill="url(#w)"/>
+<path d="M40 300c6-58 46-86 110-86s104 28 110 86z" fill="#1f3b63"/>
+<path d="M122 214l28 40 28-40-10-8h-36z" fill="#f4f6fa"/>
+<path d="M150 254l-9 46h18z" fill="#7a2949"/>
+<path d="M128 178h44v40c0 10-44 10-44 0z" fill="#a8704c"/>
+<ellipse cx="96" cy="134" rx="10" ry="15" fill="#b57b55"/><ellipse cx="204" cy="134" rx="10" ry="15" fill="#b57b55"/>
+<ellipse cx="150" cy="128" rx="54" ry="64" fill="#bd8460"/>
+<path d="M94 124c-4-44 22-70 58-70 36 0 60 24 56 68-6-18-14-28-26-34-20 10-52 12-88 36z" fill="#2a1d17"/>
+<path d="M120 122c6-4 14-4 20 0M160 122c6-4 14-4 20 0" stroke="#2a1d17" stroke-width="4" fill="none" stroke-linecap="round"/>
+<ellipse cx="130" cy="134" rx="5" ry="5.5" fill="#2a1d17"/><ellipse cx="170" cy="134" rx="5" ry="5.5" fill="#2a1d17"/>
+<path d="M150 140c-3 10-6 16-1 18" stroke="#9a6545" stroke-width="3" fill="none" stroke-linecap="round"/>
+<path d="M132 166c10 9 26 9 36 0" stroke="#7a3b2a" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+  const FACE_URL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(FACE);
+  document.querySelectorAll('img.headshot').forEach(i => { i.src = FACE_URL; });
+
+  const sceneEls = [...document.querySelectorAll('.scene')];
+  const meta = sceneEls.map((el, i) => ({ el, i, ...T.scenes[i] }));
+  let acc = 0; meta.forEach(m => { m.start = acc; acc += m.clip; }); const TOTAL = acc;
+  const byId = Object.fromEntries(meta.map(m => [m.id, m]));
+  const sceneOf = el => { const d = el.closest('[data-s]'); if (d) return byId[d.dataset.s]; return meta[sceneEls.indexOf(el.closest('.scene'))]; };
+  // spec: [sNN:]word[#n][+/-sec] or [sNN:]seconds; a leading ' makes a number a word ('40). Returns GLOBAL seconds.
+  function timeOf(m, spec) {
+    spec = String(spec).trim();
+    const pm = /^(s\d\d):(.*)$/.exec(spec); if (pm) { m = byId[pm[1]]; spec = pm[2]; }
+    const r = /^(.*?)(?:#(\d+))?([+-]\d*\.?\d+)?$/.exec(spec);
+    let word = r[1]; const nth = r[2] ? +r[2] : 1, off = r[3] ? parseFloat(r[3]) : 0;
+    if (word[0] !== "'" && /^\d*\.?\d+$/.test(word)) return m.start + parseFloat(word) + off;
+    word = word.replace(/^'/, '');
+    let c = nth; for (const w of m.words) if (norm(w.w) === norm(word) && --c === 0) return m.start + w.t + off;
+    throw new Error(`${m.id}: anchor word not found: ${spec}`);
+  }
+  const kfs = (el, attr) => el.dataset[attr].split(';').map(x => x.trim()).filter(Boolean).map(x => { const [s, v] = x.split('=>'); return { t: timeOf(sceneOf(el), s), v: v.trim() }; }).sort((a, b) => a.t - b.t);
+
+  const beats = [...document.querySelectorAll('[data-at]')].map(el => {
+    const m = sceneOf(el);
+    return { el, t: timeOf(m, el.dataset.at), u: el.dataset.until ? timeOf(m, el.dataset.until) : null, anim: el.dataset.anim || 'slide',
+      kind: el.classList.contains('v') ? 'view' : el.classList.contains('b') ? 'fade' : el.classList.contains('sh') ? 'show' : el.classList.contains('gr') ? 'grow' : 'class' };
+  });
+  const taps = [...document.querySelectorAll('[data-click],[data-point]')].map(el => ({ el, tap: !!el.dataset.click, t: timeOf(sceneOf(el), el.dataset.click || el.dataset.point) })).sort((a, b) => a.t - b.t);
+  const scrolls = [...document.querySelectorAll('[data-scroll]')].map(el => ({ el, k: kfs(el, 'scroll') }));
+  const zoom = kfs(phone, 'zoom').map(k => { const [s, fx, fy] = k.v.split(',').map(Number); return { t: k.t, s, fx, fy }; });
+  const typers = [...document.querySelectorAll('[data-type]')].map(el => { const [a, b] = el.dataset.type.split('=>'); const m = sceneOf(el); return { el, t0: timeOf(m, a), t1: timeOf(m, b), text: el.dataset.text }; });
+  const bioN = document.getElementById('bio-n'), bioPh = document.getElementById('bio-ph'), ckBio = document.getElementById('ck-bio'), ckPhoto = document.getElementById('ck-photo'), waBio = document.getElementById('wa-bio');
+  const photoAt = timeOf(byId.s01, 'Or-0.35'), spin = document.getElementById('spin'), saveAt = timeOf(byId.s02, 'Save');
+  meta.forEach(m => { const d = document.createElement('i'); d.appendChild(document.createElement('b')); document.getElementById('dots').appendChild(d); m.dot = d.firstChild; });
+  const PX = 125, PY = 172, CX = 360, CY = 600;
+  let POSTER = false;
+
+  function pos(el) {
+    const s = stage.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / 720;
+    if (!r.width) return null;
+    return [(r.left - s.left + r.width / 2) / k, (r.top - s.top + r.height / 2) / k];
+  }
+  // y offset of target inside a scroll container, in the container's own (unscaled) px
+  function offsetIn(sc, id, off) {
+    const t = document.getElementById(id); if (!t) throw new Error('no #' + id);
+    const a = sc.getBoundingClientRect(), b = t.getBoundingClientRect(), k = a.width / sc.offsetWidth;
+    return (b.top - a.top) / k + off;
+  }
+  function scrollVal(sc, v) {
+    const r = /^@([\w-]+?)([+-]\d+)?$/.exec(v);
+    return r ? offsetIn(sc, r[1], r[2] ? +r[2] : 0) : +v;
+  }
+
+  function draw(g) {
+    g = clamp(g, 0, TOTAL - 1e-3);
+    const m = meta.findLast(x => x.start <= g), st = g - m.start;
+    meta.forEach(x => { x.el.style.opacity = x === m ? (x.i === 0 ? 1 : ease(clamp(st / .5))) : 0; x.dot.style.transform = `scaleX(${x.i < m.i ? 1 : x.i > m.i ? 0 : st / x.clip})`; });
+
+    for (const b of beats) {
+      const pin = reduce ? (g >= b.t ? 1 : 0) : clamp((g - b.t) / FADE), pout = b.u == null ? 0 : reduce ? (g >= b.u ? 1 : 0) : clamp((g - b.u) / FADE);
+      const v = pin * (1 - pout);
+      if (b.kind === 'fade') { b.el.style.opacity = v; if (b.el.classList.contains('call')) b.el.style.transform = `translateY(${(1 - ease(pin)) * 16}px)`; }
+      else if (b.kind === 'view') {
+        const first = b.t <= 0.001;
+        const vin = first ? 1 : reduce ? pin : clamp((g - b.t) / .35), vout = b.u == null ? 0 : reduce ? pout : clamp((g - b.u) / .3);
+        let op = vin * (1 - vout), tf = '';
+        if (b.anim === 'up') { op = vin > 0 && vout < 1 ? 1 : 0; tf = `translateY(${(1 - ease(vin)) * 100 + ease(vout) * 100}%)`; }
+        else tf = `translateY(${(1 - ease(vin)) * 10 - ease(vout) * 6}px)`; // portal tab cross-fade (y 10 in, -6 out)
+        b.el.style.opacity = op; b.el.style.transform = tf; b.el.style.visibility = op > 0 ? 'visible' : 'hidden';
+        b.el.style.zIndex = b.anim === 'up' ? 5 : 1;
+      }
+      else if (b.kind === 'show') b.el.style.display = g >= b.t && (b.u == null || g < b.u) ? '' : 'none';
+      else if (b.kind === 'grow') { const p = inout(clamp((g - b.t) / .4)); b.el.style.maxHeight = `${p * 80}px`; b.el.style.opacity = p; }
+      else b.el.classList.toggle('on', g >= b.t && (b.u == null || g < b.u));
+    }
+    // typing (bio), its counter, the checklist tick at 40 characters, and the preview card text
+    for (const ty of typers) {
+      const p = clamp((g - ty.t0) / (ty.t1 - ty.t0)), n = Math.round(ty.text.length * p), s = ty.text.slice(0, n);
+      const typing = g >= ty.t0 - .3 && g < ty.t1 + 1.2;
+      ty.el.innerHTML = s.replace(/&/g, '&amp;').replace(/</g, '&lt;') + (typing && (n < ty.text.length || Math.floor(g * 2.2) % 2 === 0) ? '<span class="caret"></span>' : '');
+      bioPh.style.display = n > 0 || typing ? 'none' : '';
+      bioN.textContent = String(s.trim().length);
+      ckBio.classList.toggle('done', s.trim().length >= 40);
+      waBio.textContent = s.trim(); waBio.style.display = s.trim() ? '' : 'none';
+    }
+    ckPhoto.classList.toggle('done', g >= photoAt);
+    spin.style.transform = `rotate(${((g - saveAt) * 720) % 360}deg)`;
+    // scrolling inside the phone (eased between keyframes)
+    for (const s of scrolls) {
+      let y = 0;
+      for (const k of s.k) { if (g < k.t) break; const to = scrollVal(s.el, k.v); y = y + (to - y) * inout(clamp((g - k.t) / .75)); }
+      s.el.style.transform = `translateY(${-Math.max(0, y)}px)`;
+    }
+    // camera moves on the phone (zoom to a focal point inside the phone)
+    if (POSTER) phone.style.transform = 'translate(-38px, 418px) scale(1.18)';
+    else {
+      let z = { s: 1, tx: 0, ty: 0 };
+      for (const k of zoom) { if (g < k.t) break; const to = k.s === 1 ? { s: 1, tx: 0, ty: 0 } : { s: k.s, tx: CX - PX - k.s * k.fx, ty: CY - PY - k.s * k.fy }; const p = inout(clamp((g - k.t) / .8)); z = { s: z.s + (to.s - z.s) * p, tx: z.tx + (to.tx - z.tx) * p, ty: z.ty + (to.ty - z.ty) * p }; }
+      phone.style.transform = `translate(${z.tx}px, ${z.ty}px) scale(${z.s})`;
+    }
+    // finger: glides to each target .75 s before the tap, presses, ripples; a "point" just rests on it
+    let ci = -1; taps.forEach((c, k) => { if (g >= c.t - .75) ci = k; });
+    const c = taps[ci], HOLD = c && !c.tap ? 1.8 : 1.1;
+    taps.forEach(x => { if (x.tap) x.el.style.filter = ''; });
+    if (c && g < c.t + HOLD && !POSTER) {
+      const to = pos(c.el);
+      if (to) {
+        const pr = ci > 0 && g < c.t && c.t - taps[ci - 1].t < 3 ? pos(taps[ci - 1].el) : null;
+        const prev = pr || [to[0] + 70, to[1] + 170];
+        const p = ease(clamp((g - (c.t - .75)) / .65));
+        const x = prev[0] + (to[0] - prev[0]) * p, y = prev[1] + (to[1] - prev[1]) * p;
+        const press = c.tap && g >= c.t && g < c.t + .2 ? .82 : 1;
+        finger.style.opacity = clamp((g - (c.t - .75)) / .2) * clamp((c.t + HOLD - g) / .3);
+        finger.style.transform = `translate(${x}px, ${y}px) scale(${press})`;
+        const r = (g - c.t) / .5;
+        ring.style.opacity = c.tap && r >= 0 && r <= 1 ? 1 - r : 0; ring.style.transform = `translate(${to[0]}px, ${to[1]}px) scale(${.4 + r * 1.6})`;
+        if (c.tap) c.el.style.filter = r >= 0 && r < .4 ? 'brightness(.85)' : '';
+      } else { finger.style.opacity = 0; ring.style.opacity = 0; }
+    } else { finger.style.opacity = 0; ring.style.opacity = 0; }
+    const cue = !POSTER && m.cues.find(q => st >= q.t && st < q.e);
+    const txt = cue ? cue.text : ''; if (cap.textContent !== txt) cap.textContent = txt;
+    return m;
+  }
+  const dur = Math.round(TOTAL); document.getElementById('pdur').textContent = `${Math.floor(dur / 60)}:${String(dur % 60).padStart(2, '0')}`;
+  window.TOTAL = TOTAL;
+  window.posterTime = timeOf(byId.s02, '0.9');
+  window.seek = g => { draw(g); };
+  window.setPoster = on => { POSTER = !!on; document.documentElement.classList.toggle('posterOn', POSTER); };
+  window.READY = document.fonts.ready.then(() => Promise.all([...document.images].map(i => i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; })))).then(() => true);
+
+  // preview player (not part of the render)
+  if (!render) {
+    const fit = () => { const k = Math.min(1, (innerWidth - 32) / 720, (innerHeight - 90) / 1280); stage.style.transform = `scale(${k})`; stage.style.marginBottom = `${-1280 * (1 - k)}px`; stage.style.marginRight = `${-720 * (1 - k)}px`; };
+    fit(); addEventListener('resize', fit);
+    if (qs.includes('poster')) window.setPoster(true);
+    const vo = document.getElementById('vo'), btn = document.getElementById('play'), time = document.getElementById('time');
+    let g = 0, playing = false, last = performance.now(), cur = null;
+    const hm = /^#(\d+(?:\.\d+)?)$/.exec(location.hash); if (hm) g = +hm[1];
+    function step(now) {
+      const dt = Math.min(1, (now - last) / 1000); last = now;
+      if (playing) {
+        const m = meta.findLast(x => x.start <= g), st = g - m.start;
+        if (cur !== m.id) { cur = m.id; vo.src = `audio/${m.id}.mp3`; vo.pause(); }
+        if (st >= LEAD && st < LEAD + m.audio - .1) { if (vo.paused) { vo.currentTime = st - LEAD; vo.play().catch(() => {}); } else g = m.start + LEAD + vo.currentTime; }
+        else g += dt;
+        if (g >= TOTAL) { playing = false; vo.pause(); g = TOTAL - .01; }
+      }
+      draw(g); time.textContent = `${g.toFixed(1)} / ${TOTAL.toFixed(1)} s`; btn.textContent = playing ? 'Pause' : 'Play';
+      requestAnimationFrame(step);
+    }
+    btn.onclick = () => { playing = !playing; if (!playing) vo.pause(); else { cur = null; } };
+    requestAnimationFrame(step);
+  }
+})();
+</script>

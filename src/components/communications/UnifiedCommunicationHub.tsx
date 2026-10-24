@@ -1,3 +1,5 @@
+import type { Json } from "@/integrations/supabase/types";
+import { errorMessage } from "@/lib/groupB-errors";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +41,21 @@ import { format } from "date-fns";
 import { CallRecordingPlayer } from "./CallRecordingPlayer";
 import { AICallDialog } from "@/components/calls/AICallDialog";
 import { Bot, Sparkles } from "lucide-react";
-import { EinsteinLiveVoice } from "../voice/EinsteinLiveVoice";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { smcVoiceView, type SmcCallDetails as SmcCallDetailsData } from "@/lib/smcVoiceCall";
+
+/** Shape of `communications.metadata` for AI-call rows (Einstein proposals). */
+interface ProposedChanges {
+  suggested_date?: string;
+  suggested_time?: string;
+  action?: string;
+  [key: string]: Json | undefined;
+}
+interface CommMetadata {
+  proposed_changes?: ProposedChanges | null;
+  ai_call_request_id?: string;
+  [key: string]: Json | undefined | ProposedChanges | null;
+}
 
 interface Communication {
   id: string;
@@ -52,6 +68,9 @@ interface Communication {
   recipient_contact: string;
   call_duration: number | null;
   call_recording_url: string | null;
+  workflow?: string | null;
+  lead_id: string | null;
+  broker_id: string | null;
   metadata: unknown;
 }
 
@@ -68,6 +87,59 @@ interface Attachment {
   filename: string;
   content: string; // base64
   type: string;
+}
+
+/**
+ * SortMyCover voice rows (Lindi, smc-voice edge function): outcome, summary, notes and the full transcript on demand;
+ * automatic callbacks show their status, plus the call itself once answered. The recording is not stored here: it
+ * plays from ElevenLabs (smc-voice /recording).
+ */
+function SmcCallDetails({ call }: { call: SmcCallDetailsData }) {
+  return (
+    <div className="space-y-1.5">
+      {call.outcomeLabel && (
+        <Badge variant={call.outcome === 'booked' ? 'default' : call.outcome === 'missed' || call.outcome === 'no_answer' ? 'destructive' : 'secondary'}>
+          {call.outcomeLabel}
+        </Badge>
+      )}
+      {call.summary && <p className="text-sm">{call.summary}</p>}
+      {call.callNotes && (
+        <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+          <span className="font-medium">Notes: </span>{call.callNotes}
+        </p>
+      )}
+      {call.transcript && call.transcript !== '(no speech)' && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="link" size="sm" className="h-auto p-0 text-xs">Show / hide transcript</Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{call.transcript}</p>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+function SmcVoiceDetails({ comm }: { comm: Communication }) {
+  const view = smcVoiceView(comm);
+  if (!view) return null;
+  if (view.kind === 'call') return <SmcCallDetails call={view} />;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 flex-wrap text-xs">
+        {!view.call && comm.content && <span className="text-sm text-muted-foreground">{comm.content}</span>}
+        <Badge variant={view.status === 'answered' ? 'default' : view.status === 'pending' ? 'outline' : 'secondary'}>
+          Callback: {view.statusLabel}
+        </Badge>
+        {view.status === 'pending' && view.dueSast && (
+          <span className="text-muted-foreground">Due {format(new Date(view.dueSast), 'MMM d, h:mm a')}</span>
+        )}
+      </div>
+      {view.call && <SmcCallDetails call={view.call} />}
+    </div>
+  );
 }
 
 interface UnifiedCommunicationHubProps {
@@ -218,14 +290,14 @@ export function UnifiedCommunicationHub({
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
 
-    let processedContent = template.content
+    const processedContent = template.content
       .replace(/\{\{name\}\}/g, recipientContact.name || 'there')
       .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
 
     setContent(processedContent);
 
     if (template.subject) {
-      let processedSubject = template.subject
+      const processedSubject = template.subject
         .replace(/\{\{name\}\}/g, recipientContact.name || '')
         .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
       setSubject(processedSubject);
@@ -446,7 +518,7 @@ export function UnifiedCommunicationHub({
   };
 
   const handleApproveAction = async (comm: Communication) => {
-    const metadata = comm.metadata as any;
+    const metadata = comm.metadata as CommMetadata | null;
     if (!metadata?.proposed_changes) return;
 
     try {
@@ -504,9 +576,9 @@ export function UnifiedCommunicationHub({
         .eq('id', comm.id);
 
       fetchCommunications();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error approving action:', error);
-      toast.error(`Quantum failure: ${error.message}`);
+      toast.error(`Quantum failure: ${errorMessage(error)}`);
     }
   };
 
@@ -701,16 +773,6 @@ export function UnifiedCommunicationHub({
                   </Button>
                 </div>
 
-                <div className="border-t border-dashed pt-4 mt-2">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="h-4 w-4 text-pink-500" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Einstein Co-pilot</span>
-                  </div>
-                  <EinsteinLiveVoice className="w-full" size="md" />
-                  <p className="text-[10px] text-muted-foreground mt-2 text-center italic">
-                    Talk to Einstein about ze best strategy for this {recipientType}.
-                  </p>
-                </div>
               </div>
             )}
           </TabsContent>
@@ -904,7 +966,11 @@ export function UnifiedCommunicationHub({
                       </span>
                     </div>
                     {comm.subject && <p className="text-sm font-medium">{comm.subject}</p>}
-                    <p className="text-sm text-muted-foreground line-clamp-2">{comm.content || 'No content'}</p>
+                    {smcVoiceView(comm) ? (
+                      <SmcVoiceDetails comm={comm} />
+                    ) : (
+                      <p className="text-sm text-muted-foreground line-clamp-2">{comm.content || 'No content'}</p>
+                    )}
 
                     {/* Proposed Changes / Suggested Actions */}
                     {typeof comm.metadata === 'object' && comm.metadata !== null && 'proposed_changes' in comm.metadata && comm.metadata.proposed_changes && (
@@ -915,7 +981,7 @@ export function UnifiedCommunicationHub({
                         </div>
 
                         <div className="space-y-2">
-                          {Object.entries(comm.metadata.proposed_changes as Record<string, any>).map(([key, value]) => (
+                          {Object.entries(comm.metadata.proposed_changes as Record<string, Json | undefined>).map(([key, value]) => (
                             <div key={key} className="flex items-center gap-2 text-xs">
                               <Badge variant="outline" className="text-[9px] uppercase h-4 px-1 border-pink-500/30 text-pink-400 capitalize">
                                 {key.replace('_', ' ')}
@@ -939,7 +1005,7 @@ export function UnifiedCommunicationHub({
                             variant="ghost"
                             className="h-7 text-[10px] font-bold uppercase text-slate-500 hover:text-slate-400"
                             onClick={async () => {
-                              const metadata = comm.metadata as any;
+                              const metadata = comm.metadata as CommMetadata | null;
                               await supabase
                                 .from('communications')
                                 .update({

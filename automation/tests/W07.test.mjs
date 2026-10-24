@@ -47,7 +47,12 @@ test('router: STOP, CTWA, opted out, broker numbers, every tap, handoff pause, f
   assert.equal(r({ text: 'STOP' }), 'W15');
   assert.equal(r({ text: 'stop' }), 'W15');
   assert.equal(r({ text: "Hi, I'd like to check my life cover", referral: { source_id: '123456' } }, { lead: null }), 'W03');
-  assert.equal(r({ text: 'hello' }, { lead: { ...ld, opted_out_at: '2026-10-12T10:00:00Z' } }), 'ignore_opted_out');
+  // the CTWA opener is recognised without a referral too: the new ad pre-fill (18 Oct 2026) and the old one
+  const why = (text) => W.routeInbound({ from: '+27600000098', text }, { lead: null }).reason;
+  assert.equal(why("Hi, I'd like to book a 30-minute call with an adviser."), 'CTWA entry');
+  assert.equal(why("Hi, I'd like to check my life cover"), 'CTWA entry');
+  assert.equal(why('hello'), 'unknown number: W03 consent first');
+  assert.equal(r({ text: 'hello' }, { lead: { ...ld, opted_out_at: '2026-10-12T10:00:00Z' } }), 'W15', '19 Oct: W15 decides every message after STOP');
   assert.equal(r({ from: B.adviser_whatsapp, payload: 'attended:bk1' }), 'W12');
   assert.equal(r({ from: B.adviser_whatsapp, list_id: 'nofit_budget' }), 'W29');
   assert.equal(r({ from: B.adviser_whatsapp, media: 'audio' }), 'W29');
@@ -167,7 +172,7 @@ test('injection / off-topic stay in lane; first free-text reply carries DISCLOSE
   assert.ok(t.plan.prefix.includes(LINES.en.STAY_IN_LANE));
   assert.equal(t.plan.prefix[0], LINES.en.DISCLOSE);
   const txt = W.gateAndAssemble(t.plan).text;
-  assert.ok(txt.startsWith('Hi Lerato, I\'m Thandi'));
+  assert.ok(txt.startsWith('Hi Lerato, I\'m Lindi'));
 });
 
 test('operational intents are delegated, never answered by the LLM: book, reschedule, cancel, change method, close unbooked', () => {
@@ -240,7 +245,7 @@ test('24-h window guard', () => {
 test('W07.json: every SQL column is a physical column (schema.md), webhook + gates present, no secrets', () => {
   assert.deepEqual(checkSql(workflowSql(WF)), []);
   const names = WF.nodes.map((n) => n.name);
-  for (const n of ['Verify signature + normalise', 'Idempotency: claim wamid', 'Intent-slot LLM', 'outputGate + classifierInput (I-27)', 'Guardrail classifier LLM (fails closed)', 'lead_activities: lead_theme rows (I-22)', 'Insert escalation (sensitive -> human_handoff/red, I-25)']) assert.ok(names.includes(n), n);
+  for (const n of ['Verify signature + normalise', 'Idempotency: claim wamid', 'Lindi labels (ElevenLabs)', 'outputGate + classifierInput (I-27)', 'Guardrail check (ElevenLabs, fails closed)', 'lead_activities: lead_theme rows (I-22)', 'Insert escalation (sensitive -> human_handoff/red, I-25)']) assert.ok(names.includes(n), n);
   const code = JSON.stringify(WF);
   assert.ok(code.includes('classifierTurn(') && code.includes("activity_type, payload") && code.includes("'lead_theme'"));
   assert.ok(!/sk-ant-|EAA[A-Za-z0-9]{20}|Bearer [A-Za-z0-9]{20}/.test(code), 'no secrets inlined');
@@ -396,20 +401,16 @@ test('I-46b Explode delegations: all-items mode, every output item is { json: ob
   assert.deepEqual(back.map((o) => o.json.route), targets(book).filter((t) => t !== 'W03'), 'other targets still fan out');
 });
 
-test('I-46a / I-47d egress: every Anthropic call in every workflow (W07/W11/W23/W29-W33) takes its base URL from $env.ANTHROPIC_BASE_URL (default api.anthropic.com)', () => {
+test('I-46a / I-47d egress (ElevenLabs only, 19 Oct 2026): W07 calls only $env.LINDI_BRAIN_URL; W11/W23/W29 only $env.LLM_RELAY_URL; no fallback host', () => {
   const all = readdirSync(new URL('..', import.meta.url)).filter((x) => /^W\d\d\.json$/.test(x)).map((x) => x.slice(0, 3));
-  const withLlm = all.filter((f) => /\/v1\/messages/.test(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')));
-  for (const f of ['W07', 'W11', 'W23', 'W29', 'W30', 'W31', 'W32', 'W33']) assert.ok(withLlm.includes(f), `${f} has Anthropic nodes`);
+  const isLlm = (n) => n.type === 'n8n-nodes-base.httpRequest' && /LINDI_BRAIN_URL|LLM_RELAY_URL/.test(n.parameters.url || '');
+  const withLlm = all.filter((f) => JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8')).nodes.some(isLlm));
+  assert.deepEqual(withLlm, ['W07', 'W11', 'W23', 'W29']); // W30-W33 retired 20 Oct 2026 (D5)
   for (const f of withLlm) {
-    assert.doesNotMatch(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'), /"url": "https:\/\/api\.anthropic\.com/, `${f}: no hard-coded Anthropic host`);
     const wf = JSON.parse(readFileSync(new URL(`../${f}.json`, import.meta.url), 'utf8'));
-    const llm = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest' && /\/v1\/messages/.test(n.parameters.url || ''));
-    assert.ok(llm.length > 0, f);
-    for (const n of llm) {
-      assert.equal(n.parameters.url, '={{ ($env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\\/+$/, "") }}/v1/messages', `${f} ${n.name}`);
-      const base = (env) => (env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/+$/, '') + '/v1/messages';
-      assert.equal(base({}), 'https://api.anthropic.com/v1/messages');
-      assert.equal(base({ ANTHROPIC_BASE_URL: 'http://127.0.0.1:18080/' }), 'http://127.0.0.1:18080/v1/messages');
+    for (const n of wf.nodes.filter(isLlm)) {
+      assert.equal(n.parameters.url, f === 'W07' ? '={{ $env.LINDI_BRAIN_URL }}' : '={{ $env.LLM_RELAY_URL }}', `${f} ${n.name}`);
+      assert.equal(n.parameters.headerParameters.parameters.find((h) => h.name === 'x-api-key').value, f === 'W07' ? '={{ $env.LINDI_RELAY_TOKEN }}' : '={{ $env.LLM_RELAY_TOKEN }}', `${f} ${n.name}`);
     }
   }
 });
@@ -525,33 +526,36 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   const keys = route.parameters.rules.values.map((v) => v.outputKey);
   const main = WF.connections.Route.main;
   assert.equal(main.length, keys.length + 1, 'one connection list per rule + fallback');
-  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node)]));
+  // 2026-10-17: the never-silent guard runs BESIDE the hand-offs (own test below); it rewires nothing, so it is left out here
+  const now = Object.fromEntries(main.map((outs, i) => [i < keys.length ? keys[i] : 'fallback', outs.map((t) => t.node).filter((n) => !n.startsWith('Never silent: '))]));
   const { W28, ...expected } = before;
   assert.deepEqual(W28, ['-> W28']);
   // 2026-10-11: one rule added at the end (before the fallback): the typed email verification code -> smc-email-verify
   // 2026-10-11 (verify gate): a typed email address -> save + smc-email-verify issue + one reply
-  assert.deepEqual(now, { ...expected, email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
+  // 2026-10-19: W10-bound items pass the reschedule card check first (patch-w07-reschedule-card.mjs; not a card -> -> W10)
+  // 2026-10-20 (D5): W35 (lead pulse) and W32 (ops decisions) retired; their rule outputs only log
+  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], W35: ['Paused / opted out: log only'], W32_decision: ['Paused / opted out: log only'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });
 
-// I-39h: Sonnet re-check of a low-confidence classifier pass (guardrail.md "Escalate to"); LLM stubbed, no live calls.
-test('I-39h re-check: only a pass < 0.8 goes to Sonnet; block is never appealed; failures fail closed', async () => {
-  const body = { model: 'claude-haiku-4-5-20251001', max_tokens: 200, temperature: 0, system: 's', messages: [] };
+// I-39h: re-check of a low-confidence classifier pass (guardrail.md "Escalate to"); LLM stubbed, no live calls.
+test('I-39h re-check: only a pass < 0.8 is re-checked; block is never appealed; failures fail closed', async () => {
+  const body = { model: W.LINDI_MODEL, max_tokens: 200, temperature: 0, system: 's', messages: [] };
   const seen = [];
   const stub = (answers) => async (b) => { seen.push(b.model); const a = answers.shift(); if (a instanceof Error) throw a; return a; };
   const J = (verdict, confidence, categories = []) => JSON.stringify({ verdict, categories, confidence });
   assert.equal(W.needsRecheck({ verdict: 'pass', confidence: 0.79 }), true);
   assert.equal(W.needsRecheck({ verdict: 'pass', confidence: 0.8 }), false);
   assert.equal(W.needsRecheck({ verdict: 'block', confidence: 0.1 }), false);
-  // confident pass: one call, Haiku only
-  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.95)]), body)).verdict, 'pass'); assert.deepEqual(seen.splice(0), ['claude-haiku-4-5-20251001']);
+  // confident pass: one call
+  assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.95)]), body)).verdict, 'pass'); assert.deepEqual(seen.splice(0), [W.LINDI_MODEL]);
   // block: one call, never appealed
   assert.equal((await W.classifyWithRecheck(stub([J('block', 0.2, ['premium'])]), body)).verdict, 'block'); assert.equal(seen.splice(0).length, 1);
-  // low pass -> Sonnet says confident pass -> pass
-  const ok = await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.9)]), body, { strongModel: 'claude-sonnet-5-5' });
-  assert.equal(ok.verdict, 'pass'); assert.equal(ok.rechecked, true); assert.deepEqual(seen.splice(0), ['claude-haiku-4-5-20251001', 'claude-sonnet-5-5']);
-  // low pass -> Sonnet blocks / still unsure / garbage / throws -> block
+  // low pass -> the re-check says confident pass -> pass (same relay, same model label)
+  const ok = await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.9)]), body);
+  assert.equal(ok.verdict, 'pass'); assert.equal(ok.rechecked, true); assert.deepEqual(seen.splice(0), [W.LINDI_MODEL, W.LINDI_MODEL]);
+  // low pass -> the re-check blocks / still unsure / garbage / throws -> block
   assert.deepEqual((await W.classifyWithRecheck(stub([J('pass', 0.6), J('block', 0.9, ['product'])]), body)).categories, ['product']);
   assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), J('pass', 0.7)]), body)).verdict, 'block');
   assert.equal((await W.classifyWithRecheck(stub([J('pass', 0.6), 'not json']), body)).verdict, 'block');
@@ -559,16 +563,16 @@ test('I-39h re-check: only a pass < 0.8 goes to Sonnet; block is never appealed;
   assert.equal((await W.classifyWithRecheck(stub([new Error('down')]), body)).verdict, 'block', 'first call failure fails closed, no re-check');
 });
 
-test('I-39h W07.json: Parse -> Low-confidence pass? -> Sonnet re-check -> Assemble wiring, STRONG model routing', () => {
+test('I-39h W07.json: Parse -> Low-confidence pass? -> re-check -> Assemble wiring, one relay', () => {
   const names = WF.nodes.map((n) => n.name);
-  for (const n of ['Parse verdict + re-check needed? (I-39h)', 'Low-confidence pass? (I-39h)', 'Guardrail re-check LLM (Sonnet, I-39h)']) assert.ok(names.includes(n), n);
+  for (const n of ['Parse verdict + re-check needed? (I-39h)', 'Low-confidence pass? (I-39h)', 'Guardrail re-check (ElevenLabs)']) assert.ok(names.includes(n), n);
   const C = WF.connections;
-  assert.equal(C['Guardrail classifier LLM (fails closed)'].main[0][0].node, 'Parse verdict + re-check needed? (I-39h)');
-  assert.equal(C['Low-confidence pass? (I-39h)'].main[0][0].node, 'Guardrail re-check LLM (Sonnet, I-39h)');
+  assert.equal(C['Guardrail check (ElevenLabs, fails closed)'].main[0][0].node, 'Parse verdict + re-check needed? (I-39h)');
+  assert.equal(C['Low-confidence pass? (I-39h)'].main[0][0].node, 'Guardrail re-check (ElevenLabs)');
   assert.equal(C['Low-confidence pass? (I-39h)'].main[1][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
-  assert.equal(C['Guardrail re-check LLM (Sonnet, I-39h)'].main[0][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
+  assert.equal(C['Guardrail re-check (ElevenLabs)'].main[0][0].node, 'Assemble (verdict + toneCheck + fallbacks)');
   const code = JSON.stringify(WF);
-  assert.ok(code.includes('ANTHROPIC_MODEL_STRONG') && code.includes('resolveRecheck('));
+  assert.ok(code.includes('L.recheckBody(j.classifier_body, { model: L.LINDI_MODEL })') && code.includes('resolveRecheck('));
 });
 
 // ---------------------------------------------------------------------------------------------
@@ -608,7 +612,7 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
   assert.equal(W.routeInbound(msg('STOP'), { lead }).route, 'W15');
   const ok = W.emailReplyPlan(lead, 'My email is Lerato.M@gmail.com.');
   assert.deepEqual([ok.action, ok.email, ok.changed, ok.issue], ['save', 'lerato.m@gmail.com', true, { op: 'issue', lead_id: lead.id }]);
-  assert.match(ok.reply, /emailed a link and a 6-digit code to lerato\.m@gmail\.com/);
+  assert.equal(ok.reply, "Thank you. We've emailed a confirmation link to lerato.m@gmail.com. Please tap it to confirm your email."); // link only (18 Oct 2026)
   const typo = W.emailReplyPlan(lead, 'lerato@gmial.com');
   assert.deepEqual([typo.action, typo.reason, typo.suggestion], ['reply', 'typo', 'lerato@gmail.com']);
   assert.equal(W.emailReplyPlan(lead, 'x@mailinator.com').action, 'reply', 'disposable refused');
@@ -628,4 +632,292 @@ test('verify gate: a typed email (lead not verified) is checked, saved unverifie
   assert.equal(plan.json.action, 'save'); assert.equal(plan.json.to, '+27600000301');
   const sub = await runCode(WF, 'SUB input (email reply)', { json: plan.json });
   assert.equal(sub.json.kind, 'prebuilt'); assert.equal(sub.json.wa.to, '27600000301'); assert.equal(sub.json.correlation, 'w07:reply:SMemail1');
+});
+
+test('never silent: fallback text per route and language, one prebuilt recorded send keyed to the inbound', () => {
+  assert.equal(W.neverSilentText('W04', { first_name: 'Mortso' }), "Thanks, Mortso! I'm Lindi from SortMyCover. I'm lining up the adviser's times for you and will send them here shortly.");
+  assert.equal(W.neverSilentText('W03', {}), "Thanks! I'm Lindi from SortMyCover. I've got your message, and a person from our team will message you here shortly.");
+  assert.match(W.neverSilentText('W04_list', { lang: 'af' }), /^Dankie! Ek is Lindi van SortMyCover\. Ek kry die adviseur se tye/);
+  const s = W.neverSilentSend({ route: 'W04', msg: { from: '+27725548057', wamid: 'SMx', profile_name: 'Jono' }, lead: { id: 'lead_1', first_name: 'TestyC', language: 'en' } });
+  assert.equal(s.kind, 'prebuilt');
+  assert.equal(s.record, true, 'lands in communications, so a second guard sees it');
+  assert.equal(s.to, '+27725548057');
+  assert.equal(s.wa.type, 'text');
+  assert.match(s.wa.text.body, /, TestyC!/);
+  assert.equal(s.correlation, 'W07:never_silent:SMx');
+  assert.equal(s.lead_id, 'lead_1');
+  assert.match(W.neverSilentSend({ route: 'W03', msg: { from: '+27600000001', wamid: 'SMy', profile_name: 'Thabo' } }).wa.text.body, /, Thabo!/, 'unknown number: WhatsApp profile name');
+});
+
+test('never silent: W07.json guard runs beside every hand-off that carries the reply and fails safe', () => {
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  const WAIT = 'Never silent: wait 25 s';
+  const outs = (sw) => { const s = nd(sw); return s.parameters.rules.values.map((r, i) => [r.outputKey, (WF.connections[sw].main[i] || []).map((x) => x.node)]); };
+  const guarded = (sw) => outs(sw).filter(([, t]) => t.includes(WAIT)).map(([k]) => k).sort();
+  assert.deepEqual(guarded('Route'), ['W03', 'W04_list', 'W05', 'W10']);
+  assert.deepEqual(guarded('Delegate to'), ['W03', 'W04', 'W10']);
+  for (const [k, t] of outs('Route')) if (t.includes(WAIT)) assert.ok(t.length === 2, `${k}: the hand-off still runs`);
+  assert.equal(nd(WAIT).parameters.amount, W.NEVER_SILENT_WAIT_S);
+  assert.equal(nd(WAIT).parameters.unit, 'seconds');
+  const q = nd('Never silent: anything sent since the inbound?').parameters.query;
+  for (const k of ["direction = 'outbound'", 'smc_hash_contact($1)', 'opted_out_at IS NOT NULL', "'w07:silent:' || $4", 'ON CONFLICT (source, external_id) DO NOTHING']) assert.ok(q.includes(k), k);
+  assert.deepEqual(WF.connections['Never silent: nothing went out?'].main[0].map((x) => x.node).sort(), ['Never silent: escalation', 'Never silent: fallback (lib w07.neverSilentSend)']);
+  assert.equal(WF.connections['Never silent: nothing went out?'].main[1], undefined, 'something went out: nothing more');
+  assert.equal(nd('Never silent: send fallback').parameters.workflowId.value, 'smc-whatsapp-send');
+  assert.match(nd('Never silent: escalation').parameters.query, /'needs_human', 'urgent'/);
+  for (const n of ['Never silent: anything sent since the inbound?', 'Never silent: send fallback', 'Never silent: escalation']) assert.equal(nd(n).onError, 'continueRegularOutput', n);
+});
+
+test('Cal.com booking_confirm_chat tap: routes to the contact step, which asks to confirm the WhatsApp number', () => {
+  const ld = mkLead(L01, { first_name: 'Lerato', conv_state: { state: 'booked', via: 'calcom' } });
+  assert.equal(W.routeInbound({ from: ld.phone, text: "Yes, let's chat", payload: 'booking_chat_yes:appt-1' }, { lead: ld, broker_numbers: new Set() }).route, 'W07_contact');
+  const s = W.contactStep(ld, { payload: 'booking_chat_yes:appt-1' });
+  assert.equal(s.conv_state.contact_step, 'call_number');
+  assert.equal(s.conv_state.via, 'calcom');
+  assert.equal(s.reply.type, 'buttons');
+  assert.match(s.reply.body, /^Thanks, Lerato! I'm Lindi from SortMyCover\. A few quick things before your call: is this WhatsApp number the best one to reach you on\?$/);
+  assert.deepEqual(s.reply.buttons.map(([id]) => id), ['call_number_yes', 'call_number_other']);
+  assert.equal(W.contactStep({ ...ld, conv_state: s.conv_state }, { payload: 'call_number_yes' }).conv_state.contact_step, 'alt', 'then the existing sequence');
+});
+
+// ---------------------------------------------------------------- Lindi's turn: one call, her own words (17 Oct 2026)
+const FAQ_MAP = W.parseFaqMd(readFileSync(new URL('../../knowledge/faq.md', import.meta.url), 'utf8'));
+const lt = (text, opts = {}) => {
+  const r = turn(text, opts);
+  return { ...r, apply: (reply, extra = {}) => W.applyModelReply(r.plan, reply, { question: text, disclosed: opts.disclosed ?? true, lead_used_emoji: false, topics: (opts.nlu || {}).topics || [], ...extra }) };
+};
+const assemble = (plan) => W.gateAndAssemble(plan, { fallback: '' }).text;
+
+test('Lindi turn: parseTurn reads the labels and the reply from one answer; bad output falls back safely', () => {
+  const t = W.parseTurn('```json\n{"intent":"question","topics":["call_length"],"slots":{},"confidence":0.9,"reply":"It\'s 30 minutes, nothing to prepare."}\n```');
+  assert.equal(t.nlu.intent, 'question'); assert.deepEqual(t.nlu.topics, ['call_length']); assert.equal(t.nlu.valid, true);
+  assert.equal(t.reply, "It's 30 minutes, nothing to prepare.");
+  assert.equal(W.parseTurn('Sure! {"intent":"book","reply":"Let me find you a time."} hope that helps').reply, 'Let me find you a time.');
+  const bad = W.parseTurn('not json at all');
+  assert.equal(bad.nlu.valid, false); assert.equal(bad.nlu.intent, 'other'); assert.equal(bad.reply, '');
+  assert.equal(W.parseTurn('{"intent":"other"}').reply, '', 'labels without a reply still parse');
+});
+
+test('Lindi turn: the request carries state, booking, filled FAQ answers, the recent chat (redacted) and the message', () => {
+  const j = { lead: { ...mkLead(L01), first_name: 'Lerato', conv_state: { state: 'unbooked', disclosed: false } }, booking: null,
+    broker: { contact_person: 'Mark Weston', firm_name: 'Oracle Private Wealth' }, adviser_first: 'Mark', pre: { lead_used_emoji: false }, text_llm: 'how long is the call?' };
+  const turns = [{ direction: 'inbound', content: 'hi, my ID is 8001015009087' }, { direction: 'outbound', content: 'Hi Lerato, I\'m Lindi from SortMyCover.' },
+    { direction: 'outbound', content: '[text]' }, { direction: 'inbound', content: 'how long is the call?' }];
+  const r = W.turnRequest({ j, turns, faq: FAQ_MAP, system: 'SYS', now_ms: ms('2026-10-17T15:00:00+02:00') });
+  const u = r.request.messages[0].content;
+  assert.equal(r.state, 'unbooked');
+  assert.equal(r.request.system, 'SYS');
+  for (const k of ['STATE: unbooked', 'DISCLOSED: false', 'ADVISER: Mark', 'BOOKING: none', 'FIRST_NAME: Lerato', 'MESSAGE: """how long is the call?"""']) assert.ok(u.includes(k), k);
+  assert.match(u, /NEXT: if they want to book.*list of open times/);
+  assert.match(u, /FAQ-01: /);
+  assert.match(u, /Mark/, 'adviser placeholders filled');
+  assert.equal(/\{(adviser|practice|fsp|city)\}/.test(u), false, 'no raw placeholders reach the model');
+  assert.match(u, /RECENT TURNS \(oldest first\):\nthem: hi, my ID is \[ID number removed\]\nlindi: Hi Lerato, I'm Lindi from SortMyCover\.\nMESSAGE/, 'redacted, [text] skipped, current message not repeated');
+  assert.ok(W.turnRequest({ j, turns: [], faq: {}, system: '' }).request.messages[0].content.includes('RECENT TURNS (oldest first):\n(none)'));
+});
+
+test('Lindi turn: a service question is answered in her words (one message, no second call)', () => {
+  const t = lt('how long is the call?', { nlu: { intent: 'question', topics: ['call_length'] } });
+  assert.deepEqual(t.plan.reply_actions, ['answer:FAQ-01']);
+  const r = t.apply("It's a 30-minute chat with Mark, and there's nothing you need to prepare.");
+  assert.deepEqual(r, { used: true, reason: null });
+  assert.equal(t.plan.reply_actions.length, 0);
+  assert.equal(t.plan.send, true);
+  assert.equal(assemble(t.plan), "It's a 30-minute chat with Mark, and there's nothing you need to prepare.");
+});
+
+test('Lindi turn: a booking request puts her sentence on the W04 time list instead of SLOTS_INTRO', () => {
+  const t = lt('can I book a call', { state: 'unbooked', nlu: { intent: 'book' } });
+  const d = t.plan.delegate.find((x) => x.to === 'W04');
+  assert.ok(d, 'W04 delegate');
+  assert.equal(t.apply("Lovely, let's get that sorted. Here are Mark's next open times.").used, true);
+  assert.equal(d.body, "Lovely, let's get that sorted. Here are Mark's next open times.");
+  assert.equal(d.body.includes(L('SLOTS_INTRO')), false);
+  assert.equal(t.plan.send, false, 'still one message: W04/W28 send it');
+});
+
+test('Lindi turn: a price question gets her warm deferral, never a number; a reply with a price is dropped for the fixed lines', () => {
+  const ok = lt('how much would cover cost me?', { nlu: { intent: 'question', topics: ['premium'] } });
+  assert.ok(ok.plan.suffix.includes(LINES.en.DEFER));
+  assert.equal(ok.apply("That's exactly what Mark will go through with you on the call, and I've made a note so he comes prepared.").used, true);
+  assert.equal(ok.plan.suffix.includes(LINES.en.DEFER), false);
+  const bad = lt('how much would cover cost me?', { nlu: { intent: 'question', topics: ['premium'] } });
+  const r = bad.apply('Most people pay about R500 a month, but Mark will confirm.');
+  assert.equal(r.used, false); assert.match(r.reason, /^outputGate:/);
+  assert.ok(bad.plan.suffix.includes(LINES.en.DEFER), 'fixed deferral kept');
+  assert.equal(bad.plan.no_second_call, true);
+});
+
+test('Lindi turn: STOP, a person, consent and qualifying turns keep their fixed lines', () => {
+  assert.equal(lt('STOP').apply('Sure, no more messages.').reason, 'fixed_turn');
+  assert.equal(lt('I want to speak to a real person', { nlu: { intent: 'person' } }).apply('Of course!').reason, 'fixed_turn');
+  assert.equal(lt('yes go ahead', { state: 'consent_pending', nlu: { intent: 'consent', consent_answer: 'yes' } }).apply('Great!').reason, 'fixed_turn');
+  assert.equal(lt('I am 40', { state: 'q_age', nlu: { intent: 'other', slots: { age_band: '35-44' } } }).apply('Thanks!').reason, 'fixed_turn');
+});
+
+test('Lindi turn: "Yes" no longer gets silence; first contact still introduces Lindi; safety lines stay', () => {
+  const yes = lt('Yes', { nlu: { intent: 'other', topics: [] } });
+  assert.equal(yes.plan.send, false, 'before: nothing was sent');
+  assert.equal(yes.apply('Great, what email address should I send the invite to?').used, true);
+  assert.equal(yes.plan.send, true);
+  const first = lt('hi, can I book a call?', { state: 'unbooked', disclosed: false, nlu: { intent: 'book', topics: ['greeting'] } });
+  first.apply('Hi! Happy to help you set up your call.', { disclosed: false });
+  const firstD = first.plan.delegate.find((x) => x.to === 'W04');
+  assert.ok(firstD.body.startsWith(L('DISCLOSE')), 'no "Lindi" in her reply -> the fixed intro is kept');
+  const named = lt('hi, can I book a call?', { state: 'unbooked', disclosed: false, nlu: { intent: 'book', topics: ['greeting'] } });
+  named.apply("Hi, I'm Lindi from SortMyCover, here to set up your call with Mark.", { disclosed: false });
+  assert.equal(named.plan.delegate.find((x) => x.to === 'W04').body.includes(L('DISCLOSE')), false);
+  assert.equal(named.plan.discloses, true);
+  const id = lt('my id is 8001015009087, how long is the call?', { nlu: { intent: 'question', topics: ['call_length', 'id_number'] } });
+  assert.equal(id.apply("It's 30 minutes with Mark.").used, true);
+  assert.ok(assemble(id.plan).endsWith(LINES.en.ID_WARNING), 'ID warning kept');
+});
+
+test('Lindi turn: "Lead Velocity" only when they ask who runs SortMyCover; a dropped reply is a fallback, not a trip', () => {
+  assert.equal(lt('how long is the call?', { nlu: { intent: 'question', topics: ['call_length'] } }).apply("I'm Lindi, run by Lead Velocity. It's 30 minutes.").reason, 'brand:lead_velocity');
+  assert.equal(lt('who runs this?', { nlu: { intent: 'question', topics: ['lead_velocity'] } }).apply('SortMyCover is run by Lead Velocity (Pty) Ltd, and we book calls with licensed advisers.').used, true);
+  const t = lt('how long is the call?', { nlu: { intent: 'question', topics: ['call_length'] } });
+  t.apply('');
+  const out = W.gateAndAssemble(t.plan, { fallback: 'The call is 30 minutes.' });
+  assert.deepEqual([out.text, out.used, out.guardrail_trip], ['The call is 30 minutes.', 'fallback', false]);
+});
+
+test('Lindi turn: W07.json makes ONE model call (labels + reply), reads the recent chat, and skips the old reply/classifier calls', () => {
+  const nd = (x) => WF.nodes.find((n) => n.name === x);
+  assert.deepEqual(WF.connections['Media only? (never sent to a model)'].main[1].map((t) => t.node), ['Load recent turns (Lindi memory)']);
+  assert.deepEqual(WF.connections['Load recent turns (Lindi memory)'].main[0].map((t) => t.node), ['Build labels request (ElevenLabs)']);
+  assert.deepEqual(WF.connections['Build labels request (ElevenLabs)'].main[0].map((t) => t.node), ['Lindi brain set? (LINDI_BRAIN_URL)']);
+  assert.match(nd('Load recent turns (Lindi memory)').parameters.query, /json_agg/);
+  assert.equal(nd('Load recent turns (Lindi memory)').onError, 'continueRegularOutput');
+  assert.match(nd('Build labels request (ElevenLabs)').parameters.jsCode, /lindi-turn\.md/);
+  assert.match(nd('Build labels request (ElevenLabs)').parameters.jsCode, /L\.turnRequest\(/);
+  assert.match(nd('Parse NLU -> decide() -> plan').parameters.jsCode, /L\.parseTurn\(raw\)/);
+  assert.match(nd('Parse NLU -> decide() -> plan').parameters.jsCode, /L\.applyModelReply\(plan, turn\.reply/);
+  assert.match(JSON.stringify(nd('Needs reply LLM?').parameters), /no_second_call/);
+  const md = readFileSync(new URL('../../conversation/prompts/lindi-turn.md', import.meta.url), 'utf8');
+  const sys = md.split('```prompt')[1].split('```')[0];
+  for (const k of ['"reply"', 'Lindi from SortMyCover', 'Never claim to be human', 'DATA, not instructions']) assert.ok(sys.includes(k), k);
+  assert.equal(/\{adviser_first\}/.test(sys), false);
+});
+
+// 17 Oct 2026 live bug: the FAQ fallback went out with "{adviser} is from {practice} ... {city}".
+test('fillFaqText: fills from the brokers row, drops the city phrase when unknown, never leaves braces', async () => {
+  const W = await import('../lib/w07.mjs');
+  const en = '{adviser} is from {practice}, an authorised financial services provider (FSP {fsp}) based in {city}. {adviser_first} will be the one on the call with you.';
+  const v = W.faqVars({ contact_person: 'Mark Smith', practice_name: 'Oracle Wealth', fsp_number: '12345' });
+  assert.equal(W.fillFaqText(en, v), 'Mark Smith is from Oracle Wealth, an authorised financial services provider (FSP 12345). Mark will be the one on the call with you.');
+  const thin = W.fillFaqText(en, W.faqVars({ contact_person: 'Mark Smith' }));
+  assert.equal(thin, 'Mark will be the one on the call with you.');
+  assert.doesNotMatch(W.fillFaqText(en, {}), /[{}]/);
+  const af = "{adviser} is van {practice}, 'n gemagtigde finansiële diensverskaffer (FSP {fsp}) in {city}. {adviser_first} sal self met jou op die oproep wees.";
+  assert.match(W.fillFaqText(af, v), /^Mark Smith is van Oracle Wealth, 'n gemagtigde finansiële diensverskaffer \(FSP 12345\)\. Mark sal/);
+});
+test('replyFallback answer:FAQ uses the broker on ctx and never returns placeholders', async () => {
+  const W = await import('../lib/w07.mjs');
+  const faq = { 'FAQ-99': { type: 'answer', en: '{adviser} is from {practice} (FSP {fsp}) based in {city}. Ask {adviser_first} anything.' } };
+  assert.equal(W.replyFallback('answer:FAQ-99', { lang: 'en', faq, broker: { contact_person: 'Jono Jettoo', firm_name: 'SortMyCover test practice', fsp_number: 'TEST 0000' } }),
+    'Jono Jettoo is from SortMyCover test practice (FSP TEST 0000). Ask Jono anything.');
+  assert.doesNotMatch(W.replyFallback('answer:FAQ-99', { lang: 'en', faq }), /[{}]/);
+});
+test('W07 carries fsp_number + practice_name into j.broker and the fallback (patch-w07-faq-fill)', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const code = (name) => { const n = wf.nodes.find((x) => x.name === name); return n.parameters.jsCode || n.parameters.query; };
+  assert.match(code('Load context (lead, broker, live booking, window)'), /b\.fsp_number, b\.practice_name/);
+  assert.match(code('Route (deterministic) + prefilter'), /fsp_number: c\.fsp_number/);
+  assert.match(code('Assemble (verdict + toneCheck + fallbacks)'), /broker: j\.broker/);
+  assert.match(code('Parse NLU -> decide() -> plan'), /broker: j\.broker/);
+});
+
+// 17 Oct 2026 live: conv_state still 'booking' while the call was booked -> "Please cancel my call" closed the lead.
+test('decide: a live booking wins over a stale pre-booking state (cancel -> cancel_confirm, never close_unbooked)', () => {
+  const nlu = { intent: 'cancel', topics: ['cancel_move'], slots: {} };
+  for (const st of ['booking', 'unbooked', 'closed_unbooked']) {
+    const d = decide(st, nlu, {}, { booking: { id: 'bk1', status: 'booked', appointment_date: '2026-10-22T07:00:00Z' } });
+    assert.ok(d.actions.includes('cancel_confirm'), `${st}: ${JSON.stringify(d)}`);
+    assert.ok(!d.actions.includes('close_unbooked'));
+  }
+  // no live booking: unchanged behaviour
+  assert.ok(decide('booking', nlu, {}, {}).actions.includes('close_unbooked'));
+  assert.ok(decide('booking', nlu, {}, { booking: { id: 'bk2', status: 'cancelled' } }).actions.includes('close_unbooked'));
+});
+
+test('applyModelReply: a cancel_confirm turn keeps the approved question (the model may not say it is cancelled)', () => {
+  const plan = { actions: ['cancel_confirm'], delegate: [{ to: 'W10', action: 'cancel_confirm', lead_lines: [], body: 'Do you want me to cancel your call on 22 October at 09:00?' }], prefix: [], suffix: [], reply_actions: [], send: false, lang: 'en', vars: {} };
+  const r = W.applyModelReply(plan, "Done, I've cancelled your call with Jono on Thursday.", { question: 'Please cancel my call' });
+  assert.equal(r.used, false);
+  assert.equal(r.reason, 'fixed_turn');
+  assert.equal(plan.delegate[0].body, 'Do you want me to cancel your call on 22 October at 09:00?');
+});
+
+test('a cancel turn never adds FAQ-06 ("Tap Reschedule or Cancel") next to the Yes, cancel / Keep it buttons', () => {
+  const ld = mkLead(L01);
+  const msg = { text: 'Please cancel my call on Thursday', wamid: 'wamid.X', from: ld.phone };
+  const p = W.preStep(msg, ld, BROKER_ROW);
+  const n = { intent: 'cancel', topics: ['cancel_move'], slots: {}, confidence: 0.9 };
+  const d = decide('booked', n, p.pre, { booking, unanswered: 0 });
+  const plan = W.planActions(d, { lead: ld, booking, pre: p.pre, nlu: n, now_ms: NOON, lang: 'en', state: 'booked', wamid: 'wamid.X', disclosed: true, adviser_first: p.adviser_first, unanswered: 0, text_store: p.text_store, faq: FAQ_MAP });
+  const dl = plan.delegate.find((x) => x.to === 'W10');
+  assert.equal(dl.action, 'cancel_confirm');
+  assert.doesNotMatch(dl.body, /Tap Reschedule or Cancel/);
+  assert.match(dl.body, /^Do you want me to cancel your call on /);
+});
+
+test('typing dots: Twilio channel in capitals, shown on arrival before anything else, never blocking the reply', () => {
+  const nd = (x) => WF.nodes.find((n) => n.name === x);
+  for (const name of ['Typing indicator (Lindi, Twilio)', 'Typing indicator on arrival (Lindi, Twilio)']) {
+    const n = nd(name);
+    assert.equal(n.parameters.url, 'https://messaging.twilio.com/v3/Indicators/Typing.json', name);
+    assert.match(n.parameters.jsonBody, /channel: 'WHATSAPP'/, `${name}: lowercase 'whatsapp' gets a 400 (tested live 18 Oct)`);
+    assert.equal(n.onError, 'continueRegularOutput', name);
+  }
+  const outs = WF.connections['Route (deterministic) + prefilter'].main[0].map((t) => t.node);
+  assert.ok(outs.includes('Show typing dots now? (Twilio)'));
+  assert.ok(outs.includes('Known lead or broker? (store)'), 'the normal flow still runs');
+  // n8n executionOrder v1 runs parallel branches top to bottom: the dots branch must sit above the main flow
+  assert.ok(nd('Show typing dots now? (Twilio)').position[1] < nd('Known lead or broker? (store)').position[1]);
+  assert.equal(WF.settings.executionOrder, 'v1');
+  assert.deepEqual(WF.connections['Typing indicator on arrival (Lindi, Twilio)'], undefined, 'a dead end: nothing waits on it');
+  const gate = JSON.stringify(nd('Show typing dots now? (Twilio)').parameters);
+  for (const k of ["WHATSAPP_PROVIDER === 'twilio'", "'W15'", "'paused'", "origin === 'w03'"]) assert.ok(gate.includes(k), k);
+});
+
+test('/start/ page pending (conv_state start_page): chat goes to Lindi (v4b12, no age taps), then the link again; STOP still wins; an age the page accepted is never closed later', () => {
+  const ld = { ...mkLead(L01), conv_state: { state: 'start_page' } };
+  const r = (msg) => W.routeInbound({ from: ld.phone, text: '', ...msg }, { lead: ld, broker_numbers: new Set([B.adviser_whatsapp]) }).route;
+  assert.equal(r({ text: 'Is this legit?' }), 'nlu');
+  assert.equal(r({ payload: 'whatever' }), 'nlu');
+  assert.equal(r({ text: 'STOP' }), 'W15');
+  assert.equal(W.routeInbound({ from: ld.phone, text: 'hi', origin: 'w03' }, { lead: ld }).route, 'nlu', 'loop guard unchanged');
+  const nlu = { intent: 'other', topics: [], slots: { age_band: '<35' }, confidence: 0.9 };
+  // 18 Oct 2026 (Jono): every age books and counts, so no typed age closes the chat, flag or not
+  for (const st of ['unbooked', 'q_age', 'booked']) for (const c of [{}, { age_accepted: true }]) assert.equal(decide(st, nlu, {}, c).actions.includes('close_oob'), false, st);
+  assert.deepEqual(decide('q_age', { ...nlu, slots: { age_band: '51+' } }, {}, {}).actions.slice(-2), ['record_answer', 'next_question']);
+  assert.match(WF.nodes.find((n) => n.name === 'Parse NLU -> decide() -> plan').parameters.jsCode, /age_accepted: cs\.age_accepted === true/);
+});
+
+// Standing rule (KG's test, 18 Oct 2026 23:20): Lindi never tells a client about a failure: no "couldn't", no calendar or
+// system trouble, no errors. Every fixed client line and every fallback is checked; a new line that slips one in fails here.
+const FAILURE_WORDS = /couldn[’']?t|can[’']?t pull|open times just now|\berror\b|\bsystem\b|calendar (?:is |was )?(?:down|not|un)|calendar problem|went wrong|technical|glitch|kon nie|skeefgeloop/i;
+test('client-facing lines never mention a failure, a calendar problem or a system', () => {
+  const strings = [];
+  const walk = (v, at) => { if (typeof v === 'string') strings.push([at, v]); else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) walk(x, at + '.' + k); };
+  walk(LINES, 'LINES');
+  for (const route of W.NEVER_SILENT_ROUTES) for (const lang of ['en', 'af']) for (const first_name of ['', 'Mortso']) {
+    strings.push([`neverSilentText(${route},${lang})`, W.neverSilentText(route, { first_name, lang })]);
+  }
+  assert.ok(strings.length > 40);
+  for (const [at, text] of strings) assert.doesNotMatch(text, FAILURE_WORDS, `${at}: ${text}`);
+});
+
+test('never silent: every fallback also alerts Jono (gated), without the number or the message', () => {
+  const a = W.neverSilentAlert({ route: 'W04', msg: { from: '+27725548057', profile_name: 'Mortso', text: 'hi' }, lead: { id: '3f0c2a9e-0000-4000-8000-000000000001', first_name: 'Mortso' } });
+  assert.equal(a.source, 'smc-never-silent');
+  assert.match(a.message, /^SortMyCover: Mortso is waiting on open times\..*Please follow up on WhatsApp\. Lead 3f0c2a9e\.$/);
+  assert.doesNotMatch(a.message, /7255|548057|\bhi\b/);
+  const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
+  const next = (name) => ((wf.connections[name] || {}).main || []).flat().map((x) => x.node);
+  assert.deepEqual(next('Never silent: escalation'), ['Never silent: owner alert (lib w07.neverSilentAlert)']);
+  assert.deepEqual(next('Never silent: owner alert (lib w07.neverSilentAlert)'), ['Live send? (Never silent: notify Jono (EMMA /api/notify))']);
+  const send = wf.nodes.find((n) => n.name === 'Never silent: notify Jono (EMMA /api/notify)');
+  assert.equal(send.parameters.url, 'https://emmadoesit.cloud/api/notify');
 });

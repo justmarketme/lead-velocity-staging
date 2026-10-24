@@ -57,10 +57,11 @@
       "no_reply_means": "nothing further (no consent to market)"
     },
     "model": {
-      "classify": "claude-haiku-4-5-20251001",
-      "draft": "claude-haiku-4-5-20251001",
-      "escalation": "claude-sonnet-5-5",
-      "sonnet_only_when": "intent is objection, needs_human is false, and the Haiku draft failed the first guardrail pass"
+      "classify": "relay-default",
+      "draft": "relay-default",
+      "escalation": "relay-default",
+      "relay": "$env.LLM_RELAY_URL + $env.LLM_RELAY_TOKEN, no fallback; unset = no call (each call's existing failure path); no Anthropic API in this system",
+      "redraft_only_when": "intent is objection, needs_human is false, and the first draft failed the first guardrail pass"
     }
   },
   "cases": {

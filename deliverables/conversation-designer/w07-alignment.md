@@ -34,7 +34,7 @@ Scope: `automation/lib/w07.mjs`, `automation/W07.json`, `automation/lib/w08.mjs`
    - Until that node exists, treat `confidence < 0.8` as `block` (fails closed).
    - A `block` is never appealed.
 5. **`first_name_raw` must be the raw stored name.** `automation/lib/w07.mjs:247` passes `plan.vars.first_name`, which is the *sanitised* value (empty when the name failed `sanitiseField`). That means the `injected_field` check in `outputGate` can never fire. Pass `ctx.lead.first_name` through the plan (for example `plan.first_name_raw`) and use that.
-6. **Reply request is missing its facts.** `automation/W07.json` node `Build reply request (Haiku)` (≈ line 1611): `facts` has only `adviser_first` and `booking`. reply.md requires:
+6. **Reply request is missing its facts.** `automation/W07.json` node `Build reply request` (now `Build Lindi request (ElevenLabs)`; ≈ line 1611 at the time): `facts` has only `adviser_first` and `booking`. reply.md requires:
    - `facts.faq` = the approved `knowledge/faq.md` answer for each `answer:FAQ-xx` action, in the lead's language. Without it the model writes an FAQ answer from nothing, against the "you do not add facts" rule.
    - `KNOWN:` (slots already stored), so the model never asks twice (4.11 memory).
    - `booking` as `"{day} {date} {time} by {method_label}"`. Today it has no time.

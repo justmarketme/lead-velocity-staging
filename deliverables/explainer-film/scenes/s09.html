@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>09 Picking a time</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .ph { position: absolute; left: 1330px; top: 150px; }
+  .ph .phone { position: relative; width: 390px; height: 800px; }
+  .flow { position: absolute; left: 120px; top: 320px; display: flex; gap: 14px; }
+  .flow .pill { font-size: 20px; padding: 10px 20px; }
+  .mail { position: absolute; left: 120px; top: 410px; width: 640px; padding: 22px 26px; }
+  .mail .from { display: flex; align-items: center; gap: 12px; }
+  .mail .from .av { width: 44px; height: 44px; border-radius: 50%; background: var(--ink); display: grid; place-items: center; }
+  .mail .from .av img { width: 30px; }
+  .mail .from b { font-size: 18px; color: var(--ink); display: block; }
+  .mail .from span { font-size: 15px; color: var(--muted); }
+  .mail h3 { font-size: 24px; color: var(--ink); margin: 16px 0 10px; }
+  .mail p { font-size: 17px; line-height: 1.5; color: var(--slate); }
+  .mail .btn { display: inline-block; margin: 14px 0 8px; padding: 12px 20px; border-radius: 10px; background: var(--y); color: var(--y-text); font-weight: 800; font-size: 17px; }
+  .page { position: absolute; left: 470px; top: 640px; width: 400px; padding: 22px 24px; border-radius: 16px; }
+  .page h4 { font-size: 22px; color: var(--ink); }
+  .page p { font-size: 16px; color: var(--muted); margin-top: 6px; }
+  .ol { position: absolute; left: 790px; top: 410px; width: 480px; padding: 0; overflow: hidden; }
+  .ol .bar { background: #0f6cbd; color: #fff; padding: 12px 18px; font-weight: 700; font-size: 17px; display: flex; justify-content: space-between; }
+  .ol .day { padding: 16px 18px 20px; }
+  .ol .slot { display: flex; gap: 12px; align-items: stretch; margin-top: 8px; }
+  .ol .slot .tm { width: 64px; font-size: 15px; color: var(--muted); font-weight: 700; padding-top: 8px; }
+  .ol .slot .ev { flex: 1; border-left: 5px solid var(--y); background: var(--y-wash); border-radius: 8px; padding: 10px 12px; }
+  .ol .slot .ev b { display: block; font-size: 17px; color: var(--ink); }
+  .ol .slot .ev span { font-size: 14px; color: var(--muted); }
+  .ol .slot .empty { flex: 1; border-top: 1px dashed var(--line); margin-top: 18px; }
+</style></head>
+<body data-scene="s09"><div class="stage">
+  <div class="top"><div class="eyebrow">The client's side · 2</div><h1 class="h">A time, an email, <em>a booked call</em></h1></div>
+  <div class="flow"><span class="pill grey f1"><i></i>Time picked</span><span class="pill y f2"><i></i>Held for them</span><span class="pill grey f3"><i></i>Email confirmed</span><span class="pill green f4"><i></i>Booked</span></div>
+  <div class="card mail">
+    <div class="from"><div class="av"><img src="assets/content/logo-tick-mark-384.png" alt=""></div><div><b>SortMyCover</b><span>hello@sortmycover.co.za</span></div></div>
+    <h3>Confirm your email for your call with Mark Weston</h3>
+    <p>Hi Thabo, please confirm this is your email address so Mark Weston can send you your meeting details:</p>
+    <div class="btn">Confirm my email</div>
+    <p>The link works for 24 hours. If you did not ask for this, ignore this email.</p>
+  </div>
+  <div class="card page"><h4>Your email is confirmed</h4><p>Thank you. You can close this page.</p></div>
+  <div class="card ol"><div class="bar"><span>Outlook · Mark Weston</span><span>Tue 20 Oct</span></div>
+    <div class="day">
+      <div class="slot"><div class="tm">09:00</div><div class="empty"></div></div>
+      <div class="slot"><div class="tm">10:00</div><div class="ev"><b>SortMyCover call – Thabo – Phone</b><span>10:00–10:30 · Call Thabo on 082 ··· ···· · age 35–44 · budget R750–R1,250</span></div></div>
+      <div class="slot"><div class="tm">11:00</div><div class="empty"></div></div>
+    </div></div>
+  <div class="ph"><div class="phone"><div class="scr">
+    <div class="sb"><span>08:43</span><span>5G</span></div>
+    <div class="wa-head"><div class="av"><img src="assets/content/logo-tick-mark-384.png" alt=""></div><div><b>SortMyCover</b><span>Business account</span></div></div>
+    <div class="wa-body"><div class="stack"></div></div>
+    <div class="wa-in"><div class="box"></div><div class="send"></div></div>
+    <div class="shade"></div>
+  </div><div class="notch"></div></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script><script src="chat.js"></script>
+<script>
+  const T = { ten: cue('ten'), taps: cue('taps'), held: cue('held'), email: cue('email'), link: cue('link'), booked: cue('booked'), outlook: cue('Outlook'), wa: cue('WhatsApp'), smc: cue('SortMyCover') };
+  const ROWS = ['Mon 19 Oct, 11:00', 'Mon 19 Oct, 14:30', 'Tue 20 Oct, 10:00', 'Tue 20 Oct, 15:00', 'Wed 21 Oct, 09:30', 'Wed 21 Oct, 13:00', 'Thu 22 Oct, 10:30'];
+  const chat = Chat($('.ph .scr'), [
+    { dir: 'in', text: 'How would you like to talk to Mark?', at: -9, time: '08:43', btns: ['Teams video call', 'Phone call'] },
+    { dir: 'out', text: 'Phone call', at: -8, time: '08:43' },
+    { dir: 'in', text: 'Here are the next open times with Mark. Times are South African time.', at: T.ten - .3, time: '08:43', list: 'See times' },
+    { dir: 'out', text: 'Tue 20 Oct, 10:00', at: T.held - .4, time: '08:43', tap: { sheet: { title: 'Next free times', rows: ROWS, pick: 2 } } },
+    { dir: 'in', text: 'Great, so Tuesday 20 October at 10:00 by phone is held for you. Could you share your email so I can send the invite?', at: T.email - .3, time: '08:44' },
+    { dir: 'out', text: 'thabo.m@gmail.com', at: T.link - 1.1, time: '08:44', noTyping: true },
+    { dir: 'in', text: "Thank you. We've emailed a confirmation link to thabo.m@gmail.com. Please tap it to confirm your email.", at: T.link - .1, time: '08:44' },
+    { dir: 'in', text: 'Thanks, your email is confirmed.', at: T.booked + .2, time: '08:45', noTyping: true },
+    { dir: 'in', text: 'Hi Thabo, you are booked. *Mark Weston* will meet you on *Tue 20 Oct at 10:00* by phone call. Please reply with the day and time so we know it is in your diary. Reply STOP to opt out.', at: T.wa - .2, time: '08:45', hdr: 'assets/content/wa-header-booked.jpg', btns: ['Confirm', 'Reschedule', 'Cancel'] },
+  ]);
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    rv('.ph', t, .3, { y: 0, x: 30, dur: .8 });
+    typed($('.wa-in .box'), 'thabo.m@gmail.com', t, T.email + 1.2, 1.2);
+    if (t >= T.link - 1.1) $('.wa-in .box').textContent = '';
+    rv('.f1', t, T.taps, { y: 10, dur: .4 }); rv('.f2', t, T.held, { y: 10, dur: .4 });
+    rv('.f3', t, T.link + 1.6, { y: 10, dur: .4 }); rv('.f4', t, T.booked, { y: 10, dur: .4 });
+    // the confirmation email, then the link page, then Outlook
+    const m = P(t, T.link + .2, .6) * (1 - P(t, T.outlook - .6, .5));
+    $('.mail').style.opacity = m.toFixed(3); $('.mail').style.transform = `translateY(${((1 - P(t, T.link + .2, .6)) * 30).toFixed(1)}px)`;
+    const btn = $('.mail .btn'); const press = P(t, T.link + 1.4, .25) * (1 - P(t, T.link + 1.8, .25));
+    btn.style.transform = `scale(${(1 - .06 * press).toFixed(3)})`; btn.style.boxShadow = press > 0 ? `0 0 0 ${(6 * press).toFixed(1)}px rgba(245,166,35,.3)` : '';
+    const pg = P(t, T.link + 1.8, .5) * (1 - P(t, T.outlook - .6, .5));
+    $('.page').style.opacity = pg.toFixed(3); $('.page').style.transform = `translateY(${((1 - P(t, T.link + 1.8, .5)) * 20).toFixed(1)}px)`;
+    rv('.ol', t, T.outlook - .3, { x: -30, y: 0, dur: .7 });
+    const ev = $('.ol .ev'); const e = P(t, T.outlook + .3, .5, E.back); ev.style.opacity = e; ev.style.transform = `scale(${lerp(.9, 1, e).toFixed(3)})`;
+    chat.update(t);
+  };
+</script></body></html>

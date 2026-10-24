@@ -10,4 +10,4 @@ let route = 'llm', reason = null;
 if (c.quiet) route = 'quiet';
 else if (!allow(cfg, 'pulse', est)) { route = 'template'; reason = 'daily cap'; }
 if (route === 'llm') charge(cfg, 'pulse', est);
-return [{ json: { route, reason, status: c.status, INPUT: c.INPUT, body: route === 'llm' ? anthropicBody(cfg.models.fast, system, user, 1400) : null } }];
+return [{ json: { route, reason, status: c.status, INPUT: c.INPUT, body: route === 'llm' ? relayBody(cfg.models.fast, system, user, 1400) : null } }];

@@ -24,7 +24,8 @@ Every secret's *metadata* (never its value) is registered in `ops.secret_invento
 | `PAYSTACK_SECRET_KEY` | Charges, plans, and verifies webhook HMAC | Paystack has no scoped keys. Mitigate: webhook IP allowlist (Paystack docs) and re-fetch every transaction before marking paid | `.env` → n8n credential | 12 months, or on leak |
 | `TWILIO_API_KEY_SID/SECRET` | Outbound Lookup, SMS fallback, W22 voice | Standard API key (not Main) | `.env` → *Twilio API key (Basic)* | 12 months |
 | `TWILIO_AUTH_TOKEN` | **Only** verifies `X-Twilio-Signature` | — | `.env` | 12 months (Twilio secondary-token swap) |
-| `ANTHROPIC_API_KEY` | LLM calls | workspace key with a spend limit | `.env` → n8n credential | 12 months |
+| `LINDI_RELAY_TOKEN` | W07 → smc-lindi-chat (Lindi = ElevenLabs agent; no Anthropic API in this system) | only its SHA-256 is stored (`public.relay_tokens` 'lindi-whatsapp') | `.env` → `$env` (no n8n credential) | 12 months, or on leak |
+| `LLM_RELAY_TOKEN` | the optional LLM relay for W11/W23/W29-W33 (`LLM_RELAY_URL`) | relay-side key with a spend limit | `.env` → `$env` (no n8n credential) | 12 months |
 | `TURNSTILE_SECRET_KEY` | W01 siteverify | — | `.env` | 12 months |
 | `N8N_ENCRYPTION_KEY` | Encrypts every n8n credential at rest | — | `.env` **and** offline (password manager, Jonathan + KG). Without it, the credential backup is useless | Never rotated casually (it re-keys every credential). Rotate only on leak, via export/re-import |
 | `N8N_API_KEY` | n8n public API (CI import/export) | n8n API key scopes if offered, else owner-level | `.env` | 6 months |

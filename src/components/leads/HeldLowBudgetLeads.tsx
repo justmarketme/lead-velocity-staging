@@ -1,3 +1,4 @@
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +10,7 @@ import { AlertTriangle, CheckCircle2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AGE_TEXT, ASSIGN_REFUSED_CODE, ASSIGN_REFUSED_TEXT, COUNTS_HELPER, LOW_BUDGET, REASON_TEXT, PRODUCT_INTEREST_TEXT, WILLS, loadLowBudgetSwitches, loadWillsSwitches } from "@/lib/lowBudget";
 
-const db = supabase as any;
+const db = supabaseUntyped;
 
 export interface HeldLead {
   id: string;
@@ -143,7 +144,7 @@ const AssignDialog = ({ lead, onClose, onAssigned }: { lead: HeldLead | null; on
         db.from("brokers").select("id, firm_name, contact_person, status").neq("status", "Inactive").order("firm_name"),
         wills ? loadWillsSwitches() : loadLowBudgetSwitches(),
       ]);
-      const rows: BrokerOption[] = (data || []).map((b: any) => ({ ...b, optedIn: !!switches?.[b.id] }));
+      const rows: BrokerOption[] = ((data || []) as Omit<BrokerOption, "optedIn">[]).map((b) => ({ ...b, optedIn: !!switches?.[b.id] }));
       rows.sort((a, b) => Number(b.optedIn) - Number(a.optedIn));
       setBrokers(rows);
     })();

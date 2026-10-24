@@ -7,7 +7,7 @@ All fixture times are written in SAST (`+02:00`). South Africa has no daylight s
 - The fixture's `_meta.base_clock` is Mon 12 Oct 2026 08:00. Every lead, booking and tap has an absolute time on that clock.
 - To test a reminder, the test computes the schedule from `booking_request.requested_at` (T0) and `slot_start` (M). It then checks the hand-computed times in `expected.W09.schedule`. Example, L01: T0 Mon 08:14:41, M Thu 10:00, so T-48 h is Tue 10:00.
 - Branches are made by moving the booking time, not by waiting:
-  - **Full sequence (L01, L10):** booked 3 or more days out, so `intro_media` goes at T-48 h.
+  - **Full sequence (L01, L10):** booked 3 or more days out; `intro_media` goes a day after booking (T0 + 24 h, Jono 19 Oct 2026).
   - **Mid-range (L04):** booked 24–72 h out, so `intro_media` goes at T0 + 15 min.
   - **Compressed (L02, L03):** booked less than 24 h out, so there is no T-24 h reminder or prep nudge.
   - **Edge case:** booked exactly 2 h out. The test rewrites `slot_start`; there is then no separate T-2 h.

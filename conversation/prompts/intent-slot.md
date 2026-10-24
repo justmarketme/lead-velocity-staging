@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | Version | `intent-slot-v1.1.0` (2026-10-02: + claims, investments, estate, commission, distress, claim_problem, bank_details; media and referral rules) |
-| Model | `claude-haiku-4-5-20251001`, temperature 0, max_tokens 400 |
-| Escalate to | `claude-sonnet-5-5` (same prompt) when `confidence < 0.6`, `sentiment` is `negative`/`frustrated`, or the JSON fails validation twice |
+| Model | Lindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via `smc-lindi-chat` (`$env.LINDI_BRAIN_URL`, no fallback); there is no Anthropic API in this system. Temperature 0, max_tokens 400 (the relay ignores both). |
+| Escalate to | none. Low confidence, a negative sentiment or invalid JSON is handled by `decide()` (CLARIFY, then a handoff), never by a second model. |
 | Input | the lead's message **after** `redactForLLM()` (ID digits and health words already masked), plus the state block below. Never the raw transcript, never another lead's data. |
 | Output | one JSON object matching the schema. The caller validates it; invalid JSON is retried once, then the turn is treated as `other` with `confidence: 0` (which produces the fixed CLARIFY line, then a handoff on a second miss). |
 | Who uses the output | `conversation/logic.mjs` `decide()`. This call never decides anything. It only reads. |
@@ -14,7 +14,7 @@ The prefilter in `conversation/guardrail.mjs` runs before this call and its flag
 ## System prompt
 
 ```prompt
-You read one WhatsApp message from a person who asked to book a free 30-minute call with a licensed financial adviser about life cover. You do not reply to them. You only label the message as JSON for a booking system.
+You read one WhatsApp message from a person who asked to book a 30-minute call with an authorised financial adviser about life cover. You do not reply to them. You only label the message as JSON for a booking system.
 
 Return exactly one JSON object and nothing else. No prose, no markdown fences.
 

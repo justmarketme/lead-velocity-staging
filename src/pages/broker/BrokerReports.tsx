@@ -9,8 +9,8 @@ import { TrendingUp, TrendingDown, Users, CheckCircle } from "lucide-react";
 
 const BrokerReports = () => {
   const [loading, setLoading] = useState(true);
-  const [statusData, setStatusData] = useState<any[]>([]);
-  const [timelineData, setTimelineData] = useState<any[]>([]);
+  const [statusData, setStatusData] = useState<{ name: string; value: number }[]>([]);
+  const [timelineData, setTimelineData] = useState<{ month: string; leads: number }[]>([]);
   const [metrics, setMetrics] = useState({
     totalLeads: 0,
     completedWills: 0,
@@ -25,7 +25,7 @@ const BrokerReports = () => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
 
@@ -36,7 +36,7 @@ const BrokerReports = () => {
       });
 
       if (!hasRole) {
-        navigate("/login");
+        navigate("/broker");
         return;
       }
 

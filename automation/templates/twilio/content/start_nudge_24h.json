@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "key": "start_nudge_24h",
+    "source": "lib/w08.mjs startWords (W08 start track, 19 Oct 2026)",
+    "approval": {
+      "name": "smc_start_nudge_24h",
+      "category": "UTILITY"
+    },
+    "core": false,
+    "banner": "header-video.png",
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ]
+  },
+  "content": {
+    "friendly_name": "smc_start_nudge_24h",
+    "language": "en",
+    "variables": {
+      "1": "Naledi",
+      "2": "Mark",
+      "3": "lt1.sample",
+      "4": "not_now:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, {{2}} still has open times this week for your 30-minute call. There's no obligation to buy anything, and any next step is your choice. Tap below to pick a time. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-video.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Pick a time",
+            "url": "https://sortmycover.co.za/start/#lt={{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Not now",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike } from "@/lib/speechRecognition";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,9 @@ import { getInvoiceEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
 import { callLegalAI } from "@/utils/legalAI";
 import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
+import type { Tables } from "@/integrations/supabase/types";
+import type { BrokerOnboardingRow } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 // Invoice line + terms built from the pricing source (3.6) - no price is typed in this file.
 // Wording never mentions policies, commission or success (FAIS, Raspberry Academy v Oaksure).
@@ -30,7 +34,7 @@ const isGeneratedTerms = (notes: string) => ALL_PLANS.some((p) => invoiceTerms(p
 
 interface InvoiceGeneratorProps {
     onBack: () => void;
-    initialData?: any;
+    initialData?: Record<string, unknown>;
 }
 
 // Helper component for inline editing
@@ -44,7 +48,7 @@ const Editable = ({
     value: string;
     onChange: (val: string) => void;
     className?: string;
-    tag?: any;
+    tag?: React.ElementType;
     html?: boolean;
 }) => {
     const handleBlur = (e: React.FocusEvent<HTMLElement>) => {
@@ -115,7 +119,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         "Add a late fee clause",
         "Make it sound more professional"
     ]);
-    const [pendingChanges, setPendingChanges] = useState<any>(null);
+    const [pendingChanges, setPendingChanges] = useState<Record<string, unknown> | null>(null);
 
     const [invoiceData, setInvoiceData] = useState({
         invoiceNumber: "INV-2024-001",
@@ -135,7 +139,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
         companyRegNumber: "Reg: [REG NO]"
     });
 
-    const [history, setHistory] = useState<any[]>([]);
+    const [history, setHistory] = useState<Tables<'admin_documents'>[]>([]);
 
     // Private bucket: sign a fresh 5-minute link on every click (getPublicUrl links fail).
     const viewPdf = async (path: string) => {
@@ -158,7 +162,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
 
     useEffect(() => {
         if (initialData) {
-            setInvoiceData(initialData);
+            setInvoiceData(initialData as typeof invoiceData);
         }
         fetchHistory();
     }, [initialData]);
@@ -185,7 +189,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
     const [recipientEmail, setRecipientEmail] = useState("");
     const [selectedBrokerId, setSelectedBrokerId] = useState<string | null>(null);
 
-    const handleBrokerSelect = (broker: any) => {
+    const handleBrokerSelect = (broker: BrokerOnboardingRow) => {
         const clientName = broker.full_name || "Valued Partner";
         const clientCompany = broker.firm_name || broker.company_name || "Independent Broker";
         const leads = broker.desired_leads_weekly || 0;
@@ -311,8 +315,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             setIsListening(false);
             return;
         }
-        // @ts-ignore
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             toast({ title: "Not Supported", description: "Voice input is not supported in this browser.", variant: "destructive" });
             return;
@@ -324,7 +327,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             setIsListening(true);
             toast({ title: "Listening...", description: "Speak your command clearly." });
         };
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             const transcript = event.results[0][0].transcript;
             setAiInput(transcript);
             processAICommand(transcript);
@@ -350,11 +353,11 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
             }
             if (response && isConversational) speak(response);
             if (response && !isConversational) setAiResponse(response);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("AI Assistant Error:", error);
             const errorMsg = "I'm sorry, I couldn't connect to the AI. Please check your internet connection.";
             setAiResponse(errorMsg);
-            toast({ title: "AI Error", description: error.message, variant: "destructive" });
+            toast({ title: "AI Error", description: getErrorMessage(error), variant: "destructive" });
         } finally {
             setIsThinking(false);
         }
@@ -512,9 +515,9 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                     toast({ title: "Saved", description: "Invoice saved to documents library." });
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast({ title: "Error", description: error.message || "Failed to process document.", variant: "destructive" });
+            toast({ title: "Error", description: getErrorMessage(error) || "Failed to process document.", variant: "destructive" });
         } finally {
             setIsGenerating(false);
         }

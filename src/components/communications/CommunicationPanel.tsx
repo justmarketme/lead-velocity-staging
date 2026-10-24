@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -129,14 +130,14 @@ export function CommunicationPanel({ recipientType, recipientId, recipientContac
     if (!template) return;
 
     // Replace placeholders with actual values
-    let processedContent = template.content
+    const processedContent = template.content
       .replace(/\{\{name\}\}/g, recipientContact.name || 'there')
       .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
 
     setContent(processedContent);
 
     if (template.subject) {
-      let processedSubject = template.subject
+      const processedSubject = template.subject
         .replace(/\{\{name\}\}/g, recipientContact.name || '')
         .replace(/\{\{date\}\}/g, format(new Date(), 'MMMM d, yyyy'));
       setSubject(processedSubject);

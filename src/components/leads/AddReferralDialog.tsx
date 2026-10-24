@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,7 +92,7 @@ const AddReferralDialog = ({ leadId, leadName, onReferralAdded }: AddReferralDia
         phone_number: validatedData.phone_number,
         email: validatedData.email || null,
         will_status: `${validatedData.referral_reason}|Pending`,
-      });
+      } as TablesInsert<'referrals'>); // email is not in the generated types (see report)
 
       if (error) {
         toast({
@@ -201,7 +202,7 @@ const AddReferralDialog = ({ leadId, leadName, onReferralAdded }: AddReferralDia
             <Label>What is this referral for?</Label>
             <Select
               value={formData.referral_reason}
-              onValueChange={(v) => setFormData({ ...formData, referral_reason: v as any })}
+              onValueChange={(v) => setFormData({ ...formData, referral_reason: v as "estate_planning" | "financial_advice" })}
             >
               <SelectTrigger className="w-full h-12">
                 <SelectValue placeholder="Select purpose" />

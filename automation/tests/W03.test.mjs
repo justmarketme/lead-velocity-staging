@@ -34,7 +34,7 @@ function run(fx, { brand = BRAND, brokerRow = MARK, existing = null } = {}) {
 }
 const sends = (acts) => acts.filter((a) => a.kind === 'send');
 
-test('L04 consent yes: named consent first, lead row at the tap (verified), Meta referral stored, CAPI Lead once', () => {
+test('L04 consent yes: named consent first, lead row at the tap (verified), Meta referral stored, CAPI Lead once', async () => {
   const fx = lead('L04');
   const { actions } = run(fx);
   const consentMsg = sends(actions)[0].message;
@@ -60,6 +60,12 @@ test('L04 consent yes: named consent first, lead row at the tap (verified), Meta
   assert.equal(row.phone, '+27600000104');
   const capi = actions.filter((a) => a.kind === 'capi');
   assert.deepEqual(capi.map((c) => [c.event_name, c.event_id, c.action_source]), [['Lead', e.capi_lead_event_id, 'business_messaging']]);
+  // 19 Oct 2026: the action carries what smc-capi-send needs; without lead_id + ctwa_clid its normalise() rejected it
+  // (invalid_input), so no CTWA Lead ever reached Meta.
+  assert.equal(capi[0].lead_id, row.id); assert.equal(capi[0].ctwa_clid, e.ctwa_clid); assert.equal(capi[0].brand_id, row.brand_id);
+  const { normalise } = await import('../lib/sub-capi-send.mjs');
+  const n = normalise(capi[0]);
+  assert.equal(n.valid, true, `missing: ${n.missing}`); assert.equal(n.action_source, 'business_messaging');
 });
 
 test('L04 qualifying is tap-only and ends in route + first touch at the method tap (W06 deadline 60 s)', () => {
@@ -92,16 +98,19 @@ test('L05 consent no: no lead row, only the hashed number, one reply after "No",
   assert.equal(thread.origin, undefined, 'origin/referral dropped on "No thanks"');
 });
 
-test('L06 out-of-band age: polite close, no hand-over, deleted within 24 h, no first touch', () => {
+test('L06 over 50 (18 Oct 2026): the age is asked and recorded, the chat goes on to the budget; never closed or disqualified on age', () => {
   const fx = lead('L06');
-  const { actions } = run(fx);
-  assert.equal(actions.filter((a) => a.kind === 'route_and_first_touch').length, 0);
+  const { actions, thread } = run(fx);
   const upd = actions.filter((a) => a.kind === 'update_lead').at(-1).set;
-  assert.equal(upd.disqualified_reason, fx.expected.W01.disqualified_reason);
-  assert.equal(upd.broker_id, null);
-  assert.equal(upd.age_band, '51plus', 'fixture code mapped to the leads_smc_checks code');
-  assert.equal(ms(upd.retention_delete_after), ms(fx.expected.W01.delete_after));
-  assert.match(sends(actions).at(-1).message.body, /not the right fit/);
+  assert.deepEqual(upd, { age_band: '51plus', conv_state_state: 'q_budget' }, 'fixture code mapped to the leads_smc_checks code; no disqualified_reason, no delete date');
+  assert.equal(thread.stage, 'q_budget');
+  assert.match(sends(actions).at(-1).message.body, /put towards cover each month/);
+  assert.equal(actions.some((a) => a.kind === 'update_lead' && (a.set.disqualified_reason || a.set.retention_delete_after)), false);
+  // every band, tapped: the same next step
+  for (const id of ['age_under_35', 'age_35_44', 'age_45_50', 'age_51_plus']) {
+    const r = W3.step({ stage: 'q_age', lead_id: 'l1', answers: {} }, { type: 'interactive', interactive: { type: 'list_reply', list_reply: { id } } }, { at: '2026-10-18T10:00:00+02:00', mobile: '+27600000106', broker: MARK, brand: BRAND, suppressed: false });
+    assert.equal(r.thread.stage, 'q_budget', id);
+  }
 });
 
 test('generic consent mode uses the 4.6 CTWA text with the v3 scope (fixture ctwa-generic-v3)', () => {
@@ -142,7 +151,7 @@ test('stall nudges at +1 h, +20 h, +68 h (inside the 72-h CTWA window) and cance
 test('readOrigin: W03-notes acceptance (a)-(g)', () => {
   const ref = (body, referral) => W3.readOrigin({ type: 'text', text: { body }, ...(referral ? { referral } : {}) });
   const R = { source_type: 'ad', source_id: '120212345678901234', ctwa_clid: 'ARAk_test' };
-  let o = ref("Hi, I'd like to check my life cover", R); // (a)
+  let o = ref("Hi, I'd like to book a 30-minute call with an adviser.", R); // (a) the ad pre-fill since 18 Oct 2026
   assert.deepEqual([o.origin, o.ctwa_clid, o.ad_id, o.ref], ['ctwa', 'ARAk_test', '120212345678901234', null]);
   o = ref("Hi, I'd like to check my life cover (ref cmt_120212345678901234)"); // (b)
   assert.deepEqual([o.origin, o.ad_id, o.ctwa_clid, o.text_without_ref], ['comment', '120212345678901234', null, "Hi, I'd like to check my life cover"]);
@@ -159,12 +168,12 @@ test('redirect (I-09): good ref -> 302 to wa.me with the ref prefill; bad ref ->
   const ok = W3.redirectFor('cmt_120212345678901234', '27600000099', 'Mozilla/5.0 (iPhone)');
   assert.equal(ok.status, 302);
   assert.equal(new URL(ok.headers.Location).host, 'wa.me');
-  assert.equal(new URL(ok.headers.Location).searchParams.get('text'), "Hi, I'd like to check my life cover (ref cmt_120212345678901234)");
+  assert.equal(new URL(ok.headers.Location).searchParams.get('text'), "Hi, I'd like to book a 30-minute call with an adviser. (ref cmt_120212345678901234)");
   assert.deepEqual(ok.click, { ref: 'cmt_120212345678901234', ua_class: 'ios' });
   for (const bad of ['https://evil.example', '<script>', 'cmt_1', '../x', '%0d%0aSet-Cookie:x']) {
     const r = W3.redirectFor(bad, '27600000099');
     assert.equal(new URL(r.headers.Location).host, 'wa.me');
-    assert.equal(new URL(r.headers.Location).searchParams.get('text'), "Hi, I'd like to check my life cover");
+    assert.equal(new URL(r.headers.Location).searchParams.get('text'), "Hi, I'd like to book a 30-minute call with an adviser.");
     assert.equal(r.click.ref, null);
   }
   assert.equal(ok.headers['Cache-Control'], 'no-store');
@@ -235,12 +244,11 @@ test('I-47a: typed "I\'m 47" at q_age with no wa_thread -> age_band 45_50 record
   assert.equal(r.actions.some((a) => a.kind === 'forward_w07'), false);
 });
 
-test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; lt750/750_1250/1250plus); out-of-band closes', () => {
-  for (const [nlu, db] of [['35-44', '35_44'], ['45-50', '45_50']]) assert.equal(typedStep('q_age', { age_band: nlu }).actions.find((a) => a.kind === 'update_lead').set.age_band, db);
-  for (const [nlu, db] of [['<35', 'lt35'], ['51+', '51plus']]) {
+test('I-47a: NLU bands map to leads_smc_checks codes (lt35/35_44/45_50/51plus; lt750/750_1250/1250plus); no age closes (18 Oct 2026)', () => {
+  for (const [nlu, db] of [['<35', 'lt35'], ['35-44', '35_44'], ['45-50', '45_50'], ['51+', '51plus']]) {
     const r = typedStep('q_age', { age_band: nlu });
-    const u = r.actions.find((a) => a.kind === 'update_lead').set;
-    assert.equal(u.age_band, db); assert.equal(u.stage, 'disqualified'); assert.equal(u.conv_state_state, 'closed_oob'); assert.equal(r.thread.stage, 'closed');
+    assert.deepEqual(r.actions.find((a) => a.kind === 'update_lead').set, { age_band: db, conv_state_state: 'q_budget' }, nlu);
+    assert.equal(r.thread.stage, 'q_budget');
   }
   for (const [nlu, db] of [['750-1250', '750_1250'], ['1250+', '1250plus'], ['1250-1499', '1250_1499'], ['1500+', '1500_plus']]) {
     const r = typedStep('q_budget', { budget_band: nlu }, { age_band: '45_50' });
@@ -322,7 +330,9 @@ test('I-48b/I-48k: W03 sends behind the shared reply claim + DRY_RUN_SENDS gate 
   assert.equal(c['Build Cloud API body'].main[0][0].node, 'Reply claim (w07:reply:{wamid})');
   assert.equal(c['Reply claim (w07:reply:{wamid})'].main[0][0].node, 'Live send? (W03)');
   // 2026-10-11: the send goes through smc-whatsapp-send (lib/wa-route.cjs): Live send? -> SUB input -> the waiting sub-call
-  assert.equal(c['Live send? (W03)'].main[0][0].node, 'SUB input (WhatsApp send (session))');
+  // 19 Oct 2026: a banner check sits between the gate and the reply (no banner -> straight to the reply)
+  assert.equal(c['Live send? (W03)'].main[0][0].node, 'Banner first? (W03)');
+  assert.equal(c['Banner first? (W03)'].main[1][0].node, 'SUB input (WhatsApp send (session))');
   assert.equal(c['SUB input (WhatsApp send (session))'].main[0][0].node, 'WhatsApp send (session)');
   assert.equal(WF.nodes.find((n) => n.name === 'WhatsApp send (session)').parameters.workflowId.value, 'smc-whatsapp-send');
   assert.equal(c['Live send? (W03)'].main[1][0].node, 'Store outbound (W03)');
@@ -353,4 +363,324 @@ test('I-47a: for a W07-owned lead the lead row wins over a stale rebuilt thread 
   const r = W3.step(stale, { type: 'text', text: { body: "I'm 47" } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000047', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_q1', lead: QLEAD('q_age'), typed: { slots: { age_band: '45-50' } } });
   assert.equal(r.actions.find((a) => a.kind === 'update_lead').set.conv_state_state, 'q_budget');
   assert.equal(r.thread.stage, 'q_budget');
+});
+
+// Quiz v2 (2026-10-14): every band code the page / WhatsApp sends is accepted; a web lead is asked with the approved
+// qualify_budget template, so there is ONE list (the template's five bands); the band triggers routing (held leads) and W05 finalize.
+test('quiz v2 bands: 750_1499 qualifies (was missing), ids map to DB codes, one list for lead-ad and web leads; W03.json wiring', () => {
+  for (const v of ['750_1250', '750_1499', '1250_1499', '1500_plus']) assert.ok(W3.QUAL_BUDGET.has(v), v);
+  assert.deepEqual(['lt750', 'under_750', '750_1499', '1500_plus'].map((v) => W3.BUDGET_TO_DB[v]), ['lt750', 'lt750', '750_1499', '1500_plus']);
+  assert.equal(W3.BUDGET_ROWS_V2, undefined, 'no second band list: the approved template has the five bands');
+  assert.deepEqual(W3.BUDGET_ROWS.map(([id]) => id), ['budget_under_500', 'budget_500_750', 'budget_750_1250', 'budget_1250_1499', 'budget_1500_plus'], 'qualify_budget template rows untouched');
+  assert.deepEqual(W3.question('q_budget').rows.map((r) => r.id), W3.BUDGET_ROWS.map(([id]) => id));
+  assert.doesNotMatch(W3.question('q_budget').body, /current|paying|premium/i, 'forward-looking wording, never "what do you pay now"');
+  // a CTWA lead answering R750-R1,499 (typed or tapped) is in band, not closed
+  const t = { stage: 'q_budget', lead_id: 'lead_v2b', answers: { age_band: '35_44' } };
+  const r = W3.step(t, { type: 'interactive', interactive: { list_reply: { id: 'budget_750_1499' } } }, { at: '2026-10-13T10:00:00+02:00', mobile: '+27600000188', brand: { brand_id: 'b1', consent_mode: 'generic' } });
+  assert.equal(r.thread.stage, 'q_bond'); assert.equal(r.actions.find((a) => a.kind === 'update_lead').set.budget_band, '750_1499');
+  // wiring: Load context reads the lead's origin (threadFromLead needs it), finalize_booking -> W05 by id
+  const nd = (n) => WF.nodes.find((x) => x.name === n);
+  assert.match(nd('Load context').parameters.query, /l2\.origin/);
+  const sw = nd('Action?').parameters.rules.values.map((v) => v.outputKey);
+  const i = sw.indexOf('finalize_booking');
+  assert.ok(i > sw.indexOf('update_lead'), 'band UPDATE runs before finalize (execution order v1)');
+  assert.equal(WF.connections['Action?'].main[i][0].node, 'W05 Book (finalize after the band)');
+  assert.equal(nd('W05 Book (finalize after the band)').parameters.workflowId.value, 'smc-w05');
+});
+
+// ---------------------------------------------------------------- website opener (17 Oct 2026, WHATSAPP-OPENERS.md)
+const OPENER = (topic, who, ref, via) => `Hi Lindi, I'd like to chat about ${topic}. I agree that SortMyCover may message me on WhatsApp about this and share my details with ${who}. Ref ${ref}${via ? ` via ${via}` : ''}`;
+const opStep = (text, extra = {}) => W3.step(null, { from: '27600000555', id: 'SMopener1', timestamp: '1792240000', type: 'text', text: { body: text }, ...extra },
+  { at: '2026-10-17T14:50:00+02:00', mobile: '+27600000555', profile_name: 'Thabo Mokoena', lead_id: 'lead_opener_1', broker: MARK, brand: BRAND, existing_open_lead_id: null, suppressed: false, wamid: 'SMopener1', is_synthetic: true });
+
+test('opener from an unknown number: lead stored at once with the opener consent, ref, via and provenance; greet + topic + first question', () => {
+  const r = opStep(OPENER('cover for my family', 'an authorised adviser', 'a06', 'ig/cycle1-new-baby/reel-02'));
+  const ins = r.actions.filter((a) => a.kind === 'insert_lead');
+  assert.equal(ins.length, 1, 'no consent buttons: the opener is the consent');
+  const row = ins[0].row;
+  assert.equal(row.consent_text_version, 'CONSENT-GENERIC-v5web');
+  assert.equal(row.consent_mode, 'generic');
+  assert.equal(row.consent_source, 'whatsapp_opener');
+  assert.equal(row.consent_text, 'I agree that SortMyCover may message me on WhatsApp about this and share my details with an authorised adviser.');
+  assert.equal(row.consent_at, '2026-10-17T14:50:00+02:00');
+  assert.equal(row.ref, 'a06');
+  assert.equal(row.source, 'campaign');
+  assert.equal(row.origin, 'ctwa');
+  assert.equal(row.product_interest, 'life_cover');
+  assert.deepEqual(row.reasons, ['life_cover']);
+  assert.deepEqual([row.utm_source, row.utm_campaign, row.utm_content], ['ig', 'cycle1-new-baby', 'reel-02']);
+  assert.equal(row.first_name, 'Thabo Mokoena');
+  assert.deepEqual(row.conv_state, { state: 'q_age', topic: 'cover for my family', ref: 'a06' });
+  const pv = row.provenance;
+  assert.equal(pv.door, 'whatsapp_opener');
+  assert.equal(pv.page_ref, 'a06');
+  assert.deepEqual(pv.via, { source: 'ig', campaign: 'cycle1-new-baby', content: 'reel-02' });
+  assert.equal(pv.inbound_sid, 'SMopener1');
+  assert.equal(pv.received_at, '2026-10-17T14:50:00+02:00');
+  assert.equal(pv.consent_version, 'CONSENT-GENERIC-v5web');
+  assert.match(pv.opener_text, /^Hi Lindi, I'd like to chat about cover for my family\./);
+  const s = sends(r.actions);
+  assert.equal(s.length, 1, 'one message');
+  assert.equal(s[0].message.type, 'list');
+  assert.match(s[0].message.body, /^Hi Thabo, I'm Lindi from SortMyCover\. /);
+  assert.equal(/AI/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
+  assert.match(s[0].message.body, /Thanks for getting in touch about cover for my family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
+  assert.equal(r.thread.stage, 'q_age');
+  assert.equal(r.thread.lead_id, 'lead_opener_1');
+});
+
+test('opener: curly apostrophe, no via (direct visit), site page code -> website_form; income topic -> disability reason', () => {
+  const r = opStep(OPENER('income protection', 'an authorised adviser', 'w-learn-income').replace("I'd", 'I’d'));
+  const row = r.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.source, 'website_form');
+  assert.equal(row.ref, 'w-learn-income');
+  assert.deepEqual(row.reasons, ['disability']);
+  assert.equal(row.utm_source, null);
+  assert.equal(row.provenance.via, null);
+});
+
+test('opener for a will (Capital Legacy): lead stored, a person is promised and an escalation opened, no cover questions', () => {
+  const r = opStep(OPENER('a will', 'Capital Legacy', 'b02', 'fb/cycle1-wills/carousel'));
+  const row = r.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.product_interest, 'wills');
+  assert.equal(row.reasons, null);
+  assert.equal(row.conv_state.state, 'handoff');
+  assert.match(row.consent_text, /share my details with Capital Legacy\.$/);
+  const s = sends(r.actions);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].message.type, 'text');
+  assert.match(s[0].message.body, /Capital Legacy consultant, so I've asked a person from our team to message you here shortly/);
+  assert.equal(r.actions.filter((a) => a.kind === 'escalate').length, 1);
+  assert.equal(r.actions.filter((a) => a.kind === 'alert').length, 0, 'no W22 call (inactive): the escalation row is the alert');
+});
+
+test('edited opener without the consent sentence, unknown ref, or plain text: normal consent question, no lead row', () => {
+  for (const t of ["Hi Lindi, I'd like to chat about cover for my family. Ref a06",
+    OPENER('cover', 'an authorised adviser', 'zz9'),
+    OPENER('cover', 'an authorised adviser', 'a06').replace('I agree that', 'I do not agree that'),
+    "Hi Lindi, I'd like to sort out life cover for my family"]) {
+    const r = opStep(t);
+    assert.equal(r.actions.filter((a) => a.kind === 'insert_lead').length, 0, t);
+    const s = sends(r.actions);
+    assert.deepEqual(s[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no'], t);
+    assert.equal(r.thread.stage, 'await_consent');
+    assert.equal(r.thread.first_wamid, 'SMopener1');
+  }
+});
+
+test('provenance on the consent tap: CTWA ad referral -> ctwa_ad with the referral fields; no referral -> whatsapp_direct', () => {
+  const ctx = (id) => ({ at: '2026-10-17T15:00:00+02:00', mobile: '+27600000556', profile_name: 'Ann', lead_id: 'lead_tap_1', broker: MARK, brand: BRAND, existing_open_lead_id: null, suppressed: false, wamid: id, is_synthetic: true });
+  const referral = { source_type: 'ad', source_id: '120200000001', source_url: 'https://fb.me/x', headline: 'Cover for your family', ctwa_clid: 'clid_1' };
+  const first = W3.step(null, { from: '27600000556', id: 'SMa', timestamp: '1', type: 'text', text: { body: 'hi' }, referral }, ctx('SMa'));
+  const tap = W3.step(first.thread, { from: '27600000556', id: 'SMb', timestamp: '2', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes', title: 'Yes' } } }, ctx('SMb'));
+  const row = tap.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.consent_source, 'ctwa_ad');
+  assert.equal(row.ad_id, '120200000001');
+  assert.equal(row.ctwa_clid, 'clid_1');
+  assert.deepEqual(row.provenance.referral, referral);
+  assert.equal(row.provenance.first_inbound_sid, 'SMa');
+  assert.equal(row.provenance.inbound_sid, 'SMb', 'the evidence is the consent tap');
+  const post = W3.step(null, { from: '27600000557', id: 'SMc', timestamp: '1', type: 'text', text: { body: 'hi' }, referral: { ...referral, source_type: 'post' } }, ctx('SMc'));
+  assert.equal(W3.step(post.thread, { id: 'SMd', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx('SMd')).actions.find((a) => a.kind === 'insert_lead').row.consent_source, 'ctwa_post');
+  const direct = W3.step(null, { from: '27600000558', id: 'SMe', timestamp: '1', type: 'text', text: { body: 'hello' } }, ctx('SMe'));
+  const drow = W3.step(direct.thread, { id: 'SMf', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx('SMf')).actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(drow.consent_source, 'whatsapp_direct');
+  assert.equal(drow.provenance.referral, null);
+  assert.equal(JSON.stringify(direct.thread).includes('hello'), false, 'no free text in thread state');
+});
+
+test('W03.json: lead insert writes the opener extras + provenance ($16), escalate action is wired', () => {
+  const ins = WF.nodes.find((n) => n.name === 'Insert lead (consent at the tap)');
+  for (const k of ["$16::jsonb->>'consent_source'", "$16::jsonb->>'source'", "$16::jsonb->>'product_interest'", "$16::jsonb->>'utm_source'", "'provenance', $16::jsonb->'provenance'"]) assert.ok(ins.parameters.query.includes(k), k);
+  assert.match(ins.parameters.options.queryReplacement, /provenance: \$json\.row\.provenance/);
+  const sw = WF.nodes.find((n) => n.name === 'Action?');
+  const idx = sw.parameters.rules.values.findIndex((r) => r.outputKey === 'escalate');
+  assert.ok(idx >= 0);
+  assert.equal(WF.connections['Action?'].main[idx][0].node, 'Escalate to a person (opener)');
+  assert.ok(WF.nodes.find((n) => n.name === 'W03 step').parameters.jsCode.includes('parseOpener'), 'step node inlines the tested logic');
+});
+
+test('lead_optins row (contract 17 Oct): opener and CTWA-ad consent map to the contract columns; channel left to the trigger', () => {
+  const op = opStep(OPENER('cover and my new bond', 'an authorised adviser', 'w-learn-bond', 'fb/cycle1/carousel-3')).actions.find((a) => a.kind === 'insert_lead').row.optin;
+  assert.deepEqual(op, {
+    lead_id: 'lead_opener_1', brand_id: 'smc', ref_code: 'w-learn-bond', via_source: 'fb', via_campaign: 'cycle1', via_content: 'carousel-3',
+    referral_source_type: null, referral_source_id: null, referral_source_url: null, referral_headline: null, ctwa_clid: null,
+    consent_version: 'CONSENT-GENERIC-v5web', consent_text: 'I agree that SortMyCover may message me on WhatsApp about this and share my details with an authorised adviser.',
+    opener_text: OPENER('cover and my new bond', 'an authorised adviser', 'w-learn-bond', 'fb/cycle1/carousel-3'), message_sid: 'SMopener1',
+    received_at: '2026-10-17T14:50:00+02:00', recorded_by: 'W03',
+  });
+  assert.equal('channel' in op, false);
+  const ctx = (id) => ({ at: '2026-10-17T15:00:00+02:00', mobile: '+27600000559', profile_name: 'Ann', lead_id: 'lead_tap_2', broker: MARK, brand: BRAND, existing_open_lead_id: null, suppressed: false, wamid: id, is_synthetic: true });
+  const referral = { source_type: 'ad', source_id: '1202', source_url: 'https://www.instagram.com/p/x', headline: 'H', ctwa_clid: 'clid_9' };
+  const first = W3.step(null, { from: '27600000559', id: 'SMg', timestamp: '1', type: 'text', text: { body: 'hi' }, referral }, ctx('SMg'));
+  const tap = W3.step(first.thread, { id: 'SMh', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx('SMh'));
+  const o = tap.actions.find((a) => a.kind === 'insert_lead').row.optin;
+  assert.deepEqual([o.referral_source_type, o.referral_source_id, o.referral_source_url, o.ctwa_clid, o.message_sid, o.ref_code, o.via_source, o.consent_version], ['ad', '1202', 'https://www.instagram.com/p/x', 'clid_9', 'SMh', null, null, 'ctwa-named-v3']);
+});
+
+test('W03.json: lead_optins insert runs after the lead insert, idempotent on message_sid, never blocks the run', () => {
+  const n = WF.nodes.find((x) => x.name === 'Opt-in record (lead_optins)');
+  assert.match(n.parameters.query, /^INSERT INTO public\.lead_optins \(lead_id, brand_id, ref_code,/);
+  assert.match(n.parameters.query, /ON CONFLICT \(message_sid\) DO NOTHING/);
+  assert.equal(/\bchannel\b/.test(n.parameters.query), false, 'channel is derived by the trigger');
+  assert.equal(n.onError, 'continueRegularOutput');
+  assert.ok(WF.connections['Insert lead (consent at the tap)'].main[0].some((x) => x.node === 'Opt-in record (lead_optins)'));
+});
+
+// ---------------------------------------------------------------- /start/ page link (brand flag start_page, 18 Oct 2026)
+const SP_TOKEN = 'lt1.lead_test_L04.1792240000.' + 'A'.repeat(43);
+const SP_BRAND = { ...BRAND, start_page: true };
+const consentThenYes = (ctxExtra = {}) => {
+  const base = { at: '2026-10-18T10:00:00+02:00', mobile: '+27600000104', profile_name: 'Thandi Nkosi', lead_id: 'lead_sp_1', broker: MARK, existing_open_lead_id: null, suppressed: false, wamid: 'SMsp1', is_synthetic: true, ...ctxExtra };
+  const first = W3.step(null, { from: '27600000104', id: 'SMsp0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, base);
+  return W3.step(first.thread, { from: '27600000104', id: 'SMsp1', timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, base);
+};
+
+test('start page OFF (default): the consent tap asks q_age exactly as before, even with a token on hand', () => {
+  for (const ctx of [{ brand: BRAND }, { brand: BRAND, start_page: { token: SP_TOKEN } }, { brand: SP_BRAND }]) {
+    const r = consentThenYes(ctx);
+    const s = sends(r.actions);
+    assert.equal(s.length, 1);
+    assert.equal(s[0].message.type, 'list');
+    assert.equal(s[0].message.body, 'Which age group are you in?');
+    assert.equal(r.thread.stage, 'q_age');
+    assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'q_age' });
+  }
+});
+
+test('start page ON: one call-to-action (header image, body, "Start here", link with the token in the fragment), state start_page + a stall', () => {
+  const r = consentThenYes({ brand: SP_BRAND, start_page: { token: SP_TOKEN } });
+  const s = sends(r.actions);
+  assert.equal(s.length, 1, 'ONE message replaces the first question');
+  const m = s[0].message;
+  assert.equal(m.type, 'cta_url');
+  assert.equal(m.url, `https://sortmycover.co.za/start/#lt=${SP_TOKEN}`, 'token in the fragment, never a query or path (CONTRACTS lead_token)');
+  assert.equal(m.button, 'Start here'); assert.ok(m.button.length <= 20);
+  assert.equal(m.header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png', 'Jono 19 Oct: the welcome banner');
+  assert.equal(m.body, "Hi Thandi, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.ok(m.body.length <= 1024);
+  assert.doesNotMatch(m.body, /\bfree\b|\bAI\b|Lead Velocity/i);
+  assert.equal(r.thread.stage, 'start_page');
+  assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'start_page' });
+  assert.equal(r.actions.find((a) => a.kind === 'schedule_stall').stage, 'start_page');
+  // Cloud API shape (Meta in-session interactive cta_url)
+  const body = W3.toCloudApi('+27600000104', m);
+  assert.deepEqual(body.interactive, { type: 'cta_url', header: { type: 'image', image: { link: m.header_image } }, body: { text: m.body }, action: { name: 'cta_url', parameters: { display_text: 'Start here', url: m.url } } });
+  // no name, no adviser: still a complete sentence
+  assert.equal(W3.startPageBody('', ''), "Hi there, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.doesNotMatch(W3.startPageBody('', ''), /\bfree\b|\blicensed\b|\bAI\b|virtual assistant/i);
+});
+
+test('start page ON: a website opener greets, then the call-to-action (wills openers still go to a person)', () => {
+  const ctx = { at: '2026-10-17T14:50:00+02:00', mobile: '+27600000555', profile_name: 'Thabo Mokoena', lead_id: 'lead_opener_1', broker: MARK, brand: SP_BRAND, existing_open_lead_id: null, suppressed: false, wamid: 'SMopener1', is_synthetic: true, start_page: { token: SP_TOKEN } };
+  const msg = (text) => ({ from: '27600000555', id: 'SMopener1', timestamp: '1792240000', type: 'text', text: { body: text } });
+  const r = W3.step(null, msg(OPENER('cover for my family', 'an authorised adviser', 'a06')), ctx);
+  const s = sends(r.actions);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].message.type, 'cta_url');
+  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for my family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'start_page', topic: 'cover for my family', ref: 'a06' });
+  assert.equal(r.thread.stage, 'start_page');
+  const w = W3.step(null, msg(OPENER('a will', 'Capital Legacy', 'b02')), ctx);
+  assert.equal(sends(w.actions)[0].message.type, 'text');
+  assert.equal(w.actions.filter((a) => a.kind === 'escalate').length, 1);
+});
+
+test('start page pending (v4b12): chat never falls back to the age taps; the lead goes back to W07 (Lindi, then the link again)', () => {
+  const r = consentThenYes({ brand: SP_BRAND, start_page: { token: SP_TOKEN } });
+  const lead = { id: 'lead_sp_1', conv_state: { state: 'start_page' }, broker_id: null, origin: 'ctwa' };
+  const ctx = { at: '2026-10-18T10:05:00+02:00', mobile: '+27600000104', profile_name: 'Thandi Nkosi', lead_id: 'unused', broker: MARK, brand: SP_BRAND, existing_open_lead_id: 'lead_sp_1', lead, suppressed: false, wamid: 'SMsp2', is_synthetic: true, start_page: { token: SP_TOKEN } };
+  for (const m of [{ type: 'text', text: { body: 'Is this legit?' } }, { type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'whatever' } } }]) {
+    for (const th of [r.thread, null]) {
+      const f = W3.step(th, { from: '27600000104', id: 'SMsp2', timestamp: '1792310300', ...m }, ctx);
+      assert.equal(sends(f.actions).length, 0, 'no age question');
+      assert.deepEqual(f.actions.filter((a) => a.kind !== 'cancel_stall'), [{ kind: 'forward_w07', lead_id: 'lead_sp_1', reason: 'start_page_pending' }]);
+      assert.equal(f.actions.some((a) => a.kind === 'update_lead' || a.kind === 'insert_lead'), false, 'nothing written; the page stays the way to answer');
+    }
+  }
+  // the page was answered (W39 moved the lead to unbooked): the old thread no longer triggers the fallback
+  const done = W3.step(r.thread, { from: '27600000104', id: 'SMsp9', timestamp: '1792310900', type: 'text', text: { body: 'thanks' } }, { ...ctx, lead: { ...lead, conv_state: { state: 'unbooked' } } });
+  assert.equal(sends(done.actions).length, 0);
+  assert.equal(done.actions[0].kind, 'forward_w07');
+});
+
+test('v4 CTWA consent (ctwa-generic-v4): new number -> consent with the welcome banner; Yes, I agree stores it, then the card; No thanks closes', async () => {
+  const { sessionBanner } = await import('../lib/wa-provider.mjs');
+  const base = { at: '2026-10-19T10:00:00+02:00', mobile: '+27600000106', profile_name: 'Thandi Nkosi', lead_id: 'lead_v4c', broker: null, brand: { ...SP_BRAND, consent_mode: 'named' }, existing_open_lead_id: null, suppressed: false, wamid: 'SMv0', is_synthetic: true, start_page: { token: SP_TOKEN } };
+  const hi = W3.step(null, { from: '27600000106', id: 'SMv0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, base);
+  const q = sends(hi.actions)[0].message;
+  assert.equal(sends(hi.actions).length, 1);
+  assert.equal(q.body, "Thanks, Thandi. Before we book your call, we need your consent (POPIA):\n\nDo you agree that SortMyCover may message you on WhatsApp to book and remind you about your call, and share your details with an authorised financial adviser who will contact you about it?\n\nSortMyCover (Lead Velocity (Pty) Ltd) is responsible for your details. You can opt out any time by replying STOP. Privacy: sortmycover.co.za/privacy");
+  assert.ok(q.body.length <= 1024);
+  assert.deepEqual(q.buttons, [{ id: 'consent_yes', title: 'Yes, I agree' }, { id: 'consent_no', title: 'No thanks' }]);
+  assert.equal(hi.thread.consent.version, 'ctwa-generic-v4'); assert.equal(hi.thread.consent.mode, 'generic', 'no broker needed before the prompt');
+  assert.equal(sessionBanner(W3.toCloudApi('+27600000106', q), { WA_SESSION_BANNERS: 'on', WHATSAPP_PROVIDER: 'twilio' }).banner.image.link, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png');
+  assert.ok(!hi.actions.some((a) => a.kind === 'insert_lead'));
+  assert.ok(W3.consentV4('').text.startsWith('Thanks. Before we book your call'), 'no name');
+  const tap = (id, w) => ({ from: '27600000106', id: w, timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id } } });
+  const yes = W3.step(hi.thread, tap('consent_yes', 'SMv1'), { ...base, wamid: 'SMv1' });
+  const row = yes.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.consent_text_version, 'ctwa-generic-v4'); assert.equal(row.consent_text, q.body, 'stored exactly as sent'); assert.equal(row.consent_mode, 'generic');
+  assert.deepEqual(sends(yes.actions).map((a) => a.message.type), ['cta_url'], 'then the Start here card');
+  const no = W3.step(hi.thread, tap('consent_no', 'SMv2'), { ...base, wamid: 'SMv2' });
+  assert.ok(!no.actions.some((a) => a.kind === 'insert_lead'));
+  assert.deepEqual(no.actions.filter((a) => a.kind === 'suppress').map((a) => a.source), ['no_consent_ctwa'], 'only the hash');
+  assert.ok(!sends(no.actions).some((a) => a.message.type === 'cta_url'));
+  // brand without the v4 path: the registered named consent, unchanged
+  const old = W3.step(null, { from: '27600000107', id: 'SMo0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, { ...base, brand: BRAND, broker: MARK, start_page: null });
+  assert.equal(old.thread.consent.version, 'ctwa-named-v3');
+  assert.equal(sends(old.actions)[0].message.buttons[0].title, 'Yes, continue');
+});
+
+test('W03.json: Load context reads brands.start_page column-agnostically; "W03 step" mints a token only when the flag is on and the transport can carry the link', async () => {
+  assert.match(WF.nodes.find((n) => n.name === 'Load context').parameters.query, /coalesce\(to_jsonb\(br\)->>'start_page', 'off'\) = 'on' AS start_page/);
+  const ad = { msg: { from: '27600000104', id: 'SMsp1', timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, at: '2026-10-18T10:01:00+02:00', mobile: '+27600000104', profile_name: 'Thandi', external_id: 'SMsp1', hops: 0 };
+  const consent = W3.consentFor('named', MARK);
+  const thread = { stage: 'await_consent', origin: { origin: 'ctwa' }, consent, answers: {}, first_at: '2026-10-18T10:00:00+02:00', broker_id: MARK.broker_id };
+  const row = (start_page) => ({ brand_id: 'b-smc', broker: { ...MARK, consent_mode: 'named' }, existing_open_lead_id: null, lead: null, suppressed: false, thread, new_lead_id: '11111111-2222-4333-8444-555555555555', start_page });
+  const SECRET = 'x'.repeat(40);
+  const run = async (sp, env) => (await runCode(WF, 'W03 step', { items: [row(sp)], refs: { 'W07 hand-off -> Cloud API message': ad }, env: { LEAD_TOKEN_SECRET: SECRET, ...env } }))[0].json;
+  const sendOf = (j) => j.actions.find((a) => a.kind === 'send').message;
+  assert.equal(sendOf(await run(false, {})).type, 'list', 'flag off: q_age');
+  const on = sendOf(await run(true, {}));
+  assert.equal(on.type, 'cta_url', 'flag on, Meta transport: the link');
+  const tok = on.url.split('#lt=')[1];
+  const LT = require('../security/lead-token.js');
+  assert.equal(LT.verifyLeadToken(tok, { secret: SECRET }).lead_id, '11111111-2222-4333-8444-555555555555');
+  assert.equal(sendOf(await run(true, { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: '{}' })).type, 'list', 'Twilio without the smc_start_cta SID: tap path');
+  assert.equal(sendOf(await run(true, { WHATSAPP_PROVIDER: 'twilio', TWILIO_CONTENT_SIDS: JSON.stringify({ smc_start_cta: 'HXcta' }) })).type, 'cta_url');
+  assert.equal(sendOf(await run(true, { LEAD_TOKEN_SECRET: '' })).type, 'list', 'no secret: no token, tap path');
+  // the stored outbound content is the body only (never the link / token)
+  const fan = await runCode(WF, 'Fan out actions', { items: [await run(true, {})] });
+  const [b] = await runCode(WF, 'Build Cloud API body', { items: [fan.find((x) => x.json.kind === 'send').json] });
+  assert.doesNotMatch(b.json.content, /lt1\./);
+  assert.equal(b.json.body.interactive.type, 'cta_url');
+});
+
+test('lead-ad band tap: W03 records the band and asks W01 core to route (W01 then discloses before any hand-over; see W01.test.mjs)', () => {
+  const lead = { id: 'lead_ld1', origin: 'lead_ad', conv_state: { state: 'q_budget' }, age_band: '45_50', broker_id: null };
+  const r = W3.step(null, { from: '27600000191', id: 'SMld1', timestamp: '1792310000', type: 'button', button: { payload: 'budget_1500_plus' } },
+    { at: '2026-10-18T10:00:00+02:00', mobile: '+27600000191', profile_name: 'Thandi', lead_id: 'unused', broker: MARK, brand: BRAND, existing_open_lead_id: 'lead_ld1', lead, suppressed: false, wamid: 'SMld1', is_synthetic: true });
+  const kinds = r.actions.map((a) => a.kind);
+  assert.ok(kinds.includes('route_and_first_touch'));
+  assert.equal(kinds.filter((k) => k === 'send').length, 0, 'W03 itself sends nothing: the disclosure text is W01 core\'s first step');
+});
+
+test('start page ON: the Start here card never comes before the consent tap (Hi -> consent only, No -> no card, Yes -> card); the consent carries the welcome banner', async () => {
+  const { sessionBanner } = await import('../lib/wa-provider.mjs');
+  const base = { at: '2026-10-19T10:00:00+02:00', mobile: '+27600000105', profile_name: 'Thandi Nkosi', lead_id: 'lead_sp_9', broker: MARK, brand: SP_BRAND, existing_open_lead_id: null, suppressed: false, wamid: 'SMc0', is_synthetic: true, start_page: { token: SP_TOKEN } };
+  const hi = W3.step(null, { from: '27600000105', id: 'SMc0', timestamp: '1792310000', type: 'text', text: { body: 'Hi' } }, base);
+  assert.deepEqual(sends(hi.actions).map((a) => a.message.type), ['button'], 'consent question only');
+  assert.deepEqual(sends(hi.actions)[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no']);
+  assert.ok(!hi.actions.some((a) => a.kind === 'insert_lead'), 'nothing stored before consent');
+  const body = W3.toCloudApi('+27600000105', sends(hi.actions)[0].message);
+  assert.equal(sessionBanner(body, { WA_SESSION_BANNERS: 'on', WHATSAPP_PROVIDER: 'twilio' }).banner.image.link, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png');
+  const tap = (id) => ({ from: '27600000105', id: `SM${id}`, timestamp: '1792310060', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id } } });
+  const no = W3.step(hi.thread, tap('consent_no'), { ...base, wamid: 'SMc1' });
+  assert.ok(!sends(no.actions).some((a) => a.message.type === 'cta_url'), 'No -> no card');
+  assert.ok(!no.actions.some((a) => a.kind === 'insert_lead'));
+  const yes = W3.step(hi.thread, tap('consent_yes'), { ...base, wamid: 'SMc2' });
+  const cta = sends(yes.actions).map((a) => a.message);
+  assert.deepEqual(cta.map((m) => m.type), ['cta_url'], 'Yes -> the Start here card');
+  assert.equal(cta[0].header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png', 'the card keeps its own welcome header');
 });

@@ -12,4 +12,4 @@ const user = 'WEEK: ' + weekStart + ' to ' + weekStart + ' + 6\nINPUT: ' + JSON.
 const est = estZar(cfg, cfg.models.strong, PROMPTS.memo_system.length + user.length, 6000);
 const ok = allow(cfg, 'memo', est);
 if (ok) charge(cfg, 'memo', est);
-return [{ json: { weekStart, ok, INPUT, scan, body: ok ? anthropicBody(cfg.models.strong, PROMPTS.memo_system, user, 6000) : null } }];
+return [{ json: { weekStart, ok, INPUT, scan, body: ok ? relayBody(cfg.models.strong, PROMPTS.memo_system, user, 6000) : null } }];

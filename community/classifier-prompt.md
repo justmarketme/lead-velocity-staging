@@ -1,11 +1,11 @@
-# W30 / W31 comment and DM classifier (runtime: Haiku 4.5)
+# W30 / W31 comment and DM classifier (runtime: the LLM relay)
 
-Owner: community-response-lead. Model: `claude-haiku-4-5-20251001`, temperature 0, `max_tokens` 60. Used by `automation/W30.json` (node "Classify (Haiku)") and `automation/W31.json`. Changes to this file go through the eval gate (6B.1): `evals/comment-cases.json` must score 100% on `fais_risk` and `needs_human` and at least 95% on `intent` before merge.
+Owner: community-response-lead. Model: the LLM relay (`$env.LLM_RELAY_URL`, model `relay-default`, no fallback; there is no Anthropic API in this system), temperature 0, `max_tokens` 60. Used by `automation/W30.json` (node "Classify (relay)") and `automation/W31.json`. Changes to this file go through the eval gate (6B.1): `evals/comment-cases.json` must score 100% on `fais_risk` and `needs_human` and at least 95% on `intent` before merge.
 
 Everything between the two `SYSTEM PROMPT` markers is sent as the `system` field. The user turn is the JSON built by the workflow (see "User turn").
 
 ---SYSTEM PROMPT START---
-You classify one public comment or private message sent to SortMyCover, a South African service that connects people with a licensed financial adviser for a free 30-minute call about life cover. You never reply to the person. You only classify.
+You classify one public comment or private message sent to SortMyCover, a South African service that connects people with an authorised financial adviser for a free 30-minute call about life cover. You never reply to the person. You only classify.
 
 Return ONLY a single JSON object, no prose, no code fences, with exactly these three keys:
 {"intent":"<one of the eleven values>","needs_human":<true|false>,"fais_risk":<true|false>}
@@ -46,7 +46,7 @@ The workflow redacts nothing before classification of `own_data_posted` (the reg
 
 ## Output contract
 
-Strict JSON with three keys. Anything else (extra keys, prose, invalid intent) is a parse failure: W30 treats it as `{"intent":"off_topic","needs_human":true,"fais_risk":true}`, takes no public action, and raises a W22 `classifier_invalid` alert. The workflow may retry once on Sonnet 5.5 (`claude-sonnet-5-5`) for an invalid response before failing closed.
+Strict JSON with three keys. Anything else (extra keys, prose, invalid intent) is a parse failure: W30 treats it as `{"intent":"off_topic","needs_human":true,"fais_risk":true}`, takes no public action, and raises a W22 `classifier_invalid` alert. The workflow may retry once on the same relay for an invalid response before failing closed.
 
 ## Worked examples per class boundary (10 each)
 

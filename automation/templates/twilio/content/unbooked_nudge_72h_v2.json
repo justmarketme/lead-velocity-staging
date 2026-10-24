@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "key": "unbooked_nudge_72h_v2",
+    "source": "automation/templates/unbooked_nudge_72h.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_unbooked_nudge_72h_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ],
+    "core": false,
+    "base": "unbooked_nudge_72h",
+    "header": "adviser"
+  },
+  "content": {
+    "friendly_name": "smc_unbooked_nudge_72h_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "see_open_times:sample",
+      "4": "no_thanks:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, this is our last message about your insurance and financial planning enquiry. On the call, {{2}} goes through where you are now, and any next step is your choice. Tap below to pick a time, or if not, no problem, we won't message again.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "See open times",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "No thanks",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

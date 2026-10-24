@@ -7,16 +7,25 @@
  * (then frozen), fsp_number only once the broker has a SortMyCover order (brand_id). The intro video is recorded by
  * sending it on WhatsApp (W23); its state is read from broker_media.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Camera, CheckCircle2, Circle, Loader2, Lock, Video } from "lucide-react";
-import { INTRO_MEDIA_URL, MEDIA_BUCKET, SUPPORT_EMAIL, SUPPORT_WA, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
+import { MEDIA_BUCKET, SUPPORT_EMAIL, errText, fmtDay, noAdviceTrip, portalEvent, smcDb } from "@/lib/smc";
 import type { SmcBroker, SmcBrokerSelfUpdate } from "@/integrations/supabase/smc-types";
 import { Tone, toneClasses } from "./tone";
+import { useBrokerPreview } from "@/lib/brokerPreview";
+import { profileErrorText } from "@/lib/brokerProfile";
+import HeadshotPicker from "./HeadshotPicker";
+import PreparedIntroCard, { viewUrl } from "./PreparedIntroCard";
+import { BioReviewCard, FspVerifiedBadge } from "./LvReview";
+import { bioBlocked, readBioReview, focusWhenReady } from "@/lib/brokerReview";
+import { bioLocked, cardLocked } from "@/lib/changeRequests";
+import RequestChange from "./RequestChange";
+import ApprovalSwitch from "./ApprovalSwitch";
 
 export const LANGS: { code: string; label: string }[] = [
   { code: "en", label: "English" }, { code: "af", label: "Afrikaans" }, { code: "isiZulu", label: "isiZulu" },
@@ -28,7 +37,6 @@ export const langLabel = (c: string) => LANGS.find((l) => l.code === c)?.label |
 export const normFsp = (v: string) => v.replace(/\s+/g, "").replace(/^fsp/i, "");
 /** ASSUMPTION (portal spec 02, same as Profile.tsx): FSP numbers are 3 to 6 digits. */
 export const fspValid = (v: string) => /^\d{3,6}$/.test(normFsp(v));
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"]; // broker-media allowed_mime_types (smc_06)
 const MAX_PHOTO = 8 * 1024 * 1024;
 
 /** headshot_url is stored as "broker-media/<broker id>/headshot-….jpg" (Profile.tsx convention); the object key is after the bucket. */
@@ -40,7 +48,16 @@ export const mediaKey = (stored: string | null | undefined): string | null => {
 
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "SC";
 
-interface MediaRow { id: string; kind: string; state: string; version: number; created_at: string; approved_at: string | null; ai_check: { reason?: string } | null }
+interface MediaRow {
+  id: string; kind: string; state: string; version: number; created_at: string; approved_at: string | null;
+  url: string | null; thumbnail_url: string | null;
+  ai_check: { reason?: string; source?: string; source_detail?: string } | null;
+}
+
+export function introVideoSource(aiCheck: MediaRow["ai_check"]): string | null {
+  if (aiCheck?.source_detail) return aiCheck.source_detail;
+  return aiCheck?.source === "whatsapp" ? "Sent directly by you on WhatsApp" : null;
+}
 
 // ------------------------------------------------------------------------------------------------ preview (WhatsApp)
 export function IntroCardPreview({ photo, adviser, practice, fsp, bio, languages, method = "Teams" }: {
@@ -80,6 +97,7 @@ export function IntroCardPreview({ photo, adviser, practice, fsp, bio, languages
 // ------------------------------------------------------------------------------------------------ editor
 export default function IntroCardEditor({ broker, reload, tone = "theme" }: { broker: SmcBroker; reload: () => unknown; tone?: Tone }) {
   const c = toneClasses(tone);
+  const preview = !!useBrokerPreview();
   const smc = !!broker.brand_id;
   const frozen = !!broker.routing_on;
   const [practice, setPractice] = useState(broker.firm_name || "");
@@ -93,7 +111,40 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [video, setVideo] = useState<MediaRow | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoPoster, setVideoPoster] = useState<string | null>(null);
   const [mediaUnavailable, setMediaUnavailable] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [videoNonce, setVideoNonce] = useState(0);
+  // The broker must have seen the video before the approve switch unlocks: it unlocks once playback reaches the
+  // end (or 90% of it has played). Progress is kept per video take, so a re-signed link or a page reload doesn't
+  // make him watch again, and the furthest point reached is shown so he can see what it's waiting for.
+  const [watchedPct, setWatchedPct] = useState(0);
+  const watchKey = video ? `lv-intro-video-watched:${video.id}:v${video.version}` : null;
+  const videoWatched = watchedPct >= 90;
+  const videoResigned = useRef(false);
+  useEffect(() => {
+    let saved = 0;
+    try { saved = watchKey && sessionStorage.getItem(watchKey) === "1" ? 100 : 0; } catch { /* storage blocked */ }
+    setWatchedPct(saved);
+  }, [watchKey]);
+  function trackWatched(e: SyntheticEvent<HTMLVideoElement>) {
+    const v = e.currentTarget;
+    if (!v.duration || !Number.isFinite(v.duration)) return;
+    let played = 0;
+    for (let i = 0; i < v.played.length; i++) played += v.played.end(i) - v.played.start(i);
+    const reachedEnd = e.type === "ended" || (!v.paused && v.currentTime >= v.duration - 0.5);
+    const pct = reachedEnd ? 100 : Math.min(100, Math.round((played / v.duration) * 100));
+    setWatchedPct((prev) => Math.max(prev, pct));
+    if (pct >= 90 && watchKey) { try { sessionStorage.setItem(watchKey, "1"); } catch { /* storage blocked */ } }
+  }
+  // If the signed link has expired anyway, sign a fresh one once instead of showing a dead player.
+  function videoFailed() {
+    if (videoResigned.current) return;
+    videoResigned.current = true;
+    setVideoNonce((n) => n + 1);
+  }
 
   // Signed URL for the stored headshot (private bucket, short-lived, re-signed on every load).
   useEffect(() => {
@@ -113,26 +164,43 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
 
   useEffect(() => {
     let alive = true;
-    void smcDb.from("broker_media").select("id, kind, state, version, created_at, approved_at, ai_check")
+    void smcDb.from("broker_media").select("id, kind, state, version, created_at, approved_at, url, thumbnail_url, ai_check")
       .eq("broker_id", broker.id).eq("kind", "video").order("created_at", { ascending: false }).limit(1)
-      .then(({ data, error }) => { if (!alive) return; setMediaUnavailable(!!error); setVideo(((data as MediaRow[] | null) || [])[0] || null); });
+      .then(async ({ data, error }) => {
+        if (!alive) return;
+        setMediaUnavailable(!!error);
+        const row = ((data as MediaRow[] | null) || [])[0] || null;
+        setVideo(row);
+        if (!row?.url) { setVideoUrl(null); setVideoPoster(null); return; }
+        const [url, poster] = await Promise.all([viewUrl(row.url), viewUrl(row.thumbnail_url)]);
+        if (alive) { setVideoUrl(url); setVideoPoster(poster); }
+      });
     return () => { alive = false; };
-  }, [broker.id]);
+  }, [broker.id, videoNonce]);
+
+  // Lead Velocity's decision (accept) rewrites bio_short on the server: show it in the box when it changes.
+  useEffect(() => { setBio(broker.bio_short || ""); }, [broker.bio_short]);
+  // A bio Lead Velocity did not approve (onboarding_progress.bio_review) keeps the card waiting until it changes.
+  const bioHeld = bioBlocked(readBioReview(broker.onboarding_progress), bio);
+  // Approved bio / intro card are locked (server: broker_approved_items_guard); changes go through "Request a change".
+  const lockBio = bioLocked(broker.onboarding_progress);
+  const lockPhoto = cardLocked(broker.onboarding_progress);
 
   const photo = localPhoto || storedPhoto;
   const fspOk = fspValid(fsp);
   const checklist = useMemo(() => [
     { key: "photo", label: "A headshot", done: !!(file || broker.headshot_url) },
-    { key: "bio", label: "Two lines about you", done: bio.trim().length >= 40 },
+    { key: "bio", label: bioHeld ? "Two lines about you (needs a small change)" : "Two lines about you", done: bio.trim().length >= 40 && !bioHeld },
     { key: "practice", label: "Practice name", done: practice.trim().length >= 2 },
     { key: "fsp", label: "FSP number (required before you go live)", done: !!broker.fsp_number && fspValid(broker.fsp_number) },
     { key: "langs", label: "At least one language", done: langs.length > 0 },
-  ], [file, broker.headshot_url, broker.fsp_number, bio, practice, langs]);
+  ], [file, broker.headshot_url, broker.fsp_number, bio, practice, langs, bioHeld]);
   const allDone = checklist.every((x) => x.done);
 
   const toggleLang = (code: string) => setLangs((x) => (x.includes(code) ? x.filter((y) => y !== code) : [...x, code]));
 
   async function save() {
+    if (preview) { setErr("Preview only: nothing is saved."); return; }
     setErr(null); setSaved(false);
     const b = bio.trim();
     if (b.length < 40 || b.length > 220) return setErr("Two lines: 40 to 220 characters.");
@@ -141,23 +209,21 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
     if (!langs.length) return setErr("Pick at least one language.");
     const patch: SmcBrokerSelfUpdate = { bio_short: b, languages: langs };
     const p = practice.trim();
-    if (!frozen && p !== (broker.firm_name || "")) {
-      if (p.length < 2 || p.length > 120) return setErr("Practice name: 2 to 120 characters, as on your FSP licence.");
-      patch.firm_name = p;
-    }
+    const firmChanged = !frozen && p !== (broker.firm_name || "");
+    if (firmChanged && (p.length < 2 || p.length > 120)) return setErr("Practice name: 2 to 120 characters, as on your FSP licence.");
     const f = normFsp(fsp);
-    const fspChanged = smc && !frozen && f !== (broker.fsp_number || "");
-    if (fspChanged) {
-      if (!fspOk) return setErr("FSP number: digits only, 3 to 6 of them.");
-      patch.fsp_number = f;
-    }
+    const fspChanged = !frozen && f !== "" && f !== (broker.fsp_number || "");
+    if (fspChanged && !fspOk) return setErr("FSP number: digits only, 3 to 6 of them.");
     setBusy(true);
+    if (firmChanged || fspChanged) {
+      const r = await smcDb.rpc("broker_update_profile", { p_firm_name: firmChanged ? p : null, p_fsp_number: fspChanged ? f : null, p_whatsapp_number: null });
+      if (r.error) { setBusy(false); return setErr(profileErrorText(r.error)); }
+    }
     if (file) {
-      if (!IMAGE_TYPES.includes(file.type)) { setBusy(false); return setErr("Use a JPG, PNG or WebP photo."); }
+      // HeadshotPicker already turned it into a JPEG ≤ 1600 px (src/lib/imagePrep.ts), so the type always fits broker-media.
       if (file.size > MAX_PHOTO) { setBusy(false); return setErr("That photo is over 8 MB. Try a smaller one."); }
-      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-      const path = `${broker.id}/headshot-${Date.now()}.${ext}`;
-      const up = await smcDb.storage.from(MEDIA_BUCKET).upload(path, file, { upsert: false, contentType: file.type });
+      const path = `${broker.id}/headshot-${Date.now()}.jpg`;
+      const up = await smcDb.storage.from(MEDIA_BUCKET).upload(path, file, { upsert: false, contentType: "image/jpeg" });
       if (up.error) { setBusy(false); return setErr(`Photo upload failed: ${errText(up.error)}`); }
       patch.headshot_url = `${MEDIA_BUCKET}/${path}`;
     }
@@ -177,14 +243,29 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
     void reload();
   }
 
-  const approveUrl = INTRO_MEDIA_URL.replace(/[^/]*$/, "approve.html");
+  async function approveVideo() {
+    if (!video || video.state !== "ready" || !videoUrl || !videoWatched) return;
+    setVideoError(null);
+    if (preview) { setVideoError("Preview only: nothing is saved."); return; }
+    setVideoBusy(true);
+    const { error } = await smcDb.rpc("broker_approve_intro_video", { p_media_id: video.id });
+    setVideoBusy(false);
+    if (error) {
+      setVideoError((error as { code?: string }).code === "PGRST202"
+        ? "Video approval is not available yet. Please contact Lead Velocity."
+        : profileErrorText(error));
+      return;
+    }
+    setVideoNonce((n) => n + 1);
+    void reload();
+  }
   const videoState = mediaUnavailable ? null : video?.state || "none";
   const VIDEO_LABEL: Record<string, { text: string; cls: string }> = {
     none: { text: "Not recorded yet", cls: c.info },
     processing: { text: "Processing your take", cls: c.info },
     ready: { text: "Ready: approve it", cls: c.warn },
     rejected: { text: "Needs another take", cls: c.bad },
-    approved: { text: "Approved: clients see it", cls: c.ok },
+    approved: { text: "Approved by you", cls: c.ok },
     superseded: { text: "Replaced by a newer take", cls: c.info },
   };
 
@@ -199,6 +280,7 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
           <div className={`p-3 text-sm rounded-lg ${frozen ? c.ok : allDone ? c.info : c.warn}`} role="status">
             {frozen ? "You're live. Clients receive this card when they book."
               : !broker.fsp_number ? "Not live yet. Your FSP number is required before Lead Velocity can switch your card on."
+              : bioHeld ? "Your bio needs a small change before we prepare your intro card. See below."
               : allDone ? (smc ? "Card complete. Lead Velocity switches you on after the final checks." : "Card complete. It goes live with your SortMyCover order.")
               : "Almost there. Finish the items below."}
           </div>
@@ -207,20 +289,28 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <li key={x.key} className="flex items-center gap-2">{x.done ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" aria-label="done" /> : <Circle className={`h-4 w-4 shrink-0 ${c.muted}`} aria-label="to do" />}{x.label}</li>
             ))}
           </ul>
+          <FspVerifiedBadge check={broker.fsp_check} verifiedAt={broker.fsp_verified_at} />
+          <BioReviewCard broker={broker} onDecided={() => { void reload(); }} onRewrite={() => focusWhenReady("ic-bio")} />
 
           <div className="space-y-2">
             <Label htmlFor="ic-photo">Headshot</Label>
             <div className="flex items-center gap-4">
               {photo ? <img src={photo} alt="Your headshot" className="h-16 w-16 rounded-full object-cover" /> : <div className={`h-16 w-16 rounded-full grid place-items-center ${c.box}`}><Camera className={`h-6 w-6 ${c.muted}`} aria-hidden="true" /></div>}
-              <Input id="ic-photo" type="file" accept={IMAGE_TYPES.join(",")} className={`max-w-xs ${c.input}`} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <HeadshotPicker disabled={preview || lockPhoto} onPicked={(f) => { setFile(f); setSaved(false); }} onError={setErr}
+                primaryClass={c.primary} secondaryClass="border border-current/20 hover:bg-white/10" />
             </div>
-            <p className={`text-xs ${c.muted}`}>Plain background, looking at the camera, JPG/PNG/WebP up to 8 MB. Stored privately; only you and Lead Velocity can open it.</p>
+            <p className={`text-xs ${c.muted}`}>{lockPhoto ? "Your photo is on your approved intro card. To change it, use Request a change on the card." : file ? "New photo ready. Tap Save my intro card to keep it." : "Plain background, looking at the camera. Any photo works; we resize it. Stored privately; only you and Lead Velocity can open it."}</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="ic-bio">Two lines about you</Label>
-            <Textarea id="ic-bio" maxLength={220} rows={3} value={bio} onChange={(e) => setBio(e.target.value)} className={c.input} placeholder="I help young families in Cape Town make sure their cover fits their life. Calm, plain-language calls." />
-            <p className={`text-xs ${c.muted}`}>Who you help and how you work. No product names, prices, "best" or promises. {bio.trim().length}/220</p>
+            <Label htmlFor="ic-bio" className="flex items-center gap-1.5">Two lines about you{lockBio && <Lock className="h-3.5 w-3.5" aria-label="locked" />}</Label>
+            <Textarea id="ic-bio" maxLength={220} rows={3} value={bio} readOnly={lockBio} aria-readonly={lockBio} onChange={(e) => setBio(e.target.value)} className={`${c.input} ${lockBio ? "opacity-75" : ""}`} placeholder="I help young families in Cape Town make sure their cover fits their life. Calm, plain-language calls." />
+            {lockBio ? (
+              <>
+                <p className={`text-xs ${c.muted}`}>Your bio is approved, so it's locked. Tell us what to change and we'll send it back for your approval.</p>
+                <RequestChange broker={broker} item="bio" onRequested={() => { void reload(); }} />
+              </>
+            ) : <p className={`text-xs ${c.muted}`}>Who you help and how you work. No product names, prices, "best" or promises. {bio.trim().length}/220</p>}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -229,14 +319,13 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <Input id="ic-practice" value={practice} disabled={frozen} maxLength={120} autoComplete="organization" onChange={(e) => setPractice(e.target.value)} className={c.input} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ic-fsp" className="flex items-center gap-1.5">FSP number{(frozen || !smc) && <Lock className="h-3.5 w-3.5" aria-label="locked" />}</Label>
-              <Input id="ic-fsp" inputMode="numeric" value={fsp} maxLength={10} autoComplete="off" disabled={frozen || !smc} onChange={(e) => setFsp(e.target.value)} className={c.input} aria-invalid={smc && !frozen && fsp !== "" && !fspOk} />
+              <Label htmlFor="ic-fsp" className="flex items-center gap-1.5">FSP number{frozen && <Lock className="h-3.5 w-3.5" aria-label="locked" />}</Label>
+              <Input id="ic-fsp" inputMode="numeric" value={fsp} maxLength={10} autoComplete="off" disabled={frozen} onChange={(e) => setFsp(e.target.value)} className={c.input} aria-invalid={!frozen && fsp !== "" && !fspOk} />
             </div>
           </div>
           <p className={`text-xs -mt-3 ${c.muted}`}>
             {frozen ? "Locked while you receive clients (it is in the disclosure). To change it, email " + SUPPORT_EMAIL + "."
-              : !smc ? "You enter your FSP number once your SortMyCover order is set up. Your practice name you can change now."
-              : "As on your FSP licence. We check the number on the public FSCA register."}
+              : "As on your FSP licence. We check it on the FSCA register."}
           </p>
 
           <fieldset className="space-y-2">
@@ -256,13 +345,14 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
 
           {err && <p className={`rounded-lg px-3 py-2 text-sm ${c.bad}`} role="alert">{err}</p>}
           {saved && <p className={`rounded-lg px-3 py-2 text-sm ${c.ok}`} role="status">Saved. Your card updates in a minute.</p>}
-          <Button type="button" onClick={save} disabled={busy} className={`w-full sm:w-auto ${c.primary}`}>
+          <Button type="button" onClick={save} disabled={preview || busy} className={`w-full sm:w-auto ${c.primary}`}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{busy ? "Saving…" : "Save my intro card"}
           </Button>
         </CardContent>
       </Card>
 
       <div className="space-y-6 min-w-0">
+        {smc && <PreparedIntroCard broker={broker} reload={reload} />}
         <div>
           <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${c.muted}`}>Preview: what the client sees</p>
           <IntroCardPreview photo={photo} adviser={broker.contact_person || ""} practice={practice.trim()} fsp={normFsp(fsp)} bio={bio.trim()} languages={langs}
@@ -275,20 +365,25 @@ export default function IntroCardEditor({ broker, reload, tone = "theme" }: { br
               <CardTitle className={`text-base flex items-center gap-2 ${c.title}`}><Video className="h-4 w-4" />Intro video (optional)</CardTitle>
               {videoState && <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${VIDEO_LABEL[videoState]?.cls || c.info}`}>{VIDEO_LABEL[videoState]?.text || videoState}</span>}
             </div>
-            <CardDescription className={c.muted}>A 25-second hello that clients get before the call. Not needed to go live.</CardDescription>
+            <CardDescription className={c.muted}>A short hello prepared for clients before the call. Not needed to go live.</CardDescription>
           </CardHeader>
           <CardContent className={`space-y-3 text-sm ${tone === "elite" ? "p-6 pt-0" : ""}`}>
+            {videoUrl && <video src={videoUrl} poster={videoPoster || undefined} controls playsInline preload="metadata" className="w-full rounded-xl bg-black" aria-label="Preview your intro video"
+              onTimeUpdate={trackWatched} onEnded={trackWatched} onError={videoFailed} />}
+            {video?.url && !videoUrl && <p className={c.muted}>The private video preview is unavailable right now. Please try again later.</p>}
+            {introVideoSource(video?.ai_check || null) && <p className={`text-xs ${c.muted}`}>Source: {introVideoSource(video?.ai_check || null)}</p>}
             {video?.state === "rejected" && video.ai_check?.reason && <p className={`rounded-lg px-3 py-2 text-xs ${c.bad}`}>{video.ai_check.reason}</p>}
-            {video?.state === "ready" && <a className={`text-sm font-semibold ${c.link}`} href={approveUrl}>Watch and approve your video</a>}
+            {video?.state === "ready" && (
+              <ApprovalSwitch label="Approve my intro video" approved={false} blocked={preview || !videoUrl || !videoWatched}
+                blockedNote={preview ? "Preview only: nothing is saved."
+                  : !videoUrl ? "Wait until the private video preview loads before approving."
+                  : `Watch your video to the end first. The switch unlocks once you've seen it${watchedPct > 0 ? ` (watched ${watchedPct}%)` : ""}.`}
+                busy={videoBusy} error={videoError} onConfirm={approveVideo} />
+            )}
+            {video?.state === "approved" && <p role="status" className={c.ok}>You approved this video. Lead Velocity will complete the delivery check before using it with clients.</p>}
             {video && <p className={`text-xs ${c.muted}`}>Latest take v{video.version}, {fmtDay(video.created_at)}.</p>}
-            <p className="font-medium">Record it on WhatsApp:</p>
-            <ol className={`list-decimal pl-5 space-y-1 ${c.muted}`}>
-              <li>Hold your phone upright, face a window, quiet room.</li>
-              <li>Record a 20 to 30 second selfie video: your name, practice, who you help. No products, prices or promises.</li>
-              <li>Send it on WhatsApp from your registered number{broker.whatsapp_number ? ` (${broker.whatsapp_number})` : ""} to the SortMyCover number{SUPPORT_WA ? ` +${SUPPORT_WA}` : ""}.</li>
-              <li>We reply "Got it", add captions and your details, then message you to approve it here.</li>
-            </ol>
-            <p className={`text-xs ${c.muted}`}>Under 16 MB (WhatsApp's limit). Clients only see it after you approve it.</p>
+            {/* Video intake (W07/W23) isn't switched on yet: don't ask brokers to send a video that nothing would process. */}
+            {!video && <p className={c.muted}>Video intros are coming soon. We'll let you know when you can record yours. You don't need one to go live.</p>}
           </CardContent>
         </Card>
       </div>

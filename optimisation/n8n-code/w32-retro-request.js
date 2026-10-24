@@ -9,4 +9,4 @@ const user = 'MONTH: ' + month + '\nINPUT: ' + JSON.stringify(INPUT);
 const est = estZar(cfg, cfg.models.strong, PROMPTS.retro_system.length + user.length, 7000);
 const ok = allow(cfg, 'retro', est);
 if (ok) charge(cfg, 'retro', est);
-return [{ json: { month, ok, INPUT, body: ok ? anthropicBody(cfg.models.strong, PROMPTS.retro_system, user, 7000) : null } }];
+return [{ json: { month, ok, INPUT, body: ok ? relayBody(cfg.models.strong, PROMPTS.retro_system, user, 7000) : null } }];

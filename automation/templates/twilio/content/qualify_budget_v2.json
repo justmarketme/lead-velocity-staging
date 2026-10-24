@@ -1,0 +1,99 @@
+{
+  "_meta": {
+    "key": "qualify_budget_v2",
+    "source": "automation/templates/qualify_budget.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_qualify_budget_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 2
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 3
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 4
+      }
+    ],
+    "core": false,
+    "base": "qualify_budget",
+    "header": "intent",
+    "superseded_by": "start_here (v4 Instant Form first touch)",
+    "submitted": "HXf52cd6d5e4631e1a3b51906d463f0178"
+  },
+  "content": {
+    "friendly_name": "smc_qualify_budget_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "under_r500:sample",
+      "3": "r500_to_r750:sample",
+      "4": "r750_to_r1_250:sample",
+      "5": "r1_250_to_r1_499:sample",
+      "6": "r1_500_or_more:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, thanks for your insurance and financial planning enquiry with SortMyCover. One quick question so we can match you with the right adviser: roughly what could you put towards cover each month? Tap one below. Reply STOP to opt out.",
+        "subtitle": "SortMyCover by Lead Velocity",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-intent.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Under R500",
+            "id": "{{2}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "R500 to R750",
+            "id": "{{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "R750 to R1,250",
+            "id": "{{4}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "R1,250 to R1,499",
+            "id": "{{5}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "R1,500 or more",
+            "id": "{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { TIERS, ALL_PLANS, planByName, zar } from "@/lib/pricing";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import {
   Card,
   CardContent,
@@ -38,6 +39,8 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import type { BrokerWithQuota } from "@/types/groupA-broker";
+import { getErrorMessage } from "@/lib/groupA-errors";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +51,7 @@ import {
 } from "@/components/ui/dialog";
 
 const TeamManagement = () => {
-  const [brokers, setBrokers] = useState<any[]>([]);
+  const [brokers, setBrokers] = useState<BrokerWithQuota[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -131,7 +134,7 @@ const TeamManagement = () => {
             is_lead_loading: formData.isLeadLoading,
             lead_quota: formData.leadQuota,
             status: 'Active'
-          });
+          } as TablesInsert<'brokers'>); // lead_quota is not in the generated types (see report)
 
         if (brokerError) throw brokerError;
 
@@ -149,8 +152,8 @@ const TeamManagement = () => {
         setInviteDialogOpen(false);
         fetchBrokers();
       }
-    } catch (e: any) {
-      toast({ title: "Onboarding Failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Onboarding Failed", description: getErrorMessage(e), variant: "destructive" });
     } finally {
       setLoading(false);
     }

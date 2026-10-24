@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "key": "ops_alert",
+    "source": "automation/templates/ops_alert.json",
+    "approval": {
+      "name": "smc_ops_alert",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_ops_alert",
+    "language": "en",
+    "variables": {
+      "1": "Jono",
+      "2": "W05 Book failed at \"Graph create event\"",
+      "3": "A lead or booking step did not finish"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, a SortMyCover system alert needs your attention. What happened: {{2}}. Impact: {{3}}. The full details are in your email.",
+        "footer": "SortMyCover"
+      }
+    }
+  }
+}

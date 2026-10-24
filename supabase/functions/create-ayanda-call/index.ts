@@ -8,6 +8,14 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface LeadCtx {
+    first_name?: string | null;
+    last_name?: string | null;
+    phone: string;
+    source?: string | null;
+    notes?: string | null;
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
@@ -42,7 +50,7 @@ serve(async (req) => {
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         const validLeadId = leadId && UUID_REGEX.test(leadId) ? leadId : null;
 
-        let lead: any = null;
+        let lead: LeadCtx | null = null;
         if (validLeadId) {
             const { data: leadData, error: leadError } = await supabase
                 .from('leads')
@@ -90,7 +98,7 @@ serve(async (req) => {
                 if (exaResponse.ok) {
                     const exaData = await exaResponse.json();
                     researchContext = exaData.results
-                        .map((r: any) => `Source: ${r.title}\nUpdate: ${r.highlights?.[0] || 'N/A'}`)
+                        .map((r: { title?: string; highlights?: string[] }) => `Source: ${r.title}\nUpdate: ${r.highlights?.[0] || 'N/A'}`)
                         .join("\n---\n");
                 }
             } catch (err) {
@@ -209,10 +217,10 @@ serve(async (req) => {
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error in create-ayanda-call:', error);
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }

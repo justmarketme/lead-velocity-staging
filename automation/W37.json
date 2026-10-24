@@ -1,0 +1,912 @@
+{
+  "id": "smc-w37",
+  "name": "W37 Cal.com booking intake",
+  "nodes": [
+    {
+      "id": "w37n01",
+      "name": "Sticky: read me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -380
+      ],
+      "parameters": {
+        "width": 760,
+        "height": 330,
+        "content": "## W37 Cal.com booking intake (17 Oct 2026)\nPOST /webhook/cal from Cal.com (BOOKING_CREATED, BOOKING_RESCHEDULED, BOOKING_CANCELLED). `x-cal-signature-256` = HMAC-SHA256(raw body, CAL_WEBHOOK_SECRET), checked before anything is read; answers 200 at once (401 when the signature is wrong).\n- Created: lead (consent_source calcom, CONSENT-CALCOM-v1, the checkbox wording, ref = page code, utm_* from \"via\"), appointment (booked_via page, idempotency_key calcom:<uid>), consent activity with provenance, one lead_optins row, then the UTILITY template `booking_confirm_chat` (\"Yes, let's chat\" -> W07 contact confirm).\n- Rescheduled: new appointment linked to the old one (old -> rescheduled). Cancelled: appointment cancelled, Lindi's conv_state back to unbooked.\n- No broker for the organiser email, no valid +27 number, or no consent tick: console escalation, nothing sent.\n- Confirmation email (SortMyCover's own Cal.com sends none): Resend from hello@sortmycover.co.za with the .ics and the reschedule / cancel links, never a Lead Velocity address. Needs RESEND_API_KEY and sortmycover.co.za verified in Resend; until then it is skipped and logged (lead_activities calcom_confirmation_email, outcome skipped).\nNeeds: CAL_WEBHOOK_SECRET, BRAND_ID, the adviser's brokers.calendar_email = the Cal.com organiser email, TWILIO_CONTENT_SIDS.booking_confirm_chat after Meta approval. Inactive until Jono activates it."
+      }
+    },
+    {
+      "id": "w37n02",
+      "name": "POST /cal (Cal.com)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cal",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "webhookId": "smc-w37-cal"
+    },
+    {
+      "id": "w37n03",
+      "name": "Verify signature + normalise (w37)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w37;\nconst it = $input.first();\n// raw bytes exactly as Cal.com signed them (rawBody: true -> binary.data)\nlet raw = '';\ntry { raw = it.binary && it.binary.data && it.binary.data.data ? Buffer.from(it.binary.data.data, 'base64').toString('utf8') : ''; } catch (e) { raw = ''; }\nif (!raw) { try { raw = (await this.helpers.getBinaryDataBuffer(0, 'data')).toString('utf8'); } catch (e) { raw = ''; } }\nconst h = it.json.headers || {};\nconst v = L.verifyCalSignature(raw, h['x-cal-signature-256'], $env.CAL_WEBHOOK_SECRET);\nif (!v.ok) return [{ json: { valid: false, reason: v.reason } }];\nlet body; try { body = JSON.parse(raw); } catch (e) { return [{ json: { valid: false, reason: 'json' } }]; }\nconst ev = L.normaliseCal(body, { consentField: $env.CAL_CONSENT_FIELD });\nreturn [{ json: { valid: true, ev } }];"
+      }
+    },
+    {
+      "id": "w37n04",
+      "name": "Respond 200 / 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        -120
+      ],
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": "={{ $json.valid ? 200 : 401 }}"
+        }
+      }
+    },
+    {
+      "id": "w37n05",
+      "name": "Booking event?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.valid === true && !!$json.ev && $json.ev.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n06",
+      "name": "Claim (other / calcom:<event>:<uid>)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Cal.com retries a webhook that did not get a 2xx; one row per event + booking uid makes every retry a no-op.\nINSERT INTO public.webhook_events (source, external_id, brand_id, signature_ok)\nVALUES ('other', 'calcom:' || $1 || ':' || $2, nullif($3, '')::uuid, true)\nON CONFLICT (source, external_id) DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.ev.event, $json.ev.uid, $env.BRAND_ID || '' ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w37n07",
+      "name": "Load context (broker, lead, booking)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        60
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- broker = the SortMyCover adviser whose calendar Cal.com booked into (organiser email = brokers.calendar_email or email);\n-- lead = the open lead with this WhatsApp number; appointment = this booking uid; prev_appointment = the uid it replaces.\nSELECT\n  (SELECT row_to_json(b) FROM (SELECT id, contact_person, adviser_name FROM public.brokers\n     WHERE brand_id = $1::uuid AND $2 <> '' AND (lower(calendar_email) = $2 OR lower(email) = $2)\n     ORDER BY active DESC NULLS LAST, created_at LIMIT 1) b) AS broker,\n  (SELECT row_to_json(l) FROM (SELECT id, broker_id, email FROM public.leads\n     WHERE brand_id = $1::uuid AND $3 <> '' AND phone = $3 AND opted_out_at IS NULL ORDER BY created_at DESC LIMIT 1) l) AS lead,\n  (SELECT row_to_json(a) FROM (SELECT id, client_id, status, reschedule_count FROM public.appointments WHERE idempotency_key = 'calcom:' || $4) a) AS appointment,\n  (SELECT row_to_json(a) FROM (SELECT id, client_id, status, reschedule_count FROM public.appointments WHERE $5 <> '' AND idempotency_key = 'calcom:' || $5) a) AS prev_appointment,\n  EXISTS (SELECT 1 FROM public.suppression s WHERE $3 <> '' AND s.mobile_hash = public.smc_hash_contact($3) AND s.source <> 'no_consent_ctwa') AS suppressed;",
+        "options": {
+          "queryReplacement": "={{ (() => { const e = $('Verify signature + normalise (w37)').item.json.ev; return [ $env.BRAND_ID || '', e.organizer_email || '', e.phone || '', e.uid, e.reschedule_uid || '' ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w37n08",
+      "name": "Plan (w37.planCal)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        60
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w37;\nconst ev = $('Verify signature + normalise (w37)').first().json.ev;\nconst plan = L.planCal(ev, $input.first().json, { now: new Date().toISOString(), brandId: $env.BRAND_ID || null });\nreturn [{ json: { ...plan, ev } }];"
+      }
+    },
+    {
+      "id": "w37n09",
+      "name": "Action?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1320,
+        60
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "book",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "book",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "reschedule",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reschedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "cancel",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "cancel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "escalate",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "escalate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "w37n10",
+      "name": "Book: lead + appointment + consent (one statement)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        -120
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One statement: the lead (new, or the open lead with this number), the appointment, the old booking closed on a reschedule,\n-- and the consent / booking activity with the provenance record. Constraint conflicts (double booking, overlap, same uid) -> no\n-- appointment row; the run then escalates instead of sending.\nWITH ex AS (SELECT id FROM public.leads WHERE id = nullif($1, '')::uuid),\nins AS (\n  INSERT INTO public.leads (id, brand_id, broker_id, routed_at, routing_reason, phone, dedupe_hash, email, email_status, first_name, last_name,\n                            origin, source, ref, utm_source, utm_campaign, utm_content, consent_text, consent_text_version, consent_mode,\n                            consent_at, consent_source, stage, stage_entered_at, conv_state)\n  SELECT gen_random_uuid(), $2::uuid, $3::uuid, now(), 'calcom_booking', $4, public.smc_hash_contact($4), nullif($5, ''),\n         CASE WHEN nullif($5, '') IS NULL THEN NULL ELSE 'unchecked' END, nullif($6, ''), nullif($7, ''),\n         'page', $8, nullif($9, ''), nullif($10, ''), nullif($11, ''), nullif($12, ''), $13, $14, 'generic',\n         $15::timestamptz, 'calcom', 'booked', now(), jsonb_build_object('state', 'booked', 'via', 'calcom')\n   WHERE NOT EXISTS (SELECT 1 FROM ex)\n  RETURNING id),\nupd AS (\n  UPDATE public.leads l\n     SET email = coalesce(l.email, nullif($5, '')), broker_id = coalesce(l.broker_id, $3::uuid), routed_at = coalesce(l.routed_at, now()),\n         ref = coalesce(l.ref, nullif($9, '')), utm_source = coalesce(l.utm_source, nullif($10, '')),\n         utm_campaign = coalesce(l.utm_campaign, nullif($11, '')), utm_content = coalesce(l.utm_content, nullif($12, '')),\n         stage = 'booked', stage_entered_at = now(),\n         conv_state = coalesce(l.conv_state, '{}'::jsonb) || jsonb_build_object('state', 'booked', 'via', 'calcom'), updated_at = now()\n   WHERE l.id = (SELECT id FROM ex)\n  RETURNING l.id),\nlead AS (SELECT id FROM ins UNION ALL SELECT id FROM upd),\nprev AS (\n  UPDATE public.appointments SET status = 'rescheduled', updated_at = now()\n   WHERE $22 <> '' AND id = nullif($22, '')::uuid AND status IN ('booked', 'confirmed', 'pending_verification')\n  RETURNING id),\nappt AS (\n  INSERT INTO public.appointments (client_id, broker_id, brand_id, appointment_date, ends_at, method, status, booked_via, booked_at,\n                                   idempotency_key, consent_ref, ical_uid, calendar_provider, calendar_email, previous_booking_id, reschedule_count)\n  SELECT (SELECT id FROM lead), $3::uuid, $2::uuid, $16::timestamptz, $17::timestamptz, $18, 'booked', $26, now(),\n         $19, $19, $20, 'outlook', nullif($21, ''), nullif($22, '')::uuid, $23::int\n  ON CONFLICT DO NOTHING\n  RETURNING id),\nact AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT (SELECT id FROM lead), $2::uuid, 'W37', 'lead', $24, $25::jsonb || jsonb_build_object('appointment_id', (SELECT id FROM appt)), now(), 'W37:' || $24 || ':' || $20\n  ON CONFLICT DO NOTHING\n  RETURNING id)\nSELECT (SELECT id FROM lead) AS lead_id, (SELECT id FROM appt) AS appointment_id, (SELECT count(*) FROM prev) AS prev_closed, (SELECT count(*) FROM act) AS activities;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $json; const l = p.lead; const a = p.appointment; return [ l.id || '', l.brand_id, l.broker_id, l.phone, l.email || '', l.first_name || '', l.last_name || '',\n  l.source, l.ref || '', l.utm_source || '', l.utm_campaign || '', l.utm_content || '', l.consent_text, l.consent_text_version, l.consent_at,\n  a.starts_at, a.ends_at, a.method, a.idempotency_key, p.ev.uid, a.calendar_email || '', a.previous_booking_id || '', String(a.reschedule_count || 0),\n  p.activity.type, JSON.stringify(p.activity.payload), a.booked_via ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w37n11",
+      "name": "Reschedule: new appointment + close the old one",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        40
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- One statement: the lead (new, or the open lead with this number), the appointment, the old booking closed on a reschedule,\n-- and the consent / booking activity with the provenance record. Constraint conflicts (double booking, overlap, same uid) -> no\n-- appointment row; the run then escalates instead of sending.\nWITH ex AS (SELECT id FROM public.leads WHERE id = nullif($1, '')::uuid),\nins AS (\n  INSERT INTO public.leads (id, brand_id, broker_id, routed_at, routing_reason, phone, dedupe_hash, email, email_status, first_name, last_name,\n                            origin, source, ref, utm_source, utm_campaign, utm_content, consent_text, consent_text_version, consent_mode,\n                            consent_at, consent_source, stage, stage_entered_at, conv_state)\n  SELECT gen_random_uuid(), $2::uuid, $3::uuid, now(), 'calcom_booking', $4, public.smc_hash_contact($4), nullif($5, ''),\n         CASE WHEN nullif($5, '') IS NULL THEN NULL ELSE 'unchecked' END, nullif($6, ''), nullif($7, ''),\n         'page', $8, nullif($9, ''), nullif($10, ''), nullif($11, ''), nullif($12, ''), $13, $14, 'generic',\n         $15::timestamptz, 'calcom', 'booked', now(), jsonb_build_object('state', 'booked', 'via', 'calcom')\n   WHERE NOT EXISTS (SELECT 1 FROM ex)\n  RETURNING id),\nupd AS (\n  UPDATE public.leads l\n     SET email = coalesce(l.email, nullif($5, '')), broker_id = coalesce(l.broker_id, $3::uuid), routed_at = coalesce(l.routed_at, now()),\n         ref = coalesce(l.ref, nullif($9, '')), utm_source = coalesce(l.utm_source, nullif($10, '')),\n         utm_campaign = coalesce(l.utm_campaign, nullif($11, '')), utm_content = coalesce(l.utm_content, nullif($12, '')),\n         stage = 'booked', stage_entered_at = now(),\n         conv_state = coalesce(l.conv_state, '{}'::jsonb) || jsonb_build_object('state', 'booked', 'via', 'calcom'), updated_at = now()\n   WHERE l.id = (SELECT id FROM ex)\n  RETURNING l.id),\nlead AS (SELECT id FROM ins UNION ALL SELECT id FROM upd),\nprev AS (\n  UPDATE public.appointments SET status = 'rescheduled', updated_at = now()\n   WHERE $22 <> '' AND id = nullif($22, '')::uuid AND status IN ('booked', 'confirmed', 'pending_verification')\n  RETURNING id),\nappt AS (\n  INSERT INTO public.appointments (client_id, broker_id, brand_id, appointment_date, ends_at, method, status, booked_via, booked_at,\n                                   idempotency_key, consent_ref, ical_uid, calendar_provider, calendar_email, previous_booking_id, reschedule_count)\n  SELECT (SELECT id FROM lead), $3::uuid, $2::uuid, $16::timestamptz, $17::timestamptz, $18, 'booked', $26, now(),\n         $19, $19, $20, 'outlook', nullif($21, ''), nullif($22, '')::uuid, $23::int\n  ON CONFLICT DO NOTHING\n  RETURNING id),\nact AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT (SELECT id FROM lead), $2::uuid, 'W37', 'lead', $24, $25::jsonb || jsonb_build_object('appointment_id', (SELECT id FROM appt)), now(), 'W37:' || $24 || ':' || $20\n  ON CONFLICT DO NOTHING\n  RETURNING id)\nSELECT (SELECT id FROM lead) AS lead_id, (SELECT id FROM appt) AS appointment_id, (SELECT count(*) FROM prev) AS prev_closed, (SELECT count(*) FROM act) AS activities;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $json; const l = p.lead; const a = p.appointment; return [ l.id || '', l.brand_id, l.broker_id, l.phone, l.email || '', l.first_name || '', l.last_name || '',\n  l.source, l.ref || '', l.utm_source || '', l.utm_campaign || '', l.utm_content || '', l.consent_text, l.consent_text_version, l.consent_at,\n  a.starts_at, a.ends_at, a.method, a.idempotency_key, p.ev.uid, a.calendar_email || '', a.previous_booking_id || '', String(a.reschedule_count || 0),\n  p.activity.type, JSON.stringify(p.activity.payload), a.booked_via ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w37n12",
+      "name": "Opt-in record (lead_optins)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1760,
+        -240
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $json.lead_id, $('Plan (w37.planCal)').item.json.lead.brand_id, JSON.stringify($('Plan (w37.planCal)').item.json.optin || {}) ] }}"
+        },
+        "query": "-- one append-only provenance row per consent (migration 20261017150000_lead_optins, not applied yet: until then this\n-- node errors and the run carries on). channel is derived by the table's trigger.\nINSERT INTO public.lead_optins (lead_id, brand_id, ref_code, via_source, via_campaign, via_content, referral_source_type,\n                                referral_source_id, referral_source_url, referral_headline, ctwa_clid, consent_version,\n                                consent_text, opener_text, message_sid, received_at, recorded_by)\nSELECT $1::uuid, $2::uuid, o->>'ref_code', o->>'via_source', o->>'via_campaign', o->>'via_content', o->>'referral_source_type',\n       o->>'referral_source_id', o->>'referral_source_url', o->>'referral_headline', o->>'ctwa_clid', o->>'consent_version',\n       o->>'consent_text', o->>'opener_text', o->>'message_sid', (o->>'received_at')::timestamptz, o->>'recorded_by'\n  FROM (SELECT $3::jsonb AS o) x\n WHERE $1 <> '' AND o->>'consent_version' IS NOT NULL\nON CONFLICT (message_sid) DO NOTHING\nRETURNING id;"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n13",
+      "name": "Appointment stored?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$json.appointment_id) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n14",
+      "name": "Send the confirm template?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$('Plan (w37.planCal)').item.json.send) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n15",
+      "name": "SUB input (booking_confirm_chat)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -180
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w37;\nconst p = $('Plan (w37.planCal)').item.json;\nconst s = L.confirmSend(p, $json.appointment_id, $json.lead_id);\nreturn s ? [{ json: s }] : [];"
+      }
+    },
+    {
+      "id": "w37n16",
+      "name": "WhatsApp Send (booking_confirm_chat)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2420,
+        -180
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n17",
+      "name": "Plan confirmation email (w37.confirmationEmail)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -360
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const L = require('lv-automation').w37;\nconst p = $('Plan (w37.planCal)').item.json;\nconst r = L.confirmationEmail(p.ev, p, { RESEND_API_KEY: $env.RESEND_API_KEY ? 'set' : '', CALCOM_EMAIL_FROM: $env.CALCOM_EMAIL_FROM, CALCOM_EMAIL_REPLY_TO: $env.CALCOM_EMAIL_REPLY_TO, CAL_PUBLIC_ORIGIN: $env.CAL_PUBLIC_ORIGIN }, { appointmentId: $json.appointment_id });\nreturn [{ json: { ...r, lead_id: $json.lead_id, brand_id: p.lead.brand_id, uid: p.ev.uid } }];"
+      }
+    },
+    {
+      "id": "w37n18",
+      "name": "Email to send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        -360
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.action === 'send') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n19",
+      "name": "Live send? (confirmation email)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -420
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($env.DRY_RUN_SENDS !== 'true') }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "w37n20",
+      "name": "Resend POST /emails (hello@sortmycover.co.za)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Plan confirmation email (w37.confirmationEmail)').item.json.request.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.RESEND_API_KEY }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $('Plan confirmation email (w37.confirmationEmail)').item.json.request.idempotency_key }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Plan confirmation email (w37.confirmationEmail)').item.json.request.body) }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n21",
+      "name": "Log confirmation email (sent / dry / skipped)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2860,
+        -360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES (nullif($1, '')::uuid, nullif($2, '')::uuid, 'W37', 'system', 'calcom_confirmation_email', $3::jsonb, now(), 'W37:calcom_confirmation_email:' || $4)\nON CONFLICT DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const e = $('Plan confirmation email (w37.confirmationEmail)').item.json; const sent = e.action === 'send' && $env.DRY_RUN_SENDS !== 'true'; const code = Number(($json && $json.statusCode) || 0); return [ e.lead_id || '', e.brand_id || '', JSON.stringify({ ...(e.activity ? e.activity.payload : { uid: e.uid }), outcome: e.action !== 'send' ? 'skipped' : (!sent ? 'dry_run' : (code >= 200 && code < 300 ? 'sent' : 'failed')), reason: e.reason || null, status: code || null, resend_id: ($json && $json.body && $json.body.id) || null }), e.uid ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n22",
+      "name": "Cancel: appointment + Lindi context",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH a AS (\n  UPDATE public.appointments SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE id = $1::uuid AND status IN ('booked', 'confirmed', 'pending_verification')\n  RETURNING id, client_id, brand_id),\nl AS (\n  UPDATE public.leads SET conv_state = coalesce(conv_state, '{}'::jsonb) || jsonb_build_object('state', 'unbooked', 'calcom_cancelled_at', now()),\n         updated_at = now()\n   WHERE id = (SELECT client_id FROM a)\n  RETURNING id)\nINSERT INTO public.lead_activities (lead_id, brand_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT a.client_id, a.brand_id, 'W37', 'lead', 'calcom_cancelled', $2::jsonb, now(), 'W37:calcom_cancelled:' || $3\n  FROM a\nON CONFLICT DO NOTHING\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.appointment_id, JSON.stringify($json.activity.payload), $json.ev.uid ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      }
+    },
+    {
+      "id": "w37n23",
+      "name": "Escalate (Cal.com, needs a person)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1540,
+        360
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nVALUES (nullif($1, '')::uuid, 'needs_human', 'normal', 'appointments', $2, nullif($3, '')::uuid, now(), left($4, 500))\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan (w37.planCal)').item.json; return [ $env.BRAND_ID || '', 'calcom:' + p.ev.uid, ($json.lead_id) || '', p.note || ('Cal.com ' + p.ev.event + ' ' + p.ev.uid + ': booking not stored (time taken or a duplicate); call the client') ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "w37n24",
+      "name": "Escalate (booking not stored)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1980,
+        40
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.escalations (brand_id, kind, severity, ref_table, ref_id, lead_id, raised_at, note)\nVALUES (nullif($1, '')::uuid, 'needs_human', 'normal', 'appointments', $2, nullif($3, '')::uuid, now(), left($4, 500))\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan (w37.planCal)').item.json; return [ $env.BRAND_ID || '', 'calcom:' + p.ev.uid, ($json.lead_id) || '', p.note || ('Cal.com ' + p.ev.event + ' ' + p.ev.uid + ': booking not stored (time taken or a duplicate); call the client') ]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "POST /cal (Cal.com)": {
+      "main": [
+        [
+          {
+            "node": "Verify signature + normalise (w37)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature + normalise (w37)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 / 401",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Booking event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking event?": {
+      "main": [
+        [
+          {
+            "node": "Claim (other / calcom:<event>:<uid>)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim (other / calcom:<event>:<uid>)": {
+      "main": [
+        [
+          {
+            "node": "Load context (broker, lead, booking)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load context (broker, lead, booking)": {
+      "main": [
+        [
+          {
+            "node": "Plan (w37.planCal)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan (w37.planCal)": {
+      "main": [
+        [
+          {
+            "node": "Action?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Action?": {
+      "main": [
+        [
+          {
+            "node": "Book: lead + appointment + consent (one statement)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reschedule: new appointment + close the old one",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cancel: appointment + Lindi context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate (Cal.com, needs a person)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Book: lead + appointment + consent (one statement)": {
+      "main": [
+        [
+          {
+            "node": "Opt-in record (lead_optins)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Appointment stored?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reschedule: new appointment + close the old one": {
+      "main": [
+        [
+          {
+            "node": "Opt-in record (lead_optins)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Appointment stored?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appointment stored?": {
+      "main": [
+        [
+          {
+            "node": "Send the confirm template?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Plan confirmation email (w37.confirmationEmail)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate (booking not stored)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan confirmation email (w37.confirmationEmail)": {
+      "main": [
+        [
+          {
+            "node": "Email to send?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email to send?": {
+      "main": [
+        [
+          {
+            "node": "Live send? (confirmation email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log confirmation email (sent / dry / skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live send? (confirmation email)": {
+      "main": [
+        [
+          {
+            "node": "Resend POST /emails (hello@sortmycover.co.za)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log confirmation email (sent / dry / skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resend POST /emails (hello@sortmycover.co.za)": {
+      "main": [
+        [
+          {
+            "node": "Log confirmation email (sent / dry / skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send the confirm template?": {
+      "main": [
+        [
+          {
+            "node": "SUB input (booking_confirm_chat)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SUB input (booking_confirm_chat)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Send (booking_confirm_chat)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Johannesburg",
+    "saveManualExecutions": true,
+    "errorWorkflow": "smc-w22"
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "intake"
+    },
+    {
+      "name": "calcom"
+    }
+  ],
+  "meta": {
+    "notes": "Generated by automation/build-w37-cal.mjs; logic automation/lib/w37-cal.mjs; do not hand-edit."
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "key": "prep_nudge_v2",
+    "source": "automation/templates/prep_nudge.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_prep_nudge_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      }
+    ],
+    "core": false,
+    "base": "prep_nudge",
+    "header": "expect"
+  },
+  "content": {
+    "friendly_name": "smc_prep_nudge_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, one optional tip for your call with {{2}}: some people like to have a recent payslip or any existing policy schedule nearby. It helps, but it is not needed.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-expect.png"
+        ]
+      }
+    }
+  }
+}

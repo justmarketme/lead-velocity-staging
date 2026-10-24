@@ -14,7 +14,7 @@
       "parameters": {
         "width": 680,
         "height": 300,
-        "content": "W27 Meta asset health. Hourly at :17 and on Meta webhook events (page / whatsapp_business_account / ad account). One batched Graph call per brand (<= 50). Writes brands health fields; any NEW restriction / rejection / quality drop -> W22 urgent (both phones). Template status is synced into message_templates. Read-only against Meta. Needs env META_SYSTEM_USER_TOKEN, META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN. ASSUMPTION: brands.health_alerts jsonb + health_json jsonb columns exist (add them); EMQ edge (dataset_quality) is unverified: emq stays null if it fails. Writes: brands health fields + health_alerts (jsonb), message_templates.meta_status / meta_category / rejected_reason / status_synced_at (never legacy status/category), ops.notifications console row with body jsonb for new alerts."
+        "content": "W27 Meta asset health. Hourly at :17 and on Meta webhook events (page / whatsapp_business_account / ad account). One batched Graph call per brand (<= 50). Writes brands health fields; any NEW restriction / rejection / quality drop -> W22 urgent (both phones). Template status is synced into message_templates. Read-only against Meta. Needs env META_SYSTEM_USER_TOKEN, META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN. ASSUMPTION: brands.health_alerts jsonb + health_json jsonb columns exist (add them); EMQ edge (dataset_quality) is unverified: emq stays null if it fails. Writes: brands health fields + health_alerts (jsonb), message_templates.meta_status / meta_category / rejected_reason / status_synced_at (never legacy status/category), W22 (the console feed row in ops.notifications was dropped with the ops schema, 20 Oct 2026)."
       }
     },
     {
@@ -150,7 +150,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const M = require('lv-automation').metaAds;\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_API_VERSION || 'v23.0', maxInlineWaitMs: 20000 });\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    const h = await client.getAssetHealth({ businessId: b.business_id, pageId: b.page_id, igUserId: b.ig_user_id, wabaId: b.waba_id, phoneNumberId: b.phone_number_id, adAccountId: b.ad_account_id, pixelId: b.pixel_id });\n    const d = M.diffHealth({ waba_quality: b.waba_quality, alerts: b.health_alerts || [] }, h);\n    out.push({ json: { brand_id: b.brand_id, ok: true, health: h, urgent: d.urgent, new_alerts: d.new_alerts, templates: (h.template_status && h.template_status.items) || [] } });\n  } catch (e) {\n    // API error -> retry next run; a rate-limit back-off is not an alert.\n    out.push({ json: { brand_id: b.brand_id, ok: false, code: e.code || 'ERR', message: String(e.message).slice(0, 300), urgent: false, retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
+        "jsCode": "const M = require('lv-automation').metaAds;\nconst client = M.createClient({ token: $env.META_SYSTEM_USER_TOKEN, apiVersion: $env.META_GRAPH_VERSION || $env.META_API_VERSION || 'v25.0', maxInlineWaitMs: 20000 });\nconst out = [];\nfor (const it of $input.all()) {\n  const b = it.json;\n  try {\n    const h = await client.getAssetHealth({ businessId: b.business_id, pageId: b.page_id, igUserId: b.ig_user_id, wabaId: b.waba_id, phoneNumberId: b.phone_number_id, adAccountId: b.ad_account_id, pixelId: b.pixel_id });\n    const d = M.diffHealth({ waba_quality: b.waba_quality, alerts: b.health_alerts || [] }, h);\n    out.push({ json: { brand_id: b.brand_id, ok: true, health: h, urgent: d.urgent, new_alerts: d.new_alerts, templates: (h.template_status && h.template_status.items) || [] } });\n  } catch (e) {\n    // API error -> retry next run; a rate-limit back-off is not an alert.\n    out.push({ json: { brand_id: b.brand_id, ok: false, code: e.code || 'ERR', message: String(e.message).slice(0, 300), urgent: false, retry_after_ms: e.retryAfterMs || null } });\n  }\n}\nreturn out;"
       }
     },
     {
@@ -304,29 +304,6 @@
       "parameters": {}
     },
     {
-      "id": "n17",
-      "name": "Record alerts (ops.notifications.body)",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        1320,
-        0
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "-- Console feed row: one per brand per distinct set of NEW alerts (24 h dedupe). Delivery/escalation is W22's job (separate row, signal_key meta_asset_health). Always returns one row.\nWITH ins AS (\nINSERT INTO ops.notifications (kind, \"to\", channel, severity, status, source, ref_table, ref_id, dedupe_key, what, body)\nSELECT 'alert', 'console', 'console', CASE WHEN $3::boolean THEN 'red' ELSE 'amber' END, 'sent', 'W27', 'brands', $1::text, $2::text,\n       'Meta asset health: ' || jsonb_array_length($4::jsonb) || ' new alert(s)', jsonb_build_object('brand_id', $1::text, 'urgent', $3::boolean, 'alerts', $4::jsonb)\nWHERE jsonb_array_length($4::jsonb) > 0\n  AND NOT EXISTS (SELECT 1 FROM ops.notifications n WHERE n.dedupe_key = $2::text AND n.created_at > now() - interval '24 hours')\nRETURNING 1)\nSELECT count(*)::int AS recorded FROM ins;",
-        "options": {
-          "queryReplacement": "={{ (() => { const h = $('Pull health (one batch per brand) + diff').item.json; const a = h.new_alerts || []; return [h.brand_id, 'w27:' + h.brand_id + ':' + a.map((x) => x.code).sort().join(','), !!h.urgent, JSON.stringify(a)]; })() }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      }
-    },
-    {
       "id": "n18",
       "name": "Shape W22 signal",
       "type": "n8n-nodes-base.code",
@@ -442,17 +419,6 @@
         ]
       ]
     },
-    "Write brands health fields": {
-      "main": [
-        [
-          {
-            "node": "Record alerts (ops.notifications.body)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "New urgent alert?": {
       "main": [
         [
@@ -471,22 +437,22 @@
         ]
       ]
     },
-    "Record alerts (ops.notifications.body)": {
+    "Shape W22 signal": {
       "main": [
         [
           {
-            "node": "New urgent alert?",
+            "node": "W22 Alerts: URGENT to both phones",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Shape W22 signal": {
+    "Write brands health fields": {
       "main": [
         [
           {
-            "node": "W22 Alerts: URGENT to both phones",
+            "node": "New urgent alert?",
             "type": "main",
             "index": 0
           }

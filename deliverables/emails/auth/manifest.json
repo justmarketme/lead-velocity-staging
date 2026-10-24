@@ -1,0 +1,27 @@
+{
+  "invite": {
+    "subject": "Your Lead Velocity invitation",
+    "file": "invite.html",
+    "status": "local_preview_only"
+  },
+  "confirmation": {
+    "subject": "Confirm your Lead Velocity email address",
+    "file": "confirmation.html",
+    "status": "local_preview_only"
+  },
+  "magic_link": {
+    "subject": "Your Lead Velocity sign-in link",
+    "file": "magic_link.html",
+    "status": "local_preview_only"
+  },
+  "email_change": {
+    "subject": "Confirm your Lead Velocity email change",
+    "file": "email_change.html",
+    "status": "local_preview_only"
+  },
+  "reauthentication": {
+    "subject": "Your Lead Velocity verification code",
+    "file": "reauthentication.html",
+    "status": "local_preview_only"
+  }
+}

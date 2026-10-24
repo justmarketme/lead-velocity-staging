@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "key": "booking_hold_released_v2",
+    "source": "automation/templates/booking_hold_released.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_booking_hold_released_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      }
+    ],
+    "core": false,
+    "base": "booking_hold_released",
+    "header": "invite"
+  },
+  "content": {
+    "friendly_name": "smc_booking_hold_released_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Thu 15 Oct",
+      "3": "10:00",
+      "4": "see_open_times:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, we couldn't confirm your email in time, so we've released the time we were holding for you ({{2}} at {{3}}). Tap below to pick a new time.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-invite.png"
+        ],
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "See open times",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -20,7 +20,10 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { twilioVarPlan, defaultPayload } from '../../lib/wa-provider.mjs';
+import { twilioVarPlan, defaultPayload, START_CTA_KEY, START_PAGE_LINK, START_CTA_HEADER, START_CTA_BUTTON, TEMPLATE_VARIANTS, variantSpec,
+  RESCHEDULE_LINK, RESCHEDULE_CTA_KEY, RESCHEDULE_TEMPLATE, RESCHEDULE_BUTTON, KEEP_BUTTON, rescheduleCardBody, headerUrl } from '../../lib/wa-provider.mjs';
+import { START_PAGE_STEPS } from '../../ctwa/w03.js';
+import { startWords, START_BANNER, START_LINK, HEADER_BASE } from '../../lib/w08.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEMPLATES = join(HERE, '..');
@@ -39,11 +42,19 @@ export const FLOW_TEMPLATES = [
   'lead_low_budget_held', 'lead_low_budget_closed',
   // verify gate (2026-10-11): the slot is held until the email is verified; released + rebook nudge otherwise
   'booking_held_verify_email', 'booking_hold_released',
+  // Cal.com desktop booking (2026-10-17): brings the booker into the chat with Lindi (quick reply booking_chat_yes:<id>)
+  'booking_confirm_chat',
   // the Flow launches (after the Flows are published in Meta)
   'broker_intro_slots_v2', 'reschedule_offer_v2',
   // broker side of the flow
   'broker_new_booking', 'broker_booking_changed', 'broker_outcome_check', 'broker_disposition', 'broker_quality', 'broker_lead_offer',
-  'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief',
+  'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief', 'broker_fit_followup',
+  // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
+  'ops_alert',
+  // lead-ad intro card WITH the SortMyCover disclosure (2026-10-18): proposal, for Jono with the Instant Form launch (BROKER-INTRO-V3.md)
+  'broker_intro_slots_v3',
+  // Start here for Instant Form leads (19 Oct 2026): the smc_start_cta text as an approved template (they never messaged us)
+  'start_here',
 ];
 export const CORE = FLOW_TEMPLATES.slice(0, 7);
 // Session Flow launches (inside the 24-h window, W10 flow_session): body {{1}}, flow_token {{2}}.
@@ -100,6 +111,9 @@ export function convert(spec) {
     } };
   } else if (hMedia) {
     types = { 'twilio/card': { title: text, ...(footer(spec) ? { subtitle: footer(spec) } : {}), media: [`${MEDIA}/{{${hMedia.n}}}`], ...(actions.length ? { actions } : {}) } };
+  } else if (h && h.banner) {
+    // banner variant (lib/wa-provider.mjs TEMPLATE_VARIANTS): the static header card, no variable
+    types = { 'twilio/card': { title: text, ...(footer(spec) ? { subtitle: footer(spec) } : {}), media: [h.banner], ...(actions.length ? { actions } : {}) } };
   } else if (actions.length || (h && h.format === 'TEXT') || footer(spec)) {
     types = { 'whatsapp/card': {
       body: text,
@@ -110,7 +124,7 @@ export function convert(spec) {
   } else types = { 'twilio/text': { body: text } };
   return {
     _meta: { key: spec.name, source: `automation/templates/${spec.name}.json`, approval: { name: `smc_${spec.name}`, category: spec.category || 'UTILITY' },
-      var_plan: plan.map((s) => ({ n: s.n, kind: s.kind, ...(s.type ? { type: s.type, index: s.index } : {}) })), core: CORE.includes(spec.name) },
+      var_plan: plan.map((s) => ({ n: s.n, kind: s.kind, ...(s.type ? { type: s.type, index: s.index } : {}), ...(s.src != null && s.src !== s.index ? { v1_index: s.src } : {}) })), core: CORE.includes(spec.name) },
     content: { friendly_name: `smc_${spec.name}`, language: spec.language || 'en', variables: vars, types },
   };
 }
@@ -139,15 +153,92 @@ export function sessionFlow(f) {
       types: { 'whatsapp/flows': { body: '{{1}}', button_text: f.button_text, flow_id: f.flow_id, flow_token: '{{2}}', flow_first_page_id: f.first_page, is_flow_first_page_endpoint: true } } } };
 }
 
+/**
+ * The /start/ page link (W03, brand flag start_page, 18 Oct 2026; copy + header-welcome 19 Oct): one session twilio/card, static header image, body {{1}},
+ * one URL button whose URL ends in the token {{2}} after a STATIC '#lt=' (the token rides in the fragment, CONTRACTS.md
+ * lead_token; Twilio substitutes only a URL suffix and documents no '#' encoding). Session only: no WhatsApp approval
+ * (an unapproved card in session may carry one URL button). Created once by Jonathan: submit-twilio.mjs --only smc_start_cta --submit.
+ */
+export function startCta() {
+  return { _meta: { key: START_CTA_KEY, approval: null, session_only: true },
+    content: { friendly_name: START_CTA_KEY, language: 'en',
+      variables: { 1: `Hi Thandi, I'm Lindi from SortMyCover. ${START_PAGE_STEPS}`, 2: 'lt1.sample' },
+      types: { 'twilio/card': { title: '{{1}}', media: [START_CTA_HEADER], actions: [{ type: 'URL', title: START_CTA_BUTTON, url: `${START_PAGE_LINK}{{2}}` }] } } } };
+}
+
+/**
+ * Banner variant (Jono, 19 Oct 2026) of a lead-facing template: same body / variables / buttons / category as v1, the
+ * static header card instead of a text header. Its own key (TWILIO_CONTENT_SIDS) and approval name smc_<key>; the
+ * sender switches to it only once that key has a SID. `_meta.submitted` = the SID of a variant already created.
+ */
+export function convertVariant(spec, v) {
+  const d = convert(variantSpec(spec, v));
+  d._meta = { ...d._meta, key: v.key, base: v.base, header: v.keep_header ? 'v1 media header (kept)' : v.header, ...(v.superseded_by ? { superseded_by: v.superseded_by } : {}), source: `automation/templates/${v.base}.json + lib/wa-provider.mjs TEMPLATE_VARIANTS`, core: false,
+    ...(v.sid ? { submitted: v.sid } : {}) };
+  return d;
+}
+
+/**
+ * The reschedule card (Jono, 19 Oct 2026; lib/wa-provider.mjs rescheduleCardPlan, sent by W07 instead of W10's slot list).
+ * Template reschedule_card: approved twilio/card (banner + body + URL "Pick a new time" + quick reply "Keep my time"), so
+ * it works inside AND outside the 24-h window; numbering = body {{1}}-{{4}}, URL token {{5}}, keep id {{6}} (no spec file:
+ * the sender numbers body then buttons in payload order). Session smc_reschedule_cta: the same banner and text with ONE
+ * URL button (an unapproved session card cannot mix a URL and a quick reply).
+ */
+const RESCHEDULE_SAMPLE = { first: 'Thandi', adviser: 'Mark', date: 'Wed 21 Oct', time: '10:00' };
+export function rescheduleCard() {
+  const title = rescheduleCardBody({ first: '{{1}}', adviser: '{{2}}', date: '{{3}}', time: '{{4}}' }); // no STOP line (Jono 19 Oct: consent only)
+  return { _meta: { key: RESCHEDULE_TEMPLATE, source: 'lib/wa-provider.mjs rescheduleCardBody', approval: { name: `smc_${RESCHEDULE_TEMPLATE}`, category: 'UTILITY' }, core: false,
+    var_plan: [1, 2, 3, 4].map((n) => ({ n, kind: 'body' })).concat([{ n: 5, kind: 'button', type: 'url', index: 0 }, { n: 6, kind: 'button', type: 'quick_reply', index: 1 }]) },
+    content: { friendly_name: `smc_${RESCHEDULE_TEMPLATE}`, language: 'en', variables: { 1: 'Thandi', 2: 'Mark', 3: 'Wed 21 Oct', 4: '10:00', 5: 'lt1.sample', 6: 'keep_it:sample' },
+      types: { 'twilio/card': { title, subtitle: 'SortMyCover', media: [headerUrl('reschedule')], actions: [
+        { type: 'URL', title: RESCHEDULE_BUTTON, url: `${RESCHEDULE_LINK}{{5}}` }, { type: 'QUICK_REPLY', title: KEEP_BUTTON, id: '{{6}}' }] } } } };
+}
+export function rescheduleCta() {
+  return { _meta: { key: RESCHEDULE_CTA_KEY, approval: null, session_only: true },
+    content: { friendly_name: RESCHEDULE_CTA_KEY, language: 'en', variables: { 1: rescheduleCardBody(RESCHEDULE_SAMPLE), 2: 'lt1.sample' },
+      types: { 'twilio/card': { title: '{{1}}', media: [headerUrl('reschedule')], actions: [{ type: 'URL', title: RESCHEDULE_BUTTON, url: `${RESCHEDULE_LINK}{{2}}` }] } } } };
+}
+
+/**
+ * W08 Start here nudges (19 Oct 2026; lib/w08.mjs startMessage / startPayload): approved twilio/card, banner per touch
+ * (START_BANNER), body {{1}} first name {{2}} adviser, URL "Pick a time" -> /start/#lt={{3}}, quick reply {{4}}
+ * (Not now; No thanks on the last). Words = lib/w08.mjs startWords (the same text the session card sends).
+ */
+export const START_NUDGES = Object.keys(START_BANNER);
+// The 19 Oct submissions ended on the STOP line; their files stay exactly as submitted. *_v2 (20 Oct 2026) = the same card
+// without it (only the W03 consent keeps "Reply STOP to opt out."), its own key and approval; the sender prefers it once its
+// SID is set (lib/wa-provider.mjs START_NUDGE_KEYS).
+export const START_NUDGE_V1_TAIL = ' Reply STOP to opt out.';
+export function startNudge(base, { v2 = false } = {}) {
+  const key = v2 ? `${base}_v2` : base;
+  const reply = base === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
+  return { _meta: { key, ...(v2 ? { base } : {}), source: v2 ? 'lib/w08.mjs startWords (W08 start track, v2 20 Oct 2026: no STOP line)' : 'lib/w08.mjs startWords (W08 start track, 19 Oct 2026)',
+    approval: { name: `smc_${key}`, category: 'UTILITY' }, core: false,
+    banner: `header-${START_BANNER[base]}.png`,
+    var_plan: [{ n: 1, kind: 'body' }, { n: 2, kind: 'body' }, { n: 3, kind: 'button', type: 'url', index: 0 }, { n: 4, kind: 'button', type: 'quick_reply', index: 1 }] },
+    content: { friendly_name: `smc_${key}`, language: 'en', variables: { 1: 'Naledi', 2: 'Mark', 3: 'lt1.sample', 4: `${reply[0]}:sample` },
+      types: { 'twilio/card': { title: startWords(base, ['{{1}}', '{{2}}']) + (v2 ? '' : START_NUDGE_V1_TAIL), subtitle: 'SortMyCover', media: [`${HEADER_BASE}header-${START_BANNER[base]}.png`],
+        actions: [{ type: 'URL', title: 'Pick a time', url: `${START_LINK}{{3}}` }, { type: 'QUICK_REPLY', title: reply[1], id: '{{4}}' }] } } } };
+}
+
 export function buildAll() {
   const out = {};
   for (const name of FLOW_TEMPLATES) {
     const spec = JSON.parse(readFileSync(join(TEMPLATES, `${name}.json`), 'utf8'));
     out[`${name}.json`] = convert(spec);
   }
+  for (const v of TEMPLATE_VARIANTS) {
+    const spec = JSON.parse(readFileSync(join(TEMPLATES, `${v.base}.json`), 'utf8'));
+    out[`${v.key}.json`] = convertVariant(spec, v);
+  }
   for (let n = 1; n <= 3; n++) out[`smc_session_buttons_${n}.json`] = sessionButtons(n);
   for (let n = 1; n <= 10; n++) out[`smc_session_list_${n}.json`] = sessionList(n);
   for (const f of SESSION_FLOWS) out[`${f.name}.json`] = sessionFlow(f);
+  out[`${START_CTA_KEY}.json`] = startCta();
+  out[`${RESCHEDULE_TEMPLATE}.json`] = rescheduleCard();
+  out[`${RESCHEDULE_CTA_KEY}.json`] = rescheduleCta();
+  for (const k of START_NUDGES) { out[`${k}.json`] = startNudge(k); out[`${k}_v2.json`] = startNudge(k, { v2: true }); }
   return out;
 }
 

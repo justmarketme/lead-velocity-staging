@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "key": "start_nudge_final",
+    "source": "lib/w08.mjs startWords (W08 start track, 19 Oct 2026)",
+    "approval": {
+      "name": "smc_start_nudge_final",
+      "category": "UTILITY"
+    },
+    "core": false,
+    "banner": "header-adviser.png",
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      }
+    ]
+  },
+  "content": {
+    "friendly_name": "smc_start_nudge_final",
+    "language": "en",
+    "variables": {
+      "1": "Naledi",
+      "2": "Mark",
+      "3": "lt1.sample",
+      "4": "no_thanks:sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, this is our last message about your call with {{2}}. If you'd still like to talk it through, tap below to pick a time. If not, no problem, we won't message again. Reply STOP to opt out.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-adviser.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Pick a time",
+            "url": "https://sortmycover.co.za/start/#lt={{3}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "No thanks",
+            "id": "{{4}}"
+          }
+        ]
+      }
+    }
+  }
+}

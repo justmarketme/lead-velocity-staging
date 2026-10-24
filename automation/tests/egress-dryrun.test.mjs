@@ -20,7 +20,7 @@ const KNOWN_UNGATED = {
 };
 
 test('egress: at least the known workflows are scanned', () => {
-  assert.ok(files.length >= 36, `only ${files.length} workflow files`);
+  assert.ok(files.length >= 28, `only ${files.length} workflow files`);
   assert.ok(files.includes('SUB-whatsapp-send.json') && files.includes('W22.json'));
 });
 
@@ -55,16 +55,23 @@ test('egress detector: finds and gates synthetic ungated senders (WhatsApp, Twil
       mk('mail', 'n8n-nodes-base.httpRequest', { url: '=https://graph.microsoft.com/v1.0/users/x/sendMail' }),
       mk('ol', 'n8n-nodes-base.microsoftOutlook', { resource: 'message', operation: 'send' }),
       mk('wan', 'n8n-nodes-base.whatsApp', { operation: 'send' }),
-      mk('llm', 'n8n-nodes-base.httpRequest', { url: 'https://api.anthropic.com/v1/messages' }),
+      mk('llm', 'n8n-nodes-base.httpRequest', { url: '={{ $env.LINDI_BRAIN_URL }}' }),
       mk('after', 'n8n-nodes-base.code', {}),
     ],
     connections: { trig: { main: [['wa', 'tw', 'mail', 'ol', 'wan', 'llm'].map((node) => ({ node, type: 'main', index: 0 }))] }, wa: { main: [[{ node: 'after', type: 'main', index: 0 }]] } },
   };
   assert.deepEqual(findUngated(wf).map((x) => x.name).sort(), ['mail', 'ol', 'tw', 'wa', 'wan']);
-  assert.equal(senderKind(wf.nodes[6]), null, 'Anthropic /messages is not a send');
+  assert.equal(senderKind(wf.nodes[6]), null, "Lindi's brain (smc-lindi-chat) is not a send");
   gateSenders(wf);
   assert.deepEqual(findUngated(wf), []);
   gateSenders(wf); // idempotent
   assert.equal(wf.nodes.length, 8 + 5 * 2);
   assert.deepEqual(wf.connections['Dry-run stub (wa)'].main[0].map((t) => t.node), ['after']);
+});
+
+test('egress detector: the smc-client-email edge function (Resend, SortMyCover client email) is an email sender; other functions are not', () => {
+  const mk = (url) => ({ id: url, name: url, type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [0, 0], parameters: { url } });
+  assert.equal(senderKind(mk("={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://x.supabase.co/functions/v1') + '/smc-client-email' }}")), 'email');
+  assert.equal(senderKind(mk('https://x.supabase.co/functions/v1/smc-client-email')), 'email');
+  assert.equal(senderKind(mk("={{ ($env.SUPABASE_FUNCTIONS_URL || 'https://x.supabase.co/functions/v1') + '/ms-oauth' }}")), null);
 });

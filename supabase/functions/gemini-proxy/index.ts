@@ -35,7 +35,7 @@ serve(async (req) => {
   const key = Deno.env.get('GEMINI_API_KEY');
   if (!key) return json({ error: 'GEMINI_API_KEY is not configured in Edge Function secrets.' }, 500);
 
-  let body: any;
+  let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
 
   if (body.action === 'generate') {

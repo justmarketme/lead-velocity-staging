@@ -16,6 +16,8 @@ import { isPulseLine } from '../../conversation/pulse.mjs';
 import { checkEmail } from './w05.mjs';
 
 export const WORKFLOW = 'W07';
+// The CTWA ad pre-fill: "book a 30-minute call with an adviser" since 18 Oct 2026 (Jono); "check my life cover" before, still accepted.
+export const CTWA_OPENER_RE = /check my life cover|book a 30[- ]minute call with an adviser/iu;
 export const HOURS = { open: 8, close: 20 }; // handoff.md (6.8a): 08:00-20:00 SAST, every day until Jonathan says otherwise
 const SAST = 2 * 3600_000;
 
@@ -31,7 +33,8 @@ export function normaliseInbound(body = {}) {
   for (const e of body.entry || []) for (const ch of e.changes || []) {
     const v = ch.value || {};
     for (const m of v.messages || []) {
-      const msg = { wamid: m.id, from: '+' + String(m.from || '').replace(/^\+/, ''), at_ms: Number(m.timestamp || 0) * 1000, type: m.type, text: '', payload: null, list_id: null, media: null, media_id: null, referral: m.referral || null, phone_number_id: v.metadata?.phone_number_id || null };
+      const msg = { wamid: m.id, from: '+' + String(m.from || '').replace(/^\+/, ''), at_ms: Number(m.timestamp || 0) * 1000, type: m.type, text: '', payload: null, list_id: null, media: null, media_id: null, referral: m.referral || null, phone_number_id: v.metadata?.phone_number_id || null,
+        profile_name: (v.contacts || []).find((c) => String(c.wa_id || '') === String(m.from || '').replace(/^\+/, ''))?.profile?.name || null };
       if (m.type === 'text') msg.text = m.text?.body || '';
       else if (m.type === 'button') { msg.payload = m.button?.payload ?? null; msg.text = m.button?.text || ''; }
       else if (m.type === 'interactive') {
@@ -51,9 +54,13 @@ export function normaliseInbound(body = {}) {
 // Payload contract (templates README "Send-time notes"): quick-reply payloads are set at send time.
 const LEAD_TAPS = {
   confirm: 'W09', reschedule: 'W10', cancel: 'W10', keep_it: 'W10', cancel_yes: 'W10', other_times: 'W10',
+  // 19 Oct 2026: the W10 cancel card's reason list (row ids cancel_reason:<code>:<booking_id>, lib/w10.mjs cancelCard)
+  cancel_reason: 'W10',
   see_open_times: 'W04_list', not_now: 'W08', no_thanks: 'W08',
   reach_yes: 'W12', reach_no: 'W12', pulse_yes: 'W35', pulse_no: 'W35',
   call_number_yes: 'W07_contact', call_number_other: 'W07_contact', alt_add: 'W07_contact', alt_no: 'W07_contact',
+  // 2026-10-17 Cal.com desktop booking: "Yes, let's chat" on booking_confirm_chat (W37) -> confirm the WhatsApp number first
+  booking_chat_yes: 'W07_contact',
   play_voice_note: 'W09', looking_forward: 'W09',
   // I-45d: the Flow completion (nfm_reply) books through W05 (booking-flow-endpoint.md 'complete'); W28 is only the
   // encrypted data_exchange endpoint and never sees the closing message.
@@ -83,7 +90,7 @@ export function emailReplyPlan(lead = {}, text = '', { hasMx } = {}) {
   }
   const changed = String(lead.email || '').trim().toLowerCase() !== c.email.toLowerCase();
   return { action: 'save', email: c.email, email_status: c.status || 'mx_ok', changed, issue: { op: 'issue', lead_id: lead.id },
-    reply: `Thank you. We've emailed a link and a 6-digit code to ${c.email}. Tap the link, or reply here with the code, to confirm it.` };
+    reply: `Thank you. We've emailed a confirmation link to ${c.email}. Please tap it to confirm your email.` };
 }
 /**
  * I-45d: a delivery receipt for a W06 intro card / booking_confirmed -> W06 { op:'status' } (disclosure evidence +
@@ -132,7 +139,8 @@ export function routeInbound(msg, ctx = {}) {
 }
 
 function routeCore(msg, ctx) {
-  const tapKey = (msg.payload || '').split(':')[0];
+  // 19 Oct 2026: list replies carry their row id in list_id (the W10 cancel card's reasons), so taps read both fields
+  const tapKey = (msg.payload || msg.list_id || '').split(':')[0];
   // I-37e: W32 Approve / Later taps, only from the ops numbers that receive them; anyone else's tap falls through.
   if (ctx.ops_numbers && ctx.ops_numbers.has(msg.from) && W32_TAP.test(msg.payload || '')) return { route: 'W32_decision', reason: `W32 ${tapKey} tap` };
   if (ctx.broker_numbers && ctx.broker_numbers.has(msg.from)) {
@@ -143,15 +151,23 @@ function routeCore(msg, ctx) {
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.
   if (STOP_WORDS.test(msg.text || '') || (msg.text && prefilter(msg.text).stop)) return { route: 'W15', reason: 'STOP' };
-  if (!ctx.lead) return msg.referral || /check my life cover/iu.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
-  if (ctx.lead.opted_out_at) return { route: 'ignore_opted_out', reason: 'opted out: logged only, no reply (W15 sent the one confirmation)' };
+  if (!ctx.lead) return msg.referral || CTWA_OPENER_RE.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
+  // 19 Oct 2026: every message from an opted-out lead goes to W15 and nowhere else (never Lindi, never another sender).
+  // W15 decides (lib/w15.mjs followupOf): a stop_why:<code> reason is stored, stop_undo:changed_mind gets its one reply,
+  // a typed CANCEL releases a kept booking; anything else is stored by nobody and answered by nobody.
+  if (ctx.lead.opted_out_at) return { route: 'W15', reason: 'stop_followup' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
-  if (ctx.lead.email_verify_pending && !msg.payload && !msg.list_id && EMAIL_CODE_RE.test(msg.text || '')) return { route: 'email_code', reason: 'email verification code' };
+  // 18 Oct 2026 (Jono): the email is confirmed by the link only. No code is offered any more, so a typed 6-digit number is
+  // an ordinary message (the code check would answer "That code doesn't match").
   // 2026-10-11: a typed email address from a lead whose email is not verified -> save it + smc-email-verify (W07 "Email reply")
   if (ctx.lead.email_verified !== true && !msg.payload && !msg.list_id && typedEmail(msg.text)) return { route: 'email_reply', reason: 'typed email address' };
   const state = ctx.lead.conv_state?.state || 'unbooked';
   if (QUALIFYING_TAP_STATES.includes(state) && (msg.payload || msg.list_id)) return { route: 'W03', reason: 'qualifying tap' };
+  // 19 Oct 2026 (v4b12): the /start/ page link is out (W03, brand flag start_page). Chat meanwhile no longer falls back to
+  // the age taps: Lindi answers as usual (FAQ / deferral / handoff) and W07 then re-sends the Start here link with a fresh
+  // token (patch-w07-start-again.mjs, lib/wa-provider.mjs startAgainPlan). Taps take their normal routes below.
+  if (state === 'start_page' && !msg.payload && !msg.list_id) return { route: 'nlu', reason: 'start page pending: Lindi answers, then the Start here link again' };
   if (/^slot_.+:resched:/u.test(msg.list_id || msg.payload || '')) return { route: 'W10', reason: 'reschedule slot picked' };
   if (msg.list_id && /^slot_/u.test(msg.list_id)) return { route: 'W05', reason: 'slot picked from the 10-slot list' };
   if (msg.list_id && BEST_TIME[msg.list_id]) return { route: 'W07_contact', reason: 'best time tap' };
@@ -159,6 +175,13 @@ function routeCore(msg, ctx) {
   // I-39d: "No thanks" tap while a booking is live = C1A (b) no call -> W10 (its router treats no_thanks as no_call)
   if (tapKey === 'no_thanks' && ctx.has_live_booking) return { route: 'W10', reason: 'no_call (live booking)' };
   if (tapKey && LEAD_TAPS[tapKey]) return { route: LEAD_TAPS[tapKey], reason: `tap ${tapKey}` };
+  // 19 Oct 2026: the W10 cancel card's "Another reason": while W10 waits for the typed reason (conv_state
+  // cancel_reason_pending, 30 min, that booking) the lead's next free text goes to W10 as the reason (lib/w10.mjs classifyOp).
+  const pend = ctx.lead.conv_state && ctx.lead.conv_state.cancel_reason_pending;
+  const nowMs = Number.isFinite(ctx.now_ms) ? ctx.now_ms : Date.now();
+  if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs) {
+    return { route: 'W10', reason: 'typed cancel reason', delegate: { to: 'W10', action: 'cancel_reason_text', actions: ['cancel_reason_text'], booking_id: pend.booking_id || null } };
+  }
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };
   // w07-alignment #13: the optional one-line answer after a W35 pulse tap goes to W35 (conversation/pulse.mjs decides;
   // advice / person / STOP / complaint / claim / distress return false and stay on the normal W07 path).
@@ -363,7 +386,10 @@ function oneMessage(plan, ctx) {
   const L = LINES[plan.lang];
   const vars = { ...plan.vars, method: d.action === 'change_method' ? methodLabel(d.method, plan.lang) || plan.vars.method : plan.vars.method };
   // FAQ answers on the same turn go in verbatim (approved text, no LLM) so nothing is lost and nothing is sent twice
-  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:')).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq })).filter(Boolean);
+  // ...except "can I cancel or move?" on a W10 turn: the action answers it, and FAQ-06's "Tap Reschedule or Cancel" sat
+  // next to the Yes, cancel / Keep it buttons (live 17 Oct 2026).
+  const answeredByAction = (a) => d.to === 'W10' && ctx.faq?.[a.slice(7)]?.topic === 'cancel_move';
+  const faqLines = plan.reply_actions.filter((a) => a.startsWith('answer:') && !answeredByAction(a)).map((a) => replyFallback(a, { lang: plan.lang, faq: ctx.faq, broker: ctx.broker, adviser_first: ctx.adviser_first })).filter(Boolean);
   const before = plan.prefix.map((l) => fill(l, vars));
   const after = [...faqLines, ...plan.suffix.map((l) => fill(l, vars))];
   d.lead_lines = [...before, ...after];
@@ -389,7 +415,9 @@ export function replyFallback(action, ctx) {
   const lang = ctx.lang === 'af' ? 'af' : 'en';
   const L = LINES[lang];
   const vars = { adviser_first: ctx.adviser_first, date: ctx.booking?.date, time: ctx.booking?.time, method: ctx.new_method_label || ctx.booking?.method_label || '' };
-  if (action.startsWith('answer:')) { const e = ctx.faq?.[action.slice(7)]; return (e && (e[lang] || e.en)) || ''; }
+  // 17 Oct: the approved answer is filled from the brokers row; a sentence whose placeholder has no value is dropped,
+  // so a lead never sees "{adviser} is from {practice}" (it happened live when the model reply was gated out).
+  if (action.startsWith('answer:')) { const e = ctx.faq?.[action.slice(7)]; return fillFaqText((e && (e[lang] || e.en)) || '', faqVars(ctx.broker, ctx.adviser_first)); }
   if (action === 'send_slots' || action === 'offer_slots') return fill(L.SLOTS_INTRO, vars);
   if (action === 'reschedule' || action === 'reschedule_slots') return fill(L.RESCHED_INTRO, vars);
   if (action === 'cancel_confirm') return ctx.booking?.time ? fill(L.CANCEL_CONFIRM_Q, vars) : '';
@@ -408,7 +436,14 @@ export function preClassifierGate(plan, draft, question = '') {
   const gate = outputGate(draft, { fixed_lines: fixedLines(plan.lang, plan.vars), question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
   return gate.pass ? { pass: true, verdict: null } : { pass: false, verdict: { verdict: 'block', confidence: 1, categories: gate.categories.map((c) => `outputGate:${c}`) } };
 }
-export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked on Sonnet (I-39h); unresolved = blocked
+export const CLASSIFIER_MIN_CONFIDENCE = 0.8; // #4: a pass below this is re-checked once more (I-39h); unresolved = blocked
+// Lindi on WhatsApp = ElevenLabs agent 'Lindi SortMyCover on WhatsApp' via smc-lindi-chat ($env.LINDI_BRAIN_URL, no fallback).
+// There is no Anthropic API in this system. The relay ignores `model`; this label only marks Lindi's turns in the logs.
+export const LINDI_MODEL = 'elevenlabs:lindi-whatsapp';
+/** Fail closed: without LINDI_BRAIN_URL W07 makes NO model call; the turn goes to the never-silent guard instead
+    (holding line + escalation + owner alert), routed as BRAIN_UNSET_ROUTE. */
+export const BRAIN_UNSET_ROUTE = 'lindi_brain_unset';
+export const brainSet = (url) => !!String(url || '').trim();
 
 export function parseVerdict(raw) {
   try {
@@ -419,13 +454,13 @@ export function parseVerdict(raw) {
 }
 
 /**
- * I-39h: the Sonnet re-check (guardrail.md "Escalate to"). Only a `pass` with confidence < 0.8 is re-checked; a `block`
+ * I-39h: the guardrail re-check (guardrail.md "Re-check"). Only a `pass` with confidence < 0.8 is re-checked; a `block`
  * is never appealed. The re-check must itself say pass with confidence >= 0.8, otherwise the draft is blocked.
- * Timeout, API error or invalid JSON on the re-check = block (fails closed). Model routing: ANTHROPIC_MODEL_STRONG.
+ * Timeout, relay error or invalid JSON on the re-check = block (fails closed). Same relay (smc-lindi-chat) as the first check.
  */
 export const needsRecheck = (v) => !!v && v.verdict === 'pass' && !(Number(v.confidence) >= CLASSIFIER_MIN_CONFIDENCE);
 export function recheckBody(classifierBody, { model } = {}) {
-  return { ...classifierBody, model: model || 'claude-sonnet-5-5' };
+  return { ...classifierBody, model: model || LINDI_MODEL };
 }
 export function resolveRecheck(first, rawSecond) {
   if (!needsRecheck(first)) return first; // a block stands; a confident pass needs no second look
@@ -454,10 +489,14 @@ export function gateAndAssemble(plan, { draft = '', verdict = null, question = '
   let trip = false;
   let rule = null;
   let used = 'none';
-  if (plan.reply_actions.length) {
+  // Lindi's turn (17 Oct 2026): the one model call already wrote the reply and applyModelReply() gated it
+  if (plan.model_text && !plan.reply_actions.length) { body = plan.model_text; used = 'llm'; }
+  // the one-call path never makes a second call: a dropped reply uses the approved fallback straight away (not a trip)
+  else if (plan.reply_actions.length && plan.no_second_call) { body = fallback; used = 'fallback'; }
+  else if (plan.reply_actions.length) {
     const gate = outputGate(draft, { fixed_lines: fixed, question, first_name_raw: plan.first_name_raw ?? plan.vars.first_name });
     const v0 = verdict || { verdict: 'block', categories: ['not_run'] };
-    // #4: low-confidence pass is not a pass (the W07 Sonnet re-check node resolves it before this point; unresolved = fails closed); a block is never appealed
+    // #4: low-confidence pass is not a pass (the W07 guardrail re-check node resolves it before this point; unresolved = fails closed); a block is never appealed
     const v = v0.verdict === 'pass' && !(Number(v0.confidence) >= CLASSIFIER_MIN_CONFIDENCE) ? { verdict: 'block', categories: ['low_confidence_pass'] } : v0;
     const tone = toneCheck(draft, { fixed_lines: fixed, lead_used_emoji, lang: plan.lang });
     if (draft && gate.pass && v.verdict === 'pass' && tone.pass) { body = draft; used = 'llm'; }
@@ -515,6 +554,14 @@ export function contactStep(lead, msg, lookup = null) {
   const toAlt = () => { out.conv_state.contact_step = 'alt'; out.conv_state.attempts = 0; out.reply = ALT_Q; };
   const toBest = () => { out.conv_state.contact_step = 'best_time'; out.reply = BEST_Q; };
   if (BEST_TIME[key]) { out.update.best_time = BEST_TIME[key]; out.conv_state.contact_step = 'done'; out.reply = { type: 'text', body: L.SAVED }; return out; }
+  if (key === 'booking_chat_yes') {
+    // W37 booking_confirm_chat tap (Cal.com booking): opens the 24-h window; same contact sequence as a WhatsApp booking
+    const first = sanitiseField('first_name', lead.first_name || '').value;
+    out.conv_state.contact_step = 'call_number'; out.conv_state.attempts = 0; out.conv_state.via = 'calcom';
+    out.reply = { type: 'buttons', body: `Thanks${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. A few quick things before your call: is this WhatsApp number the best one to reach you on?`,
+      buttons: [['call_number_yes', 'Yes, this one'], ['call_number_other', 'Use another number']] };
+    return out;
+  }
   if (key === 'call_number_yes') { out.update.call_number = lead.phone; out.update.call_number_line_type = lead.line_type || 'mobile'; toAlt(); return out; }
   if (key === 'call_number_other') { out.conv_state.contact_step = 'typed_number'; out.reply = { type: 'text', body: L.CONTACT_TYPE_NUMBER }; return out; }
   if (key === 'alt_add') { out.conv_state.contact_step = 'typed_alt'; out.reply = { type: 'text', body: L.CONTACT_TYPE_ALT }; return out; }
@@ -584,4 +631,192 @@ export function explodeDelegations(items = []) {
     }
   }
   return out;
+}
+
+// ---------- never silent (17 Oct 2026, sites/sortmycover/docs/WHATSAPP-OPENERS.md rule 4) ----------
+// When W07 hands a message to W03 / W04 / W05 / W10 it sends nothing itself, so a failed or inactive delegate meant total
+// silence (every 17 Oct test). A parallel guard waits NEVER_SILENT_WAIT_S, checks communications for any outbound to the number
+// since the inbound, and if there is none (and the number is not opted out) sends ONE fallback and opens a console escalation.
+export const NEVER_SILENT_WAIT_S = 45; // 17 Oct: a W05 booking (Graph free-check + event) can run past 25 s; the guard must not fire mid-booking
+export const NEVER_SILENT_ROUTES = ['W03', 'W04', 'W04_list', 'W05', 'W10'];
+export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
+  const first = sanitiseField('first_name', first_name || '').value;
+  const slots = route === 'W04' || route === 'W04_list';
+  // Lindi never mentions a calendar, a system or a failure to a client (standing rule; KG's test 18 Oct 2026, 23:20). The reply
+  // stays warm and keeps the chat going; the escalation + the owner alert below make sure a person really follows up.
+  if (lang === 'af') {
+    return `Dankie${first ? ` ${first}` : ''}! Ek is Lindi van SortMyCover. ${slots ? 'Ek kry die adviseur se tye vir jou reg en stuur dit kort-kort hier' : 'Ek het jou boodskap, en iemand van ons span stuur jou kort-kort hier ’n boodskap'}.`;
+  }
+  return `Thanks${first ? `, ${first}` : ''}! I'm Lindi from SortMyCover. ${slots ? "I'm lining up the adviser's times for you and will send them here shortly" : "I've got your message, and a person from our team will message you here shortly"}.`;
+}
+/** The internal alert that goes with every fallback (EMMA /api/notify -> Jono): first name, the hand-off that stayed silent,
+    the lead id. Never the number or the message text (same rule as W38). */
+export function neverSilentAlert(j = {}) {
+  const lead = j.lead || {};
+  const first = sanitiseField('first_name', lead.first_name || (j.msg && j.msg.profile_name) || '').value || 'A lead';
+  const what = j.route === 'W04' || j.route === 'W04_list' ? 'open times' : j.route === 'W05' ? 'a booking' : j.route === 'W10' ? 'a reschedule' : 'the next step';
+  const ref = lead.id ? ` Lead ${String(lead.id).slice(0, 8)}.` : '';
+  const message = j.route === BRAIN_UNSET_ROUTE
+    ? `SortMyCover: ${first} messaged and Lindi could not answer: LINDI_BRAIN_URL is not set on n8n, so no reply was written and Lindi sent a holding line. Please follow up on WhatsApp.${ref}`
+    : `SortMyCover: ${first} is waiting on ${what}. The ${j.route || 'hand-off'} reply did not go out, so Lindi sent a holding line. Please follow up on WhatsApp.${ref}`;
+  return { message, source: 'smc-never-silent', title: 'SortMyCover: lead needs a person' };
+}
+/** The guard's send: one prebuilt text through smc-whatsapp-send (record:true, so it lands in communications). */
+export function neverSilentSend(j = {}) {
+  const msg = j.msg || {};
+  const lead = j.lead || {};
+  const body = neverSilentText(j.route, { first_name: lead.first_name || msg.profile_name || '', lang: lead.language === 'af' ? 'af' : 'en' });
+  const wa = { messaging_product: 'whatsapp', to: msg.from, type: 'text', text: { body } };
+  return { kind: 'prebuilt', wa, to: msg.from, record: true, caller: 'W07', bypass_suppression: false, phone_number_id: null,
+    lead_id: lead.id || null, broker_id: null, correlation: `W07:never_silent:${msg.wamid || 'none'}` };
+}
+
+// ---------- Lindi's turn: ONE model call writes the labels AND the reply (17 Oct 2026, Jono: option 1) ----------
+// Before: the model only labelled the message; replies were fixed lines from lines.mjs glued together, and a drafted
+// reply often died at the classifier and became a stock line ("she responds like a chat bot"). Now the ElevenLabs agent
+// (smc-lindi-chat) returns { ...labels, reply } in one call (conversation/prompts/lindi-turn.md). decide() still decides
+// every action from the labels; applyModelReply() swaps the conversational fixed lines for the reply when it passes the
+// deterministic gates. STOP, distress, a person taking over, consent and the qualifying taps stay fixed.
+export const TURN_PROMPT = 'lindi-turn-v1.0.1';
+export const TURN_MAX_TURNS = 10; // the last ~10 turns of the chat (main session, 17 Oct)
+const PLACEHOLDER = /\{(\w+)\}/gu;
+
+/** knowledge/faq.md placeholders from the brokers row (practice_name is the display name; firm_name is the fallback). */
+export function faqVars(broker = {}, adviser_first = '') {
+  const b = broker || {};
+  const first = adviser_first || String(b.contact_person || '').split(' ')[0] || '';
+  return { adviser: b.contact_person || first, adviser_first: first, practice: b.practice_name || b.firm_name || '', fsp: b.fsp_number || '', city: b.city || '', methods: '', adviser_languages: '' };
+}
+
+/**
+ * Fill an approved FAQ text. With no city the optional "based in {city}" / "in {city}" phrase goes; then any sentence
+ * still holding a placeholder is dropped, so braces are never sent. Returns '' when nothing usable is left.
+ */
+export function fillFaqText(text = '', vars = {}) {
+  const has = (k) => vars[k] != null && vars[k] !== '';
+  let t = String(text || '');
+  if (!has('city')) t = t.replace(/\s+(?:based\s+)?in \{city\}/gu, '');
+  t = t.replace(PLACEHOLDER, (m, k) => (has(k) ? String(vars[k]) : m));
+  return t.split(/(?<=[.!?])\s+/u).filter((s) => !/\{\w+\}/u.test(s)).join(' ').trim();
+}
+
+/** Approved FAQ answers as "FAQ-xx: text" lines; unknown placeholders drop their sentence (never sent with braces). */
+export function faqLines(faq = {}, lang = 'en', vars = {}) {
+  const out = [];
+  for (const [id, e] of Object.entries(faq)) {
+    if (!e || e.type !== 'answer') continue;
+    const kept = fillFaqText((lang === 'af' && e.af) || e.en || '', vars);
+    if (kept) out.push(`${id}: ${kept}`);
+  }
+  return out;
+}
+
+/** What the system will most likely do after this message, so the reply can lead into it. */
+export function nextHint(state, booking) {
+  if (state === 'consent_pending') return 'waiting for their yes or no to sharing their details with the adviser';
+  if (QUALIFYING_TAP_STATES.includes(state)) return 'asking a short qualifying question with tap options';
+  if (booking && booking.status === 'pending_verification') return 'a time is held for them; waiting for their email address so the invite can be sent';
+  if (booking && booking.time) return 'they have a booking; help with questions, moving or cancelling it';
+  if (state === 'handoff') return 'a person from the team is taking over';
+  return 'if they want to book, or seem ready to, the system sends a list of open times with your reply';
+}
+
+/** Recent communications rows (oldest first) -> "them: ..." / "lindi: ..." lines; the current inbound is dropped. */
+export function turnLines(rows = [], max = TURN_MAX_TURNS) {
+  const list = (Array.isArray(rows) ? rows : []).filter((r) => r && typeof r.content === 'string' && r.content.trim() && !/^\[|^template:/u.test(r.content.trim()));
+  if (list.length && list[list.length - 1].direction === 'inbound') list.pop();
+  return list.slice(-max).map((r) => (r.direction === 'inbound' ? `them: ${redactForLLM(r.content).slice(0, 300)}` : `lindi: ${String(r.content).slice(0, 300)}`).replace(/\s+/gu, ' '));
+}
+
+/** The one relay request (smc-lindi-chat message shape) for this inbound (j = the W07 item: lead, booking, broker, adviser_first, pre, text_llm). */
+export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms = Date.now(), model = LINDI_MODEL } = {}) {
+  const lead = j.lead || {};
+  const cs = lead.conv_state || {};
+  const state = cs.state || (j.booking ? 'booked' : 'unbooked');
+  const lang = lead.language === 'af' ? 'af' : 'en';
+  const bv = bookingView(j.booking, lang);
+  const broker = j.broker || {};
+  const adviser_first = j.adviser_first || String(broker.contact_person || '').split(' ')[0] || 'your adviser';
+  const vars = faqVars(broker, adviser_first);
+  const known = ['age_band', 'budget_band', 'bond', 'dependants', 'method_pref', 'email', 'call_number', 'best_time'].filter((k) => lead[k] != null);
+  const first = sanitiseField('first_name', lead.first_name || '').value || '';
+  const user = [
+    `STATE: ${state}`, `CONSENT_PENDING: ${state === 'consent_pending'}`, `DISCLOSED: ${!!cs.disclosed}`, `NEXT: ${nextHint(state, bv)}`,
+    `NOW: ${new Date(now_ms + SAST).toISOString().slice(0, 19)}+02:00 Africa/Johannesburg`, `FIRST_NAME: ${first}`, `ADVISER: ${adviser_first}`,
+    `BOOKING: ${bv && bv.time ? `${bv.day} ${bv.date} ${bv.time} by ${bv.method_label}${bv.status === 'pending_verification' ? ' (held, waiting for their email)' : ''}` : 'none'}`,
+    `KNOWN: ${known.join(', ')}`, `LANGUAGE: ${lang}`, `LEAD_USED_EMOJI: ${!!(j.pre && j.pre.lead_used_emoji)}`,
+    'FAQ (approved answers you may use, in your own words):', ...faqLines(faq, lang, vars),
+    'RECENT TURNS (oldest first):', ...(turnLines(turns).length ? turnLines(turns) : ['(none)']),
+    `MESSAGE: """${String(j.text_llm || '').replace(/"{3,}/gu, '"').slice(0, 1200)}"""`,
+  ].join('\n');
+  return { state, request: { model, max_tokens: 600, temperature: 0.4, system, messages: [{ role: 'user', content: user }] } };
+}
+
+/** The one answer -> { nlu (same validation as parseNlu), reply }. Prose around the JSON is tolerated; no reply = ''. */
+export function parseTurn(raw) {
+  let o = null;
+  const s = typeof raw === 'string' ? raw.replace(/```json|```/gu, '').trim() : raw;
+  if (s && typeof s === 'object') o = s;
+  else { try { o = JSON.parse(s); } catch { const m = String(s || '').match(/\{[\s\S]*\}/u); if (m) { try { o = JSON.parse(m[0]); } catch { o = null; } } } }
+  const nlu = o ? parseNlu(o) : parseNlu('');
+  const reply = o && typeof o.reply === 'string' ? o.reply.replace(/[ \t]+/gu, ' ').trim().slice(0, 900) : '';
+  return { nlu, reply };
+}
+
+// Turns whose words stay fixed (safety, compliance, or another workflow owns the message).
+const FIXED_TURN_ACTIONS = new Set(['stop', 'handoff_urgent', 'human_review', 'paused', 'handoff', 'close_unbooked', 'close_oob', 'consent_yes',
+  'consent_no', 'consent_reask', 'record_answer', 'next_question', 'repeat_question', 'budget_clarify', 'flag_band_conflict', 'capture_contact',
+  // 17 Oct 2026 live: the model wrote "Done, I've cancelled your call" over the Yes/Keep-it confirm buttons; the
+  // question must stay the approved CANCEL_CONFIRM_Q until the person taps.
+  'cancel_confirm']);
+const OWNED_ELSEWHERE = new Set(['W03', 'W07_contact', 'W15', 'W08']);
+const SAFETY_KEYS = ['ID_WARNING', 'BANK_WARNING', 'MEDIA_NOT_OPENED'];
+
+/**
+ * Put Lindi's reply in place of the conversational fixed lines (DISCLOSE when she introduces herself, CLARIFY, STAY_IN_LANE,
+ * DEFER, BOOKING_STATUS, FAQ answers, the slots / reschedule intro inside the one W04 / W10 message). Safety lines
+ * (ID / bank / media warnings) are kept. Mutates plan; returns { used, reason }. A reply that fails outputGate or the tone
+ * check is dropped and the fixed lines go out unchanged, with no second model call (plan.no_second_call).
+ */
+export function applyModelReply(plan, reply, ctx = {}) {
+  if (!plan) return { used: false, reason: 'no_plan' };
+  plan.no_second_call = true;
+  const r = String(reply || '').trim();
+  if (!r) return { used: false, reason: 'no_reply' };
+  if ((plan.actions || []).some((a) => FIXED_TURN_ACTIONS.has(a)) || plan.escalation) return { used: false, reason: 'fixed_turn' };
+  if ((plan.delegate || []).some((d) => OWNED_ELSEWHERE.has(d.to))) return { used: false, reason: 'delegate_owns_message' };
+  const one = (plan.delegate || []).find((d) => ONE_MESSAGE[d.to]?.(d));
+  const onlyNone = (plan.actions || []).length === 1 && plan.actions[0] === 'none';
+  if (!one && !plan.send && !onlyNone) return { used: false, reason: 'nothing_to_send' };
+  const lang = plan.lang === 'af' ? 'af' : 'en';
+  const gate = outputGate(r, { question: ctx.question || '', first_name_raw: plan.first_name_raw });
+  if (!gate.pass) return { used: false, reason: `outputGate:${gate.categories.join(',')}` };
+  const tone = toneCheck(r, { lead_used_emoji: !!ctx.lead_used_emoji, lang, max_sentences: 4, max_chars: 480, max_grade: 10 });
+  if (!tone.pass) return { used: false, reason: `tone:${tone.issues.join(',')}` };
+  const askedWhoRuns = (ctx.topics || []).some((t) => t === 'lead_velocity' || t === 'business_model');
+  if (/lead\s*velocity/iu.test(r) && !askedWhoRuns) return { used: false, reason: 'brand:lead_velocity' };
+  const L = LINES[lang];
+  const vars = plan.vars || {};
+  const mentionsLindi = /\bLindi\b/u.test(r);
+  const isSafety = (x, filled) => SAFETY_KEYS.some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  if (one) {
+    const lines = one.lead_lines || [];
+    const disc = !ctx.disclosed && !mentionsLindi ? lines.filter((x) => isDisclose(x, true)) : [];
+    const keep = lines.filter((x) => isSafety(x, true));
+    one.lead_lines = [...disc, ...keep];
+    one.body = [...disc, r, ...keep].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
+    one.model_reply = true;
+    one.carries_disclose = !ctx.disclosed && (mentionsLindi || disc.length > 0);
+    plan.discloses = one.carries_disclose;
+  } else {
+    plan.prefix = !ctx.disclosed && !mentionsLindi ? plan.prefix.filter((x) => isDisclose(x, false)) : [];
+    plan.suffix = plan.suffix.filter((x) => isSafety(x, false));
+    plan.reply_actions = [];
+    plan.model_text = r;
+    plan.send = true;
+    plan.discloses = !ctx.disclosed && (mentionsLindi || plan.prefix.length > 0);
+  }
+  plan.used_model_reply = true;
+  return { used: true, reason: null };
 }

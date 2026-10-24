@@ -14,32 +14,23 @@ const PG = 'LV Supabase - n8n_app (least privilege)';
 export const SECRETS = [
   // 2026-10-11: W23's n8n WhatsApp nodes (whatsAppApi) now send through smc-whatsapp-send, so that copy is gone.
   ['Meta system-user token', 'META_SYSTEM_USER_TOKEN', [
-    ['httpHeaderAuth', 'Meta system user token (Bearer)'], ['httpHeaderAuth', 'WhatsApp Cloud API (SortMyCover)'],
-    ['httpHeaderAuth', 'WhatsApp Cloud API (system user)'],
-    ['httpHeaderAuth', 'WhatsApp Cloud API token (SMC ops)'], ['httpHeaderAuth', 'WhatsApp Graph bearer (system user)']]],
-  ['Meta Page token', 'PAGE_ACCESS_TOKEN', [['httpHeaderAuth', 'Meta Page Token']]],
-  ['Anthropic API key', 'ANTHROPIC_API_KEY', [
-    ['httpHeaderAuth', 'Anthropic API'], ['httpHeaderAuth', 'Anthropic API (SMC)'], ['httpHeaderAuth', 'Anthropic API key (x-api-key)']]],
+    ['httpHeaderAuth', 'Meta system user token (Bearer)'],
+    ['httpHeaderAuth', 'WhatsApp Cloud API (system user)'], ['httpHeaderAuth', 'WhatsApp Graph bearer (system user)']]],
+  // 19 Oct 2026: no Anthropic API in this system. LINDI_RELAY_TOKEN (W07 -> smc-lindi-chat) and LLM_RELAY_TOKEN (the other LLM
+  // jobs) are read from .env by the nodes ($env), never stored in an n8n credential, so they have no copies here (SECURITY.md).
   ['Twilio API key', 'TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET', [
-    ['httpBasicAuth', 'Twilio (SMC voice)'], ['httpBasicAuth', 'Twilio API key (Basic)']]],
+    ['httpBasicAuth', 'Twilio API key (Basic)']]],
   ['Microsoft Entra app (howzit@ and broker connect)', 'MS_TENANT_ID, MS_GRAPH_CLIENT_ID, MS_CLIENT_SECRET', [
-    ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)'],
-    ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)'],
-    ['microsoftOutlookOAuth2Api', 'Microsoft Graph (howzit@)'], ['oAuth2Api', 'Microsoft Graph (howzit mailbox, app-only)'],
+    ['microsoftOutlookOAuth2Api', 'Microsoft 365 howzit@ (Graph, Mail.Read + Mail.Send)'], ['oAuth2Api', 'Microsoft Graph (howzit mailbox, app-only)'],
     ['oAuth2Api', 'MS Graph app-only - howzit@ Mail.Send'], ['httpCustomAuth', 'Microsoft Graph broker-connect client secret (W20)']]],
   ['Supabase service-role key', 'SUPABASE_SERVICE_ROLE_KEY', [
-    ['httpHeaderAuth', 'Supabase Storage (service role)'], ['httpHeaderAuth', 'Supabase service role (W16 magic link)'],
+    ['httpHeaderAuth', 'Supabase Storage (service role)'],
     ['httpHeaderAuth', 'Supabase service role (n8n, W20)']]],
   ['Supabase n8n_app database password', 'SUPABASE_DB_URL (host/db/port); password in the password manager', [['postgres', PG]]],
   ['Supabase Storage S3 key pair', 'SUPABASE_S3_ACCESS_KEY, SUPABASE_S3_SECRET_KEY (+ SUPABASE_S3_ENDPOINT, SUPABASE_S3_REGION)', [['s3', 'MinIO intro media']]],
-  ['Paystack secret key', 'PAYSTACK_SECRET_KEY', [['httpHeaderAuth', 'Paystack secret key (Authorization: Bearer)']]],
   ['Transcription API key', 'TRANSCRIBE_API_KEY (+ TRANSCRIBE_URL)', [['httpHeaderAuth', 'Transcription API (bearer)']]],
   ['NCC registry key', '- (GATE-NCC)', [['httpHeaderAuth', 'NCC registry API']]],
-  ['Hostinger SFTP login', '- (password manager)', [['sftp', 'Hostinger SFTP (static sites)']]],
-  ['Console to n8n shared secret', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'Console -> n8n shared secret']]],
-  ['W22 uptime monitor token', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'W22 uptime monitor header token']]],
   ['W34 DSR webhook token', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'W34 DSR webhook token']]],
-  ['n8n webhook secret (SMC)', '- (password manager; ops.secret_inventory)', [['httpHeaderAuth', 'n8n webhook secret (SMC)']]],
 ];
 
 /** Rows: { secret, env, type, name, workflows[] }; plus unclassified (workflow credentials not in SECRETS) and stale (mapped but unused). */

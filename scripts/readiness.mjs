@@ -709,7 +709,7 @@ const LINES = [
     files('build', ['conversation/guardrail.mjs', 'conversation/prompts/guardrail.md', 'conversation/handoff.md'], 'guardrail + handoff built'),
     custom('live', 'live red-team run (guardrail classifier)', () => {
       const rel = 'evals/results/latest-live.json';
-      if (!exists(rel)) return [MISSING, `${rel} (needs ANTHROPIC_API_KEY: node evals/run.mjs)`];
+      if (!exists(rel)) return [MISSING, `${rel} (needs LINDI_BRAIN_URL + LINDI_RELAY_TOKEN: node evals/run.mjs)`];
       const r = readJson(rel);
       return r.rates?.fais === 1 && !(r.blockers || []).length ? [PASS, `${rel}: FAIS 1, no blockers`] : [FAIL, `${rel}: FAIS ${r.rates?.fais}, ${(r.blockers || []).length} blocker(s)`];
     }),
@@ -894,12 +894,12 @@ const LINES = [
     suite('build', 'automation/security/verify-webhooks.test.js'),
     gate('live', 'GATE-VPS'),
     env('live', ['VPS_HOST', 'BACKUP_S3_BUCKET'], 'VPS + off-server backup target set'),
-    custom('build', 'ANTHROPIC_BASE_URL unset or default in .env', () => {
+    // 19 Oct 2026: no Anthropic API in this system; Lindi = LINDI_BRAIN_URL (smc-lindi-chat), other LLM jobs = LLM_RELAY_URL.
+    custom('build', 'no Anthropic line in .env; LINDI_BRAIN_URL / LLM_RELAY_URL not the local egress stub', () => {
       const e = exists('.env') ? read('.env') : (exists('automation/.env') ? read('automation/.env') : '');
-      const m = e.match(/^ANTHROPIC_BASE_URL=(.*)$/m);
-      const v = m ? m[1].trim() : '';
-      const ok = !v || v === 'https://api.anthropic.com';
-      return [ok ? PASS : FAIL, ok ? 'unset/default' : 'non-default value present (local egress stub must never reach production, R6-09)'];
+      if (/^ANTHROPIC_[A-Z_]*=/m.test(e)) return [FAIL, 'an ANTHROPIC_* line is present: delete it (there is no Anthropic API in this system)'];
+      const stub = ['LINDI_BRAIN_URL', 'LLM_RELAY_URL'].filter((k) => { const m = e.match(new RegExp(`^${k}=(.*)$`, 'm')); return m && /\/\/(127\.|localhost\b|\[::1\])/.test(m[1]); });
+      return stub.length ? [FAIL, `${stub.join(', ')} points at a loopback stub (local egress stub must never reach production, R6-09)`] : [PASS, 'no ANTHROPIC_*, relay URLs not loopback'];
     }),
     ev('live', 'S7-26', 'vps_provisioned', 'true: W26 step 1 done'),
     ev('live', 'S7-26', 'nightly_pgdump_offsite_ok', 'true: last nightly pg_dump copied off-server'),

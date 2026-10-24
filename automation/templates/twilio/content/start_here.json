@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "key": "start_here",
+    "source": "automation/templates/start_here.json",
+    "approval": {
+      "name": "smc_start_here",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_start_here",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "lt1.sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, I'm Lindi from SortMyCover. Here's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Start here",
+            "url": "https://sortmycover.co.za/start/#lt={{2}}"
+          }
+        ]
+      }
+    }
+  }
+}

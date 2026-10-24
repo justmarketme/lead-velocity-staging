@@ -100,16 +100,138 @@ export const LOW_BUDGET_HOLD_DAYS = 7;
 // -> routing_reason held_no_wills_broker). Same nurture, booking, verification and counting rules otherwise.
 export const WILLS_ANGLES = new Set(['children-guardian', 'will-myth', 'will-and-cover', 'where-is-the-will']);
 export const PRODUCTS = new Set(['life_cover', 'wills']);
+// leads.source for every W01 lead. The live CHECK (leads_source_check) allows website_form, referral, campaign, cold_call, other,
+// 'Campaign Lead', 'Search Lead' and 'Ayanda Prospecting%'. W01 used to write 'LV Campaign', which that check rejects, so no web or
+// lead-ad lead could be inserted (found 2026-10-14 by automation/tests/quiz-v2-band.local.test.mjs). 'Campaign Lead' is the CRM's own
+// picklist value for a lead that came from a Lead Velocity campaign.
+export const LEAD_SOURCE = 'Campaign Lead';
+// Quiz v2 (lv-site a206f12, 2026-10-13): the landing page no longer asks the budget. It sends budget_pending: true and
+// help_with (the visitor's main reason, one of these). The band is asked later (WhatsApp / email-confirm page) and W05
+// hands the booking to the adviser only once it is known (contract 5.1(c), S2.2: a self-declared band is Required).
+export const HELP_WITH = new Set(['review', 'life', 'disability_income', 'severe_illness', 'wills']);
+export const helpWithOf = (v) => (typeof v === 'string' && HELP_WITH.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
 /** The page's own product choice (/book/ first question or ?for=, campaign theme), whitelisted; anything else -> null. */
 export const productChoice = (v) => (typeof v === 'string' && PRODUCTS.has(v.trim().toLowerCase()) ? v.trim().toLowerCase() : null);
 /** leads.product_interest: a wills angle is always 'wills'; otherwise the page's choice (product_interest, lv-site fc89d5a),
  *  else derived from the angle ('life_cover'). */
 export const productOf = (angle, requested = null) =>
   (WILLS_ANGLES.has(String(angle || '').toLowerCase()) ? 'wills' : productChoice(requested) ?? 'life_cover');
+/**
+ * Every age books AND counts (Jono, 18 Oct 2026). The age is still asked (Mark wants it) but under-35 / over-50 are treated
+ * exactly like 35-50 on the three intakes: the /start/ page (lib/w39.mjs re-exports this), the Meta instant form (decide()
+ * below, W03 finishLeadAd) and the chat (W03 qualify, conversation/logic.mjs). qualified_at follows the budget band alone
+ * (tier A/B), whatever the age, which is consistent with counting: smc_count_lead counts an attended, email-verified lead and
+ * never looks at age or qualified_at (pinned by tests/count-all-ages.local.test.mjs). The legacy page quiz (/lead without
+ * start_page) keeps its old age rule; the site no longer posts it.
+ */
+export const OUT_OF_BAND_AGE_BOOKS = true;
+export const OOB_AGE_RULE = 'OUT_OF_BAND_AGE_BOOKS (Jono, 18 Oct 2026)';
+
+// Meta instant form v2 (deliverables/media-buyer/instant-form-spec-v2.json, 18 Oct 2026). The form mirrors /start/: three
+// multiple-choice custom questions with stable keys, then first name + WhatsApp number. Meta returns a custom question's
+// answer as the option text (and a form built by hand in Ads Manager may get its own field names), so each answer is
+// matched on its option key OR its exact option label, and a field whose name is unknown is matched on its value.
+// Option keys are the /start/ codes where one exists (life / income / illness / review; lt35 / 35_44 / 45_50 / 51plus;
+// yes / no / unsure); 'disability' is the one form-only key.
+// intent -> the /start/ intent (lib/w39.mjs INTENTS) and the W01 HELP_WITH code. Disability and income protection are two
+// options on the form but one /start/ intent ('income'); the option itself is kept for the adviser's brief.
+export const LEAD_AD_QUESTION_KEYS = { intent: ['smc_intent', 'intent', 'help_with'], age_band: ['smc_age_band', 'age_band'], has_cover: ['smc_has_cover', 'has_cover'] };
+export const LEAD_AD_INTENT = Object.freeze({
+  life: { label: 'Life cover', intent: 'life', help_with: 'life' },
+  disability: { label: 'Disability cover', intent: 'income', help_with: 'disability_income' },
+  income: { label: 'Income protection', intent: 'income', help_with: 'disability_income' },
+  illness: { label: 'Severe illness cover', intent: 'illness', help_with: 'severe_illness' },
+  review: { label: 'Not sure yet', intent: 'review', help_with: 'review' },
+});
+export const LEAD_AD_AGE = Object.freeze({ lt35: 'Under 35', '35_44': '35 to 44', '45_50': '45 to 50', '51plus': 'Over 50' });
+// The cover question, four options (Jono, 18 Oct 2026), the same on the Instant Form, /start/ and wherever else it is asked:
+// "Yes, through work" tells Mark the cover is group cover that ends with the job. Legacy answers stay readable: 'yes' (the
+// three-option form) is stored as 'yes' (type unknown), 'not_sure' is 'unsure'.
+export const LEAD_AD_HAS_COVER = Object.freeze({ yes_work: 'Yes, through work', yes_own: 'Yes, my own', no: 'No', unsure: 'Not sure' });
+export const HAS_COVER_CODES = Object.freeze(['yes_work', 'yes_own', 'no', 'unsure', 'yes']); // 'yes' = legacy, type unknown
+const HAS_COVER_ALIAS = { not_sure: 'unsure', yes: 'yes' };
+/** Any cover answer (code or legacy) -> the stored code, or null. One mapping for every path (W01 lead ad, W39 /start/). */
+export const hasCoverCode = (v) => {
+  const k = String(v == null ? '' : v).trim().toLowerCase();
+  return LEAD_AD_HAS_COVER[k] ? k : HAS_COVER_ALIAS[k] || null;
+};
+/**
+ * leads.work_cover (what the adviser's pre-call brief shows, W11 "has cover through work"): yes_work -> true; yes_own / no ->
+ * false; unsure and the legacy 'yes' (type unknown) -> null (left as it is).
+ */
+export const workCoverOf = (code) => (code === 'yes_work' ? true : code === 'yes_own' || code === 'no' ? false : null);
+/** The required consent checkbox (custom_disclaimer_responses[].checkbox_key) and the optional ad-measurement one. */
+export const LEAD_AD_CONSENT_KEYS = new Set(['consent', 'smc_consent']);
+export const LEAD_AD_ADS_KEYS = new Set(['consent_ads', 'smc_consent_ads']);
+/** The text version the v2 form's required checkbox shows: the site's named text, filled for the broker (consentRegistry). */
+export const LEAD_AD_CONSENT_VERSION = 'CONSENT-NAMED-v5web';
+const optSlug = (v) => String(v == null ? '' : v).trim().toLowerCase().replace(/[\s-]+/g, '_');
+const optionIndex = (codes, labelOf) => {
+  const m = new Map();
+  for (const [code, v] of Object.entries(codes)) { m.set(optSlug(code), code); m.set(optSlug(labelOf(v)), code); }
+  return m;
+};
+const INTENT_IDX = optionIndex(LEAD_AD_INTENT, (v) => v.label);
+const AGE_IDX = optionIndex(LEAD_AD_AGE, (v) => v);
+const COVER_IDX = optionIndex(LEAD_AD_HAS_COVER, (v) => v);
+COVER_IDX.set('yes', 'yes'); COVER_IDX.set('not_sure', 'unsure'); // legacy three-option answers (label "Yes" / key not_sure)
+for (const k of ['35_44', '45_50']) AGE_IDX.set(k.replace('_', '-'), k); // older form labels "35-44" / "45-50"
+AGE_IDX.set('51_or_older', '51plus'); AGE_IDX.set('51+', '51plus');
+
+/**
+ * field_data (as { name: first value }) -> the v2 answers. { intent_option, intent, help_with, age_band, has_cover }; a missing
+ * or unreadable answer is simply absent (tolerated: intent and has_cover are optional for the pipeline, age decides nothing).
+ */
+export function leadAdAnswers(fields = {}) {
+  const out = {};
+  const used = new Set();
+  const take = (slot, idx) => {
+    for (const k of LEAD_AD_QUESTION_KEYS[slot]) {
+      if (fields[k] == null || fields[k] === '') continue;
+      used.add(k);
+      const code = idx.get(optSlug(fields[k]));
+      if (code) return code;
+    }
+    return null;
+  };
+  let intent = take('intent', INTENT_IDX), age = take('age_band', AGE_IDX), cover = take('has_cover', COVER_IDX);
+  // a hand-built form: unknown field names; match the remaining values on the option labels (each set is disjoint)
+  const known = new Set(['first_name', 'full_name', 'last_name', 'phone_number', 'phone', 'email', 'budget_band', 'has_bond', 'has_dependants', 'preferred_method', 'call_ok', 'bond_children', 'language']);
+  for (const [k, v] of Object.entries(fields)) {
+    if (used.has(k) || known.has(k) || typeof v !== 'string') continue;
+    const s = optSlug(v);
+    if (!intent && INTENT_IDX.has(s)) intent = INTENT_IDX.get(s);
+    else if (!age && AGE_IDX.has(s)) age = AGE_IDX.get(s);
+    else if (!cover && COVER_IDX.has(s)) cover = COVER_IDX.get(s);
+  }
+  if (intent) Object.assign(out, { intent_option: intent, intent: LEAD_AD_INTENT[intent].intent, help_with: LEAD_AD_INTENT[intent].help_with });
+  if (age) out.age_band = age;
+  if (cover) out.has_cover = cover;
+  return out;
+}
+
+/** custom_disclaimer_responses -> { consented, ads }. is_checked is "1" / "" in Graph (true / false accepted too). */
+export function leadAdConsent(responses = []) {
+  const on = (r) => r && (String(r.is_checked) === '1' || r.is_checked === true || String(r.is_checked).toLowerCase() === 'true');
+  const list = (Array.isArray(responses) ? responses : []).filter((r) => r && typeof r === 'object');
+  const keyed = list.some((r) => LEAD_AD_CONSENT_KEYS.has(r.checkbox_key) || LEAD_AD_ADS_KEYS.has(r.checkbox_key));
+  // A form built by hand may carry Meta's own checkbox keys. Meta does not accept a submission without the required box,
+  // so a ticked box still proves the consent; the optional ad-measurement choice is then NOT assumed (never ads by default).
+  if (!keyed) return { consented: list.some(on), ads: false, keys_known: false };
+  return {
+    consented: list.some((r) => LEAD_AD_CONSENT_KEYS.has(r.checkbox_key) && on(r)),
+    ads: list.some((r) => LEAD_AD_ADS_KEYS.has(r.checkbox_key) && on(r)),
+    keys_known: true,
+  };
+}
+
 export const LOW_BUDGET_HELD_TEMPLATE = 'lead_low_budget_held';
+/** leads.routing_reason of a /start/ page web lead waiting for its answers and the adviser card (W39 routes it). No CHECK. */
+export const START_PAGE_PENDING = 'start_page_pending';
 export const LOW_BUDGET_CLOSED_TEMPLATE = 'lead_low_budget_closed';
 // conv_state.state values while the lead is still answering (W03 owns them): the hand-off waits until the answers are in.
-export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow']);
+// 'start_page' (18 Oct 2026): the /start/ page link is out and the lead is answering there (W03 / W39).
+export const QUALIFYING_STATES = new Set(['consent_pending', 'q_age', 'q_budget', 'q_budget_clarify', 'q_bond', 'q_dependants', 'q_method', 'capture_flow', 'start_page']);
 const METHODS = new Set(['teams', 'zoom', 'meet', 'whatsapp_call', 'phone']);
 const METHOD_ALIAS = { google_meet: 'meet', whatsapp: 'whatsapp_call' };
 
@@ -136,7 +258,10 @@ export function normaliseSubmission(body = {}, opts = {}) {
         page_url: body.consent.page_url || body.page_url || null, mode: body.consent.mode || body.consent_mode || null,
         ads: typeof body.consent.includes_ads_sentence === 'boolean' ? body.consent.includes_ads_sentence : adsSentence(body.consent.text, body.consent.version) }
     : { checked: body.consent === true || body.consent === 'yes' || body.consent === 'on', text: body.consent_text || null, version: body.consent_version || null, at: null,
-        page_url: body.page_url || null, mode: body.consent_mode || null, ads: adsSentence(body.consent_text, body.consent_version) };
+        page_url: body.page_url || null, mode: body.consent_mode || null,
+        // the site quiz (and the /start/ page) send the optional ad-measurement choice separately: consent_ads + its own text / version
+        ads: adsSentence(body.consent_text, body.consent_version) || body.consent_ads === true || body.consent_ads === 'true',
+        ads_text: typeof body.consent_ads_text === 'string' ? body.consent_ads_text : null, ads_version: typeof body.consent_ads_version === 'string' ? body.consent_ads_version : null };
   return {
     channel: 'page',
     brand_id: body.brand_id ?? null,
@@ -146,7 +271,12 @@ export function normaliseSubmission(body = {}, opts = {}) {
     mobile_raw: typeof body.mobile === 'string' ? body.mobile : null,
     language: body.language ?? body.lang ?? null,
     angle: body.angle ?? null,
-    product_interest: productChoice(body.product_interest),
+    // quiz v2: the no-JS form may send only help_with; wills -> wills, any cover reason -> life_cover (same two products)
+    product_interest: productChoice(body.product_interest) ?? (helpWithOf(body.help_with) ? (helpWithOf(body.help_with) === 'wills' ? 'wills' : 'life_cover') : null),
+    help_with: helpWithOf(body.help_with),
+    budget_pending: body.budget_pending === true || body.budget_pending === 'true',
+    // the /start/ page web intake (desktop "Book", no token yet, Jono 18 Oct 2026): no answers yet, never routed here
+    start_page: body.start_page === true || body.start_page === 'true',
     quiz: {
       age_band: AGE_TO_DB[q.age_band] ?? null, budget_band: BUDGET_TO_DB[q.budget_band] ?? null,
       bond: yes(q.has_bond ?? q.bond), dependants: dependantsOf(q.has_dependants ?? q.dependants), work_cover: yes(q.has_work_cover ?? q.work_cover),
@@ -169,14 +299,31 @@ export function normaliseSubmission(body = {}, opts = {}) {
   };
 }
 
-/** The named-consent registry (landing/config/consent.json, CP-v0.1): version -> exact text for a practice. */
+/**
+ * The SortMyCover site's own consent texts (lv-site sites/sortmycover/config/consent.json, v5web, copied verbatim): the /start/
+ * page and the WhatsApp chat widget show these. The ad-measurement choice is a separate optional radio (consent_ads).
+ */
+export const WEB_CONSENT = Object.freeze({
+  named: { version: 'CONSENT-NAMED-v5web', text: 'I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about my call, and may share my details with {practice_name} (FSP {fsp_number}), an adviser from an FSCA-authorised financial services provider, who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP.' },
+  generic: { version: 'CONSENT-GENERIC-v5web', text: 'I agree that SortMyCover, a service of Lead Velocity (Pty) Ltd, may message me on WhatsApp to book and remind me about my call, and may share my details with an adviser from an FSCA-authorised financial services provider (FSP), who may contact me by WhatsApp or phone about that call. I am 18 or older. I can opt out at any time by replying STOP.' },
+  ads: { version: 'CONSENT-ADS-v2web', text: 'I give SortMyCover permission to use my details in coded (hashed) form to measure and improve its ads on Facebook and Instagram. It will never use them to send me ads by message. This is optional, and the call does not depend on it.' },
+});
+
+/** The named-consent registry (landing/config/consent.json, CP-v0.1, + the site's v5web texts): version -> exact text for a practice. */
 export function consentRegistry(broker = {}) {
   const fill = (t) => t.replace('{practice_name}', broker.practice_name || broker.firm_name || '').replace('{fsp_number}', broker.fsp_number || '');
   return {
     [CONSENT.named.version]: `${fill(CONSENT.named.text)} ${CONSENT.ads}`,
     [CONSENT.generic.version]: `${CONSENT.generic.text} ${CONSENT.ads}`,
+    [WEB_CONSENT.named.version]: fill(WEB_CONSENT.named.text),
+    [WEB_CONSENT.generic.version]: WEB_CONSENT.generic.text,
   };
 }
+
+/** The v2 answers kept for conv_state.start (null when the form carried none of them: an older form). */
+const leadAdBlock = (a, formId) => (a.intent || a.has_cover
+  ? { ...(a.intent ? { intent: a.intent, intent_option: a.intent_option } : {}), ...(a.has_cover ? { has_cover: a.has_cover } : {}), form_id: formId ?? null }
+  : null);
 
 /**
  * Lead Ads -> canonical submission. Accepts the raw Graph lead (field_data + custom_disclaimer_responses, the
@@ -187,29 +334,42 @@ export function normaliseLeadAd(p = {}, opts = {}) {
   const reg = opts.consent_texts || consentRegistry(opts.broker);
   if (Array.isArray(p.field_data)) {
     const f = Object.fromEntries(p.field_data.map((x) => [x.name, x.values?.[0]]));
-    const consented = (p.custom_disclaimer_responses || []).some((r) => r.checkbox_key === 'consent' && String(r.is_checked) === '1');
-    const text = reg[p.consent_text_version] ?? null;
+    const cdr = p.custom_disclaimer_responses || [];
+    const c = leadAdConsent(cdr);
+    const ver = p.consent_text_version ?? LEAD_AD_CONSENT_VERSION;
+    const text = reg[ver] ?? null;
     const from_registry = !opts.consent_texts && text != null;
+    const a = leadAdAnswers(f);
     return {
       channel: 'lead_ad', brand_id: p.brand_id ?? 'smc', is_synthetic: p.is_synthetic === true, submitted_at: p.created_time,
-      first_name: cleanName(f.first_name), mobile_raw: f.phone_number ?? null, language: f.language ?? null,
-      quiz: { age_band: AGE_TO_DB[f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: null },
+      first_name: cleanName(f.first_name ?? String(f.full_name || '').split(' ')[0]), mobile_raw: f.phone_number ?? null, language: f.language ?? null,
+      quiz: { age_band: AGE_TO_DB[a.age_band ?? f.age_band] ?? null, budget_band: BUDGET_TO_DB[f.budget_band] ?? null, bond: yes(f.has_bond), dependants: yes(f.has_dependants), work_cover: workCoverOf(a.has_cover) },
       preferred_method: methodOf(f.preferred_method), email: f.email ?? null,
-      consent: { checked: consented && !!text, text, version: p.consent_text_version ?? null, at: p.created_time, page_url: null, source: 'lead_ad', ads: adsSentence(text, p.consent_text_version), from_registry },
-      context: { event_id: null, ad_id: p.ad_id ?? null, adset_id: p.adset_id ?? null, campaign_id: p.campaign_id ?? null, leadgen_id: p.leadgen_id ?? null, form_id: p.form_id ?? null },
-      honeypot: '', started_at: null, turnstile_token: null, request_id: p.leadgen_id ?? null,
+      // the v2 form's answers (no column for intent / has_cover: decide() keeps them in conv_state.start, as W39 does)
+      help_with: a.help_with ?? null, product_interest: 'life_cover', lead_ad: leadAdBlock(a, p.form_id),
+      consent: { checked: c.consented && !!text, text, version: ver, at: p.created_time, page_url: null, source: 'lead_ad', ads: adsSentence(text, ver) || c.ads,
+        ads_version: c.ads ? WEB_CONSENT.ads.version : null, from_registry },
+      // a raw Graph Lead carries its id as `id` (the fixture shape as leadgen_id)
+      context: { event_id: null, ad_id: p.ad_id ?? null, adset_id: p.adset_id ?? null, campaign_id: p.campaign_id ?? null, leadgen_id: p.leadgen_id ?? p.id ?? null, form_id: p.form_id ?? null },
+      honeypot: '', started_at: null, turnstile_token: null, request_id: p.leadgen_id ?? p.id ?? null,
     };
   }
   const l = p.lead || p;
   const ver = l.consent?.text_version ?? null;
   const text = reg[ver] ?? l.consent?.text ?? null;
   const from_registry = !opts.consent_texts && reg[ver] != null;
+  // W02 v2 passes the form's answers map (meta-ads normalizeLead) and the checkbox responses through unchanged
+  const a = leadAdAnswers({ ...(l.answers && typeof l.answers === 'object' ? l.answers : {}), ...(l.age_band != null ? { age_band: l.age_band } : {}) });
+  const cdr = Array.isArray(l.consent?.responses) ? leadAdConsent(l.consent.responses) : null;
+  const ads = adsSentence(text, ver) || (cdr ? cdr.ads : false);
   return {
     channel: 'lead_ad', brand_id: l.brand_id ?? null, is_synthetic: l.is_synthetic === true, submitted_at: l.consent?.captured_at ?? null,
     first_name: cleanName(l.first_name ?? String(l.full_name || '').split(' ')[0]), mobile_raw: l.mobile_raw ?? null, language: l.language ?? null,
-    quiz: { age_band: AGE_TO_DB[l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: null },
+    quiz: { age_band: AGE_TO_DB[a.age_band ?? l.age_band] ?? null, budget_band: BUDGET_TO_DB[l.budget_band] ?? null, bond: yes(l.bond_children?.bond ?? l.bond), dependants: yes(l.bond_children?.children ?? l.dependants), work_cover: workCoverOf(a.has_cover) },
     preferred_method: methodOf(l.preferred_method), email: l.email ?? null,
-    consent: { checked: l.consent?.given === true && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads: adsSentence(text, ver), from_registry },
+    help_with: a.help_with ?? null, product_interest: 'life_cover', lead_ad: leadAdBlock(a, l.form_id),
+    consent: { checked: l.consent?.given === true && (!cdr || cdr.consented) && !!text, text, version: ver, at: l.consent?.captured_at ?? null, page_url: null, source: 'lead_ad', ads,
+      ads_version: cdr && cdr.ads ? WEB_CONSENT.ads.version : null, from_registry },
     context: { event_id: null, ad_id: l.ad_id ?? null, adset_id: l.adset_id ?? null, campaign_id: l.campaign_id ?? null, leadgen_id: l.leadgen_id ?? null, form_id: l.form_id ?? null },
     honeypot: '', started_at: null, turnstile_token: null, request_id: l.leadgen_id ?? null,
   };
@@ -362,6 +522,7 @@ export function routingFor(consentText, consentMode, brokers, brandId, tier = nu
  * decide(sub, ctx) -> what the workflow writes and answers.
  * ctx = { mobile, line_type, prior (latest lead with the same hash in this brand: {id, brand_id, created_at, line_type,
  *         duplicate_of, broker_id, opted_out_at}), suppressed, brokers, brand_id, consent_mode, now, lead_id, bot_check }
+ *       start_here (19 Oct 2026): startHereReady($env); true sends a lead-ad lead without a band down the /start/ path
  * Returns { kind: 'reject' | 'duplicate' | 'insert', response:{http_status, body}, row?, activities[], first_touch?, capi?, mint_token }
  */
 export function decide(sub, ctx) {
@@ -376,7 +537,8 @@ export function decide(sub, ctx) {
   if (p && (p.brand_id == null || p.brand_id === brandId) && !p.duplicate_of && now - msOf(p.created_at) <= DEDUPE_DAYS * D) {
     // 90-day merge: no new lead, no WhatsApp, no CAPI Lead. The page gets a fresh token for the EXISTING lead and never
     // learns it was a duplicate (CONTRACTS.md "lead_token": "The page never learns whether a lead was a duplicate").
-    const live = !!p.broker_id && !p.opted_out_at;
+    // the /start/ page continues an unrouted lead too (it routes only after the adviser card): a token for any live prior lead
+    const live = !p.opted_out_at && (!!p.broker_id || sub.start_page === true);
     return {
       kind: 'duplicate', lead_id: p.id, mint_token: live && sub.channel === 'page',
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: p.id } },
@@ -388,9 +550,12 @@ export function decide(sub, ctx) {
 
   const q = sub.quiz || {};
   const method = sub.preferred_method ?? null;
-  const consentMode = ctx.consent_mode || sub.consent.mode || 'named';
+  // A generic consent (e.g. the /start/ step 0 CONSENT-GENERIC-v5web, 20 Oct 2026) names no practice: it is recorded as generic
+  // whatever the brand default, or routing reads "named consent that names nobody" and holds it (held_consent_names_other_practice).
+  const consentMode = isGenericConsent({ consent_mode: sub.consent.mode, consent_text_version: sub.consent.version })
+    ? 'generic' : (ctx.consent_mode || sub.consent.mode || 'named');
   const row = {
-    id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: 'LV Campaign', is_synthetic: !!sub.is_synthetic, created_at: at,
+    id: ctx.lead_id, brand_id: brandId, origin: sub.channel, source: LEAD_SOURCE, is_synthetic: !!sub.is_synthetic, created_at: at,
     first_name: sub.first_name, phone: ctx.mobile, line_type: lt, language: sub.language ?? null,
     age_band: q.age_band ?? null, budget_band: q.budget_band ?? null, bond: q.bond ?? null, dependants: q.dependants ?? null, work_cover: q.work_cover ?? null,
     method_pref: method, angle: sub.angle ?? null, product_interest: productOf(sub.angle, sub.product_interest),
@@ -414,13 +579,31 @@ export function decide(sub, ctx) {
     payload: { channel: sub.channel, consent_text_version: row.consent_text_version, line_type: lt, bot_check: ctx.bot_check ?? null, lookup_unverified: lt === 'unknown' } };
   activities.push(created);
 
-  const ageOut = !QUAL_AGE.has(row.age_band);
+  // /start/ page web intake: the answers come later on the page (W39) and every age may book (W39 OUT_OF_BAND_AGE_BOOKS), so
+  // nothing here is out of band and nothing is routed: W39 routes after the adviser card (disclosure before routing).
+  const startPage = sub.channel === 'page' && sub.start_page === true;
+  // Meta instant form v2 (18 Oct 2026): every age is accepted, as on /start/. An under-35 / over-50 (or a missing) age is
+  // stored and booked like any lead, never marked qualified (W03 finishLeadAd), with a timeline note; nothing is routed out.
+  const leadAdAgeBooks = sub.channel === 'lead_ad' && OUT_OF_BAND_AGE_BOOKS;
+  const ageOut = !startPage && !leadAdAgeBooks && !QUAL_AGE.has(row.age_band);
   // Meta Lead Ads terms (2026-10-05): the instant form no longer asks the monthly budget band. A lead-ad lead without
   // one is not out of band: the band is the first WhatsApp step (automation/ctwa/w03.js budgetQuestion), decided there
   // by the same QUAL_BUDGET set. A lead-ad lead that does carry a band (older form) is judged here as before.
   const budgetPending = sub.channel === 'lead_ad' && row.budget_band == null && !ageOut;
-  const budOut = !budgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
-  const tier = tierOf(row.budget_band);
+  // Quiz v2 (2026-10-13): a page lead that says budget_pending is not out of band either. It is routed now (provisionally
+  // as tier B: a broker who takes R750-R1,499 also takes R1,500+) so the page can book at once, and W05 holds the booking
+  // until the band is known (and the email verified). The band answer can still move it: lt750 -> the database trigger
+  // (smc_leads_route_check) holds it as tier C unless the broker has the standing yes.
+  const pageBudgetPending = sub.channel === 'page' && sub.budget_pending === true && row.budget_band == null && !ageOut;
+  const budOut = !startPage && !budgetPending && !pageBudgetPending && !KNOWN_BUDGET.has(row.budget_band); // under R750 is tier C, not out of band (2026-10-11)
+  const tier = pageBudgetPending ? 'B' : tierOf(row.budget_band);
+  // help_with has no column on public.leads: it is kept in conv_state (jsonb), no DDL (spec 2a)
+  if (sub.channel === 'page' && sub.help_with) row.conv_state = { help_with: sub.help_with };
+  // lead ad v2: the form's answers, kept like the /start/ page keeps them (conv_state.start + help_with, W01 vocabulary)
+  const leadAdState = sub.channel === 'lead_ad' && sub.lead_ad
+    ? { start: { ...sub.lead_ad, at, via: 'lead_ad' }, ...(sub.lead_ad.intent && sub.help_with ? { help_with: sub.help_with } : {}) }
+    : null;
+  if (leadAdState) row.conv_state = leadAdState;
   if (ageOut || budOut) {
     Object.assign(row, { stage: 'disqualified', disqualified_reason: ageOut ? 'age_band' : 'budget_band', retention_delete_after: isoSast(now + OUT_OF_BAND_RETENTION_H * H) });
     return { kind: 'insert', outcome: 'not_qualified', row, activities, first_touch: null, capi: null, mint_token: false,
@@ -435,17 +618,58 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
+  if (startPage) {
+    // Not routed, no first touch, no WhatsApp (the lead has not messaged us: no 24-h session), no CAPI Lead yet: routeExisting()
+    // sends Lead at the hand-over (start_page_pending counts as held, I-49c). The page continues with the token: GET /start,
+    // POST /start/answers (adviser card, then confirm -> W39 routes with first_touch false), W04 /slots, W05 /book.
+    Object.assign(row, { routing_reason: START_PAGE_PENDING, conv_state: { state: 'start_page', via: 'start_page' } });
+    activities.push({ activity_type: 'start_page_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:start_page:${ctx.lead_id}`,
+      payload: { channel: 'page', consent_text_version: row.consent_text_version, ref: c.ref ?? null } });
+    return { kind: 'insert', outcome: 'start_page', row, activities, first_touch: null, capi: null, mint_token: true,
+      response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
+  }
+
+  if (pageBudgetPending) {
+    // Quiz v2: the band is the one thing the page did not ask. The first WhatsApp (< 60 s) is the approved qualify_budget
+    // template (budgetQuestion below), whether or not a broker is free right now. The tap comes back W07 -> W03 (state
+    // q_budget is a qualifying state, so no new W07 route) and W03 finishPageBudget records the band, routes a held lead and
+    // finalizes any held booking. help_with (the page's reason) stays in conv_state; no q_reason step is asked on WhatsApp.
+    row.conv_state = { state: 'q_budget', budget_pending: true, help_with: sub.help_with ?? null };
+    activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at,
+      idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: 'page', help_with: sub.help_with ?? null } });
+  }
+
+  if (budgetPending && ctx.start_here === true) {
+    // Instant Form -> the SAME path as WhatsApp / web leads (Jono, 19 Oct 2026): the form's consent, then the start_here
+    // TEMPLATE (welcome banner, "Start here" URL button = /start/#lt=<lt1 token>), then the /start/ v4 page. Income is asked
+    // on the page, never in Meta's form. Stored UNROUTED exactly like the desktop start-page lead: W39 routes after its own
+    // disclosure (START-DISCLOSE-v1, POST /start/adviser), every age, provisional tier B. No CAPI Lead now: routeExisting()
+    // sends it once at the hand-over (start_page_pending counts as held, I-49c). Gate: ctx.start_here = startHereReady($env)
+    // (Twilio + the start_here Content SID + LEAD_TOKEN_SECRET); without it the qualify_budget branch below, unchanged.
+    // The token is minted by startHere() in the send node, never here (it is not a page response) and never in a body or log.
+    Object.assign(row, { routing_reason: START_PAGE_PENDING, conv_state: { ...(row.conv_state || {}), state: 'start_page', via: 'start_page' } });
+    activities.push({ activity_type: 'start_page_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:start_page:${ctx.lead_id}`,
+      payload: { channel: 'lead_ad', consent_text_version: row.consent_text_version, first_touch: START_HERE_TEMPLATE } });
+    return { kind: 'insert', outcome: 'start_page', row, activities, capi: null, mint_token: false,
+      first_touch: { workflow: 'W01', op: 'start_here', lead_id: row.id, not_before: at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
+      response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
+  }
+
   if (budgetPending) {
     // Not routed, not handed over, no CAPI Lead yet: routeExisting() sends Lead at the hand-over (held_* rule, I-49c).
     // The first WhatsApp (< 60 s, HBR) is the budget question; W07 sends the tap to W03 because conv_state is q_budget.
-    Object.assign(row, { routing_reason: 'held_budget_pending', conv_state: { state: 'q_budget' } });
+    Object.assign(row, { routing_reason: 'held_budget_pending', conv_state: { ...(row.conv_state || {}), state: 'q_budget' } });
     activities.push({ activity_type: 'budget_question_pending', actor_type: 'system', occurred_at: at, idempotency_key: `w01:budget_pending:${ctx.lead_id}`, payload: { channel: sub.channel } });
     return { kind: 'insert', outcome: 'budget_pending', row, activities, capi: null, mint_token: false,
       first_touch: { workflow: 'W03', op: 'ask_budget', lead_id: row.id, not_before: at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
-  const r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
+  let r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
+  // Generic consent (19 Oct 2026): nobody was named to this lead yet and a page / form lead has no WhatsApp session, so it is
+  // held (held_disclosure_pending) and routed later only after the adviser is named (W39 /start/, or the session text on its
+  // first WhatsApp reply: W03 -> W01 core routeExisting). CAPI Lead then goes at that hand-over (held_* rule).
+  if (!r.held && isGenericConsent(row)) r = { held: DISCLOSURE_PENDING };
   if (r.held) {
     row.routing_reason = r.held;
     activities.push({ activity_type: 'routing_held', actor_type: 'system', occurred_at: at, idempotency_key: `w01:held:${ctx.lead_id}`, payload: { reason: r.held, lead_tier: tier } });
@@ -453,15 +677,17 @@ export function decide(sub, ctx) {
     // Lead now; routeExisting() sends it at the hand-over (held -> routed), same event_id, so Meta optimises on real leads.
     // Tier C held: one honest WhatsApp (we are checking which adviser can help at that budget), never a promise of a call.
     return { kind: 'insert', outcome: 'held', row, activities, first_touch: null, capi: null, mint_token: false,
+      budget_question: pageBudgetPending,
       notice: r.held === 'held_low_budget' ? lowBudgetHeld(row) : null,
       response: { http_status: 200, body: { ok: true, status: 'held', lead_id: row.id } } };
   }
   const b = r.broker;
   Object.assign(row, { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason });
   activities.push({ activity_type: 'routed', actor_type: 'system', occurred_at: at, idempotency_key: `w01:routed:${ctx.lead_id}`,
-    payload: { broker_id: row.broker_id, reason: row.routing_reason } });
+    payload: { broker_id: row.broker_id, reason: row.routing_reason, ...(pageBudgetPending ? { provisional_tier: 'B' } : {}) } });
+  // W05 keeps any booking held until budget_band is set (and the email verified)
   return {
-    kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page',
+    kind: 'insert', outcome: 'accepted', row, activities, capi: capiLead(row), mint_token: sub.channel === 'page', budget_question: pageBudgetPending,
     // routed_at is written in the same statement as the lead row; W06 is called only after that statement returns.
     first_touch: { workflow: 'W06', op: 'routed', lead_id: row.id, not_before: row.routed_at, origin: row.origin, deadline_s: FIRST_TOUCH_DEADLINE_S },
     response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id, methods_supported: b.methods_supported || ['whatsapp_call', 'phone'] } },
@@ -481,6 +707,31 @@ export function budgetQuestion(row) {
     to: row.phone, kind: 'template', template: BUDGET_TEMPLATE, variables: [String(row.first_name || '').trim() || 'there'],
     buttons: BUDGET_TAP_IDS.map((id) => ({ quick_reply: id })), lead_id: row.id, correlation: `w01:ask_budget:${row.id}`,
   };
+}
+
+/**
+ * Instant Form first touch on the /start/ path (19 Oct 2026): the start_here template (automation/templates/start_here.json,
+ * Twilio Content only: static welcome banner, body {{1}} = first name, URL button "Start here" ->
+ * https://sortmycover.co.za/start/#lt={{1}}). Twilio numbers it {1: first name, 2: token} (wa-provider twilioVarPlan).
+ * Ready only under WHATSAPP_PROVIDER=twilio with TWILIO_CONTENT_SIDS.start_here and LEAD_TOKEN_SECRET set: the template is
+ * not submitted to Meta, so under the Meta provider it could never be sent and the lead would get nothing.
+ */
+export const START_HERE_TEMPLATE = 'start_here';
+export function startHereReady(env = {}) {
+  if (String(env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase() !== 'twilio') return false;
+  if (!String(env.LEAD_TOKEN_SECRET || '').trim()) return false;
+  try { const s = JSON.parse(env.TWILIO_CONTENT_SIDS || '{}'); return !!(s && s[START_HERE_TEMPLATE]); } catch (_) { return false; }
+}
+/**
+ * row (W01 decide row) -> the shared-sender input ("decided" shape, smc-whatsapp-send: suppression, allow-list, DRY_RUN_SENDS,
+ * correlation inside). The lt1 token travels ONLY as the URL-button variable: never in a text body, and the sender logs the
+ * communications row as template:start_here (no variables). null without a phone or a secret.
+ */
+export function startHere(row, secret, nowMs = Date.now()) {
+  if (!row || !row.id || !row.phone || !secret) return null;
+  const first = String(row.first_name || '').trim().split(/\s+/)[0] || 'there';
+  return { to: row.phone, kind: 'template', template: START_HERE_TEMPLATE, variables: [first], buttons: [{ url: mintToken(row.id, secret, nowMs) }],
+    lead_id: row.id, correlation: `w01:start_here:${row.id}` };
 }
 
 /**
@@ -524,8 +775,14 @@ export function capiLead(row) {
  * W03 hand-off ("W01 Lead core", kind route_and_first_touch): the CTWA lead row already exists (consent at the tap,
  * qualified by taps), or a page / lead-ad lead W01 held at intake. Route it and start the first touch; a held page /
  * lead-ad lead gets its CAPI Lead here (I-49c). Idempotent: an already-routed lead is not re-routed.
+ * first_touch: false (W39, the /start/ page, 18 Oct 2026): route exactly the same way but start no W06 first touch, because
+ * the page shows the adviser and the slots itself (the intro card follows the booking: W05 -> W06 op booking). A held tier-C
+ * lead still gets its one notice.
+ * W39 disclosure before routing (18 Oct 2026): expect_broker_id = the adviser the lead was shown and confirmed; any other
+ * pick is NOT routed (action 'skip', reason 'broker_changed'). hold_only: true records a hold (+ the tier-C notice) but
+ * never routes (a broker that became free meanwhile -> 'skip', reason 'not_disclosed').
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named' } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false, require_disclosure = false } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
@@ -533,10 +790,77 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
   if (r.held) return { action: 'held', update: { routing_reason: r.held }, notice: r.held === 'held_low_budget' ? lowBudgetHeld(lead) : null };
   const b = r.broker;
+  if (hold_only) return { action: 'skip', reason: 'not_disclosed' };
+  if (expect_broker_id && String(brokerIdOf(b)) !== String(expect_broker_id)) return { action: 'skip', reason: 'broker_changed' };
+  // Disclosure before hand-over: a lead-ad lead (18 Oct 2026, require_disclosure from the caller) and EVERY generic-consent lead
+  // (19 Oct 2026, enforced here whatever the caller passes: the consent named no adviser, so the details may go to a broker only
+  // after that adviser was named to the lead) is routed only with adviser_disclosed on its timeline for THIS broker. Without it:
+  // 'disclose' (the session text, then route) when the 24-h window may be open, or a visible hold (held_disclosure_pending)
+  // when the caller knows it is closed (lead.window_open === false): never routed, nothing sent to the broker.
+  if ((require_disclosure || isGenericConsent(lead)) && !disclosedTo(lead, brokerIdOf(b))) {
+    if (lead.window_open === false) return { action: 'held', update: { routing_reason: DISCLOSURE_PENDING }, notice: null };
+    return { action: 'disclose', broker_id: brokerIdOf(b), disclose: leadAdDisclosure(lead, b) };
+  }
   const update = { broker_id: brokerIdOf(b), routed_at: at, routing_reason: b._reason };
   // I-49c: the CAPI Lead W01 withheld at intake (held_*) goes now, at the hand-over. CTWA leads are W03's (never here).
-  const wasHeld = String(lead.routing_reason || '').startsWith('held_') && (lead.origin || 'ctwa') !== 'ctwa';
-  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null, first_touch: { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+  const wasHeld = (String(lead.routing_reason || '').startsWith('held_') || lead.routing_reason === START_PAGE_PENDING) && (lead.origin || 'ctwa') !== 'ctwa';
+  return { action: 'routed', update, capi: wasHeld ? capiLead(lead) : null,
+    first_touch: first_touch === false ? null : { workflow: 'W06', op: 'routed', lead_id: lead.id, not_before: at, origin: lead.origin || 'ctwa', deadline_s: FIRST_TOUCH_DEADLINE_S } };
+}
+
+// ---------------------------------------------------------------------------------------------- 5a. lead-ad disclosure
+// Instant Form leads (origin lead_ad) are introduced by the W06 card (broker_intro_slots: adviser, practice, FSP), which lacks the
+// SortMyCover disclosure that /start/ (W39 START-DISCLOSE-v1) and the CTWA chat show. Until broker_intro_slots_v3 (the card WITH
+// the disclosure, templates/twilio/BROKER-INTRO-V3.md) is approved and its SID is in TWILIO_CONTENT_SIDS, the lead's band tap
+// (its first reply: the 24-h session is open) gets the disclosure as a session text BEFORE routing, and routeExisting refuses to
+// hand a lead-ad lead over until 'adviser_disclosed' is on its timeline for the broker it would get.
+// 19 Oct 2026: with startHereReady() a NEW Instant Form lead goes to /start/ (start_here template) and W39 logs adviser_disclosed
+// (START-DISCLOSE-v1) before it calls W01 core, so this check passes there without a session text. The session text below
+// applies only to leads still on the old path: intake before start_here was ready, or a lead that answers in chat instead
+// of opening the page (W03 startPageFallback -> taps -> finishLeadAd -> route_and_first_touch).
+export const LEAD_AD_DISCLOSURE_VERSION = 'LEADAD-DISCLOSE-v1';
+/** The same session text for a generic-consent chat lead (CTWA / web lead that answered on WhatsApp), 19 Oct 2026. */
+export const CHAT_DISCLOSURE_VERSION = 'CHAT-DISCLOSE-v1';
+/** leads.routing_reason of a lead that must be told its adviser first and has no open session to tell it in. No CHECK. */
+export const DISCLOSURE_PENDING = 'held_disclosure_pending';
+/**
+ * Generic consent (19 Oct 2026: the CTWA consent becomes generic, e.g. CTWA-GENERIC-v4; also ctwa-generic-v3, CONSENT-GENERIC-v3 /
+ * v5web): consent_mode 'generic' or a version naming GENERIC. Such a consent names no adviser, so the adviser is named first.
+ */
+export const isGenericConsent = (lead) => !!lead && (lead.consent_mode === 'generic' || /generic/i.test(String(lead.consent_text_version || '')));
+/** adviser_disclosed on the lead's timeline for this broker (W01 core reads them as lead.disclosed; W39 and W01 both write them). */
+export const disclosedTo = (lead, brokerId) => !!lead && Array.isArray(lead.disclosed) && lead.disclosed.map(String).includes(String(brokerId));
+export const INTRO_V3_KEY = 'broker_intro_slots_v3';
+export const SORTMYCOVER_DISCLOSURE = 'Introduced by SortMyCover. SortMyCover gives no financial advice, product comparisons or premium quotes. Advisers pay SortMyCover a fee that does not depend on whether you buy anything.';
+/** True when the v3 intro card can be sent (Twilio + its Content SID): the card itself then carries the disclosure. */
+export function introV3Ready(env = {}) {
+  if (String(env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase() !== 'twilio') return false;
+  try { const s = JSON.parse(env.TWILIO_CONTENT_SIDS || '{}'); return !!(s && s[INTRO_V3_KEY]); } catch (_) { return false; }
+}
+/**
+ * Does this lead need the adviser named (adviser_disclosed) before routing? Every generic-consent lead, always (the v3 card is
+ * sent AFTER routing, too late for a consent that named nobody); a named-consent lead-ad lead while v3 is not configured.
+ */
+export const disclosureRequired = (lead, env = {}) => !!lead && (isGenericConsent(lead) || (lead.origin === 'lead_ad' && !introV3Ready(env)));
+/** The disclosure text + its timeline row for the broker routingFor picked (b = the W01 core broker list row). */
+export function leadAdDisclosure(lead, b) {
+  const adviser = String(b.contact_person || b.adviser_name || '').trim() || 'your adviser';
+  const practice = practiceOf(b) || 'an authorised practice';
+  const text = `Before I introduce you: ${adviser} from ${practice}, an authorised financial services provider (FSP ${b.fsp_number}), will be the one on the call with you. ${SORTMYCOVER_DISCLOSURE}`;
+  const brokerId = brokerIdOf(b);
+  return {
+    send: lead.phone ? { to: lead.phone, kind: 'text', text, lead_id: lead.id, correlation: `w01:disclosure:${lead.id}:${brokerId}` } : null,
+    activity: { activity_type: 'adviser_disclosed', idempotency_key: `w01:disclosed:${lead.id}:${brokerId}`, broker_id: brokerId,
+      payload: { broker_id: brokerId, fsp: b.fsp_number || null, firm: practice, adviser, disclosure_version: lead.origin === 'lead_ad' ? LEAD_AD_DISCLOSURE_VERSION : CHAT_DISCLOSURE_VERSION, via: 'whatsapp_session' } },
+  };
+}
+/**
+ * After the disclosure send: route if its timeline row was written (the send returned a message id, live or dry), else hold
+ * the lead visibly (routing_reason held_disclosure_failed, nothing sent to the broker). `logged` = the row's broker id or null.
+ */
+export function routeAfterDisclosure(lead, opts = {}, logged = null) {
+  if (!logged) return { action: 'held', update: { routing_reason: 'held_disclosure_failed' }, notice: null };
+  return routeExisting({ ...lead, disclosed: [...(lead.disclosed || []), String(logged)] }, opts);
 }
 
 // ---------------------------------------------------------------------------------------------- 5b. tier C (under R750)
@@ -561,6 +885,8 @@ export function lowBudgetHandoff(lead) {
   if (!lead || !lead.id || !lead.broker_id || lead.routing_reason !== 'manual_low_budget') return null;
   if (lead.opted_out_at || lead.first_message_at || lead.disqualified_reason || lead.order_state !== 'attached') return null;
   if (QUALIFYING_STATES.has(lead.conv_state && lead.conv_state.state)) return null;
+  // generic consent: the admin's assignment alone never starts the hand-off; the adviser must have been named (lead.disclosed)
+  if (isGenericConsent(lead) && !disclosedTo(lead, lead.broker_id)) return null;
   return { op: 'routed', lead_id: lead.id, origin: lead.origin || 'ctwa', claim_key: `w01:low_budget_handoff:${lead.id}` };
 }
 

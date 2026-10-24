@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { slaAlertEmail } from "../_shared/lv_emails.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,69 +77,18 @@ serve(async (req) => {
       }
     }
 
-    // Format response time for display
-    const formatDuration = (seconds: number) => {
-      const hours = Math.floor(seconds / 3600);
-      const mins = Math.floor((seconds % 3600) / 60);
-      const secs = seconds % 60;
-      
-      if (hours > 0) {
-        return `${hours}h ${mins}m`;
-      } else if (mins > 0) {
-        return `${mins}m ${secs}s`;
-      }
-      return `${secs}s`;
-    };
-
-    const severityColor = payload.severity === 'critical' ? '#dc2626' : '#f59e0b';
-    const severityLabel = payload.severity === 'critical' ? '🚨 CRITICAL' : '⚠️ WARNING';
 
     // Send email notifications if Resend is configured
     if (resendApiKey && adminEmails.length > 0) {
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background-color: ${severityColor}; color: white; padding: 20px; text-align: center;">
-            <h1 style="margin: 0;">${severityLabel} SLA Alert</h1>
-          </div>
-          <div style="padding: 20px; background-color: #f9fafb;">
-            <h2 style="color: #374151;">Response Time SLA Exceeded</h2>
-            <table style="width: 100%; border-collapse: collapse;">
-              <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Channel</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: bold;">${payload.channel.toUpperCase()}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Response Time</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: ${severityColor};">${formatDuration(payload.response_time_seconds)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">SLA Threshold</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">${formatDuration(payload.threshold_seconds)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Recipient Type</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">${payload.recipient_type}</td>
-              </tr>
-              ${payload.recipient_name ? `
-              <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Recipient</td>
-                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;">${payload.recipient_name}</td>
-              </tr>
-              ` : ''}
-            </table>
-            <div style="margin-top: 20px; padding: 15px; background-color: #fef3c7; border-radius: 8px;">
-              <p style="margin: 0; color: #92400e;">
-                <strong>Action Required:</strong> Please review and respond to this communication as soon as possible.
-              </p>
-            </div>
-          </div>
-          <div style="padding: 15px; background-color: #e5e7eb; text-align: center; color: #6b7280; font-size: 12px;">
-            Lead Velocity - Communication Management System
-          </div>
-        </div>
-      `;
-
       try {
+        const mail = slaAlertEmail({
+          channel: payload.channel,
+          severity: payload.severity,
+          responseSeconds: payload.response_time_seconds,
+          thresholdSeconds: payload.threshold_seconds,
+          recipientType: payload.recipient_type,
+          recipientName: payload.recipient_name,
+        });
         const emailResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -146,10 +96,11 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Lead Velocity <noreply@resend.dev>',
+            from: 'Lead Velocity <howzit@leadvelocity.co.za>',
             to: adminEmails,
-            subject: `${severityLabel} - ${payload.channel.toUpperCase()} Response Time Exceeded SLA`,
-            html: emailHtml,
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
           }),
         });
 

@@ -17,13 +17,33 @@
 //  - ASSUMPTION: close = 24 h after the last nudge (so a tap on the last nudge still books).
 //  - Idempotency: lead_activities.idempotency_key = w08:{lead_id}:{touch}; INSERT ... ON CONFLICT DO NOTHING
 //    RETURNING id, and only a returned row is sent. A scheduler that fires twice sends once.
+//  - START track (19 Oct 2026, Jono: nobody nudged a lead who never taps Start here or leaves the page): a lead whose
+//    Start here card went out (W03 consent -> conv_state.state 'start_page', or W39 v4 marked conv_state.via 'start_page')
+//    and who has no live booking and no W06 first touch. W08 owns these nudges (W03's stall_due_at is written but never
+//    read; if it is ever wired it must skip state 'start_page'). Clock = leads.created_at (the consent insert, seconds
+//    before the card). +2 h, +24 h, then a last one at +72 h (+68 h for a click-to-WhatsApp lead, so every nudge stays
+//    inside Meta's 72-h free entry window), close 24 h after the last. Each carries its banner card and a fresh
+//    /start/#lt=<token> button: welcome, then video (Mark's hello), then adviser. Covers "never opened the page" and
+//    "opened it and left without booking" alike (routing on the page writes broker_id but books nothing).
 import { LINES } from '../../conversation/lines.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 export const OFFSETS = {
   unbooked: [{ touch: 'unbooked_nudge_2h', after: 2 * H }, { touch: 'unbooked_nudge_24h', after: 24 * H }, { touch: 'unbooked_nudge_72h', after: 72 * H }],
-  ctwa_stall: [{ touch: 'unbooked_nudge_2h', after: 1 * H }, { touch: 'unbooked_nudge_24h', after: 20 * H }, { touch: 'unbooked_nudge_72h', after: 68 * H }]
+  ctwa_stall: [{ touch: 'unbooked_nudge_2h', after: 1 * H }, { touch: 'unbooked_nudge_24h', after: 20 * H }, { touch: 'unbooked_nudge_72h', after: 68 * H }],
+  start: [{ touch: 'start_nudge_2h', after: 2 * H }, { touch: 'start_nudge_24h', after: 24 * H }, { touch: 'start_nudge_final', after: 72 * H }],
+  start_ctwa: [{ touch: 'start_nudge_2h', after: 2 * H }, { touch: 'start_nudge_24h', after: 24 * H }, { touch: 'start_nudge_final', after: 68 * H }]
 };
+export const START_LINK = 'https://sortmycover.co.za/start/#lt=';
+export const HEADER_BASE = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/';
+/** touch -> banner card (checklist/whatsapp-kit/profile/headers). */
+export const START_BANNER = { start_nudge_2h: 'welcome', start_nudge_24h: 'video', start_nudge_final: 'adviser' };
+const TOKEN_SAFE = /^lt1\.[A-Za-z0-9._-]{10,400}$/;
+/** Start here went out and nothing is booked yet; a lead W06 already introduced (first_message_at) keeps the classic track. */
+export function isStartPending(lead) {
+  const cs = lead.conv_state || {};
+  return !lead.first_message_at && (cs.state === 'start_page' || (cs.via === 'start_page' && !['handoff', 'closed_unbooked', 'closed_oob'].includes(cs.state)));
+}
 export const CLOSE_AFTER_LAST = 24 * H;
 export const CTWA_WINDOW = 72 * H;
 export const QUIET = { from: 20, to: 8 };
@@ -32,6 +52,7 @@ const STALL_STATES = new Set(['consent_pending', 'q_age', 'q_bond', 'q_dependant
 const CLOSED = new Set(['unbooked_closed', 'opted_out', 'disqualified', 'booked', 'confirmed', 'attended', 'no_show', 'dispositioned', 'replacement_due']);
 
 export function track(lead) {
+  if (isStartPending(lead)) return lead.origin === 'ctwa' ? 'start_ctwa' : 'start';
   const state = lead.conv_state?.state;
   return lead.origin === 'ctwa' && STALL_STATES.has(state) ? 'ctwa_stall' : 'unbooked';
 }
@@ -45,17 +66,32 @@ export function outOfQuiet(t) {
   return base;
 }
 
+/** The latest moment at or before t that is outside quiet hours (19:30 SAST the evening before, when t is at night). */
+export function latestDaytimeBefore(t) {
+  const d = new Date(t + SAST);
+  const h = d.getUTCHours();
+  if (h >= QUIET.to && h < QUIET.from) return t;
+  const dayShift = h < QUIET.to ? -1 : 0;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + dayShift, QUIET.from - 1, 30) - SAST;
+}
+
 /** The plan for one lead: [{touch, due_ms}] + close_ms. Pure. */
 export function nurturePlan(lead) {
   // I-39c: a cancelled booking restarts the full +2/+24/+72 h sequence from appointments.cancelled_at (C1A); W10's
   // hourly sweep decides at 96 h, so a restarted sequence never closes here.
   const restart = restartFrom(lead);
-  const t0 = restart ?? Date.parse(lead.first_message_at);
   const tr = restart ? 'unbooked' : track(lead);
+  const t0 = restart ?? Date.parse(tr.startsWith('start') ? (lead.start_sent_at || lead.created_at) : lead.first_message_at);
   const steps = [];
   for (const s of OFFSETS[tr]) {
     const due = outOfQuiet(t0 + s.after);
     if (tr === 'ctwa_stall' && due >= t0 + CTWA_WINDOW) continue; // never spend outside the free entry window on a stall nudge
+    if (tr === 'start_ctwa' && due >= t0 + CTWA_WINDOW) {
+      // quiet hours pushed it past the free window: send at the latest daytime moment inside it instead (if still after the last)
+      const back = latestDaytimeBefore(t0 + CTWA_WINDOW - 30 * 60_000);
+      if (back > (steps.length ? steps[steps.length - 1].due_ms + 6 * H : t0)) steps.push({ touch: s.touch, due_ms: back });
+      continue;
+    }
     steps.push({ touch: s.touch, due_ms: due });
   }
   const last = steps.length ? steps[steps.length - 1].due_ms : t0;
@@ -78,6 +114,11 @@ export function stopReason(lead, ctx = {}) {
   if (lead.conv_state?.declined_call) return 'declined_call';
   if (lead.conv_state?.state === 'handoff') return 'handoff';
   if (lead.conv_state?.declined_nurture) return 'no_thanks';
+  if (isStartPending(lead) && !restartFrom(lead)) {
+    if (!Number.isFinite(Date.parse(lead.start_sent_at || lead.created_at))) return 'no_start_time';
+    if ((ctx.outbound_count || 0) >= MAX_LEAD_MESSAGES) return 'message_cap';
+    return null;
+  }
   if (!lead.broker_id && lead.origin === 'ctwa') return 'ctwa_pre_routing_w03'; // W03 owns pre-routing stall nudges
   if (!lead.first_message_at || !lead.broker_id) return 'not_disclosed';
   if ((ctx.outbound_count || 0) >= MAX_LEAD_MESSAGES) return 'message_cap';
@@ -106,6 +147,7 @@ export function due(lead, ctx, now_ms) {
 const firstName = (l) => (l.first_name || '').trim() || 'there';
 const adviserFirst = (b) => String(b.contact_person || '').split(' ')[0];
 export function message(lead, ctx, touch, now_ms) {
+  if (START_BANNER[touch]) return startMessage(lead, ctx, touch, now_ms);
   const b = ctx.broker || {};
   const lang = lead.language === 'af' ? 'af' : 'en';
   const video = (b.intro_video_url && (b.intro_video_url[lang] || b.intro_video_url.en)) || null;
@@ -120,6 +162,49 @@ export function message(lead, ctx, touch, now_ms) {
   const buttons = touch === 'unbooked_nudge_72h' ? [['see_open_times', 'See open times'], ['no_thanks', 'No thanks']] : [['see_open_times', 'See open times'], ['not_now', 'Not now']];
   // templates are approved in English only; inside the window the session words follow the lead's language (#11)
   return { channel: window ? 'session' : 'template', template, template_lang: 'en', lang, vars, header, buttons, payload_suffix: `:${lead.id}`, ...(window ? { session: sessionWords(template, vars, lang) } : {}) };
+}
+
+// ---------- Start here nudges (templates start_nudge_2h / _24h / _final; session = the smc_start_cta card) ----------
+const START_EN = {
+  start_nudge_2h: (v) => `Hi ${v[0]}, your 30-minute call with ${v[1]} is one tap away. Pick a time that suits you, by Microsoft Teams or phone. It takes about a minute.`,
+  start_nudge_24h: (v) => `Hi ${v[0]}, ${v[1]} still has open times this week for your 30-minute call. There's no obligation to buy anything, and any next step is your choice. Tap below to pick a time.`,
+  start_nudge_final: (v) => `Hi ${v[0]}, this is our last message about your call with ${v[1]}. If you'd still like to talk it through, tap below to pick a time. If not, no problem, we won't message again.`
+};
+// 20 Oct 2026 (Jono's final rule: only the W03 consent says "Reply STOP to opt out."): no STOP line, in session and in the
+// *_v2 templates. The 19 Oct start_nudge_* Content keeps it as submitted (templates/twilio/build-content.mjs START_NUDGE_V1_TAIL).
+export const startWords = (touch, vars) => (START_EN[touch] ? START_EN[touch](vars) : '');
+/**
+ * One Start here nudge. channel 'session' inside the 24-h window (a cta_url card: welcome banner, "Start here" URL button,
+ * which lib/wa-provider.mjs maps to the smc_start_cta Content under Twilio), else the start_nudge_* template: banner image
+ * header, body {{1}} first name {{2}} adviser, URL button "Pick a time" -> /start/#lt={{3}}, quick reply {{4}}
+ * (Not now; No thanks on the last). The template name is the base key; under Twilio lib/wa-provider.mjs START_NUDGE_KEYS
+ * sends the *_v2 Content once its SID is set. needs_token: W08.json mints a fresh lt1 lead token at send time (startPayload).
+ */
+export function startMessage(lead, ctx, touch, now_ms) {
+  const b = ctx.broker || {};
+  const vars = [firstName(lead), adviserFirst(b) || 'an adviser'];
+  const window = Number.isFinite(ctx.last_inbound_ms) && now_ms - ctx.last_inbound_ms < 24 * H;
+  const reply = touch === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
+  return { kind: 'start', channel: window ? 'session' : 'template', template: touch, template_lang: 'en', lang: 'en', vars,
+    header: { type: 'image', link: HEADER_BASE + 'header-' + START_BANNER[touch] + '.png' }, banner: START_BANNER[touch],
+    buttons: [reply], payload_suffix: `:${lead.id}`, needs_token: true, session: { body: startWords(touch, vars), lang: 'en' } };
+}
+/** Cloud API body for a start nudge, given the minted token. null on a bad token or no phone (W08 then skips the send). */
+export function startPayload(d, token) {
+  if (!token || !TOKEN_SAFE.test(String(token))) return null;
+  const to = String(d.phone || '').replace(/\D/g, '');
+  if (!to) return null;
+  if (d.channel === 'session') {
+    return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'interactive', interactive: { type: 'cta_url', header: { type: 'image', image: { link: HEADER_BASE + 'header-welcome.png' } },
+      body: { text: d.session.body.slice(0, 1024) }, action: { name: 'cta_url', parameters: { display_text: 'Start here', url: START_LINK + token } } } };
+  }
+  const id = d.buttons[0][0];
+  const components = [
+    { type: 'header', parameters: [{ type: 'image', image: { link: d.header.link } }] },
+    { type: 'body', parameters: d.vars.map((text) => ({ type: 'text', text: String(text).replace(/\s+/g, ' ').trim().slice(0, 60) })) },
+    { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: String(token) }] },
+    { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: id + d.payload_suffix }] }];
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template', template: { name: d.template, language: { code: 'en' }, components } };
 }
 
 /** Tap handlers (routed here by W07). */

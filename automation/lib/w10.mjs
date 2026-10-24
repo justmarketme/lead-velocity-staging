@@ -14,7 +14,10 @@
 //    inside 48 h stops W13's replacement clock (W13 reads the lead_activities 'rebooked_after_no_show' row).
 //  - Booking UI: brands.booking_ui = 'flow' -> reschedule Flow (reschedule-flow.json, current booking pre-filled);
 //    otherwise the 10-slot list in-window, or the reschedule_offer template (3 slots) outside the 24-h window.
+import { createRequire } from 'node:module';
 import { LINES, fill } from '../../conversation/lines.mjs';
+import { isSmcLead, smcClientEmail, smcRelayEmail, parseSub as parseW05Sub } from './w05.mjs';
+import { rescheduleCardPlan } from './wa-provider.mjs';
 export const H = 3600_000;
 const SAST = 2 * H;
 const ACTIVE = new Set(['booked', 'confirmed']);
@@ -41,22 +44,36 @@ export function pick3(slots) {
  * offerMessage({ booking, lead, broker, brand, slots, now_ms, last_inbound_ms, reason })
  * reason: 'lead_reschedule' | 'broker_rescheduled' | 'rebook_after_cancel'
  */
-export function offerMessage({ booking, lead, broker, brand = {}, slots = [], now_ms, last_inbound_ms, reason = 'lead_reschedule', delegate = null }) {
+export function offerMessage({ booking, lead, broker, brand = {}, slots = [], now_ms, last_inbound_ms, reason = 'lead_reschedule', delegate = null, card = null }) {
   const window = Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H;
   const first = (lead.first_name || '').trim() || 'there';
   const adviser = String(broker.contact_person || '').split(' ')[0];
-  if (!slots.length) return { kind: 'no_slots', escalate: 'no_slots', text: null };
+  // 17 Oct 2026: a lead's cancel is confirmed in words, with or without times to offer. CANCEL_DONE was never sent, so the
+  // client heard nothing after "Yes, cancel" and W07's never-silent fallback ("something went wrong") answered instead.
+  const cancelled = reason === 'cancel' || reason === 'rebook_after_cancel'; // W10 passes its op ('cancel', classifyOp)
+  // After a cancel the old booking is gone: a pick is a NEW booking (plain slot_ -> W07 routes it to W05). A ":resched:"
+  // pick would reach W10's move of a cancelled booking, which rejects it.
+  const pickId = (s) => (cancelled ? `slot_${s.start}` : `slot_${s.start}:resched:${booking.id}`);
+  // /start/ v4 (Jono, 2026-10-19): outside the 24-h window a start-page brand's lead with a live booking gets the approved
+  // reschedule_card template (banner, "Pick a new time" -> /start/#move=1&lt=<token>, Keep my time) instead of
+  // reschedule_offer, when lib/wa-provider.mjs rescheduleCardPlan can send it as a template (Twilio + the reschedule_card SID
+  // + a lead token). card = { start_page: brands.start_page = 'on', token: lt1 minted like W07's card, env }.
+  if (!window && !cancelled && card) {
+    const plan = rescheduleCardPlan({ delegate: { action: 'reschedule' }, lead, booking, broker }, { start_page: card.start_page === true, token: card.token || null, env: card.env || {} });
+    if (plan.via === 'template') return { kind: 'prebuilt', template: 'reschedule_card', wa: plan.send };
+  }
+  if (!slots.length) return cancelled && window ? { kind: 'text_session', body: leadBody('cancel_done', { delegate, lead, booking, broker }) } : { kind: 'no_slots', escalate: 'no_slots', text: null };
   if (brand.booking_ui === 'flow') {
     const prefill = { booking_id: booking.id, current_date: slotLabel(booking.appointment_date).split(',')[0], current_time: slotLabel(booking.appointment_date).split(', ')[1], method: booking.method };
-    return window ? { kind: 'flow_session', flow: 'reschedule', flow_id_ref: 'brands.booking_flow_id', prefill, body: leadBody('reschedule', { delegate, lead, booking, broker }) }
+    return window ? { kind: 'flow_session', flow: 'reschedule', flow_id_ref: 'brands.booking_flow_id', prefill, body: leadBody(cancelled ? 'cancel_done_times' : 'reschedule', { delegate, lead, booking, broker }) }
       : { kind: 'template', template: 'reschedule_offer_v2', vars: [first, adviser, prefill.current_date, prefill.current_time], prefill };
   }
   if (window) {
-    const rows = slots.slice(0, 10).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
-    return { kind: 'list_session', rows, body: leadBody(reason === 'broker_rescheduled' ? 'slots' : 'reschedule', { delegate, lead, booking, broker }) };
+    const rows = slots.slice(0, 10).map((s) => ({ id: pickId(s), title: slotLabel(s.start).slice(0, 24) }));
+    return { kind: 'list_session', rows, body: leadBody(cancelled ? 'cancel_done_times' : reason === 'broker_rescheduled' ? 'slots' : 'reschedule', { delegate, lead, booking, broker }) };
   }
   const three = pick3(slots);
-  return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map((s) => `slot_${s.start}:resched:${booking.id}`).concat([`other_times:${booking.id}`]) };
+  return { kind: 'template', template: 'reschedule_offer', vars: [first, adviser, ...three.map((s) => slotLabel(s.start))], buttons: three.map(pickId).concat([`other_times:${booking.id}`]) };
 }
 
 /**
@@ -112,6 +129,13 @@ export function applyCancel(booking, lead, ctx) {
 
 /** Typed "cancel" asks first (prompts/reply.md fallback); a Cancel button tap is explicit and cancels at once. */
 export const cancelNeedsConfirm = (source) => source === 'text';
+/** The reason a classified cancel carries: a reason tap, or the typed "Another reason" ({ code:'other', text, typed }). */
+export function cancelReasonOf(input = {}) {
+  const d = input.delegate || {};
+  if (d.action === 'cancel_reason_text') return { code: 'other', text: String((input.msg && input.msg.text) || '').slice(0, 500), typed: true };
+  const r = parseCancelReason((input.msg && (input.msg.payload || input.msg.list_id)) || '');
+  return r ? { code: r.code } : null;
+}
 
 /** Change method: only a method the broker supports; Teams/Zoom/Meet need an email (asked via Flow screen 4 / W05). */
 export function changeMethod(booking, lead, broker, method) {
@@ -148,7 +172,8 @@ export function parseSlotPayload(p) {
 export function classifyOp(input) {
   if (input.source === 'W12' && input.outcome === 'rescheduled') return 'broker_rescheduled';
   const d = input.delegate || {};
-  if (d.action === 'cancel_confirm') return 'cancel_ask';
+  if (d.action === 'cancel_confirm') return 'cancel_ask';     // typed "cancel" -> the cancel card (reasons)
+  if (d.action === 'cancel_reason_text') return 'cancel';     // the typed "Another reason" (W07, cancel_reason_pending)
   if (d.action === 'change_method') return 'change_method';
   if (d.action === 'no_call') return 'no_call';     // W07 intent: "I don't want a call" / "No thanks" (C1A b)
   if (d.action === 'reschedule' || d.action === 'reschedule_slots') return 'offer';
@@ -157,7 +182,8 @@ export function classifyOp(input) {
   if (parseSlotPayload(p)) return 'pick';
   const k = p.split(':')[0];
   if (k === 'reschedule' || k === 'other_times') return 'offer';
-  if (k === 'cancel') return 'cancel';          // explicit button tap: cancel at once
+  if (k === 'cancel') return 'cancel_ask';      // a Cancel tap opens the cancel card too (Jono, 2026-10-19; was: cancel at once)
+  if (k === 'cancel_reason') { const r = parseCancelReason(p); return r ? CANCEL_REASONS[r.code].action : 'cancel_ask'; }
   if (k === 'cancel_yes') return 'cancel';
   if (k === 'keep_it') return 'keep';
   if (k === 'change_method') return 'change_method'; // change_method:{method}:{booking_id} (methodMessage reject buttons)
@@ -283,9 +309,45 @@ export function leadBody(kind, { delegate = null, lead = {}, booking = {}, broke
     reschedule: [L.RESCHED_INTRO, booking.method ? L.SAME_METHOD : null], // reschedule memory (4.11): the stored method is kept unless they say otherwise
     slots: [L.SLOTS_INTRO],
     cancel_confirm: [L.CANCEL_CONFIRM_Q],
+    cancel_done: [L.CANCEL_DONE],
+    cancel_done_times: [L.CANCEL_DONE_TIMES],
     change_method: [L.METHOD_CHANGED]
   }[kind] || [];
   return lines.filter(Boolean).map((l) => fill(l, vars)).join(' ').slice(0, WA_BODY_MAX);
+}
+
+/**
+ * SortMyCover emails on a W10 cancel / move (17 Oct 2026). W10's adviser email went through a howzit@ node whose bearer
+ * ($json.howzit_token) was never set, so no adviser ever got one; the client got no email about the change at all.
+ * SMC brand -> the adviser notice through smc-email-send and the client email through smc-client-email
+ * (booking_cancelled carries the cancelling .ics, booking_updated the moved one). Other brands -> null (howzit@ path).
+ */
+export const isSmcBrand = (brand) => isSmcLead({ brand_code: brand && brand.code });
+
+/** item = the W10 broker-notice item ({ brand, bk_id, email_kind, email: { to, subject, body } }) -> smc-email-send request or null. */
+export function smcBrokerRelay(item = {}, nowMs = 0) {
+  if (!isSmcBrand(item.brand) || !item.email || !item.email.to) return null;
+  return smcRelayEmail(item.email, `w10:broker:${item.bk_id}:${item.email_kind || 'changed'}:${Math.floor(Number(nowMs) / 60000)}`, 'broker_booking_changed');
+}
+
+/** j = the W10 context (bk, ld, br, brand); kind booking_cancelled | booking_updated; slot = the new { start, end } of a move. */
+export function smcClientChangeEmail(j = {}, kind = 'booking_cancelled', nowMs = 0, slot = null) {
+  const lead = { ...(j.ld || {}), brand_code: j.brand && j.brand.code };
+  if (!isSmcLead(lead) || !j.bk) return null;
+  const email = lead.email_verified === true && lead.email && lead.email_status !== 'bounced' ? lead.email : null;
+  // guest_email (Teams only): lead_activities 'w05:guest:<booking>' via the W10 load; the guest gets the cancel / move too
+  const plan = { start: slot ? slot.start : j.bk.appointment_date, end: slot ? slot.end : j.bk.ends_at, method: j.bk.method, email, guest_email: j.bk.guest_email || null };
+  return smcClientEmail({ lead, broker: j.br || {} }, plan, { id: j.bk.id, calendar_provider: j.bk.calendar_provider }, {}, kind, { now: nowMs });
+}
+
+/**
+ * The cancel confirmation when no rebooking is offered (already offered once, or the lead said "no call"): the lead's own
+ * "Yes, cancel" always gets an answer. Null when opted out (W15 sends the one STOP confirmation) or outside the 24-h window.
+ */
+export function cancelDoneWa({ booking = {}, lead = {}, broker = {}, now_ms, last_inbound_ms, delegate = null } = {}) {
+  if (lead.opted_out_at || !lead.phone) return null;
+  if (!(Number.isFinite(last_inbound_ms) && now_ms - last_inbound_ms < 24 * H)) return null;
+  return { messaging_product: 'whatsapp', to: lead.phone, type: 'text', text: { body: leadBody('cancel_done', { delegate, lead, booking, broker }) } };
 }
 
 /** The cancel-confirm interactive (typed "cancel" asks first). */
@@ -309,9 +371,153 @@ export function methodMessage(d, booking, lead, broker, delegate = null, method 
   return { type: 'buttons', body, buttons: [[`keep_it:${booking.id}`, (lang === 'af' ? 'Ja, dieselfde' : 'Yes, same')], ...buttons] };
 }
 
+/**
+ * slotTakenWa({ phone, offer, booking, lead, broker, delegate }) -> the WhatsApp payload for a 'slot_taken' move.
+ * With offer slots: the open-times list (as before). Without any (17 Oct, x14: W04's re-check was rejected, so the lead
+ * got silence): SLOT_TAKEN_TAP with one "See open times" button (payload see_open_times -> W07 -> W04 list).
+ */
+export function slotTakenWa({ phone, offer = [], booking = {}, lead = {}, broker = {}, delegate = null } = {}) {
+  const rows = (offer || []).map((s) => ({ id: `slot_${s.start}:resched:${booking.id}`, title: slotLabel(s.start).slice(0, 24) }));
+  if (rows.length) {
+    return { messaging_product: 'whatsapp', to: phone, type: 'interactive', interactive: { type: 'list', body: { text: leadBody('slots', { lead, booking, broker }) }, action: { button: 'See times', sections: [{ title: 'Open times', rows }] } } };
+  }
+  const lang = langOf(delegate, lead); const L = LINES[lang];
+  const body = fill(L.SLOT_TAKEN_TAP, { adviser_first: String(broker.contact_person || '').split(' ')[0] || (lang === 'af' ? 'jou adviseur' : 'your adviser') });
+  return toWa(phone, { type: 'buttons', body, buttons: [['see_open_times', L.SEE_TIMES_BTN]] });
+}
+
+/**
+ * W39 POST /start/move (2026-10-19) runs W10's normal 'pick' with source 'W39'. The page shows the outcome and re-fetches
+ * /slots itself, so a lost slot sends the lead NO "slot taken / next times" WhatsApp; everything else in the move is unchanged.
+ */
+export const pageOwnsSlotTaken = (source) => source === 'W39';
+
+// ---------------------------------------------------------------------------------------------------------------
+// The cancel card (Jono, 2026-10-19, mockup frames 15-16). A typed "cancel" (W07 delegate cancel_confirm) or a Cancel tap
+// (cancel:<booking>) no longer asks a bare Yes / Keep: it asks WHY, with a list of reasons, because some of them are
+// things we can sort out. A WhatsApp list carries ONE action button and no image header, so the card is:
+//   1. the banner image header-cancel.png FIRST (lib/wa-banner.cjs, WA_SESSION_BANNERS=on; behind DRY_RUN_SENDS), then
+//   2. the list: body CANCEL_CARD, button "Choose a reason", seven rows; "Keep my call" is the last ROW (keep_it:<id>,
+//      W10's existing no-change path), not a second button.
+// Always a session message: the typed "cancel" or the tap that opens it is itself an inbound, so the 24-h window is open.
+// Every reason that cancels runs the SAME cancel path as cancel_yes (applyCancel unchanged: Graph delete, W09 cancel_all,
+// broker notice, ONE rebooking offer, C1A sweep from the message log); only the closing line differs (delegate body).
+// "I didn't expect a call" is NOT C1A (b) no_call: (b) is a plain refusal of any call ("I don't want a call", isNoCall)
+// and makes a W13 claim (nofit_criteria) that gives the broker a replacement; "I didn't expect it" is surprise, not a
+// refusal, so it cancels like any other lead cancel (C1A 1 / 3 decide later) and the reason is kept as evidence.
+// The reason: lead_activities 'cancel_reason' (key w10:cancel_reason:<booking>, payload { booking_id, reason }, the typed
+// text of "Another reason" in notes); there is no cancel_reason column on leads / appointments (no DDL here).
+// ---------------------------------------------------------------------------------------------------------------
+const requireCjs = createRequire(import.meta.url);
+const WB = requireCjs('./wa-banner.cjs');
+export const CANCEL_HEADER = 'cancel';
+export const CANCEL_REASONS = {
+  different_time: { title: 'I need a different time', action: 'offer' },
+  not_ready: { title: "I'm not ready yet", action: 'cancel' },
+  sorted_cover: { title: "I've sorted my cover", description: "I've already sorted my cover", action: 'cancel' },
+  not_expected: { title: "I didn't expect a call", action: 'cancel' },
+  went_wrong: { title: 'Something went wrong', action: 'cancel_problem' },
+  other: { title: 'Another reason', action: 'cancel_other' },
+};
+export const SMC_HELLO = 'hello@sortmycover.co.za';
+export const CANCEL_COPY = {
+  card: 'We understand{first}, plans change. Before I cancel your call on {date} at {time}, can you tell me why? If it\'s something we can sort out, we\'d love to help.',
+  not_ready: "No problem{first}. Your call on {date} at {time} is cancelled. Say hi here any time and we'll find a new time.",
+  sorted_cover: 'Thanks for letting us know{first}, and well done on sorting your cover. Your call on {date} at {time} is cancelled.',
+  not_expected: 'Thanks for telling us{first}. Your call on {date} at {time} is cancelled. If you would like one later, just say hi here.',
+  other_done: "Thank you, I've passed that on to the team. Your call on {date} at {time} is cancelled.",
+  went_wrong: `I'm sorry to hear that. Please email ${SMC_HELLO} and a person from our team will reply within 48 hours.`,
+  other_ask: "Of course. Please type the reason here and I'll pass it on to the team, then cancel your call. Or tap below.",
+};
+const cvars = (lead = {}, booking = {}) => {
+  const label = booking.appointment_date ? slotLabel(booking.appointment_date) : '';
+  const first = String(lead.first_name || '').trim().split(/\s+/)[0];
+  return { first: first ? `, ${first}` : '', date: label.split(',')[0], time: label.split(', ')[1] || '' };
+};
+/** One cancel line filled for this lead + booking ({first} is ", Name" or nothing). */
+export const cancelLine = (key, lead, booking) => fill(CANCEL_COPY[key], cvars(lead, booking)).slice(0, WA_BODY_MAX);
+
+/** The reason list (Cloud API interactive list): six reasons + "Keep my call" as the last row. */
+export function cancelCardList(booking = {}, lead = {}) {
+  const id = booking.id;
+  const rows = Object.entries(CANCEL_REASONS).map(([code, r]) => ({ id: code === 'different_time' ? `reschedule:${id}` : `cancel_reason:${code}:${id}`, title: r.title, ...(r.description ? { description: r.description } : {}) }));
+  rows.push({ id: `keep_it:${id}`, title: 'Keep my call', description: 'No change, it stays booked' });
+  return { messaging_product: 'whatsapp', recipient_type: 'individual', to: lead.phone, type: 'interactive',
+    interactive: { type: 'list', body: { text: cancelLine('card', lead, booking) }, action: { button: 'Choose a reason', sections: [{ title: 'Your call', rows }] } } };
+}
+
+/**
+ * The card as W10 sends it: { wa: the list, banner: the header-cancel image to send FIRST | null }.
+ * lib/wa-banner.cjs sessionBanner decides (WA_SESSION_BANNERS switch, list -> image message first). Until 'cancel' is in
+ * its HEADERS list the same plan is built from its HEADER_BASE + bannersOn (lists take the image first on both providers).
+ */
+export function cancelCard(booking = {}, lead = {}, env = {}) {
+  const wa = cancelCardList(booking, lead);
+  if (WB.HEADERS.includes(CANCEL_HEADER)) return WB.sessionBanner(wa, env, CANCEL_HEADER);
+  if (!WB.bannersOn(env)) return { banner: null, wa };
+  return { banner: { messaging_product: 'whatsapp', recipient_type: 'individual', to: wa.to, type: 'image', image: { link: `${WB.HEADER_BASE}header-${CANCEL_HEADER}.png` } }, wa };
+}
+
+/** cancel_reason:<code>:<booking> -> { code, booking_id } | null (unknown code -> null). */
+export function parseCancelReason(p) {
+  const m = /^cancel_reason:([a-z_]+):(.+)$/u.exec(String(p || ''));
+  return m && CANCEL_REASONS[m[1]] ? { code: m[1], booking_id: m[2] } : null;
+}
+
+/** The closing line of a cancel with a reason, as the delegate body Build offer / cancelDoneWa already use. */
+export function reasonDelegate(reason, lead, booking, delegate = null) {
+  if (!reason || !reason.code) return delegate;
+  const key = reason.code === 'other' ? 'other_done' : CANCEL_COPY[reason.code] ? reason.code : null;
+  return key ? { ...(delegate || {}), body: cancelLine(key, lead, booking) } : delegate;
+}
+
+/** "Something went wrong": the hello@ email line, then Keep my call / Cancel it (cancel_yes, the existing cancel). */
+export const cancelProblemWa = (booking = {}, lead = {}) => toWa(lead.phone, { type: 'buttons', body: cancelLine('went_wrong', lead, booking), buttons: [[`keep_it:${booking.id}`, 'Keep my call'], [`cancel_yes:${booking.id}`, 'Cancel it']] });
+/** "Another reason": ask them to type it (W07 routes the next text back while cancel_reason_pending is set). */
+export const cancelOtherWa = (booking = {}, lead = {}) => toWa(lead.phone, { type: 'buttons', body: cancelLine('other_ask', lead, booking), buttons: [[`cancel_yes:${booking.id}`, 'Just cancel it'], [`keep_it:${booking.id}`, 'Keep my call']] });
+/** conv_state while W10 waits for the typed reason: 30 minutes, this booking only. */
+export const CANCEL_REASON_WAIT_MS = 30 * 60_000;
+export const cancelReasonPending = (booking = {}, nowMs = Date.now()) => ({ booking_id: String(booking.id), until: new Date(nowMs + CANCEL_REASON_WAIT_MS).toISOString() });
+/** The typed reason counts only for that booking, while the wait is open. */
+export function typedReasonValid(lead = {}, booking = {}, nowMs = Date.now()) {
+  const p = lead.conv_state && lead.conv_state.cancel_reason_pending;
+  return !!(p && String(p.booking_id) === String(booking.id) && Date.parse(p.until) > nowMs && ACTIVE.has(booking.status));
+}
+/** The row W10 stores: [code, typed text or ''] for the Save cancel reason / Timeline: cancelled SQL. */
+export const reasonParams = (reason) => [reason && reason.code ? String(reason.code) : '', reason && reason.text ? String(reason.text).replace(/\s+/g, ' ').trim().slice(0, 500) : ''];
+
 /** WhatsApp interactive/text payload from a {type, body, buttons} message. */
 export function toWa(to, m) {
   if (!m) return null;
   if (m.type === 'text') return { messaging_product: 'whatsapp', to, type: 'text', text: { body: m.body } };
   return { messaging_product: 'whatsapp', to, type: 'interactive', interactive: { type: 'button', body: { text: m.body }, action: { buttons: m.buttons.map(([id, title]) => ({ type: 'reply', reply: { id, title } })) } } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Sub-workflow requests (v4b21, 20 Oct 2026 live bug): W10 handed W05 / W09 its own item (or a Graph response), which they
+// reject (W05 parseSub: "missing slot_start, method, idempotency_key"). Each call now gets the documented shape
+// (CONTRACTS "Sub-workflow interfaces"), built here and checked against the callee's own parser where it is importable.
+// ---------------------------------------------------------------------------------------------------------------
+/**
+ * After-meeting rebooking (applyReschedule action new_booking) -> W05 documented book. j = the "Decide move" item.
+ * -> { ok:true, req } | { ok:false, reason, req } (reason = W05 parseSub's own rejection, so W10 never sends what W05 rejects).
+ */
+export function rebookRequest(j = {}) {
+  const d = j.d || {}; const ins = d.insert || {};
+  if (d.action !== 'new_booking' || !j.bk || !j.ld || !j.ld.id) return { ok: false, reason: 'not a new_booking', req: null };
+  const slot = ins.appointment_date || j.new_start;
+  const req = { op: 'book', lead_id: String(j.ld.id), slot_start: slot, method: ins.method || j.bk.method, booked_via: 'chat',
+    previous_booking_id: ins.previous_booking_id || j.bk.id, idempotency_key: `w10:rebook:${j.bk.id}:${slot}` };
+  const chk = parseW05Sub(req);
+  return chk.op === 'book' ? { ok: true, req } : { ok: false, reason: chk.reason || chk.op, req };
+}
+/** W09 rebuild after a move in place (same row, new time): the W09 keys follow the new start. */
+export const w09Rebuild = (bk = {}, newStart = '') => ({ op: 'rebuild', booking_id: String(bk.id), idempotency_key: `w09:rebuild:${bk.id}:${newStart}` });
+/** W09 cancel_all after a cancel. */
+export const w09CancelAll = (bk = {}) => ({ op: 'cancel_all', booking_id: String(bk.id), idempotency_key: `w09:cancel_all:${bk.id}` });
+/** W05 update_method after a method change (W05 PATCHes the Outlook event, Teams link, client email). */
+export function w05UpdateMethod(bk = {}, method = null) {
+  const req = { op: 'update_method', booking_id: String(bk.id), method };
+  const chk = parseW05Sub(req);
+  return chk.op === 'update_method' ? { ok: true, req } : { ok: false, reason: chk.reason, req };
 }

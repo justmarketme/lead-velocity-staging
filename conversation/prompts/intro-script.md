@@ -5,7 +5,7 @@
 | Version | `intro-script-v1.0.0` (2026-10-02) |
 | Owner | conversation-designer (prompts + gate); intro-media-producer owns the portal step and `automation/W23.json` |
 | What this file is | The **contract** for W23 `script-generate` / `script-recheck`. It adds no new prompt text. Generation uses `script-generator.md` (v1.2.0, `ANGLE` mode = one variant per call), and the gate is `scriptCheck()` + `script-gate.md`. One generator and one gate, never a second copy (0.2 reuse first). |
-| Model | generation `claude-sonnet-5-5` (4A: intro-media-producer runtime), temperature 0.7, max_tokens 400 per variant; gate LLM `claude-haiku-4-5-20251001`, temperature 0; a `pass` with confidence < 0.8 is re-checked on Sonnet |
+| Model | generation and gate on the LLM relay (`$env.LLM_RELAY_URL`, model `relay-default`, no fallback; there is no Anthropic API in this system); generation temperature 0.7, max_tokens 400 per variant; gate temperature 0; a `pass` with confidence < 0.8 is re-checked once |
 
 ## When it runs
 
@@ -48,7 +48,7 @@ Generation runs only when `brokers.positioning_answers.interview_complete_at` is
 1. `scriptCheck(text, { practice, fsp, verified_credentials }, { lang })` is deterministic and already contains `outputGate()` plus rules 5-20 and I-1…I-6. It is free and cannot be persuaded, and the eval proves it (`evals/scripts.json`, `fais.script_gate`).
 2. Only if (1) passes: the gate LLM `script-gate.md`, which fails closed.
 
-**Why `script-gate.md` and not the WhatsApp classifier via `classifierInput()`.** The WhatsApp classifier (`guardrail.md`) is written for Thandi's chat replies. On an adviser script it would wrongly block:
+**Why `script-gate.md` and not the WhatsApp classifier via `classifierInput()`.** The WhatsApp classifier (`guardrail.md`) is written for Lindi's chat replies. On an adviser script it would wrongly block:
 - category 11, persona_break: a script says "I'm Mark" in the first person;
 - category 12, off_scope: "who I help";
 - category 13 is defined for public replies.

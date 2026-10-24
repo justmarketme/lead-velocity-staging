@@ -379,12 +379,13 @@ test('tier C offer lifecycle: declined / expired -> only a next broker with the 
 
 // ------------------------------------------------------------------------------------------------ email verification
 const SECRET = 's'.repeat(40);
-test('email verification: link + code, only hashes stored, link bound to the current email, expiry', () => {
+test('email verification: the email offers the link only (18 Oct 2026), only hashes stored, link bound to the current email, expiry', () => {
   const lead = { ...LEAD, email: 'Lerato@Example.co.za' };
   const v = C.issueEmailVerification(lead, { secret: SECRET, now: NOW, adviser: 'Mark', randomInt: () => 42 });
   assert.equal(v.code, '000042');
   assert.ok(!JSON.stringify(v.set).includes('000042'));
-  assert.match(v.mail.message.body.content, /000042/); assert.ok(v.mail.message.body.content.includes(v.link));
+  assert.ok(!v.mail.message.body.content.includes('000042'), 'no code in the email: confirmation is by the link only'); assert.ok(v.mail.message.body.content.includes(v.link));
+  assert.match(v.mail.message.body.content, /The link works for 24 hours\./);
   assert.equal(v.mail.message.subject, 'Confirm your email for your call with Mark');
   assert.equal(C.verifyEmailToken(v.token, lead, { secret: SECRET, now: NOW + 1000 }).ok, true);
   assert.equal(C.verifyEmailToken(v.token, { ...lead, email: 'other@example.co.za' }, { secret: SECRET, now: NOW }).reason, 'bad_signature');

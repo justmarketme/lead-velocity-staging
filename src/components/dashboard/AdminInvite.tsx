@@ -8,6 +8,7 @@ import { Copy, UserPlus, Clock, CheckCircle, XCircle, Link2, Mail, Send } from "
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { getErrorMessage } from "@/lib/groupA-errors";
 
 interface AdminInviteData {
   id: string;
@@ -98,11 +99,11 @@ const AdminInvite = () => {
         title: "Invite Created",
         description: "Admin invite link has been generated successfully.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating invite:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create invite",
+        description: getErrorMessage(error) || "Failed to create invite",
         variant: "destructive",
       });
     } finally {
@@ -142,11 +143,11 @@ const AdminInvite = () => {
         title: "Invite Sent!",
         description: `An invitation email has been sent to ${emailToSend}`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error sending invite email:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to send invite email",
+        description: getErrorMessage(error) || "Failed to send invite email",
         variant: "destructive",
       });
     } finally {

@@ -1,0 +1,33 @@
+{
+  "name": "booking_confirm_chat",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, your SortMyCover call with {{2}} is booked for {{3}}. Can we just confirm a few things before the call? Reply STOP to opt out.",
+      "example": {
+        "body_text": [
+          [
+            "Lerato",
+            "Mark",
+            "Tue 21 Oct at 10:00"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "QUICK_REPLY",
+          "text": "Yes, let's chat"
+        }
+      ]
+    }
+  ]
+}

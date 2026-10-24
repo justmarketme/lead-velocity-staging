@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>08 Meet Lindi</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .ph { position: absolute; left: 1330px; top: 150px; }
+  .ph .phone { position: relative; width: 390px; height: 800px; }
+  .steps { position: absolute; left: 120px; top: 320px; width: 1060px; }
+  .stp { display: flex; align-items: center; gap: 22px; padding: 18px 26px; margin-bottom: 14px; }
+  .stp .n { width: 46px; height: 46px; border-radius: 50%; background: var(--soft); color: var(--ink); font-weight: 800; font-size: 20px; display: grid; place-items: center; flex: none; border: 2px solid var(--line); }
+  .stp.on .n { background: var(--y); border-color: var(--y); color: var(--y-text); }
+  .stp .a { font-size: 27px; font-weight: 800; color: var(--ink); }
+  .stp .b { font-size: 18px; color: var(--muted); font-weight: 600; margin-top: 3px; }
+  .stp .why { margin-left: auto; }
+  .adcard { position: absolute; left: 1330px; top: 150px; width: 390px; height: 800px; border-radius: 60px; overflow: hidden; background: #111; padding: 13px; box-shadow: var(--shadow-lg); }
+  .adcard .in { position: absolute; inset: 13px; border-radius: 48px; overflow: hidden; background: #fff; }
+  .adcard img { width: 100%; display: block; margin-top: 70px; }
+  .adcard .cta { position: absolute; left: 20px; right: 20px; bottom: 120px; height: 52px; border-radius: 10px; background: #0866ff; color: #fff; font-size: 18px; font-weight: 700; display: grid; place-items: center; }
+</style></head>
+<body data-scene="s08"><div class="stage">
+  <div class="top"><div class="eyebrow">The client's side · 1</div><h1 class="h">From the ad to a chat <em>with Lindi</em></h1></div>
+  <div class="steps">
+    <div class="card stp s1"><div class="n">1</div><div><div class="a">Permission first</div><div class="b">Who gets their details, and STOP at any time</div></div><span class="pill green why"><i></i>Recorded</span></div>
+    <div class="card stp s2"><div class="n">2</div><div><div class="a">Age group</div><div class="b">The adviser works with ages 35 to 50</div></div></div>
+    <div class="card stp s3"><div class="n">3</div><div><div class="a">Monthly budget for cover</div><div class="b">Lower budgets are kept and held, never thrown away</div></div></div>
+    <div class="card stp s4"><div class="n">4</div><div><div class="a">A bond, and who depends on them</div><div class="b">So the adviser knows what matters before the call</div></div></div>
+    <div class="card stp s5"><div class="n">5</div><div><div class="a">How they'd like to talk</div><div class="b">Phone or Teams, whatever Mark offers</div></div></div>
+  </div>
+  <div class="ph"><div class="phone"><div class="scr">
+    <div class="sb"><span>08:41</span><span>5G</span></div>
+    <div class="wa-head"><div class="av"><img src="assets/content/logo-tick-mark-384.png" alt=""></div><div><b>SortMyCover</b><span>Business account</span></div></div>
+    <div class="wa-body"><div class="stack"></div></div>
+    <div class="wa-in"><div class="box"></div><div class="send"></div></div>
+    <div class="shade"></div>
+  </div><div class="notch"></div></div></div>
+  <div class="adcard"><div class="in"><img src="assets/ads/feed-new-bond.jpg" alt=""><div class="cta">Send WhatsApp message</div></div></div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script><script src="chat.js"></script>
+<script>
+  const CONSENT = "Before we start: if it's a fit, we'll share your details with Oracle Private Wealth (FSP 28418), an authorised financial services provider who'll contact you about insurance and financial planning. OK to continue?\n\nLead Velocity (Pty) Ltd runs SortMyCover and is responsible for your details. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy";
+  const T = { tap: cue('tap'), perm: cue('permission'), age: cue('age'), bud: cue('budget'), bond: cue('bond'), dep: cue('depend'), talk: cue('talk') };
+  const chat = Chat($('.ph .scr'), [
+    { dir: 'out', text: "Hi, I'd like to check my life cover", at: T.tap + 1.2, time: '08:41', noTyping: true },
+    { dir: 'in', text: CONSENT, at: T.perm - .6, time: '08:41', btns: ['Yes, continue', 'No thanks'] },
+    { dir: 'out', text: 'Yes, continue', at: T.perm + 1.6, time: '08:41', tap: { btn: 0 } },
+    { dir: 'in', text: 'Which age group are you in?', at: T.age - .4, time: '08:41', list: 'Choose age' },
+    { dir: 'out', text: '35 to 44', at: T.bud - .6, time: '08:42', tap: { sheet: { title: 'Choose age', rows: ['Under 35', '35 to 44', '45 to 50', '51 or older'], pick: 1 } } },
+    { dir: 'in', text: 'Roughly what could you put towards cover each month?', at: T.bud + .2, time: '08:42', list: 'Choose amount' },
+    { dir: 'out', text: 'R750 to R1,250', at: T.bond + .6, time: '08:42', tap: { sheet: { title: 'Choose amount', rows: ['Under R500 a month', 'R500 to R750', 'R750 to R1,250', 'R1,250 to R1,499', 'R1,500 or more'], pick: 2 } } },
+    { dir: 'in', text: 'Do you have a bond or people who depend on your income?', at: T.bond + 1.2, time: '08:42', list: 'Choose one' },
+    { dir: 'out', text: 'Bond and dependants', at: T.talk - .3, time: '08:42', tap: { sheet: { title: 'Choose one', rows: ['Bond and dependants', 'Bond, no dependants', 'Dependants, no bond', 'Neither'], pick: 0 } } },
+    { dir: 'in', text: 'How would you like to talk to Mark?', at: T.talk + .3, time: '08:43', btns: ['Teams video call', 'Phone call'] },
+    { dir: 'out', text: 'Phone call', at: T.talk + 2.6, time: '08:43', tap: { btn: 1 } },
+  ]);
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    // the ad first, then WhatsApp opens over it
+    rv('.adcard', t, .4, { y: 40, dur: .9 });
+    const open = P(t, T.tap + .2, .6, E.inOut);
+    $('.adcard').style.opacity = (P(t, .4, .9) * (1 - open)).toFixed(3);
+    $('.ph').style.opacity = open.toFixed(3);
+    $('.ph').style.transform = `scale(${lerp(.94, 1, open).toFixed(4)})`;
+    typed($('.wa-in .box'), "Hi, I'd like to check my life cover", t, T.tap + .4, .01);
+    if (t >= T.tap + 1.2) $('.wa-in .box').textContent = '';
+    const at = [T.perm, T.age, T.bud, T.bond, T.talk];
+    $$('.stp').forEach((s, i) => { rv(s, t, at[i] - .3, { x: -24, y: 0, dur: .6 }); s.classList.toggle('on', t >= at[i] && (i === 4 || t < at[i + 1])); });
+    chat.update(t);
+  };
+</script></body></html>

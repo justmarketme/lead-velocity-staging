@@ -17,7 +17,8 @@ const W10 = wf('W10'); const W15J = wf('W15'); const W05J = wf('W05');
 const node = (w, name) => w.nodes.find((n) => n.name === name);
 const out = (w, from, i = 0) => ((w.connections[from] || { main: [] }).main[i] || []).map((e) => e.node);
 const ENV = { HOWZIT_MAILBOX: 'howzit@leadvelocity.co.za', SMC_SHARED_CALENDAR_ID: 'SHARED-CAL-1' };
-const HOWZIT_CRED = 'Microsoft 365 howzit@ (Graph, Calendars.ReadWrite + OnlineMeetings.ReadWrite)';
+// 17 Oct 2026: the shared-calendar nodes run on the app-only howzit@ Graph credential that exists on the VPS n8n (see build-w04-w05.mjs).
+const HOWZIT_CRED = 'MS Graph app-only - howzit@ Mail.Send';
 const SHARED_BROKER = { id: 'b1', calendar_email: 'mark@broker.example', calendar_status: 'blocked_admin_consent', calendar_mode: 'shared_fallback' };
 const OWN_BROKER = { id: 'b1', calendar_email: 'mark@broker.example', calendar_status: 'ok', calendar_mode: 'oauth' };
 
@@ -41,15 +42,16 @@ test('I-54h lib: graphEventTarget follows the stored route, shared -> howzit@ ca
   assert.match(det.url, /\/calendars\/DET\/events\/x$/);
 });
 
-test('I-54h W15: STOP on a shared_lv booking deletes in the howzit@ shared calendar; an own-calendar booking deletes in the broker calendar', async () => {
+test('I-54h W15: CANCEL after STOP on a shared_lv booking deletes in the howzit@ shared calendar; an own-calendar booking deletes in the broker calendar', async () => {
+  // 19 Oct 2026 (v4): STOP keeps the booking (bookingMode 'keep'); the calendar delete moved to the CANCEL follow-up (planFollowUp).
   const now = Date.parse('2026-10-05T08:00:00Z');
-  const mk = (provider) => W15.planOptOut({ mobile: '+27820000001', text: 'STOP', now, leads: [{ id: 'L1', phone: '+27820000001', broker_id: 'b1' }],
+  const mk = (provider) => W15.planFollowUp({ e: { mobile: '+27820000001', text: 'CANCEL', followup: { type: 'cancel' } }, now, leads: [{ id: 'L1', phone: '+27820000001', broker_id: 'b1', opted_out_at: '2026-10-05T07:00:00Z' }],
     bookings: [{ id: 'k1', lead_id: 'L1', broker_id: 'b1', status: 'booked', graph_event_id: 'EV1', calendar_provider: provider, start: '2026-10-09T10:00:00Z', method: 'phone' }], brokers: [{ id: 'b1', contact_person: 'Mark Smith' }] });
   assert.equal(mk('shared_lv').booking_cancels[0].calendar_provider, 'shared_lv');
-  const NAME = 'Fan out (W09, Graph delete, broker notices, one confirmation)';
+  const NAME = 'Fan out follow-up (W09, Graph delete, broker notices, the one undo reply)';
   const run = async (provider, broker) => {
     const plan = mk(provider);
-    const res = await runCode(W15J, NAME, { json: { claimed: true }, env: ENV, refs: { 'Plan opt-out (w15.planOptOut)': { plan, ctx: { brokers: [broker] } } } });
+    const res = await runCode(W15J, NAME, { json: { claimed: true }, env: ENV, refs: { 'Plan follow-up (w15.planFollowUp)': { plan, ctx: { brokers: [broker] } } } });
     return res.map((r) => r.json).find((j) => j.kind === 'graph_delete');
   };
   const sh = await run('shared_lv', { ...OWN_BROKER });
@@ -58,22 +60,23 @@ test('I-54h W15: STOP on a shared_lv booking deletes in the howzit@ shared calen
   const own = await run('outlook', { ...SHARED_BROKER });
   assert.equal(own.graph_route, 'broker');
   assert.match(own.url, /\/users\/mark%40broker\.example\/events\/EV1$/);
-  const bad = await runCode(W15J, NAME, { json: { claimed: true }, env: { HOWZIT_MAILBOX: ENV.HOWZIT_MAILBOX }, refs: { 'Plan opt-out (w15.planOptOut)': { plan: mk('shared_lv'), ctx: { brokers: [OWN_BROKER] } } } });
+  const bad = await runCode(W15J, NAME, { json: { claimed: true }, env: { HOWZIT_MAILBOX: ENV.HOWZIT_MAILBOX }, refs: { 'Plan follow-up (w15.planFollowUp)': { plan: mk('shared_lv'), ctx: { brokers: [OWN_BROKER] } } } });
   assert.equal(bad.map((r) => r.json).find((j) => j.kind === 'graph_delete').graph_route, 'skip');
   // wiring: shared -> howzit@ credential node; broker -> W04 graph_token -> broker DELETE
   const sw = 'Graph calendar? (shared howzit@ vs broker)';
   assert.deepEqual(out(W15J, 'Fan-out kind?', 1), [sw]);
   assert.deepEqual(out(W15J, sw, 0), ['Graph DELETE event (howzit@ shared calendar)']);
   assert.deepEqual(out(W15J, sw, 1), ['W04 graph_token']);
-  assert.equal(node(W15J, 'Graph DELETE event (howzit@ shared calendar)').credentials.microsoftOutlookOAuth2Api.name, HOWZIT_CRED);
+  assert.equal(node(W15J, 'Graph DELETE event (howzit@ shared calendar)').credentials.oAuth2Api.name, HOWZIT_CRED);
   assert.equal(node(W15J, 'Graph DELETE event').credentials, undefined, 'the broker branch never carries the howzit@ credential');
   assert.equal(node(W15J, 'Graph DELETE event').parameters.url, "={{ $('Fan-out kind?').item.json.url }}");
 });
 
 test('I-54h W10: move (PATCH) and cancel (DELETE) branch on the booking route; shared uses the howzit@ credential, own keeps W04 graph_token', async () => {
-  for (const [tname, sname, shName, tokName, ownName, srcNode, next] of [
-    ['Graph target (move)', 'Graph calendar? (move)', 'Graph PATCH event (howzit@ shared calendar)', 'Graph token for broker', 'Graph PATCH event (same event id)', 'Merge context', 'W09 rebuild reminders'],
-    ['Graph target (cancel)', 'Graph calendar? (cancel)', 'Graph DELETE event (howzit@ shared calendar)', 'Graph token for broker (cancel)', 'Graph DELETE event', 'Decide cancel (w10.applyCancel)', 'W09 cancel all reminders'],
+  // 20 Oct 2026 (v4b21, b50ffef): a request node builds W09's documented op in front of each W09 call
+  for (const [tname, sname, shName, tokName, ownName, srcNode, next, w09] of [
+    ['Graph target (move)', 'Graph calendar? (move)', 'Graph PATCH event (howzit@ shared calendar)', 'Graph token for broker', 'Graph PATCH event (same event id)', 'Merge context', 'W09 request (rebuild, move)', 'W09 rebuild reminders'],
+    ['Graph target (cancel)', 'Graph calendar? (cancel)', 'Graph DELETE event (howzit@ shared calendar)', 'Graph token for broker (cancel)', 'Graph DELETE event', 'Decide cancel (w10.applyCancel)', 'W09 request (cancel_all, cancel)', 'W09 cancel all reminders'],
   ]) {
     const run = async (provider, broker) => (await runCode(W10, tname, { json: { x: 1 }, env: ENV, refs: { [srcNode]: { bk: { graph_event_id: 'EV9', calendar_provider: provider }, br: broker } } })).json;
     const sh = await run('shared_lv', OWN_BROKER);
@@ -83,9 +86,14 @@ test('I-54h W10: move (PATCH) and cancel (DELETE) branch on the booking route; s
     assert.equal(own.gt.route, 'broker'); assert.match(own.gt.url, /\/users\/mark%40broker\.example\/events\/EV9$/);
     assert.equal((await run('shared_lv', { ...OWN_BROKER, calendar_email: null }).then((r) => r.gt.route)), 'shared');
     assert.equal(out(W10, tname)[0], sname);
-    assert.deepEqual([out(W10, sname, 0), out(W10, sname, 1), out(W10, sname, 2)], [[shName], [tokName], [next]]);
+    // 17 Oct 2026: a request node builds W04's { op: 'graph_token', broker_id } in front of the token call
+    const reqName = `W04 request (graph_token, ${tname.includes('cancel') ? 'cancel' : 'move'})`;
+    assert.deepEqual([out(W10, sname, 0), out(W10, sname, 1), out(W10, sname, 2)], [[shName], [reqName], [next]]);
+    assert.deepEqual(out(W10, reqName), [tokName]);
     assert.deepEqual(out(W10, shName), [next]);
-    assert.equal(node(W10, shName).credentials.microsoftOutlookOAuth2Api.name, HOWZIT_CRED);
+    assert.deepEqual(out(W10, ownName), [next]);
+    assert.deepEqual(out(W10, next), [w09]);
+    assert.equal(node(W10, shName).credentials.oAuth2Api.name, HOWZIT_CRED);
     assert.equal(node(W10, ownName).credentials, undefined);
     assert.ok(node(W10, ownName).parameters.url.includes(`$('${tname}')`), 'broker branch URL also comes from the helper');
     assert.equal(node(W10, shName).parameters.url, `={{ $('${tname}').item.json.gt.url }}`);
@@ -106,7 +114,7 @@ test('I-54h W05 update_method: the Teams/phone PATCH follows the booking route t
   assert.equal(own.route, 'broker'); assert.equal(own.broker_id, 'b1');
   const sw = 'Method event calendar?';
   assert.deepEqual([out(W05J, sw, 0), out(W05J, sw, 1), out(W05J, sw, 2)], [['Graph PATCH event (method, howzit@ shared calendar)'], ['graph_token input (method)'], ['Save method']]);
-  assert.equal(node(W05J, 'Graph PATCH event (method, howzit@ shared calendar)').credentials.microsoftOutlookOAuth2Api.name, HOWZIT_CRED);
+  assert.equal(node(W05J, 'Graph PATCH event (method, howzit@ shared calendar)').credentials.oAuth2Api.name, HOWZIT_CRED);
   assert.equal(node(W05J, 'Graph PATCH event (method, ASSUMPTION)').credentials, undefined);
   assert.ok(JSON.stringify(node(W05J, 'Load booking for method change').parameters).includes('a.calendar_provider'));
 });

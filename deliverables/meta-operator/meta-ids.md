@@ -5,7 +5,7 @@ Also enter these in the console: Settings → Brands → SMC (`/console/settings
 | Item | ID | Status (2026-10-05) |
 |---|---|---|
 | Business portfolio "jono" (= Lead Velocity's) | 2933520516724270 | Unverified; legal name blank; 2FA not required |
-| Facebook Page "Sort My Cover" (`page_id`) | 61595175929084 | Created from the profile (facebook.com/pages/create). Category Website. Bio BIO-FB-v3 set. **Not yet in the portfolio** (Business Settings add blocked: "temporarily blocked from performing this action") |
+| Facebook Page "Sort My Cover" (`page_id`) | **1291324720737673** (Graph Page id, from /me/accounts; use this for every API call). Profile id 61595175929084 is NOT the Page id: Graph answers 100/33 on it | Created from the profile (facebook.com/pages/create). Category Website. Bio BIO-FB-v3 set. **Not yet in the portfolio** (Business Settings add blocked: "temporarily blocked from performing this action") |
 | Lead velocity B2B Page (do not use for SMC) | 774748685722096 | In portfolio "jono" |
 | Instagram @sortmycover (`ig_user_id`) | — | Not created. Link only after the Page is in "jono", or Meta auto-creates a separate portfolio |
 | Ad account (`ad_account_id`) | — | Not created (G3) |

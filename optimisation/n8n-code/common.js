@@ -15,7 +15,7 @@ const allow = (cfg, job, est) => {
   return cfg.spent.day + est <= cfg.caps.daily - reserve;
 };
 const charge = (cfg, job, est) => { if (['scan', 'memo', 'retro'].includes(job)) cfg.spent.week += est; else cfg.spent.day += est; };
-const anthropicBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });
+const relayBody = (model, system, user, maxTokens) => ({ model, max_tokens: maxTokens, temperature: 0, system, messages: [{ role: 'user', content: user }] });
 const parseJson = (text) => {
   if (typeof text !== 'string') return null;
   const a = text.indexOf('{'), b = text.lastIndexOf('}');

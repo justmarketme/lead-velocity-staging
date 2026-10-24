@@ -1,0 +1,563 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "(www\\.)?sortmycover\\.com"
+        }
+      ],
+      "status": 301,
+      "headers": {
+        "Location": "https://sortmycover.co.za/$1"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 301,
+      "headers": {
+        "Location": "https://sortmycover.co.za/$1"
+      }
+    },
+    {
+      "src": "^/about\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/about/"
+      }
+    },
+    {
+      "src": "^/book\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/book/"
+      }
+    },
+    {
+      "src": "^/how-we-make-money\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/how-we-make-money/"
+      }
+    },
+    {
+      "src": "^/complaints\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/complaints/"
+      }
+    },
+    {
+      "src": "^/privacy\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/privacy/"
+      }
+    },
+    {
+      "src": "^/terms\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/terms/"
+      }
+    },
+    {
+      "src": "^/learn/what-is-a-life-cover-gap\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/what-is-a-life-cover-gap/"
+      }
+    },
+    {
+      "src": "^/learn/what-happens-on-a-30-minute-call\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/what-happens-on-a-30-minute-call/"
+      }
+    },
+    {
+      "src": "^/learn/how-to-read-your-payslips-cover-line\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/how-to-read-your-payslips-cover-line/"
+      }
+    },
+    {
+      "src": "^/learn/how-sortmycover-works\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/how-sortmycover-works/"
+      }
+    },
+    {
+      "src": "^/learn/life-events-that-change-what-you-need\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/life-events/"
+      }
+    },
+    {
+      "src": "^/index\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/"
+      }
+    },
+    {
+      "src": "^/learn/index\\.html$",
+      "status": 301,
+      "headers": {
+        "Location": "/learn/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?adviser-conversation/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://adviser-conversation.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?new-bond/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://new-bond.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?salary-stops/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://salary-stops.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?cover-gap/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://cover-gap.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?owners-directors/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://owners-directors.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?new-baby/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://new-baby.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?children-guardian/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://children-guardian.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?will-myth/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://will-myth.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?will-and-cover/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://will-and-cover.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "^/(?:_c/)?where-is-the-will/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://where-is-the-will.sortmycover.co.za/"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "headers": {
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com; font-src 'self'; connect-src 'self' https://n8n.sortmycover.co.za https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://n8n.sortmycover.co.za; base-uri 'none'; object-src 'none'; frame-ancestors 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Strict-Transport-Security": "max-age=86400",
+        "X-Frame-Options": "DENY"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": ".*\\.vercel\\.app"
+        }
+      ],
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow, noarchive"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/start(?:/.*)?$",
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self'; img-src 'self' https://www.facebook.com https://cmsylaupctrbsvzrgzwy.supabase.co; font-src 'self'; connect-src 'self' https://n8n.sortmycover.co.za https://www.facebook.com https://connect.facebook.net; frame-src https://challenges.cloudflare.com; form-action 'self' https://n8n.sortmycover.co.za; base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+      },
+      "continue": true
+    },
+    {
+      "src": "/assets/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/fonts/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
+      "src": "/(.*)\\.(png|webp|avif|jpg|ico|svg|webmanifest)",
+      "headers": {
+        "Cache-Control": "public, max-age=86400"
+      },
+      "continue": true
+    },
+    {
+      "src": "^/sitemap\\.xml$",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 404,
+      "dest": "/404.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "adviser-conversation\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/adviser-conversation/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "adviser-conversation\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/adviser-conversation/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-bond\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-bond/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-bond\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-bond/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "salary-stops\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/salary-stops/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "salary-stops\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/salary-stops/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "cover-gap\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/cover-gap/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "cover-gap\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/cover-gap/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "owners-directors\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/owners-directors/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "owners-directors\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/owners-directors/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-baby\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-baby/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "new-baby\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/new-baby/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "children-guardian\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/children-guardian/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "children-guardian\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/children-guardian/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-myth\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-myth/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-myth\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-myth/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-and-cover\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-and-cover/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "will-and-cover\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/will-and-cover/thanks/index.html"
+    },
+    {
+      "src": "^/$",
+      "has": [
+        {
+          "type": "host",
+          "value": "where-is-the-will\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/where-is-the-will/index.html"
+    },
+    {
+      "src": "^/thanks/?$",
+      "has": [
+        {
+          "type": "host",
+          "value": "where-is-the-will\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "dest": "/_c/where-is-the-will/thanks/index.html"
+    },
+    {
+      "src": "^/(?!assets/|fonts/|img/|thanks(?:/|$)|robots\\.txt$|favicon|apple-touch-icon|icon-|mask-icon|manifest|browserconfig|mstile)(.+)$",
+      "has": [
+        {
+          "type": "host",
+          "value": ".+\\.sortmycover\\.co\\.za"
+        }
+      ],
+      "status": 307,
+      "headers": {
+        "Location": "https://sortmycover.co.za/$1"
+      }
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/([^./]+(?:/[^./]+)*)$",
+      "status": 308,
+      "headers": {
+        "Location": "/$1/"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "status": 404,
+      "dest": "/404.html"
+    }
+  ]
+}

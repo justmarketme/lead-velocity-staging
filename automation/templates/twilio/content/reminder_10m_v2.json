@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "key": "reminder_10m_v2",
+    "source": "automation/templates/reminder_10m.json + lib/wa-provider.mjs TEMPLATE_VARIANTS",
+    "approval": {
+      "name": "smc_reminder_10m_v2",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      }
+    ],
+    "core": false,
+    "base": "reminder_10m",
+    "header": "reminder"
+  },
+  "content": {
+    "friendly_name": "smc_reminder_10m_v2",
+    "language": "en",
+    "variables": {
+      "1": "Lerato",
+      "2": "Mark Smith",
+      "3": "Mark will call you on 082 123 4567."
+    },
+    "types": {
+      "twilio/card": {
+        "title": "Hi {{1}}, your call with {{2}} starts in 10 minutes. {{3}} See you soon.",
+        "subtitle": "SortMyCover",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reminder.png"
+        ]
+      }
+    }
+  }
+}

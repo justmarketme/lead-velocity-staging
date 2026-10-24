@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseUntyped } from "@/integrations/supabase/untyped";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +76,7 @@ const AdminOrdersActivity = () => {
   const load = async () => {
     setLoading(true);
     const [{ data, error }, b, ob] = await Promise.all([
-      (supabase as any).rpc("admin_list_orders_activity"),
+      supabaseUntyped.rpc("admin_list_orders_activity"),
       loadBrands(),
       loadOrderBrands(),
     ]);
@@ -103,7 +103,7 @@ const AdminOrdersActivity = () => {
   const confirmMarkPaid = async () => {
     if (!payTarget) return;
     setMarking(true);
-    const { error } = await (supabase as any).rpc("admin_mark_order_paid", { p_order_id: payTarget.order_id });
+    const { error } = await supabaseUntyped.rpc("admin_mark_order_paid", { p_order_id: payTarget.order_id });
     setMarking(false);
     if (error) {
       console.error("admin_mark_order_paid error:", error);

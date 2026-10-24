@@ -98,7 +98,7 @@ test('S7-03 phone call: other number (Lookup mobile) + alternative number + best
 
   const b = await brief(db);
   assert.equal(b.skip, false);
-  assert.deepEqual({ ...b.input.contact, language: undefined }, { call_number: '+27600000302', call_number_differs: true, alt_number: '+27600000303', best_time: 'afternoons', language: undefined }, 'model input');
+  assert.deepEqual({ ...b.input.contact, language: undefined }, { call_number: '+27600000302', call_number_differs: true, alt_number: '+27600000303', guest_joining: false, best_time: 'afternoons', language: undefined }, 'model input');
   assert.equal(b.fallback.template_vars[4], '+27600000302 (not the WhatsApp number) (if no answer: +27600000303)');
   assert.equal(b.fallback.template_vars[5], 'afternoons');
   assert.match(b.fallback.portal.practical, /\+27600000302 \(not the WhatsApp number\).*afternoons/);

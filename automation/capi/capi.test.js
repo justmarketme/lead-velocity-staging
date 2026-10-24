@@ -96,7 +96,7 @@ test('buildEvent never carries em even if a caller passes email or a pre-hashed 
   assert.ok(!JSON.stringify(ev).includes(h('x@y.com')));
 });
 
-test('default API version is v23.0 when env unset', () => {
-  delete process.env.META_API_VERSION; delete process.env.API_VERSION;
-  assert.equal(c.apiVersion(), 'v23.0');
+test('default API version is v25.0 when env unset (META_GRAPH_VERSION, then META_API_VERSION)', () => {
+  delete process.env.META_GRAPH_VERSION; delete process.env.META_API_VERSION; delete process.env.API_VERSION;
+  assert.equal(c.apiVersion(), 'v25.0');
 });

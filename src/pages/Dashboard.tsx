@@ -12,6 +12,7 @@ import BrokerInvite from "@/components/dashboard/BrokerInvite";
 import AdminDocuments from "@/components/dashboard/AdminDocuments";
 import AdminReferrals from "@/components/dashboard/AdminReferrals";
 import AdminCalendar from "@/components/dashboard/AdminCalendar";
+import AppointmentAllocation from "@/components/dashboard/AppointmentAllocation";
 import MessageTemplates from "@/components/dashboard/MessageTemplates";
 import AICallRequests from "@/components/dashboard/AICallRequests";
 import WorkflowManagement from "@/components/dashboard/WorkflowManagement";
@@ -20,6 +21,7 @@ import BrokerAnalysisDashboard from "@/components/dashboard/BrokerAnalysisDashbo
 import AdminOrdersActivity from "@/components/dashboard/AdminOrdersActivity";
 import BrokerManagement from "@/components/dashboard/BrokerManagement";
 import ContactEnquiries from "@/components/dashboard/ContactEnquiries";
+import AdminBrokerMessages from "@/components/dashboard/AdminBrokerMessages";
 import type { Session } from "@supabase/supabase-js";
 import SEO from "@/components/SEO";
 
@@ -61,12 +63,12 @@ const Dashboard = () => {
           } else {
             // No admin role and no broker record - redirect to login
             console.warn("No role or broker record found, redirecting to login");
-            navigate("/login");
+            navigate("/admin");
           }
           return;
         }
         setLoading(false);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("Role check failed:", e);
       }
     };
@@ -127,10 +129,12 @@ const Dashboard = () => {
       {activeTab === "workflow" && <WorkflowManagement />}
       {activeTab === "leads" && <LeadsTable />}
       {activeTab === "referrals" && <AdminReferrals />}
+      {activeTab === "appointments" && <AppointmentAllocation />}
       {activeTab === "calendar" && <AdminCalendar />}
       {activeTab === "broker-analysis" && <BrokerAnalysisDashboard />}
       {activeTab === "broker-management" && <BrokerManagement />}
       {activeTab === "enquiries" && <ContactEnquiries />}
+      {activeTab === "broker-messages" && <AdminBrokerMessages />}
       {activeTab === "orders" && <AdminOrdersActivity />}
       {activeTab === "upload" && <LeadUploadForm />}
       {activeTab === "documents" && <AdminDocuments />}

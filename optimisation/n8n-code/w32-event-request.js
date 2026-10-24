@@ -6,4 +6,4 @@ const user = 'TRIGGER: ' + e.trigger + '   NOW: ' + e.now + '\nFACTS: ' + JSON.s
 const est = estZar(cfg, cfg.models.fast, PROMPTS.event_system.length + user.length, 400);
 const ok = allow(cfg, 'event', est);
 if (ok) charge(cfg, 'event', est);
-return [{ json: { ok, e, body: ok ? anthropicBody(cfg.models.fast, PROMPTS.event_system, user, 400) : null } }];
+return [{ json: { ok, e, body: ok ? relayBody(cfg.models.fast, PROMPTS.event_system, user, 400) : null } }];

@@ -85,7 +85,7 @@ Then the existing `broker_intro_booked` card (intro image, practice, FSP number,
 
 ### Other endings (same END screen)
 - Tier B: **We're matching you with an adviser**: "Thanks {first_name}. We're matching you with an authorised adviser now. We'll message you here on WhatsApp shortly so you can pick a time."
-- Booked but the email not verified yet (verify gate, 2026-10-11): **Check your email to confirm**: "We're holding {when} for your Teams call with {adviser}. To confirm it, tap the link we've just emailed to {email}, or reply here on WhatsApp with the 6-digit code. If it isn't confirmed by {deadline}, we'll release the time." Nothing reaches the adviser (no Outlook event, no intro card) until the email is verified.
+- Booked but the email not verified yet (verify gate, 2026-10-11): **Check your email to confirm**: "We're holding {when} for your Teams call with {adviser}. To confirm it, tap the link we've just emailed to {email}. If it isn't confirmed by {deadline}, we'll release the time." Nothing reaches the adviser (no Outlook event, no intro card) until the email is verified.
 - Tier C held: **We're checking for you**: "Thanks {first_name}. We're checking which authorised adviser can help at the monthly budget you chose. This can take a few days. We'll come back to you here on WhatsApp as soon as we know, either way."
 - Out of band: **Thank you**: "Thanks for your time, {first_name}. Based on your answers, the advisers we work with aren't the right fit right now, so we won't pass your details on. Take care."
 - Invalid contact details (3rd bad name, email or number): "Thanks for your time. We couldn't confirm your contact details, so we can't pass your enquiry on right now. You can message us again at any time."

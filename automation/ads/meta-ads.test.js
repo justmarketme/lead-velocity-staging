@@ -271,6 +271,13 @@ test('lead normalisation, webhook parsing, signature verification', () => {
   const lead = M.normalizeLead({ id: 'L1', created_time: 't', form_id: 'F', ad_id: 'A', ad_name: 'C01_H1_sta-amb_20261015', campaign_id: 'C', adset_id: 'S',
     field_data: [{ name: 'full_name', values: ['Test Person'] }, { name: 'phone_number', values: ['+27820000000'] }, { name: 'age_band', values: ['45-50'] }] });
   assert.equal(lead.full_name, 'Test Person'); assert.equal(lead.answers.age_band, '45-50'); assert.equal(lead.ad_parts.angle, 'H1');
+  // the ticks come from custom_disclaimer_responses (Graph's field name; fetchLead asks for exactly that field)
+  const ticked = (cdr) => M.normalizeLead({ id: 'L2', field_data: [], custom_disclaimer_responses: cdr }).consent_raw;
+  assert.equal(ticked([{ checkbox_key: 'consent', is_checked: '1' }, { checkbox_key: 'consent_ads', is_checked: '' }]), true);
+  assert.equal(ticked([{ checkbox_key: 'consent', is_checked: '' }, { checkbox_key: 'consent_ads', is_checked: '1' }]), false, 'the optional box is not the consent');
+  assert.equal(ticked([{ checkbox_key: 'optional_1', is_checked: '1' }]), true, 'a hand-built form: Meta refuses a submission without the required box');
+  assert.equal(ticked([{ checkbox_key: 'optional_1', is_checked: '' }]), false);
+  assert.equal(M.normalizeLead({ id: 'L3', field_data: [], custom_disclosure_responses: [{ checkbox_key: 'consent', is_checked: '1' }] }).consent_raw, null, 'the old misspelt field is not read');
   const hook = M.parseLeadgenWebhook({ entry: [{ id: 'P1', changes: [{ field: 'leadgen', value: { leadgen_id: '77', form_id: 'F', ad_id: 'A' } }, { field: 'other', value: {} }] }] });
   assert.equal(hook.length, 1); assert.equal(hook[0].page_id, 'P1');
   const raw = '{"a":1}', secret = 's3cret';
@@ -279,6 +286,14 @@ test('lead normalisation, webhook parsing, signature verification', () => {
   assert.equal(M.verifyWebhookSignature(raw + ' ', sig, secret), false);
   assert.equal(M.verifyWebhookSignature(raw, 'sha256=zz', secret), false);
   assert.equal(M.verifyWebhookSignature(raw, null, secret), false);
+});
+
+test('fetchLead asks Graph for custom_disclaimer_responses (the Lead field that carries the consent ticks)', async () => {
+  const { c, calls } = client(() => ({ body: { id: 'L9', field_data: [{ name: 'smc_age_band', values: ['Over 50'] }], custom_disclaimer_responses: [{ checkbox_key: 'consent', is_checked: '1' }] } }));
+  const lead = await c.fetchLead('L9');
+  const fields = new URL(calls[0].url).searchParams.get('fields') || decodeURIComponent(calls[0].url);
+  assert.match(fields, /custom_disclaimer_responses/); assert.doesNotMatch(fields, /custom_disclosure_responses/);
+  assert.equal(lead.consent_raw, true); assert.equal(M.qualifyLead(lead).qualified, true, 'over 50 accepted (v2)');
 });
 
 test('asset health: one batch, normalised statuses, urgent alerts, diff only reports new alerts', async () => {
@@ -323,7 +338,12 @@ test('qualifyLead backstop: bands, call preference, consent; key or label accept
   const good = { age_band: '45_50', budget_band: '1250plus', call_ok: 'yes' };
   assert.equal(M.qualifyLead(lead(good)).qualified, true);
   assert.equal(M.qualifyLead(lead({ age_band: '35-44', budget_band: 'R750-R1,250', call_ok: 'Yes' })).qualified, true);
-  assert.deepEqual(M.qualifyLead(lead({ ...good, age_band: '51plus' })).reasons, ['age_band']);
+  // instant form v2 (Jono, 18 Oct 2026): every age is accepted (W01 OUT_OF_BAND_AGE_BOOKS); age_in_band is reported only
+  for (const age of ['51plus', 'lt35', 'Over 50', undefined]) {
+    const r = M.qualifyLead(lead({ ...good, age_band: age }));
+    assert.deepEqual([r.qualified, r.reasons, r.age_in_band], [true, [], false], String(age));
+  }
+  assert.equal(M.qualifyLead(lead({ smc_age_band: '45_50' })).age_in_band, true, 'v2 key; no call_ok question on v2 -> not judged');
   assert.equal(M.qualifyLead(lead({ ...good, budget_band: '500_750' })).qualified, true, 'tier C (under R750) is not out of band (2026-10-11)');
   assert.deepEqual(M.qualifyLead(lead({ ...good, budget_band: 'r100' })).reasons, ['budget_band'], 'an unknown band is still refused');
   assert.deepEqual(M.qualifyLead(lead({ ...good, call_ok: 'no' })).reasons, ['call_ok']);

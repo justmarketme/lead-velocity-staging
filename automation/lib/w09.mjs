@@ -3,8 +3,10 @@
 //
 // The sequence, planned from the booking event (W05 `schedule`, W10/W05 `rebuild`):
 //   T0 + 10 min  what_to_expect
-//   T-48 h       intro_media (video; intro_media_voice if no approved video) - only if booked >= 3 days out,
-//                otherwise straight after booking (T0 + 15 min, fixtures _meta)
+//   T0 + 24 h    intro_media ("Meet Mark": video; intro_media_voice if no approved video), a day after booking
+//                (Jono, 19 Oct 2026; was T-48 h); straight after booking (T0 + 15 min) when the call is under 24 h away
+//                (or the day-after time would be < 2 h before it).
+//                Never after the call starts; quiet hours as every touch (shifted to 08:00, dropped if that lands < 2 h before it)
 //   T-24 h       reminder_24h (Confirm / Reschedule) + prep_nudge        (skipped when booked < 24 h ahead)
 //   T-2 h        reminder_2h                                              (skipped when booked ~2 h ahead)
 //   T-10 min     reminder_10m
@@ -42,6 +44,14 @@ export function mediaTemplate(lead = {}, broker = {}) {
 }
 
 /**
+ * "Meet Mark" (intro_media) time, Jono 19 Oct 2026: a day after booking (T0 + 24 h); straight after booking (T0 + 15 min,
+ * after what_to_expect) when the call is under 24 h away. A day-after time that would land within 2 h of the call (booked
+ * 24-26 h ahead) also goes straight after booking, so the card never lands on top of reminder_2h or after the start.
+ */
+export const INTRO_DELAY = 24 * H;
+export const introAt = (T0, M) => (T0 + INTRO_DELAY <= M - 2 * H ? T0 + INTRO_DELAY : T0 + 15 * MIN);
+
+/**
  * reminderPlan({ bookingId, start, bookedAt, lead, broker, alreadySent }) -> { compressed, jobs:[{touch, template, at, key}] }
  * bookedAt = when the booking (or its last move) happened. alreadySent = touches already sent in this lead's lineage.
  */
@@ -53,7 +63,7 @@ export function reminderPlan({ bookingId, start, bookedAt, lead: l = {}, broker:
   const mediaTpl = mediaTemplate(l, b);
   const raw = [
     ['what_to_expect', 'what_to_expect', T0 + 10 * MIN],
-    mediaTpl ? ['intro_media', mediaTpl, lt >= 72 * H ? M - 48 * H : T0 + 15 * MIN] : null,
+    mediaTpl ? ['intro_media', mediaTpl, introAt(T0, M)] : null,
     lt >= 24 * H ? ['reminder_24h', 'reminder_24h', M - 24 * H] : null,
     lt >= 24 * H ? ['prep_nudge', 'prep_nudge', M - 24 * H] : null,
     ['reminder_2h', 'reminder_2h', M - 2 * H],

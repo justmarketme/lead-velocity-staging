@@ -10,8 +10,9 @@ const cfg = {
   ver: S.wa_graph_version || 'v21.0',               // ASSUMPTION; set ops.settings.wa_graph_version from W27
   twilio: { sid: S.twilio_sid || null, from: S.twilio_voice_from || null },
   build_active: String(S.build_active || 'true') === 'true',
-  models: { fast: 'claude-haiku-4-5-20251001', strong: 'claude-sonnet-5-5' },
-  rates: { 'claude-haiku-4-5-20251001': { in: 1, out: 5 }, 'claude-sonnet-5-5': { in: 2, out: 10 } },
+  // one LLM relay ($env.LLM_RELAY_URL), the relay picks the model; ASSUMPTION rate = the dearest the build used, until the relay publishes one
+  models: { fast: 'relay-default', strong: 'relay-default' },
+  rates: { 'relay-default': { in: 2, out: 10 } },
   caps: { daily: Number(S.opt_daily_cap_zar || 15), weekly: Number(S.opt_weekly_cap_zar || 40), pulse_reserve: 3, memo_reserve: 12, soft: 0.8 },
   spent: { day: Number(c.day_zar || 0), week: Number(c.week_zar || 0) },
 };

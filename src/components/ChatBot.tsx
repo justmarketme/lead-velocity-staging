@@ -1,4 +1,6 @@
+import { errorProp } from "@/lib/groupB-errors";
 import { useState, useRef, useCallback, useEffect } from "react";
+import { getSpeechRecognition, type SpeechRecognitionEventLike, type SpeechRecognitionLike } from "@/lib/speechRecognition";
 import { useLocation, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { X, Send, Rocket, Sparkles, Mic, AudioLines, Minimize2, Maximize2, Bot, User, Loader2, PhoneOff } from "lucide-react";
@@ -11,13 +13,19 @@ import ReactMarkdown from "react-markdown";
 import einsteinAvatar from "@/assets/einstein-chatbot-avatar.webp";
 import { cn } from "@/lib/utils";
 
-// Routes where the chatbot should NOT appear
-const EXCLUDED_ROUTES = [
-    "/login",
-    "/invite",
-    "/broker-setup",
-    "/reset-password"
-];
+// Einstein lives on the PUBLIC website only — never the broker portal, admin, console or auth
+// pages. An allow-list (not a block-list) so a new portal route can never pick him up by accident.
+// Keep in step with the public pages the KB crawler indexes (supabase/functions/_shared/site_kb.ts).
+const PUBLIC_ROUTES = new Set([
+    "/",
+    "/about",
+    "/services",
+    "/pricing",
+    "/promotions",
+    "/specialized-services",
+    "/contact",
+    "/onboarding",
+]);
 
 const ONBOARDING_PATH = "/onboarding";
 
@@ -34,23 +42,23 @@ export function ChatBot() {
     const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
     const conversationRef = useRef<VoiceConversation | null>(null);
 
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
     const location = useLocation();
     const { messages, isLoading, sendMessage, addMessage, scrollRef } = useChatbot();
 
-    // Broker portal is TEXT-CHAT ONLY — no voice / conversation AI.
-    // Read once at render; the portal always lives under /broker.
-    const isBrokerPortal = window.location.pathname.startsWith("/broker");
-
-    const isExcluded = EXCLUDED_ROUTES.some((route) =>
-        location.pathname === route || location.pathname.startsWith(`${route}/`)
-    );
+    const isPublicPage = PUBLIC_ROUTES.has(location.pathname.replace(/\/+$/, "") || "/");
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim()) return;
         const text = input.trim();
         setInput("");
+        // During a voice session, typed text goes into that same live conversation.
+        if (isVoiceActive && conversationRef.current) {
+            conversationRef.current.sendUserMessage(text);
+            addMessage({ id: `typed-${Date.now()}`, role: "user", content: text });
+            return;
+        }
         sendMessage(text);
     };
 
@@ -61,7 +69,7 @@ export function ChatBot() {
             return;
         }
 
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        const SpeechRecognition = getSpeechRecognition();
         if (!SpeechRecognition) {
             alert("Speech-to-text is not supported in this browser. Try Chrome or Edge.");
             return;
@@ -74,7 +82,7 @@ export function ChatBot() {
         const originalInput = input;
 
         recognition.onstart = () => setIsListening(true);
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: SpeechRecognitionEventLike) => {
             let currentTranscript = "";
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 currentTranscript += event.results[i][0].transcript;
@@ -101,14 +109,17 @@ export function ChatBot() {
         return () => {
             stopVoiceSession();
             if (recognitionRef.current) {
-                try { recognitionRef.current.stop(); } catch { }
+                try { recognitionRef.current.stop(); } catch { /* already stopped */ }
             }
         };
     }, [stopVoiceSession]);
 
+    // Leaving the public site (e.g. clicking "Broker Login") ends any live voice session.
+    useEffect(() => {
+        if (!isPublicPage) stopVoiceSession();
+    }, [isPublicPage, stopVoiceSession]);
+
     const handleVoiceCall = async () => {
-        // Voice is disabled entirely on the broker portal — text chat only.
-        if (isBrokerPortal) return;
         if (isVoiceActive) {
             stopVoiceSession();
             addMessage({ id: Date.now().toString(), role: "bot", content: "Neural link terminated. Ze session has ended, voyager. Come back soon, ja!" });
@@ -124,19 +135,14 @@ export function ChatBot() {
                 throw new Error(response.error.message || 'Failed to create Einstein call');
             }
 
-            const { signedUrl, systemPrompt, firstMessage } = response.data;
+            // Einstein's prompt, voice and knowledge base live on his ElevenLabs agent — no overrides.
+            const { signedUrl } = response.data;
             if (!signedUrl) {
                 throw new Error('No signed URL returned from Einstein service');
             }
 
             const conversation = await Conversation.startSession({
                 signedUrl,
-                overrides: {
-                    agent: {
-                        prompt: { prompt: systemPrompt },
-                        firstMessage,
-                    },
-                },
                 onConnect: () => {
                     setIsVoiceActive(true);
                     setIsConnectingVoice(false);
@@ -165,12 +171,13 @@ export function ChatBot() {
 
             conversationRef.current = conversation;
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Voice Call Error:", err);
             setIsConnectingVoice(false);
             setIsVoiceActive(false);
             let errorMessage = "Ze neural link could not be established. Voice chat is unavailable — text chat is still active, ja!";
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            const errName = errorProp(err, 'name');
+            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
                 errorMessage = "Microphone access required for voice mode. Please check your browser settings and try again.";
             }
             addMessage({ id: Date.now().toString(), role: "bot", content: errorMessage });
@@ -201,10 +208,10 @@ export function ChatBot() {
         );
     };
 
-    if (isExcluded) return null;
+    if (!isPublicPage) return null;
 
     return (
-        <div className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 z-[100] flex flex-col items-end pointer-events-none">
+        <div className="fixed z-[100] flex flex-col items-end pointer-events-none bottom-6 right-6 sm:bottom-10 sm:right-10" data-testid="einstein-widget">
             {/* Chat Window */}
             {isOpen && (
                 <div className={cn(
@@ -359,8 +366,6 @@ export function ChatBot() {
                             {/* Input Area */}
                             <div className="p-4 bg-slate-950/50 border-t border-white/5">
                                 <div className="flex flex-col gap-3">
-                                    {/* Voice Toggle Button — hidden on the broker portal (text chat only) */}
-                                    {!isBrokerPortal && (
                                     <div className="flex items-center gap-2 pb-1">
                                         <Button
                                             type="button"
@@ -406,7 +411,6 @@ export function ChatBot() {
                                             <Mic className="w-4 h-4" />
                                         </Button>
                                     </div>
-                                    )}
 
                                     <form
                                         onSubmit={handleSubmit}
@@ -446,7 +450,10 @@ export function ChatBot() {
                         console.log("Einstein ChatBot Triggered");
                         setIsOpen(true);
                     }}
-                    className="rounded-full w-20 h-20 overflow-hidden shadow-[0_20px_60px_-15px_rgba(236,72,153,0.5)] hover:shadow-[0_25px_80px_-10px_rgba(236,72,153,0.7)] border-2 border-pink-500/50 transition-all duration-500 hover:scale-110 pointer-events-auto relative group active:scale-95"
+                    aria-label="Open chat"
+                    className={cn(
+                        "w-20 h-20 rounded-full overflow-hidden shadow-[0_20px_60px_-15px_rgba(236,72,153,0.5)] hover:shadow-[0_25px_80px_-10px_rgba(236,72,153,0.7)] border-2 border-pink-500/50 transition-all duration-500 hover:scale-110 pointer-events-auto relative group active:scale-95",
+                    )}
                 >
                     <div className="absolute inset-0 bg-gradient-to-t from-pink-500/20 to-transparent pointer-events-none" />
                     <img src={einsteinAvatar} alt="Einstein" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />

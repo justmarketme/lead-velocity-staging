@@ -26,12 +26,12 @@ dist-ssr
 .vercel
 .env*.local
 
-# Environment files — NEVER commit these
+# Environment files - NEVER commit these
 .env
 .env.*
 !.env.example
 
-# Local debug & admin scripts — may contain credentials
+# Local debug & admin scripts - may contain credentials
 test-db.js
 test-login.js
 run-sql.js
@@ -53,8 +53,9 @@ register-discord.js
 # Cursor / IDE config that may contain tokens (e.g. MCP, GitHub PAT)
 .cursor/
 supabase/.temp/
+supabase/.branches/
 
-# SortMyCover build — secrets and keys never committed (pre-commit guard in .githooks/)
+# SortMyCover build - secrets and keys never committed (pre-commit guard in .githooks/)
 *.pem
 *.key
 credentials*
@@ -72,7 +73,7 @@ credentials*
 !evals/**/*.json
 !community/**/*.txt
 
-# W24 evidence files hold PII hashes — never committed
+# W24 evidence files hold PII hashes - never committed
 compliance/
 *.whl
 !data/**/*.json
@@ -90,3 +91,43 @@ deliverables/billing/outbox-*/
 deliverables/contracts-drafter/lead-generation-agreement/*mark-weston*
 deliverables/contracts-drafter/lead-generation-agreement/email-to-*.md
 scripts/out/
+
+# Build / tool caches
+coverage/
+*.tsbuildinfo
+.deno/
+
+# --- Handover hygiene (release/smc-nurture) ---
+# Env: only .env.example is tracked (rules above); keep the local variants explicit too
+.env.local
+.env.*.local
+.vercel/
+.netlify/
+# Supabase CLI state
+supabase/.branches/
+# Local archives, upload bundles (e.g. smc-dist.zip) and scratch areas
+*.zip
+supabase/.temp/
+
+# Withdrawn/unreviewed ad-film build and its large local render intermediates.
+deliverables/ads-launch-film/
+# Security review is retained in the private EMMA handoff, never this public repo.
+docs/SECURITY-FIXES-2026-10-14.md
+tmp/
+.tmp/
+scratch/
+scratchpad/
+# Agent / editor local state (shared agent definitions in .claude/agents/ stay tracked)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+# Test output, build output, logs, OS files
+build_output.txt
+ts_errors.txt
+playwright-report/
+test-results/
+coverage/
+Thumbs.db
+desktop.ini
+*.log
+supabase/.branches/

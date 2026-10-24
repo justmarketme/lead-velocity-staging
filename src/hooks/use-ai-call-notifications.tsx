@@ -19,7 +19,7 @@ interface NotificationPreferences {
 // Create notification sound using Web Audio API
 const playNotificationSound = () => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const audioContext = new (window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)();
     
     // Create a pleasant two-tone notification sound
     const playTone = (frequency: number, startTime: number, duration: number) => {
@@ -87,6 +87,9 @@ export function useAICallNotifications() {
 
   const fetchNotifications = useCallback(async () => {
     try {
+      // Signed out (e.g. the /broker sign-in page): nothing to fetch, and anon may not read ai_call_requests.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
       const { data, error } = await supabase
         .from('ai_call_requests')
         .select('id, recipient_name, call_purpose, call_status, proposed_changes, changes_approved, created_at')

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>09 Close</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .hero { position: absolute; left: 0; right: 0; top: 190px; display: flex; flex-direction: column; align-items: center; }
+  .logo { height: 220px; width: auto; filter: drop-shadow(0 24px 40px rgba(147,51,234,.18)); }
+  .title { margin-top: 36px; font-size: 92px; line-height: 1; font-weight: 700; letter-spacing: -.03em; color: var(--navy); }
+  .rule { margin-top: 30px; width: 180px; height: 7px; border-radius: 4px; background: var(--grad); }
+  .line { margin-top: 46px; display: flex; gap: 18px; }
+  .chip { display: flex; align-items: center; gap: 14px; height: 68px; padding: 0 30px 0 14px; border-radius: 999px; background: #fff; border: 1.5px solid var(--line); box-shadow: var(--shadow); font-size: 26px; font-weight: 700; color: var(--navy); }
+  .chip .tick { width: 42px; height: 42px; }
+  .chip.nx { background: var(--navy); border-color: var(--navy); color: #fff; padding-left: 30px; }
+</style></head>
+<body data-scene="s09" data-header="0"><div class="stage">
+  <div class="hero">
+    <img class="logo" src="assets/lead-velocity-logo-contract.png" alt="Lead Velocity">
+    <div class="title">That's where we are.</div>
+    <div class="rule"></div>
+    <div class="line">
+      <div class="chip c1"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>Mark is in</div>
+      <div class="chip c2"><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>The pieces are built</div>
+      <div class="chip nx c3">Next: switch on, one tested step at a time</div>
+    </div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  window.update = t => {
+    rv('.logo', t, .15, { y: 26, scale: .92, blur: 10, dur: 1.2 });
+    $('.logo').style.transform += ` translateY(${(Math.sin(t * 1.1) * 4).toFixed(2)}px)`;
+    rv('.title', t, .4, { y: 36, blur: 8, dur: 1 });
+    $('.rule').style.transform = `scaleX(${P(t, .9, 1, E.inOut).toFixed(4)})`;
+    rv('.c1', t, cue('Mark') - .3, { y: 24, scale: .95, dur: .7 }); tick($('.c1 .tick'), t, cue('Mark') + .3);
+    rv('.c2', t, cue('pieces') - .3, { y: 24, scale: .95, dur: .7 }); tick($('.c2 .tick'), t, cue('built'));
+    rv('.c3', t, cue('switching') - .3, { y: 24, scale: .95, dur: .8 });
+  };
+</script></body></html>

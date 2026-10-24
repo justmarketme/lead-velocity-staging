@@ -52,3 +52,16 @@ returns uuid language sql as $$ insert into vault.secrets(name, description, sec
 create or replace function vault.update_secret(secret_id uuid, new_secret text default null, new_name text default null, new_description text default null, new_key_id uuid default null)
 returns void language sql as $$ update vault.secrets set secret = coalesce(new_secret, secret), name = coalesce(new_name, name), description = coalesce(new_description, description), updated_at = now() where id = secret_id $$;
 do $$ begin if not exists (select 1 from pg_publication where pubname='supabase_realtime') then create publication supabase_realtime; end if; end $$;
+-- pg_cron stand-in (2026-10-14): migrations such as 20261013180000_smc_voice_callback_cron.sql call cron.schedule / cron.unschedule
+-- and read cron.job; the throwaway Postgres has no pg_cron, which stopped the whole chain there. Jobs are recorded, never run.
+create schema if not exists cron;
+create table if not exists cron.job (jobid bigserial primary key, jobname text unique, schedule text, command text, active boolean default true);
+create or replace function cron.schedule(job_name text, schedule text, command text) returns bigint language sql as
+$$ insert into cron.job(jobname, schedule, command) values (job_name, schedule, command)
+   on conflict (jobname) do update set schedule = excluded.schedule, command = excluded.command returning jobid $$;
+create or replace function cron.unschedule(job_name text) returns boolean language sql as
+$$ with d as (delete from cron.job where jobname = job_name returning 1) select exists (select 1 from d) $$;
+-- pg_net stand-in: net.http_post exists so a function or cron command that names it compiles and runs; nothing leaves the container.
+create schema if not exists net;
+create or replace function net.http_post(url text, body jsonb default '{}'::jsonb, params jsonb default '{}'::jsonb,
+  headers jsonb default '{"Content-Type": "application/json"}'::jsonb, timeout_milliseconds integer default 5000) returns bigint language sql as $$ select 0::bigint $$;

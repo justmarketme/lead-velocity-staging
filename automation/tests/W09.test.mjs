@@ -4,7 +4,7 @@
 // Money rule protected: show rate. Multiple reminders beat one (Cochrane / BMJ Open); every touch is useful,
 // lands at the right moment, is sent exactly once, and stops the instant the lead says STOP or the booking moves.
 //   T0 + 10 min  what_to_expect
-//   T-48 h       intro_media (video; voice if no video) — if booked >= 3 days out, else straight after booking
+//   T0 + 24 h    intro_media (video; voice if no video) — a day after booking (Jono, 19 Oct 2026); straight after booking when the call is < 24 h away
 //   T-24 h       reminder_24h (Confirm / Reschedule) + prep_nudge
 //   T-2 h        reminder_2h
 //   T-10 min     reminder_10m
@@ -69,11 +69,27 @@ for (const id of ['L02', 'L03']) {
   });
 }
 
-test(`W09 [${MODE}] intro media: T-48 h only when booked >= 3 days out (L01), else 15 min after booking (L04)`, async () => {
+test(`W09 [${MODE}] intro media ("Meet Mark", Jono 19 Oct 2026): a day after booking (L01, L04), straight after it when the call is < 24 h away (L02)`, async () => {
   const a = (await sys.plan(lead('L01'))).jobs.find((j) => j.touch === 'intro_media');
-  assert.equal(a.at, iso(ms(lead('L01').booking_request.slot_start) - 48 * H));
+  assert.equal(a.at, iso(ms(lead('L01').booking_request.requested_at) + 24 * H));
   const b = (await sys.plan(lead('L04'))).jobs.find((j) => j.touch === 'intro_media');
-  assert.equal(b.at, iso(ms(lead('L04').booking_request.requested_at) + 15 * MIN));
+  assert.equal(b.at, iso(ms(lead('L04').booking_request.requested_at) + 24 * H), 'booked 2.8 days out: no longer straight after booking');
+  const c = (await sys.plan(lead('L02'))).jobs.find((j) => j.touch === 'intro_media');
+  assert.equal(c.at, iso(ms(lead('L02').booking_request.requested_at) + 15 * MIN));
+});
+
+test(`W09 [${MODE}] intro media: never after the call starts, never in quiet hours (shifted to 08:00, dropped when that is < 2 h before the call)`, (t) => {
+  if (MODE === 'online') return t.skip('edge cases of the pure rule');
+  const at = (bookedAt, start) => reminderPlan({ bookingId: 'b', start, bookedAt, lead: leadOf(lead('L01')), broker: B }).jobs.find((j) => j.touch === 'intro_media');
+  // booked 21:30 for a call 2 days later: T0 + 24 h = 21:30 (quiet) -> 08:00 the next morning
+  assert.equal(at('2026-10-12T21:30:00+02:00', '2026-10-14T15:00:00+02:00').at, '2026-10-14T08:00:00+02:00');
+  // booked 21:30, call at 09:00 two days later: 08:00 is < 2 h before the call -> dropped (reminder_2h carries the details)
+  assert.equal(at('2026-10-12T21:30:00+02:00', '2026-10-14T09:00:00+02:00'), undefined);
+  // booked exactly 24 h ahead: T0 + 24 h = the call itself -> straight after booking instead, never at or after the start
+  const edge = at('2026-10-12T10:00:00+02:00', '2026-10-13T10:00:00+02:00');
+  assert.ok(edge && ms(edge.at) < ms('2026-10-13T10:00:00+02:00'), JSON.stringify(edge));
+  // booked 30 min ahead: 15 min after booking, still before the call
+  assert.equal(at('2026-10-12T10:00:00+02:00', '2026-10-12T10:30:00+02:00').at, '2026-10-12T10:15:00+02:00');
 });
 
 test(`W09 [${MODE}] every touch falls strictly between booking and meeting, in time order`, async () => {

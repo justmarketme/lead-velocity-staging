@@ -89,7 +89,7 @@ const COPY = {
   end_booked_body: '{adviser} from {practice} (FSP {fsp}) will meet you on Teams on {when}. We have emailed the Teams invite to {email}. Your confirmation is on its way here on WhatsApp.',
   // verify gate (2026-10-11): the time is HELD until the email is verified; nothing reaches the adviser before that
   end_held_heading: 'Check your email to confirm',
-  end_held_body: "We're holding {when} for your Teams call with {adviser}. To confirm it, tap the link we've just emailed to {email}, or reply here on WhatsApp with the 6-digit code. If it isn't confirmed by {deadline}, we'll release the time.",
+  end_held_body: "We're holding {when} for your Teams call with {adviser}. To confirm it, tap the link we've just emailed to {email}. If it isn't confirmed by {deadline}, we'll release the time.",
   end_matching_heading: "We're matching you with an adviser",
   end_matching_body: "Thanks {first_name}. We're matching you with an authorised adviser now. We'll message you here on WhatsApp shortly so you can pick a time.",
   end_close_heading: 'Thank you',
@@ -108,7 +108,7 @@ const COPY = {
   // email verification (2026-10-11: sent from hello@sortmycover.co.za through Resend by smc-email-verify,
   // automation/lib/sub-email-verify.mjs; `mail` below is converted to the Resend body there)
   verify_subject: 'Confirm your email for your call with {adviser}',
-  verify_body: 'Hi {first_name},\n\nPlease confirm this is your email address so {adviser} can send you your meeting details:\n\n{link}\n\nOr reply on WhatsApp with this code: {code}\n\nThe link and code work for 24 hours. If you did not ask for this, ignore this email.\n\nSortMyCover',
+  verify_body: 'Hi {first_name},\n\nPlease confirm this is your email address so {adviser} can send you your meeting details:\n\n{link}\n\nThe link works for 24 hours. If you did not ask for this, ignore this email.\n\nSortMyCover',
   // tier B broker offer (template broker_lead_offer) + lead-side lines
   lead_matching_wa: "Thanks {first_name}. We're matching you with an authorised adviser now. We'll message you here shortly so you can pick a time.",
   lead_held_wa: "Thanks for your patience, {first_name}. All our advisers are fully booked right now. We'll message you here as soon as one is free.",
@@ -201,7 +201,7 @@ function issueEmailVerification(lead, { secret, now, baseUrl = 'https://sortmyco
   const sig = b64url(crypto.createHmac('sha256', secret).update(`${payload}|${sha(String(lead.email).toLowerCase())}`).digest());
   const token = `${payload}.${sig}`;
   const link = `${baseUrl}/v/${token}`;
-  const vars = { first_name: firstWord(lead.first_name), adviser, link, code };
+  const vars = { first_name: firstWord(lead.first_name) || 'there', adviser, link, code };
   return {
     set: { email_verify_code_hash: sha(`${lead.id}|${code}`), email_verify_sent_at: new Date(now).toISOString(), email_verify_expires_at: new Date(exp * 1000).toISOString(), email_verify_attempts: 0 },
     code, token, link,

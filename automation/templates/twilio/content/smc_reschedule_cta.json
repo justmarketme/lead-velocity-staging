@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "key": "smc_reschedule_cta",
+    "approval": null,
+    "session_only": true
+  },
+  "content": {
+    "friendly_name": "smc_reschedule_cta",
+    "language": "en",
+    "variables": {
+      "1": "No problem, Thandi, life happens. Your call with Mark is booked for Wed 21 Oct at 10:00. Tap below to pick a new time. You can choose any open time in the next 14 days.",
+      "2": "lt1.sample"
+    },
+    "types": {
+      "twilio/card": {
+        "title": "{{1}}",
+        "media": [
+          "https://n8n.sortmycover.co.za/media/whatsapp/headers/header-reschedule.png"
+        ],
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Pick a new time",
+            "url": "https://sortmycover.co.za/start/#move=1&lt={{2}}"
+          }
+        ]
+      }
+    }
+  }
+}

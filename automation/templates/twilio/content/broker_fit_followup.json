@@ -1,0 +1,78 @@
+{
+  "_meta": {
+    "key": "broker_fit_followup",
+    "source": "automation/templates/broker_fit_followup.json",
+    "approval": {
+      "name": "smc_broker_fit_followup",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 0
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "quick_reply",
+        "index": 1
+      },
+      {
+        "n": 6,
+        "kind": "button",
+        "type": "url",
+        "index": 2
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_fit_followup",
+    "language": "en",
+    "variables": {
+      "1": "Mark",
+      "2": "Thu 15 Oct",
+      "3": "Lerato M.",
+      "4": "followed_up:sample",
+      "5": "still_to_do:sample",
+      "6": "l/ld_51c9"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, a quick nudge. On {{2}} you marked {{3}} as a good fit who needs a follow-up. The follow-up is yours; this is only a reminder. Tap below to tell us where it stands.",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "QUICK_REPLY",
+            "title": "Followed up",
+            "id": "{{4}}"
+          },
+          {
+            "type": "QUICK_REPLY",
+            "title": "Still to do",
+            "id": "{{5}}"
+          },
+          {
+            "type": "URL",
+            "title": "Open in portal",
+            "url": "https://leadvelocity.co.za/{{6}}"
+          }
+        ]
+      }
+    }
+  }
+}

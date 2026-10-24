@@ -1,7 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Conversation, type TextConversation } from "@elevenlabs/client";
 import { supabase } from "@/integrations/supabase/client";
-import { pricingSummaryText, QUALIFIED_LEAD_TEXT } from "@/lib/pricing";
 
+// Typed chat in the Einstein bubble runs on the SAME ElevenLabs agent as his voice (same persona,
+// knowledge base and booking/WhatsApp tools), in text-only mode. No other LLM is involved.
+// The session opens on the first message and is reused until ElevenLabs ends it; the next message
+// after that opens a fresh one.
 
 export interface Message {
     id: string;
@@ -9,60 +13,18 @@ export interface Message {
     content: string;
 }
 
-const SYSTEM_PROMPT_BASE = `You are Einstein, a witty, cyberpunk astronaut version of Albert Einstein.
-You are the AI brain behind "Lead Velocity" — an insurance lead generation service for elite brokers in South Africa.
-You ONLY speak about Lead Velocity. If asked about anything else, creatively pivot back to it.
+// Same words as EINSTEIN_FIRST_MESSAGE (supabase/functions/_shared/einstein_persona.ts). The agent sends
+// its first message when a session opens; we show it straight away instead and skip the duplicate.
+const GREETING =
+    "Guten Tag! I am Einstein, from Lead Velocity. Wunderbar to meet you. Are you a broker looking for more clients, or can I answer a quick question?";
 
-## LEAD VELOCITY — FULL KNOWLEDGE BASE:
-
-### THE PROBLEM WE SOLVE
-Most brokers have been burned by lead generation. They face:
-- Leads that "Don't Convert" → contacts who were never interested or qualified
-- Inconsistency → twenty leads one week, none the next
-- Low Quality → wrong numbers, fake emails, no opt-in
-- Wasted Time → hours chasing leads that never close
-Lead Velocity is structured and intentional. We're not another lead vendor hoping something sticks. We're a system designed for consistent, predictable growth.
-
-### HOW LEAD VELOCITY WORKS (4-Step Mechanism)
-1. Define Ideal Client: establish geographic area, income bracket, product focus.
-2. Targeted Generation: campaigns designed to attract fresh matching prospects.
-3. Qualified Against Criteria: checked against the defined profile. Quality over volume.
-4. Consistent Delivery: leads arrive as they qualify, each with a pre-call brief; a set number every 30-day cycle.
-**KEY DIFFERENTIATOR: We don't just sell leads — we book confirmed appointments and place them directly into the broker's calendar.**
-
-### WHAT "QUALIFIED" MEANS
-${QUALIFIED_LEAD_TEXT}
-
-### PRICING (from the pricing source; quote exactly, never round or discount)
-${pricingSummaryText()}
-Never promise attendance, sales, policies or results, and never link the fee to policies or commission. Point brokers to /pricing or the contact page.
-
-### BROKER READINESS ASSESSMENT (Onboarding)
-A 6-step diagnostic to tailor recommendations. Meeting becomes an alignment call.
-
----
-
-## YOUR CONVERSATIONAL STYLE:
-You MUST ALWAYS USE A THICK, COMICAL GERMAN ACCENT. 
-You are a SKILLED ADVISOR — part scientist, part sales mentor. 
-
-### CORE RULES:
-1. LISTEN AND ACKNOWLEDGE FIRST.
-2. EMPATHISE when needed.
-3. ANSWER FULLY.
-4. SUBTLY STEER. After answering, naturally bridge to the Readiness Assessment if appropriate.
-5. When directing to the form, use ONLY this token on a new line: [ONBOARDING_LINK]`;
+const ERROR_TEXT = "Hmm, my line dropped for a moment. Please try again, or WhatsApp the team on 073 765 1664.";
 
 export function useChatbot() {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: "greeting",
-            role: "bot",
-            content: "Greetings, voyager! I am Einstein-77, broadcasting from the Lead Velocity orbital station. Ready to bend the spacetime of your lead generation? How can I assist your brokerage today?",
-        },
-    ]);
+    const [messages, setMessages] = useState<Message[]>([{ id: "greeting", role: "bot", content: GREETING }]);
     const [isLoading, setIsLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const sessionRef = useRef<Promise<TextConversation> | null>(null);
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -70,96 +32,60 @@ export function useChatbot() {
         }
     }, [messages, isLoading]);
 
-    const getRoleContext = async () => {
-        try {
-            const { data } = await supabase.auth.getSession();
-            const session = data?.session;
-            if (!session) return "PUBLIC MODE: You ONLY provide information from the knowledge base. Do NOT reveal specific data or stats. If asked for leads or stats, politely explain that they must log in as a broker to see their dashboard.";
+    const addMessage = useCallback((msg: Message) => setMessages((prev) => [...prev, msg]), []);
 
-            // Check for admin
-            const { data: isAdmin } = await supabase.rpc('has_role', {
-                _user_id: session.user.id,
-                _role: 'admin'
+    const openSession = useCallback(() => {
+        if (sessionRef.current) return sessionRef.current;
+        let skippedGreeting = false;
+        const session = (async () => {
+            const { data, error } = await supabase.functions.invoke("create-einstein-call");
+            if (error || !data?.signedUrl) throw new Error(error?.message || "No signed URL for Einstein");
+            return await Conversation.startSession({
+                signedUrl: data.signedUrl,
+                textOnly: true,
+                onMessage: ({ message, role }) => {
+                    if (role !== "agent" || !message?.trim()) return;
+                    if (!skippedGreeting) {
+                        skippedGreeting = true; // the agent's first message = GREETING, already shown
+                        return;
+                    }
+                    setIsLoading(false);
+                    addMessage({ id: `bot-${Date.now()}-${Math.random()}`, role: "bot", content: message });
+                },
+                onDisconnect: () => {
+                    sessionRef.current = null;
+                    setIsLoading(false);
+                },
+                onError: (msg) => console.error("Einstein text chat:", msg),
             });
-
-            if (isAdmin) {
-                const { count: leadCount } = await supabase.from('leads').select('*', { count: 'exact', head: true });
-                const { count: brokerCount } = await supabase.from('brokers').select('*', { count: 'exact', head: true });
-                return `ADMIN MODE: You have full access to business intelligence.
-                Global Stats:
-                - Total leads in system: ${leadCount || 'Many'}
-                - Total active brokers: ${brokerCount || 'Several'}
-                You can discuss system-wide health and performance.`;
-            }
-
-            // Check for broker
-            const { data: broker } = await supabase
-                .from('brokers')
-                .select('*, profiles(full_name)')
-                .eq('user_id', session.user.id)
-                .single();
-
-            if (broker) {
-                const { count: myLeads } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('broker_id', broker.id);
-                return `BROKER MODE: You are assisting ${broker.profiles?.full_name || broker.contact_person || 'Broker'}.
-                Your Profile Context:
-                - Your Tier: ${broker.tier}
-                - Your Total Leads: ${myLeads || 0}
-                You should speak as their personal AI assistant, focusing on their specific leads and performance.`;
-            }
-
-            return "LOGGED IN MODE: User is authenticated but has no broker/admin profile yet.";
-        } catch (e) {
-            console.error("Context fetch error:", e);
-            return "ERROR MODE: Spacetime interference detected while identifying role.";
-        }
-    };
+        })();
+        sessionRef.current = session;
+        session.catch(() => {
+            sessionRef.current = null;
+        });
+        return session;
+    }, [addMessage]);
 
     const sendMessage = async (content: string) => {
-        if (!content.trim() || isLoading) return;
-
-        const userMsg: Message = { id: Date.now().toString(), role: "user", content };
-        setMessages((prev) => [...prev, userMsg]);
+        const text = content.trim();
+        if (!text || isLoading) return;
+        addMessage({ id: Date.now().toString(), role: "user", content: text });
         setIsLoading(true);
-
         try {
-            // Updated to call Einstein AI Edge Function with fallback support
-            const currentHistory = messages.map(m => ({ 
-                role: m.role === 'bot' ? 'bot' : 'user', 
-                content: m.content 
-            }));
-
-            const { data, error } = await supabase.functions.invoke('einstein-ai', {
-                body: { query: content, history: currentHistory },
-                headers: {
-                    'x-openrouter-key': import.meta.env.VITE_OPENROUTER_API_KEY
-                }
-            });
-
-            if (error) throw error;
-
-            if (data?.text) {
-                setMessages((prev) => [
-                    ...prev,
-                    { id: (Date.now() + 1).toString(), role: "bot", content: data.text },
-                ]);
-            }
-        } catch (error: any) {
+            const conversation = await openSession();
+            conversation.sendUserMessage(text);
+        } catch (error) {
             console.error("Einstein Error:", error);
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: (Date.now() + 1).toString(),
-                    role: "bot",
-                    content: "Static interference detected! Ze neural link is temporarily disrupted. Please try again or check your orbital alignment."
-                },
-            ]);
-        } finally {
             setIsLoading(false);
+            addMessage({ id: (Date.now() + 1).toString(), role: "bot", content: ERROR_TEXT });
         }
     };
 
-    const addMessage = (msg: Message) => setMessages((prev) => [...prev, msg]);
+    // Close the text session when the widget unmounts (e.g. navigating off the public site).
+    useEffect(() => () => {
+        sessionRef.current?.then((c) => c.endSession()).catch(() => {});
+        sessionRef.current = null;
+    }, []);
 
     return {
         messages,
