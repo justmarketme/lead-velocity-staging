@@ -57,7 +57,7 @@ export const pipeline = (acts: LeadAct[]) => {
   const has = (...t: string[]) => acts.some((a) => t.includes(a.activity_type));
   const steps = [
     { label: "Consented", done: true },
-    { label: "Told your name", done: has("adviser_disclosed") },
+    { label: "Sent to you", done: has("routed", "adviser_disclosed") },
     { label: "Opened booking page", done: openedBookingPage(acts) },
     { label: "Picked a time", done: has("booking_created") },
     { label: "Meeting", done: has("outcome_marked", "attended") },
