@@ -63,7 +63,7 @@ REST=(
   broker_booking_changed broker_autorenew_off broker_dsr_erase broker_cycle_ended broker_come_back broker_lead_opted_out
   broker_onb_welcome broker_onb_next broker_onb_calendar_ok broker_onb_ready broker_onb_nudge_24h broker_onb_nudge_72h
   broker_onb_issue broker_onb_live
-  ops_pulse ops_pulse_quiet ops_action ops_action_confirmed ops_alert ops_weekly ops_gate
+  ops_pulse ops_pulse_quiet ops_action ops_action_confirmed ops_alert ops_update ops_weekly ops_gate
   broker_intro_slots_v2 reschedule_offer_v2 broker_lead_offer lead_low_budget_held lead_low_budget_closed booking_held_verify_email booking_hold_released
   booking_confirm_chat
 )

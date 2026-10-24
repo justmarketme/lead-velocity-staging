@@ -16,6 +16,11 @@
 //             CAPI Lead payload (consent gate, no email), first-touch call to W06, public response body
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { inMarketingHours } from './contact-hours.mjs';
+import { inPool } from './routing-split.mjs';
+// test leads -> test practices only, real leads -> real advisers only (Jono, 23 Oct 2026): the Code nodes holding L = w01 build
+// the pool with L.routingPool(lead, $env) and pass it to decide (ctx.pool) / routeExisting (opts.pool) / L.inPool
+export { routingPool, inPool, isTestLead, isTestBroker } from './routing-split.mjs';
 
 const require = createRequire(import.meta.url);
 const LT = require('../security/lead-token.js');
@@ -484,9 +489,11 @@ export const takesProduct = (b, product) => product !== 'wills' || b.handles_wil
  * pickBroker(brokers, brand_id, tier?) -> broker or null. One broker today ("single_broker"); with more, the broker furthest
  * from filling his open lead orders gets the lead (ratio = order_attached / order_capacity), ties by id. Tier C: only
  * brokers with accepts_low_budget (the same fairness rule among them).
+ * pool (lib/routing-split.mjs routingPool, 23 Oct 2026): a test lead only among the test practices, a real lead never one;
+ * nobody left -> null, the same hold as no capacity. null pool (SMC_TEST_BROKER_IDS unset) = unchanged.
  */
-export function pickBroker(brokers = [], brandId = null, tier = null, product = null) {
-  const ok = brokers.filter((b) => isRoutable(b, brandId) && takesTier(b, tier) && takesProduct(b, product));
+export function pickBroker(brokers = [], brandId = null, tier = null, product = null, pool = null) {
+  const ok = brokers.filter((b) => isRoutable(b, brandId) && inPool(b, pool) && takesTier(b, tier) && takesProduct(b, product));
   if (!ok.length) return null;
   const ratio = (b) => (Number(b.order_attached) || 0) / Math.max(1, Number(b.order_capacity) || 1);
   const best = [...ok].sort((a, b) => ratio(a) - ratio(b) || String(a.broker_id ?? a.id).localeCompare(String(b.broker_id ?? b.id)))[0];
@@ -510,8 +517,8 @@ export function namesPractice(consentText, b) {
  * Named consent (0.1 default while there is one broker): the practice named in the consent text must be the broker
  * we route to, otherwise the lead is HELD (stored, not handed over, not messaged) and ops sees it in the console.
  */
-export function routingFor(consentText, consentMode, brokers, brandId, tier = null, product = null) {
-  const b = pickBroker(brokers, brandId, tier, product);
+export function routingFor(consentText, consentMode, brokers, brandId, tier = null, product = null, pool = null) {
+  const b = pickBroker(brokers, brandId, tier, product, pool);
   if (!b) return { held: product === 'wills' ? 'held_no_wills_broker' : tier === 'C' ? 'held_low_budget' : 'held_no_capacity' };
   if (consentMode === 'named' && !namesPractice(consentText, b)) return { held: 'held_consent_names_other_practice' };
   return { broker: b };
@@ -523,6 +530,7 @@ export function routingFor(consentText, consentMode, brokers, brandId, tier = nu
  * ctx = { mobile, line_type, prior (latest lead with the same hash in this brand: {id, brand_id, created_at, line_type,
  *         duplicate_of, broker_id, opted_out_at}), suppressed, brokers, brand_id, consent_mode, now, lead_id, bot_check }
  *       start_here (19 Oct 2026): startHereReady($env); true sends a lead-ad lead without a band down the /start/ path
+ *       pool (23 Oct 2026): routingPool({ phone, is_synthetic }, $env); test lead -> test practice only, real -> real only
  * Returns { kind: 'reject' | 'duplicate' | 'insert', response:{http_status, body}, row?, activities[], first_touch?, capi?, mint_token }
  */
 export function decide(sub, ctx) {
@@ -665,7 +673,7 @@ export function decide(sub, ctx) {
       response: { http_status: 200, body: { ok: true, status: 'accepted', lead_id: row.id } } };
   }
 
-  let r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest);
+  let r = routingFor(row.consent_text, consentMode, ctx.brokers || [], brandId, tier, row.product_interest, ctx.pool || null);
   // Generic consent (19 Oct 2026): nobody was named to this lead yet and a page / form lead has no WhatsApp session, so it is
   // held (held_disclosure_pending) and routed later only after the adviser is named (W39 /start/, or the session text on its
   // first WhatsApp reply: W03 -> W01 core routeExisting). CAPI Lead then goes at that hand-over (held_* rule).
@@ -736,15 +744,16 @@ export function startHere(row, secret, nowMs = Date.now()) {
 
 /**
  * The ONE budget reminder (decided 2026-10-05): no tap within 3 h of the first qualify_budget -> the same template once
- * more, never inside lead quiet hours (20:00-08:00 SAST, same window as W08; a reminder due then goes at 08:00), then
+ * more, only inside the marketing contact hours (lib/contact-hours.mjs, same rule as W08: Mon-Fri 08:00-20:00, Sat 09:00-13:00,
+ * never Sunday or a public holiday; a reminder due outside them goes at the next sweep inside them, smoke test #13), then
  * nothing. The reminder sets retention_delete_after = reminder + 24 h: a lead who never taps is never handed over and is
  * deleted on the same 24-h rule as an out-of-band lead, counted from the reminder (a tap in time qualifies the lead and
  * W03 clears the date). Marked before sending (conv_state.budget_reminded_at): a duplicate is worse than a miss.
  */
 export const BUDGET_REMINDER_H = 3;
-export const BUDGET_REMINDER_QUIET = { from: 20, to: 8 };
 export const NO_TAP_RETENTION_H = 24;
-const inQuiet = (t) => { const h = new Date(t + 2 * H).getUTCHours(); return h >= BUDGET_REMINDER_QUIET.from || h < BUDGET_REMINDER_QUIET.to; };
+/** Outside the marketing contact hours (lib/contact-hours.mjs): W01's lead sends wait for the next sweep inside them. */
+const inQuiet = (t) => !inMarketingHours(t);
 export function budgetReminder(lead, nowMs = Date.now()) {
   const cs = lead && lead.conv_state || {};
   if (!lead || lead.origin !== 'lead_ad' || lead.routing_reason !== 'held_budget_pending' || cs.state !== 'q_budget') return null;
@@ -781,13 +790,14 @@ export function capiLead(row) {
  * W39 disclosure before routing (18 Oct 2026): expect_broker_id = the adviser the lead was shown and confirmed; any other
  * pick is NOT routed (action 'skip', reason 'broker_changed'). hold_only: true records a hold (+ the tier-C notice) but
  * never routes (a broker that became free meanwhile -> 'skip', reason 'not_disclosed').
+ * pool (23 Oct 2026): routingPool(lead, $env) from the caller; a test lead routes only to a test practice, a real lead never.
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false, require_disclosure = false } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false, require_disclosure = false, pool = null } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
   if (lead.suppressed) return { action: 'skip', reason: 'suppressed' };
-  const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null);
+  const r = routingFor(lead.consent_text, lead.consent_mode || consent_mode, brokers, lead.brand_id, tierOf(lead.budget_band), lead.product_interest || null, pool);
   if (r.held) return { action: 'held', update: { routing_reason: r.held }, notice: r.held === 'held_low_budget' ? lowBudgetHeld(lead) : null };
   const b = r.broker;
   if (hold_only) return { action: 'skip', reason: 'not_disclosed' };
@@ -894,7 +904,7 @@ export function lowBudgetHandoff(lead) {
  * Low-budget sweep, close half: a tier-C lead nobody took within LOW_BUDGET_HOLD_DAYS of capture is closed politely, like an
  * unbooked close (stage unbooked_closed, routing_reason low_budget_no_taker, conv_state closed_unbooked). It is a real lead,
  * not out of band: no 24-h deletion, the normal retention clock (last_contact_at, CONTRACTS I-38d) applies. One message
- * (template lead_low_budget_closed), never in lead quiet hours (20:00-08:00 SAST: the 08:00 sweep picks it up).
+ * (template lead_low_budget_closed), only inside the contact hours (lib/contact-hours.mjs: the next sweep inside them picks it up).
  */
 export function lowBudgetClose(lead, nowMs = Date.now()) {
   if (!lead || !lead.id || lead.broker_id || lead.routing_reason !== 'held_low_budget') return null;

@@ -11,9 +11,11 @@
 //   -> toneCheck -> assemble -> send.
 import { prefilter, redactForLLM, redactForStorage, outputGate, classifierInput, toneCheck, sanitiseField } from '../../conversation/guardrail.mjs';
 import { decide, DEFER_TOPICS, FAQ_TOPICS, INTENTS, ALL_TOPICS } from '../../conversation/logic.mjs';
-import { LINES, fill, fixedLines } from '../../conversation/lines.mjs';
+import { LINES, fill, fixedLines, DISCLOSE_PERSON } from '../../conversation/lines.mjs';
 import { isPulseLine } from '../../conversation/pulse.mjs';
 import { checkEmail } from './w05.mjs';
+import { takesTypedReason } from './w10.mjs';
+import { isSyntheticNumber } from './wa.mjs';
 
 export const WORKFLOW = 'W07';
 // The CTWA ad pre-fill: "book a 30-minute call with an adviser" since 18 Oct 2026 (Jono); "check my life cover" before, still accepted.
@@ -102,6 +104,21 @@ export function w06StatusItem(row = {}) {
   const at = row.at ? new Date(row.at).toISOString() : null;
   return { op: 'status', wamid: row.wamid, status: row.status, at, errors: row.error ? [String(row.error)] : [] };
 }
+/**
+ * Smoke test 21 Oct 2026 (#18): receipts arrive out of order (a late 'sent' overwrote 'failed', a late 'delivered' overwrote
+ * 'read'). A receipt may only move communications.status forward: sent < delivered < read; failed only from pending / sent
+ * (Twilio queued / accepted / sending already map to 'sent'). The same status again stays allowed (idempotent re-delivery).
+ * receiptGuardSql() is the same table as SQL; patch-w07-receipt-forward.mjs puts it in the W07 "Status receipt" UPDATE.
+ */
+export const RECEIPT_FROM = {
+  sent: ['pending', 'sent'],
+  delivered: ['pending', 'sent', 'delivered'],
+  read: ['pending', 'sent', 'delivered', 'read'],
+  failed: ['pending', 'sent', 'failed'],
+};
+export const receiptMayMove = (from, to) => (RECEIPT_FROM[to] || []).includes(from == null ? 'pending' : String(from));
+export const receiptGuardSql = (param = '$2') => `AND CASE ${param} ${Object.entries(RECEIPT_FROM)
+  .map(([to, from]) => `WHEN '${to}' THEN coalesce(status, 'pending') IN (${from.map((s) => `'${s}'`).join(', ')})`).join(' ')} ELSE false END`;
 export const BEST_TIME = { best_mornings: 'mornings', best_lunchtime: 'lunchtime', best_afternoons: 'afternoons', best_evenings: 'evenings', best_any: 'any' };
 
 // W32 Approve / Later quick replies (optimisation/n8n-code/w32-pulse-messages.js + w32-escalate.js: "approve:<uuid>" | "later:<uuid>").
@@ -129,6 +146,9 @@ export function convStatePatch(plan = {}, { disclosed_after = false, now_iso = n
   return p;
 }
 
+/** An inbound with nothing in it for Lindi: no text, tap, list row, media, Flow reply or ad referral (#34). */
+export const isEmptyInbound = (msg = {}) => !String(msg.text || '').trim() && !msg.payload && !msg.list_id && !msg.media && !msg.flow_response && !msg.referral;
+
 export function routeInbound(msg, ctx = {}) {
   const r = routeCore(msg, ctx);
   if (msg.origin === 'w03' && r.route === 'W03') {
@@ -151,11 +171,21 @@ function routeCore(msg, ctx) {
   }
   // STOP anywhere, in any state, before anything else (W15). prefilter's STOP_RX is the broad net; this is the exact word.
   if (STOP_WORDS.test(msg.text || '') || (msg.text && prefilter(msg.text).stop)) return { route: 'W15', reason: 'STOP' };
+  // 21 Oct 2026 (Jono): a person in distress, or asking for a person, from a number with no lead yet is never sent the
+  // consent form. A person is alerted (red / amber) and nothing automated is sent (patch-w07-preconsent-handoff.mjs).
+  if (!ctx.lead && msg.text && !msg.payload && !msg.list_id) {
+    const p = prefilter(msg.text);
+    if (p.distress) return { route: 'handoff_pre_consent', reason: 'distress before consent', severity: 'red' };
+    if (p.person) return { route: 'handoff_pre_consent', reason: 'asked for a person before consent', severity: 'amber' };
+  }
   if (!ctx.lead) return msg.referral || CTWA_OPENER_RE.test(msg.text || '') ? { route: 'W03', reason: 'CTWA entry' } : { route: 'W03', reason: 'unknown number: W03 consent first' };
   // 19 Oct 2026: every message from an opted-out lead goes to W15 and nowhere else (never Lindi, never another sender).
   // W15 decides (lib/w15.mjs followupOf): a stop_why:<code> reason is stored, stop_undo:changed_mind gets its one reply,
   // a typed CANCEL releases a kept booking; anything else is stored by nobody and answered by nobody.
   if (ctx.lead.opted_out_at) return { route: 'W15', reason: 'stop_followup' };
+  // Smoke test 21 Oct 2026 (#34): nothing to answer (blank text, a location share: no text, tap, media or Flow reply) -> no route
+  // matches, so the Route switch's fallback (the log-only no-op) takes it: no model call, no Start here card.
+  if (isEmptyInbound(msg)) return { route: 'ignore_empty', reason: 'no content (blank text or a location share)' };
   // 2026-10-11: the 6-digit email verification code (sent by smc-email-verify from hello@sortmycover.co.za via Resend)
   // is typed here on WhatsApp. Only while a code is outstanding, so a 6-digit number never leaves the agent otherwise.
   // 18 Oct 2026 (Jono): the email is confirmed by the link only. No code is offered any more, so a typed 6-digit number is
@@ -179,7 +209,13 @@ function routeCore(msg, ctx) {
   // cancel_reason_pending, 30 min, that booking) the lead's next free text goes to W10 as the reason (lib/w10.mjs classifyOp).
   const pend = ctx.lead.conv_state && ctx.lead.conv_state.cancel_reason_pending;
   const nowMs = Number.isFinite(ctx.now_ms) ? ctx.now_ms : Date.now();
-  if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs) {
+  // Smoke #12 (21 Oct 2026): the wait now opens with the card itself, so it is read more often. Safety first: distress, asking
+  // for a person, a complaint or a claim problem is never taken as a cancel reason (it goes to Lindi's normal path).
+  const safety = pend ? prefilter(String(msg.text || '')) : {};
+  // Review 21 Oct: a wait the card itself opened (via 'card') takes only a reply that names a reason, keep ("No", "Wait"), a
+  // time or a plain cancel; an acknowledgement, a method or anything unclear goes to Lindi (lib/w10.mjs takesTypedReason).
+  if (pend && ctx.has_live_booking && !msg.payload && !msg.list_id && String(msg.text || '').trim() && Date.parse(pend.until) > nowMs
+    && !safety.distress && !safety.person && !safety.complaint && !safety.claim_problem && takesTypedReason(msg.text, pend.via)) {
     return { route: 'W10', reason: 'typed cancel reason', delegate: { to: 'W10', action: 'cancel_reason_text', actions: ['cancel_reason_text'], booking_id: pend.booking_id || null } };
   }
   if (state === 'handoff') return { route: 'paused', reason: 'a person has this conversation' };
@@ -269,15 +305,24 @@ export const inHours = (now_ms) => { const h = new Date(now_ms + SAST).getUTCHou
  * escalations_kind_check has no `sensitive` yet (I-25), so it is stored as kind 'human_handoff', severity 'red',
  * note 'esc_kind=sensitive' - the same mapping W30/W31 use - until platform-architect pass 3 adds the value.
  */
+/**
+ * 21 Oct 2026 (deploy of the smoke fixes): a wa-smoke inbound WhatsApped Jono through "Send ops alert". An ops alert CAUSED
+ * by a number on env SYNTHETIC_TEST_NUMBERS (exact numbers, lib/wa.mjs isSyntheticNumber; never a range) WhatsApps nobody:
+ * the escalation row is still written (marked) and W22 signals go by email only (lib/w22.mjs `synthetic`).
+ * j = any W07 item carrying { lead?: { phone }, msg?: { from } }.
+ */
+export const syntheticSubject = (j = {}, env = {}) => [j && j.lead && j.lead.phone, j && j.msg && j.msg.from].some((v) => isSyntheticNumber(v, env));
+export const SYNTHETIC_ESC_NOTE = '; synthetic test number (SYNTHETIC_TEST_NUMBERS): logged only, no ops WhatsApp';
 export const ESC_DB_KIND = { sensitive: 'human_handoff', human_handoff: 'human_handoff', frustrated: 'human_handoff', unanswered: 'human_handoff', claim_problem: 'human_handoff', complaint: 'complaint', guardrail_trip: 'guardrail_trip', band_conflict: 'other', opted_out_message: 'other' };
-export function escalationRow(kind, { lead_id, broker_id, brand_id, wamid, urgent = false }) {
+export function escalationRow(kind, { lead_id, broker_id, brand_id, wamid, urgent = false, synthetic = false }) {
   return {
     kind: ESC_DB_KIND[kind] || 'other',
     severity: kind === 'sensitive' ? 'red' : urgent || kind === 'complaint' ? 'urgent' : 'normal',
     ref_table: 'communications', ref_id: wamid, lead_id, broker_id, brand_id,
-    note: `esc_kind=${kind}`,
+    // a SYNTHETIC_TEST_NUMBERS chat (syntheticSubject): the console row is the only record; nobody is WhatsApped
+    note: `esc_kind=${kind}` + (synthetic ? SYNTHETIC_ESC_NOTE : ''),
     // trigger 6: both people at once, never batched into the digest; others primary first, backup at 15 min
-    notify: kind === 'sensitive' ? ['Jonathan', 'KG'] : ['Jonathan'],
+    notify: synthetic ? [] : kind === 'sensitive' ? ['Jonathan', 'KG'] : ['Jonathan'],
     deep_link: lead_id ? `/console/conversations/${lead_id}` : null
   };
 }
@@ -295,7 +340,7 @@ export function leadThemes(nlu, pre, text_store) {
 
 /**
  * planActions(decision, ctx) -> what W07 does next. Pure.
- * ctx = { lead, broker, booking, pre, nlu, now_ms, lang, state, wamid, disclosed }
+ * ctx = { lead, broker, booking, pre, nlu, now_ms, lang, state, wamid, disclosed, synthetic }  (synthetic: syntheticSubject(), a test number)
  */
 export function planActions(decision, ctx) {
   const { pre, nlu, now_ms } = ctx;
@@ -306,7 +351,7 @@ export function planActions(decision, ctx) {
   // #5: outputGate's injected_field check needs the RAW stored name, not the sanitised one
   const plan = { actions: decision.actions, next_state: decision.next_state, prefix: [], suffix: [], reply_actions: [], delegate: [], escalation: null, pause_reminders: false, send: true, unanswered: 0, themes: leadThemes(nlu, pre, ctx.text_store || ''), lead_updates: {}, first_name_raw: String(ctx.lead?.first_name || ''), discloses: false };
   const has = (a) => decision.actions.includes(a);
-  const esc = (kind) => { plan.escalation = escalationRow(kind, { lead_id: ctx.lead?.id, broker_id: ctx.lead?.broker_id, brand_id: ctx.lead?.brand_id, wamid: ctx.wamid }); };
+  const esc = (kind) => { plan.escalation = escalationRow(kind, { lead_id: ctx.lead?.id, broker_id: ctx.lead?.broker_id, brand_id: ctx.lead?.brand_id, wamid: ctx.wamid, synthetic: ctx.synthetic === true }); };
 
   if (has('stop')) { plan.delegate.push({ to: 'W15' }); plan.send = false; return plan; }
   if (has('handoff_urgent')) { esc('sensitive'); plan.send = false; plan.pause_reminders = true; plan.next_state = 'handoff'; return plan; }
@@ -331,7 +376,9 @@ export function planActions(decision, ctx) {
   if (has('clarify')) { plan.prefix.push(L.CLARIFY); plan.unanswered = (ctx.unanswered || 0) + 1; }
   if (has('commitment_ok')) plan.prefix.push(L.COMMIT_OK);
   if (has('commitment_check')) plan.prefix.push(L.COMMIT_CHECK);
-  if (has('close_unbooked')) { plan.prefix.push(L.CLOSE_UNBOOKED); plan.delegate.push({ to: 'W08', action: 'close' }); plan.lead_updates.stage = 'unbooked_closed'; }
+  // smoke test #6 (21 Oct 2026): W08 sends the one CLOSE_UNBOOKED line (past the suppression it writes), so W07 sends
+  // nothing itself: no second goodbye, no FAQ line, and no "Start here again" card (that hangs off W07's own send).
+  if (has('close_unbooked')) { plan.prefix.push(L.CLOSE_UNBOOKED); plan.delegate.push({ to: 'W08', action: 'close' }); plan.lead_updates.stage = 'unbooked_closed'; plan.send = false; }
   if (has('flag_band_conflict')) esc('band_conflict');
   for (const a of decision.actions) {
     if (REPLY_ACTIONS.test(a)) plan.reply_actions.push(a);
@@ -348,7 +395,9 @@ export function planActions(decision, ctx) {
   }
   // 4.11 disclosure: the first free-text reply carries DISCLOSE (W06's intro card already named the practice + FSP)
   if (!ctx.disclosed && (plan.prefix.length || plan.suffix.length || plan.reply_actions.length || plan.delegate.some((d) => ONE_MESSAGE[d.to]?.(d)))) {
-    plan.prefix.unshift(ctx.adviser_first ? L.DISCLOSE : L.DISCLOSE_PRE_ROUTE);
+    // smoke test 21 Oct 2026 (#9): chosen by broker_id (adviser_first is never empty: preStep falls back to 'your adviser'),
+    // and a routed lead with no first name gets the nameless line ("Hi , I'm Lindi" before).
+    plan.prefix.unshift(!ctx.lead?.broker_id ? L.DISCLOSE_PRE_ROUTE : first ? L.DISCLOSE : L.DISCLOSE_NO_NAME);
     plan.discloses = true;
   }
   if (decision.actions.length === 1 && decision.actions[0] === 'none') plan.send = false;
@@ -651,7 +700,8 @@ export function neverSilentText(route, { first_name = '', lang = 'en' } = {}) {
 }
 /** The internal alert that goes with every fallback (EMMA /api/notify -> Jono): first name, the hand-off that stayed silent,
     the lead id. Never the number or the message text (same rule as W38). */
-export function neverSilentAlert(j = {}) {
+export function neverSilentAlert(j = {}, env = null) {
+  if (env && syntheticSubject(j, env)) return null; // a test number: the "Never silent: escalation" row is the record
   const lead = j.lead || {};
   const first = sanitiseField('first_name', lead.first_name || (j.msg && j.msg.profile_name) || '').value || 'A lead';
   const what = j.route === 'W04' || j.route === 'W04_list' ? 'open times' : j.route === 'W05' ? 'a booking' : j.route === 'W10' ? 'a reschedule' : 'the next step';
@@ -711,6 +761,9 @@ export function faqLines(faq = {}, lang = 'en', vars = {}) {
   return out;
 }
 
+/** No booking yet: drop the answers about an existing call (FAQ-06 "Tap Reschedule or Cancel"; smoke test 21 Oct 2026, #32). */
+export const withoutBookingFaqs = (faq = {}) => Object.fromEntries(Object.entries(faq).filter(([, e]) => !e || e.topic !== 'cancel_move'));
+
 /** What the system will most likely do after this message, so the reply can lead into it. */
 export function nextHint(state, booking) {
   if (state === 'consent_pending') return 'waiting for their yes or no to sharing their details with the adviser';
@@ -745,7 +798,7 @@ export function turnRequest({ j = {}, turns = [], faq = {}, system = '', now_ms 
     `NOW: ${new Date(now_ms + SAST).toISOString().slice(0, 19)}+02:00 Africa/Johannesburg`, `FIRST_NAME: ${first}`, `ADVISER: ${adviser_first}`,
     `BOOKING: ${bv && bv.time ? `${bv.day} ${bv.date} ${bv.time} by ${bv.method_label}${bv.status === 'pending_verification' ? ' (held, waiting for their email)' : ''}` : 'none'}`,
     `KNOWN: ${known.join(', ')}`, `LANGUAGE: ${lang}`, `LEAD_USED_EMOJI: ${!!(j.pre && j.pre.lead_used_emoji)}`,
-    'FAQ (approved answers you may use, in your own words):', ...faqLines(faq, lang, vars),
+    'FAQ (approved answers you may use, in your own words):', ...faqLines(j.booking ? faq : withoutBookingFaqs(faq), lang, vars),
     'RECENT TURNS (oldest first):', ...(turnLines(turns).length ? turnLines(turns) : ['(none)']),
     `MESSAGE: """${String(j.text_llm || '').replace(/"{3,}/gu, '"').slice(0, 1200)}"""`,
   ].join('\n');
@@ -771,6 +824,8 @@ const FIXED_TURN_ACTIONS = new Set(['stop', 'handoff_urgent', 'human_review', 'p
   'cancel_confirm']);
 const OWNED_ELSEWHERE = new Set(['W03', 'W07_contact', 'W15', 'W08']);
 const SAFETY_KEYS = ['ID_WARNING', 'BANK_WARNING', 'MEDIA_NOT_OPENED'];
+// The person part of the 4.11 disclosure, in Lindi's own words or as the approved DISCLOSE_PERSON line.
+export const PERSON_OFFER = { en: /\bask (?:for|to (?:speak|talk) (?:to|with)) (?:a|a real|an actual) person\b/iu, af: /\bvra om met ['’]n mens te praat\b/iu };
 
 /**
  * Put Lindi's reply in place of the conversational fixed lines (DISCLOSE when she introduces herself, CLARIFY, STAY_IN_LANE,
@@ -799,13 +854,17 @@ export function applyModelReply(plan, reply, ctx = {}) {
   const vars = plan.vars || {};
   const mentionsLindi = /\bLindi\b/u.test(r);
   const isSafety = (x, filled) => SAFETY_KEYS.some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
-  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  const isDisclose = (x, filled) => ['DISCLOSE', 'DISCLOSE_NO_NAME', 'DISCLOSE_PRE_ROUTE'].some((k) => (filled ? fill(L[k], vars) : L[k]) === x);
+  // Smoke #23 (21 Oct 2026): her own intro replaces the fixed DISCLOSE line, so it must carry the whole disclosure. Live, "Hi, I'm
+  // Lindi from SortMyCover! The call takes about 30 minutes..." went out without the person line. A first-contact reply that
+  // names Lindi but leaves that out gets the approved DISCLOSE_PERSON line right after it.
+  const rr = !ctx.disclosed && mentionsLindi && !PERSON_OFFER[lang].test(r) ? `${r} ${DISCLOSE_PERSON[lang]}` : r;
   if (one) {
     const lines = one.lead_lines || [];
     const disc = !ctx.disclosed && !mentionsLindi ? lines.filter((x) => isDisclose(x, true)) : [];
     const keep = lines.filter((x) => isSafety(x, true));
     one.lead_lines = [...disc, ...keep];
-    one.body = [...disc, r, ...keep].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
+    one.body = [...disc, rr, ...keep].map((x) => String(x || '').trim()).filter(Boolean).join(' ').slice(0, WA_BODY_MAX);
     one.model_reply = true;
     one.carries_disclose = !ctx.disclosed && (mentionsLindi || disc.length > 0);
     plan.discloses = one.carries_disclose;
@@ -813,7 +872,7 @@ export function applyModelReply(plan, reply, ctx = {}) {
     plan.prefix = !ctx.disclosed && !mentionsLindi ? plan.prefix.filter((x) => isDisclose(x, false)) : [];
     plan.suffix = plan.suffix.filter((x) => isSafety(x, false));
     plan.reply_actions = [];
-    plan.model_text = r;
+    plan.model_text = rr;
     plan.send = true;
     plan.discloses = !ctx.disclosed && (mentionsLindi || plan.prefix.length > 0);
   }

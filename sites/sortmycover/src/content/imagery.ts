@@ -68,6 +68,12 @@ export const SCENES = {
   pFaq: s("p-faq", "A man reading his phone at the kitchen counter", "Indian South African man, about 40, reading a message at his kitchen counter", 1440, 960),
   pAdvisers: s("p-advisers", "A man at his desk before a call", "Black South African man, about 50, at a desk with a laptop and bookshelves", 896, 597),
   pHomeWhatWeAre: s("p-home-what-we-are", "A business owner opening his workshop", "White South African man, about 48, pushing up the door of his workshop at sunrise", 1440, 960),
+  /* wills guides that had no photo (21 Oct 2026, Higgsfield nano_banana_2 -> nano_banana_flash, 2 credits each) */
+  aGuardiansFund: s("a-guardians-fund", "A grandmother helping her grandson with homework", "Coloured South African grandmother, about 50, helping her teenage grandson with homework at a kitchen table, Mitchells Plain home, afternoon light", 1440, 966),
+  aIntestate: s("a-intestate", "Two family members looking through a photo album", "Black South African brother and sister, mid-40s, looking through a family photo album together on a couch, Polokwane home", 1440, 966),
+  aReportingEstate: s("a-reporting-estate", "A man sorting papers at his desk", "Indian South African man, about 48, calmly sorting envelopes and a ring binder at a wooden desk in a home study, Pietermaritzburg", 1440, 966),
+  aSmallEstates: s("a-small-estates", "A woman reading a letter at her kitchen counter", "White South African woman, about 45, reading a letter at her kitchen counter with a cup of tea, Bloemfontein home", 1440, 966),
+  aWillValid: s("a-will-valid", "A couple signing a document with two friends as witnesses", "Black South African couple, about 40, signing a document at a dining table while two friends sit beside them as witnesses, Soweto home", 1440, 966),
   hubWills: s("hub-wills", "A family looking at old photographs", "White South African family across three generations looking at an old photo album at a dining table, Stellenbosch"),
 } satisfies Record<string, SceneImage>;
 
@@ -123,6 +129,11 @@ export const ARTICLE_SCENES: Record<string, SceneImage> = {
   "estate-administration": SCENES.aEstateAdmin,
   "the-will-appointment": SCENES.lAdviser,
   "where-to-keep-a-will": SCENES.lIncome,
+  "guardians-fund": SCENES.aGuardiansFund,
+  "intestate-succession": SCENES.aIntestate,
+  "reporting-a-deceased-estate": SCENES.aReportingEstate,
+  "small-estates-letters-of-authority": SCENES.aSmallEstates,
+  "what-makes-a-will-valid": SCENES.aWillValid,
 };
 
 /** Page path -> its photo, shown under the page heading by PageFrame. */

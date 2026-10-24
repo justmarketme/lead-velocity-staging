@@ -65,7 +65,7 @@ async function askLindi(system: string, user: string): Promise<string> {
       err ? reject(err) : resolve(parts.join("").trim());
     };
     const timer = setTimeout(() => (parts.length ? finish() : finish(new Error("timeout"))), TIMEOUT_MS);
-    let settle: number | undefined;
+    let settle: ReturnType<typeof setTimeout> | undefined;
     const sendUser = () => { if (!sent) { sent = true; ws.send(JSON.stringify({ type: "user_message", text: user })); } };
 
     ws.onopen = () => ws.send(JSON.stringify({

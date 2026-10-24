@@ -221,9 +221,23 @@ export function outcomeRow(r, { now, via = 'whatsapp' } = {}) {
     marked_at: r.no_show_confirmed_at || iso(now),
     dispute_status: r.dispute_status === 'open' ? 'open' : 'none',
     appointment_status: { attended: 'attended', no_show: 'no_show', broker_no_show: 'no_show', rescheduled: 'rescheduled' }[r.outcome],
-    lead_stage: { attended: 'attended', no_show: 'no_show', broker_no_show: null, rescheduled: null }[r.outcome]
+    lead_stage: { attended: 'attended', no_show: 'no_show', broker_no_show: null, rescheduled: null }[r.outcome],
+    conv_state: CONV_STATE_AFTER_OUTCOME[r.outcome] || null
   };
 }
+
+/**
+ * Smoke test 21 Oct 2026 (#40): the conversation state follows the recorded outcome (conversation/logic.mjs STATES), so a lead
+ * that rescheduled and then attended is no longer left on 'rescheduling' (the after-call line needs 'attended'). A rescheduled
+ * mark leaves it to W10. The SQL never overwrites 'opted_out' or 'handoff' (a person has the conversation).
+ */
+export const CONV_STATE_AFTER_OUTCOME = { attended: 'attended', no_show: 'no_show', broker_no_show: 'broker_no_show' };
+/**
+ * Review 21 Oct 2026: W05 lets a lead book call B once call A has ENDED (live check ends_at > now()), while A stays 'booked'
+ * until W12 records it. A's outcome must then leave conv_state alone (B's 'booked'), else a later "please cancel" reads as
+ * close_unbooked. SQL for the leads UPDATE's CASE: true when no OTHER live booking of this lead starts after `bookingSql`'s.
+ */
+export const noNewerLiveBookingSql = (bookingSql) => `NOT EXISTS (SELECT 1 FROM public.appointments nb JOIN public.appointments ob ON ob.id = ${bookingSql} WHERE nb.client_id = leads.id AND nb.id <> ob.id AND nb.status IN ('pending_verification','booked','confirmed') AND nb.appointment_date > ob.appointment_date)`;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Messages (templates in automation/templates; variable counts are checked by the tests)
@@ -484,7 +498,7 @@ export function autoAttendedResolution(row = {}) {
 const claimItem = (r, row, outcomeId, via, writes) => ({ fu: 'claim', via, r, row, outcome_id: outcomeId, ...writes });
 
 /** The claim query's parameters (one row per booking, `w12:outcome:{booking_id}`, ON CONFLICT DO NOTHING). */
-export const claimParams = (c) => [c.row.lead_id, c.row.brand_id, c.row.broker_id, c.row.booking_id, c.row.outcome || c.r.outcome, c.via, c.r.outcome, c.r.lead_reach_check || 'none', Boolean(c.dispute_open), c.appointment_status || null, c.lead_stage || null];
+export const claimParams = (c) => [c.row.lead_id, c.row.brand_id, c.row.broker_id, c.row.booking_id, c.row.outcome || c.r.outcome, c.via, c.r.outcome, c.r.lead_reach_check || 'none', Boolean(c.dispute_open), c.appointment_status || null, c.lead_stage || null, CONV_STATE_AFTER_OUTCOME[c.r && c.r.outcome] || null];
 
 /** After a won claim: the same follow-ups the sweep runs for a row it inserted. */
 export const claimedFollowUps = (c) => followUps(c.r, c.row, c.outcome_id);

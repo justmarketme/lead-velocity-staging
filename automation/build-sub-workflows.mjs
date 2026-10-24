@@ -23,7 +23,7 @@ function wfBuilder(id, name, settingsExtra = {}) {
 }
 const trigger = (name) => ({ name, type: 'n8n-nodes-base.executeWorkflowTrigger', typeVersion: 1.1, parameters: { inputSource: 'passthrough' } });
 const code = (name, jsCode, perItem = true) => ({ name, type: 'n8n-nodes-base.code', typeVersion: 2, parameters: perItem ? { mode: 'runOnceForEachItem', jsCode } : { jsCode } });
-const pg = (name, query, replacement, extra = {}) => ({ name, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, credentials: PG, alwaysOutputData: true, parameters: { operation: 'executeQuery', query, options: { queryReplacement: replacement } }, ...extra });
+const pg = (name, query, replacement, extra = {}) => ({ name, type: 'n8n-nodes-base.postgres', typeVersion: 2.5, credentials: PG, alwaysOutputData: true, parameters: { operation: 'executeQuery', query, options: { queryReplacement: replacement, queryBatching: 'independently' } }, ...extra }); // independently: one query per item keeps item pairing (21 Oct 2026: two items at once -> "Multiple matches found", the STOP confirmation was lost)
 const iff = (name, expr) => ({ name, type: 'n8n-nodes-base.if', typeVersion: 2.2, parameters: { conditions: { options: { caseSensitive: true, typeValidation: 'loose' }, combinator: 'and', conditions: [{ id: 'c1', leftValue: `={{ ${expr} }}`, rightValue: true, operator: { type: 'boolean', operation: 'equals' } }] }, options: {} } });
 const execW22 = (name) => ({ name, type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.1, parameters: { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-w22', cachedResultName: 'W22 Alerts' }, options: { waitForSubWorkflow: false } } });
 const sticky = (name, content, position) => ({ name, type: 'n8n-nodes-base.stickyNote', typeVersion: 1, position, parameters: { content, width: 520, height: 300 } });
@@ -67,7 +67,7 @@ SELECT COALESCE((SELECT l.brand_id FROM public.leads l WHERE l.id = t.lead_id),
   FROM tgt t;`,
     "={{ [ $json.lead_id || '', $json.broker_id || '', $json.to, $json.correlation ] }}"));
   const D = b.add(code('Decide (suppression, allow-list, window, template, dry run)',
-    "// Order: duplicate -> suppression (smc_hash_contact, digits only) -> WHATSAPP_TEST_RECIPIENTS -> template approval /\n// 24-h window -> DRY_RUN_SENDS (external_id dry:<correlation>) -> send.\nconst L = require('lv-automation').subWhatsappSend;\nconst n = $('Normalise input').item.json;\nreturn { json: L.decide(n, $json, $env, Date.now()) };"));
+    "// Order: duplicate -> suppression (smc_hash_contact, digits only) -> WHATSAPP_TEST_RECIPIENTS -> template approval /\n// 24-h window -> DRY_RUN_SENDS or a SYNTHETIC_TEST_NUMBERS test number (external_id dry:<correlation>) -> send.\nconst L = require('lv-automation').subWhatsappSend;\nconst n = $('Normalise input').item.json;\nreturn { json: L.decide(n, $json, $env, Date.now()) };"));
   const DUP = b.add(iff('Already sent (same correlation)?', "$json.action === 'duplicate'"));
   const REC = b.add(pg('Record communications row (claim before the Graph call)',
 `-- recipient_contact is the legacy NOT NULL column: the recipient in E.164 (+ digits), I-50b.
@@ -112,7 +112,7 @@ RETURNING id::text AS lead_id;`,
   b.chain(C, D, DUP); b.link(DUP, RES, 0); b.link(DUP, REC, 1);
   b.chain(REC, LIVE); b.link(LIVE, PT, 0); b.link(LIVE, RES, 1);
   b.link(PT, TB, 0); b.link(PT, H, 1); b.chain(TB, TS); b.link(TS, TH, 0); b.link(TS, I, 1); b.link(TH, I); b.chain(H, I); b.chain(I, U, F); b.link(F, S, 0); b.link(F, RES, 1); b.chain(S, W, RES);
-  b.add(sticky('Note: smc-whatsapp-send', '## smc-whatsapp-send (LOCAL-STAGING §7)\nInput: `{ to, kind, template, variables, buttons, text?, interactive?, media?, lead_id?, broker_id?, correlation }` or the §7 shape `{ broker_id, to, template: { name, body, buttons }, idempotency_key }`.\n- Idempotent on `correlation` / `idempotency_key` (communications.metadata.correlation, claimed before the Graph call).\n- Suppression via smc_hash_contact (digits). WHATSAPP_TEST_RECIPIENTS allow-list. DRY_RUN_SENDS -> external_id `dry:<correlation>`.\n- Template not approved -> session text inside 24 h if `text`/`reminder.text` given, else skipped with `email_fallback: true` (the email leg stays with the caller, needs_human).\n- WHATSAPP_PROVIDER=meta (default) posts to Graph; =twilio builds a Messages API form (ContentSid from TWILIO_CONTENT_SIDS) and posts to api.twilio.com, same gate, claim and idempotency.\n- **prebuilt** (2026-10-11, lib/wa-route.cjs): every workflow send arrives as `{ kind: prebuilt, wa, record, caller, ... }` and WAITS for `{ ok, external_id, messages: [{ id }] }`. record:false = the caller logs the row; record:true = this sub logs it on the lead / broker resolved from the number.\n- Content logged as `template:<name>` / `[text]`, never the body.', [0, 0]));
+  b.add(sticky('Note: smc-whatsapp-send', '## smc-whatsapp-send (LOCAL-STAGING §7)\nInput: `{ to, kind, template, variables, buttons, text?, interactive?, media?, lead_id?, broker_id?, correlation }` or the §7 shape `{ broker_id, to, template: { name, body, buttons }, idempotency_key }`.\n- Idempotent on `correlation` / `idempotency_key` (communications.metadata.correlation, claimed before the Graph call).\n- Suppression via smc_hash_contact (digits). WHATSAPP_TEST_RECIPIENTS allow-list. DRY_RUN_SENDS (or a SYNTHETIC_TEST_NUMBERS test number, exact) -> external_id `dry:<correlation>`.\n- Template not approved -> session text inside 24 h if `text`/`reminder.text` given, else skipped with `email_fallback: true` (the email leg stays with the caller, needs_human).\n- WHATSAPP_PROVIDER=meta (default) posts to Graph; =twilio builds a Messages API form (ContentSid from TWILIO_CONTENT_SIDS) and posts to api.twilio.com, same gate, claim and idempotency.\n- **prebuilt** (2026-10-11, lib/wa-route.cjs): every workflow send arrives as `{ kind: prebuilt, wa, record, caller, ... }` and WAITS for `{ ok, external_id, messages: [{ id }] }`. record:false = the caller logs the row; record:true = this sub logs it on the lead / broker resolved from the number.\n- Content logged as `template:<name>` / `[text]`, never the body.', [0, 0]));
   return b.done();
 }
 
@@ -124,7 +124,7 @@ export function capiSend() {
   const N = b.add(code('Normalise input', "const L = require('lv-automation').subCapiSend;\nreturn { json: L.normalise($json) };"));
   const V = b.add(iff('Input valid?', '$json.valid === true'));
   const C = b.add(pg('Load lead, consent, dataset and dedupe',
-`SELECT (l.id IS NOT NULL) AS found, l.consent_ads_at, l.phone, l.first_name, l.last_name, l.fbc, l.fbp, l.client_ip, l.client_user_agent,
+`SELECT (l.id IS NOT NULL) AS found, l.is_synthetic, l.consent_ads_at, l.phone, l.first_name, l.last_name, l.fbc, l.fbp, l.client_ip, l.client_user_agent,
        COALESCE(NULLIF($2, '')::uuid, l.brand_id)::text AS lead_brand_id, br.pixel_id, br.dataset_id, br.waba_id,
        EXISTS (SELECT 1 FROM public.capi_log g WHERE g.event_id = $3 AND g.event_name = $4) AS duplicate
   FROM (SELECT 1) one
@@ -161,7 +161,7 @@ RETURNING id::text AS log_id;`,
   const W = b.add(execW22('Alert ops (CAPI)'));
   b.chain(T, N, V); b.link(V, C, 0); b.chain(C, B, S); b.link(S, CL, 0); b.chain(CL, CLD); b.link(CLD, H, 0);
   b.chain(H, I, U, EV); b.link(EV, EL, 0); b.link(EV, F, 1); b.chain(EL, EW, F); b.link(F, SG, 0); b.chain(SG, W);
-  b.add(sticky('Note: smc-capi-send', '## smc-capi-send (LOCAL-STAGING §7)\nInput (ids only): `{ event_name, event_id, action_source, lead_id, brand_id, ctwa_clid?, value?, event_time? }`; a caller may add `user: { phone, fn, ln, external_id, ip, ua, fbc, fbp }` + `custom_data` (lead row wins).\n1. Consent gate (`leads.consent_ads_at`). 2. Hash inside (capi.buildEvent); email never. 3. Dataset by action_source. 4. Dedupe on capi_log unique(event_id, event_name); DRY_RUN writes nothing. 5. 3 tries; failure or usage >= 80% -> W22. 6. CAPI_TEST_EVENT_CODE -> evidence JSONL at CAPI_EVIDENCE_PATH.\nExecution data is not saved (hashed identifiers).', [0, 0]));
+  b.add(sticky('Note: smc-capi-send', '## smc-capi-send (LOCAL-STAGING §7)\nInput (ids only): `{ event_name, event_id, action_source, lead_id, brand_id, ctwa_clid?, value?, event_time? }`; a caller may add `user: { phone, fn, ln, external_id, ip, ua, fbc, fbp }` + `custom_data` (lead row wins).\n0. Test leads (`leads.is_synthetic`, SYNTHETIC_TEST_NUMBERS) skipped unless CAPI_SYNTHETIC_TEST_EVENT_CODE (their code only; real leads never) or CAPI_TEST_EVENT_CODE. 1. Consent gate (`leads.consent_ads_at`). 2. Hash inside (capi.buildEvent); email never. 3. Dataset by action_source. 4. Dedupe on capi_log unique(event_id, event_name); DRY_RUN writes nothing. 5. 3 tries; failure or usage >= 80% -> W22. 6. CAPI_TEST_EVENT_CODE -> evidence JSONL at CAPI_EVIDENCE_PATH.\nExecution data is not saved (hashed identifiers).', [0, 0]));
   return b.done();
 }
 

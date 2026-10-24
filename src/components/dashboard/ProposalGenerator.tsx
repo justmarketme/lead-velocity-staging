@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { openAdminDocument } from "@/lib/adminDocs";
 import { getProposalEmailSignature } from "@/utils/emailSignature";
-import { callLegalAI } from "@/utils/legalAI";
+import { callLegalAI, LEGAL_AI_ENABLED } from "@/utils/legalAI";
 import { BrokerSelector } from "./BrokerSelector";
 import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, QUALIFIED, zar, perLead, topupMinimumZar, VAT_NOTE, SHORTFALL_TEXT, REPLACEMENT_TEXT, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
 import type { Tables } from "@/integrations/supabase/types";
@@ -644,6 +644,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                             </div>
 
                             {/* Premium AI Assistant UI (Grok Style) */}
+                            {LEGAL_AI_ENABLED && (
                             <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
                                 <CardContent className="p-4 space-y-4">
                                     {(aiResponse || isThinking) && (
@@ -721,6 +722,7 @@ const ProposalGenerator = ({ onBack, initialData }: ProposalGeneratorProps) => {
                                     </div>
                                 </CardContent>
                             </Card>
+                            )}
                             {/* Document History */}
                             {history.length > 0 && (
                                 <div className="space-y-3 mt-6">

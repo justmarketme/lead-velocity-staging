@@ -209,7 +209,7 @@ test('W15 structure: id smc-w15, inactive, nodes present, every connection resol
   for (const n of WF.nodes.filter((x) => x.type === 'n8n-nodes-base.postgres')) assert.equal(n.credentials.postgres.name, PG_CRED, n.name);
   assert.equal(WF.settings.errorWorkflow, 'smc-w22');
   const claim = WF.nodes.find((n) => n.name === N.claim).parameters.query;
-  assert.match(claim, /INSERT INTO public\.suppression[\s\S]*public\.smc_hash_contact\(\$1\), 'stop', NULL[\s\S]*ON CONFLICT \(mobile_hash, source\) DO NOTHING/, 'suppression insert is the claim, digits-only hash, LV-wide');
+  assert.match(claim, /INSERT INTO public\.suppression[\s\S]*public\.smc_hash_contact\(\$1\), 'stop', NULL[\s\S]*ON CONFLICT \(mobile_hash, brand_id\) WHERE mobile_hash IS NOT NULL DO UPDATE[\s\S]*SET source = 'stop'[\s\S]*WHERE suppression\.source <> 'stop'/, 'suppression insert/upgrade is the claim, digits-only hash, LV-wide; a repeat STOP claims nothing');
   const kinds = WF.nodes.find((n) => n.name === N.fanIf).parameters.rules.values.map((v) => v.outputKey);
   assert.deepEqual(kinds, ['w09', 'graph_delete', 'broker_wa', 'broker_email', 'confirm_wa', 'confirm_sms', 'broker_held']);
   assert.equal(WF.connections[N.fanIf].main.length, kinds.length, 'every fan-out kind is wired');
@@ -645,4 +645,22 @@ test('W15 after STOP: every list row id is routed and stored under its own code'
   }
   assert.deepEqual(W15.followupOf({ list_id: 'stop_undo:changed_mind' }), { type: 'undo' });
   assert.equal(W15.followupOf({ list_id: 'stop_why:bogus' }), null);
+});
+
+// Smoke test 21 Oct 2026 (#33): "START" after STOP (exec 11520) was not a follow-up, so nothing happened at all. START / UNSTOP
+// (the carrier keywords to come back) take the existing "I changed my mind" path: evidence + escalation + ONE reply.
+test('#33 W15 after STOP: typed START / UNSTOP -> the "I changed my mind" path (no automatic re-subscribe)', async () => {
+  for (const word of ['START', 'start', ' Start! ', 'UNSTOP', 'unstop.']) assert.deepEqual(W15.followupOf({ text: word }), { type: 'undo' }, word);
+  for (const word of ['start again tomorrow?', 'restart', 'starting']) assert.equal(W15.followupOf({ text: word }), null, word);
+  assert.equal(W15.isStop('START'), false); assert.equal(W15.isStop('UNSTOP'), false);
+  const st = newState();
+  const { l, at } = await seedOptedOut(st);
+  const before = st.sent.length;
+  await handleFollowUp(st, l.mobile, { type: 'text', text: 'START' }, at + 60_000);
+  assert.ok(isSuppressed(st, l.mobile) && st.leads.get(l.id).opted_out_at, 'still opted out: a person re-subscribes');
+  const ev = st.activities.find((a) => a.activity_type === 'stop_undo_requested');
+  assert.equal(ev.payload.text, 'START');
+  assert.equal(st.escalations.length, 1);
+  assert.equal(st.sent.length, before + 1);
+  assert.equal(st.sent.at(-1).kind, 'stop_undo_reply');
 });

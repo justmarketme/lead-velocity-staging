@@ -742,7 +742,7 @@ test('W12.json: tick reads portal rows without a w12:outcome claim; they and the
   assert.equal(c.row.booking_id, 'bkg_p'); assert.equal(rest.length, 0, 'the no-show inside its reach window waits');
   const src = (await runCode(WF, 'Claim source', { json: c })).json;
   assert.deepEqual(evalParam(WF, CL, 'options.queryReplacement', { json: src }),
-    ['lead_p', 'brand_smc', BK.broker_id, 'bkg_p', 'attended', 'portal', 'attended', 'none', false, 'attended', 'dispositioned']);
+    ['lead_p', 'brand_smc', BK.broker_id, 'bkg_p', 'attended', 'portal', 'attended', 'none', false, 'attended', 'dispositioned', 'attended']); // #40: + conv_state.state
   assert.deepEqual((await claimed(c)).map((x) => x.fu).sort(), ['capi_hold', 'send', 'w29']);
   assert.deepEqual(await claimed(c, false), [], 'claim lost: nothing sent');
 });
@@ -778,4 +778,74 @@ test('v4b16: "Yes, we spoke" while the outcome is open -> one short reply (claim
   const q = WF.nodes.find((n) => n.name === 'Meeting state (ended, no outcome yet)').parameters.query;
   assert.match(q, /'w12:reach_thanks:' \|\| a\.id::text\) AS sent_reach_thanks/);
   assert.match(q, /AS reach_at/);
+});
+
+// Smoke test 21 Oct 2026 (#40): a lead that rescheduled and then attended kept conv_state.state 'rescheduling' (W12 wrote the
+// stage, never the conversation state), so the after-call deferral line (conversation/logic.mjs, state attended) never fired.
+test('#40 W12 outcome moves conv_state.state on (attended / no_show / broker_no_show), never over opted_out or handoff', () => {
+  assert.deepEqual(R.CONV_STATE_AFTER_OUTCOME, { attended: 'attended', no_show: 'no_show', broker_no_show: 'broker_no_show' });
+  const row = (outcome) => R.outcomeRow({ outcome, lead_reach_check: 'none', dispute_status: 'none' }, { now: ms(PEND) });
+  assert.deepEqual(['attended', 'no_show', 'broker_no_show', 'rescheduled'].map((o) => row(o).conv_state), ['attended', 'no_show', 'broker_no_show', null]);
+  // the claim path (portal marks, W11 auto-attended) carries it as its 12th parameter, even when the stage is not written
+  const c = R.portalResolution(prow(), pat(10));
+  assert.equal(R.claimParams(c)[11], 'attended');
+  const auto = R.autoAttendedResolution({ ...prow(), outcome: 'attended' });
+  assert.deepEqual([R.claimParams(auto)[10], R.claimParams(auto)[11]], [null, 'attended'], 'W11 wrote the stage; the state still moves');
+  assert.equal(R.claimParams(R.portalResolution(prow({ outcome: 'rescheduled', disposition_code: null }), pat(20)))[11], null);
+  const node = (n) => WF.nodes.find((x) => x.name === n).parameters;
+  const GUARD = /COALESCE\(conv_state->>'state', ''\) NOT IN \('opted_out', 'handoff'\)/;
+  const ins = node('Insert outcome + appointment + stage + timeline');
+  assert.match(ins.query, /conv_state = CASE WHEN \$14::text IS NOT NULL AND COALESCE\(conv_state->>'state', ''\) NOT IN \('opted_out', 'handoff'\) AND NOT EXISTS \(.*?\) THEN COALESCE\(conv_state, '\{\}'::jsonb\) \|\| jsonb_build_object\('state', \$14::text\) ELSE conv_state END/);
+  assert.match(ins.options.queryReplacement, /o\.lead_stage, o\.conv_state \|\| null\]/);
+  const claim = node('Claim W12 follow-ups (w12:outcome, once per booking)');
+  assert.match(claim.query, GUARD); assert.match(claim.query, /\(\$11 IS NOT NULL OR \$12 IS NOT NULL\)/);
+  assert.match(node('Apply KG not_attended (outcome -> no_show, audit activity)').query, /jsonb_build_object\('state', 'no_show'\)/);
+  assert.deepEqual(checkSql(workflowSql(WF).filter((x) => /Insert outcome|Claim W12|KG not_attended/.test(x.node))), []);
+});
+
+// Review 21 Oct 2026 (#40 follow-up): W05's live-booking check needs ends_at > now(), so once call A has ended (still 'booked'
+// until W12 records it) the lead can book call B. A's outcome must not then set conv_state.state to attended / no_show over
+// B's 'booked' (logic.mjs would read a later "please cancel" as close_unbooked). Runs the generated SQL in PGlite.
+test('review #40: an outcome for call A never moves conv_state.state while the lead has a newer live booking B', async () => {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const db = new PGlite();
+  await db.exec(`CREATE TABLE leads (id uuid PRIMARY KEY, stage text, conv_state jsonb, updated_at timestamptz);
+    CREATE TABLE appointments (id uuid PRIMARY KEY, client_id uuid, status text, appointment_date timestamptz, updated_at timestamptz);
+    CREATE TABLE outcomes (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), booking_id uuid UNIQUE, lead_id uuid, broker_id uuid, brand_id uuid, outcome text, lead_reach_check text,
+      marked_via text, marked_at timestamptz, auto_marked boolean, unconfirmed boolean, dispute_status text, updated_at timestamptz);
+    CREATE TABLE lead_activities (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), lead_id uuid, brand_id uuid, broker_id uuid, workflow text, actor_type text, activity_type text,
+      payload jsonb, occurred_at timestamptz, idempotency_key text UNIQUE);
+    CREATE TABLE escalations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), brand_id uuid, kind text, severity text, ref_table text, ref_id text, lead_id uuid, broker_id uuid,
+      raised_at timestamptz, note text, resolved_at timestamptz, updated_at timestamptz);`);
+  const LD = '10000000-0000-4000-8000-000000000001'; const A = '20000000-0000-4000-8000-00000000000a'; const B = '20000000-0000-4000-8000-00000000000b';
+  const BR = '30000000-0000-4000-8000-000000000001'; const BRAND = '40000000-0000-4000-8000-000000000001';
+  const reset = async (withB) => {
+    await db.exec('DELETE FROM leads; DELETE FROM appointments; DELETE FROM outcomes; DELETE FROM lead_activities;');
+    await db.query(`INSERT INTO leads VALUES ($1, 'booked', '{"state":"booked"}', now())`, [LD]);
+    await db.query(`INSERT INTO appointments VALUES ($1, $2, 'booked', now() - interval '2 hours', now())`, [A, LD]);
+    if (withB) await db.query(`INSERT INTO appointments VALUES ($1, $2, 'booked', now() + interval '2 days', now())`, [B, LD]);
+  };
+  const state = async () => (await db.query('SELECT conv_state->>\'state\' AS s FROM leads WHERE id = $1', [LD])).rows[0].s;
+  const q = (n) => WF.nodes.find((x) => x.name === n).parameters.query;
+  // n8n's Postgres node substitutes queryReplacement values as literals (pg-promise); do the same, highest index first
+  const lit = (v) => (v === null || v === undefined ? 'NULL' : typeof v === 'boolean' ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
+  const run = (sql, params) => db.exec(params.reduceRight((acc, v, i) => acc.split(`$${i + 1}`).join(lit(v)), sql));
+  // 1. the claim path (portal marks, W11 auto-attended): params as claimParams builds them
+  const claim = (bk) => [LD, BRAND, BR, bk, 'attended', 'portal', 'attended', 'none', false, 'attended', null, 'attended'];
+  // 2. the sweep insert ($1..$14)
+  const ins = (bk) => [bk, LD, BR, BRAND, 'no_show', 'none', 'whatsapp', new Date().toISOString(), false, false, 'none', 'no_show', 'no_show', 'no_show'];
+  for (const [name, params] of [['Claim W12 follow-ups (w12:outcome, once per booking)', claim], ['Insert outcome + appointment + stage + timeline', ins]]) {
+    await reset(false); await run(q(name), params(A)); assert.notEqual(await state(), 'booked', `${name}: no newer booking -> the state moves (#40)`);
+    await reset(true); await run(q(name), params(A)); assert.equal(await state(), 'booked', `${name}: B is live and later -> B's state stays`);
+  }
+  // 3. KG not_attended (attended -> no_show)
+  const kg = 'Apply KG not_attended (outcome -> no_show, audit activity)';
+  for (const withB of [false, true]) {
+    await reset(withB);
+    await db.query(`INSERT INTO outcomes (booking_id, lead_id, broker_id, brand_id, outcome) VALUES ($1, $2, $3, $4, 'attended')`, [A, LD, BR, BRAND]);
+    await db.query(`INSERT INTO lead_activities (lead_id, payload, idempotency_key) VALUES ($1, '{"decision":"not_attended"}', 'w12:kg_decision:' || $2)`, [LD, A]);
+    await run(q(kg), [A, 'not_attended']);
+    assert.equal(await state(), withB ? 'booked' : 'no_show', `KG not_attended, B live: ${withB}`);
+  }
+  await db.close();
 });

@@ -1326,3 +1326,31 @@ test('W01.json: the core Load query gives routeExisting the consent version, the
   const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: GEN_LEAD().id, broker_id: null }], refs: { 'Route (w01.routeExisting)': held.json } });
   assert.deepEqual(w06, [], 'a hold never reaches W06');
 });
+
+// Smoke test 21 Oct 2026 (#38): a desktop /start/ lead carried context.ref ('w-home') into decision.row.ref, but the
+// insert never listed the ref column, so leads.ref stayed NULL (no attribution). Every column the row carries is written.
+test('#38 W01 insert writes every column of decision.row, ref included (desktop /start/ attribution)', () => {
+  const d = W01.decide(W01.normaliseSubmission(spBody(), {}), spCtx());
+  assert.equal(d.row.ref, 'w-book', 'the page ref reaches the row');
+  const q = WF.nodes.find((x) => x.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query;
+  const cols = /INSERT INTO public\.leads \(([^)]*)\)/.exec(q)[1].split(',').map((s) => s.trim());
+  const sel = /SELECT \(j->>'id'\)::uuid,([\s\S]*?)\n\s*FROM r/.exec(q)[1];
+  const exprs = ["(j->>'id')::uuid", ...sel.split(/,(?![^(]*\))/).map((s) => s.trim()).filter(Boolean)];
+  assert.equal(exprs.length, cols.length, 'one value per column');
+  for (const k of Object.keys(d.row)) {
+    const i = cols.indexOf(k);
+    assert.ok(i >= 0, `column ${k} is inserted`);
+    assert.match(exprs[i], new RegExp(`j(->>|->)'${k}'`), `${k} takes its own value`);
+  }
+});
+
+// Smoke test #13 (21 Oct 2026): the low-budget close follows the same CPA contact hours as every W01 lead send.
+test('low-budget close: not on a Sunday, a Saturday afternoon or a public holiday; the next allowed sweep sends it', () => {
+  const held = { id: '00000000-0000-4000-8000-0000000a0c05', origin: 'page', phone: '+27600000175', first_name: 'Lindi', created_at: '2026-10-17T09:00:00+02:00',
+    conv_state: {}, broker_id: null, routing_reason: 'held_low_budget', stage: 'qualified' };
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-10-24T13:30:00+02:00')), null, 'Saturday afternoon');
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-10-25T10:00:00+02:00')), null, 'Sunday');
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-11-04T10:00:00+02:00')), null, 'election day 4 Nov');
+  assert.ok(W01.lowBudgetClose(held, Date.parse('2026-10-24T09:30:00+02:00')), 'Saturday 09:00-13:00');
+  assert.ok(W01.lowBudgetClose(held, Date.parse('2026-10-26T08:00:00+02:00')), 'Monday 08:00');
+});

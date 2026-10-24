@@ -847,9 +847,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nVALUES ($1::uuid, $2::uuid, $3::uuid, 'W29', 'system', 'fit_followup_sent', '{}'::jsonb, now(), 'w29:followup_sent:' || $4)\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
+        "query": "-- 21 Oct 2026: \"fit_followup due\" always outputs one item; on a day with nothing due it is empty and the insert\n-- used to fail RLS (brand_id null) every morning. Nothing due -> no row, no error.\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, 'W29', 'system', 'fit_followup_sent', '{}'::jsonb, now(), 'w29:followup_sent:' || $4\n WHERE NULLIF($4, '') IS NOT NULL\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING id;",
         "options": {
-          "queryReplacement": "={{ [$json.lead_id, $json.brand_id, $json.broker_id, $json.id] }}"
+          "queryReplacement": "={{ [$json.lead_id || '', $json.brand_id || '', $json.broker_id || '', $json.id || ''] }}"
         }
       },
       "credentials": {

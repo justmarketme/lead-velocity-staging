@@ -47,7 +47,7 @@ Not a trigger: a deferral. The person on our side cannot quote or advise either;
 | `HANDOFF_IN_HOURS` | Sure, I've asked a person from our team to message you here shortly. | Seker, ek het iemand van ons span gevra om jou binnekort hier te boodskap. |
 | `HANDOFF_OUT_OF_HOURS` | Our team is offline right now, so a person will message you here by 09:00 {open_time_word}. | Ons span is nou nie aanlyn nie, so iemand sal jou {open_time_word} teen 09:00 hier boodskap. |
 | `HANDOFF_FRUSTRATED` | I'm sorry this has been frustrating. I've asked a person from our team to message you here shortly. | Jammer dat dit frustrerend was. Ek het iemand van ons span gevra om jou binnekort hier te boodskap. |
-| `HANDOFF_COMPLAINT` | I'm sorry to hear that. A person from our team will reply within 48 hours, and you can also email howzit@leadvelocity.co.za. | Jammer om dit te hoor. Iemand van ons span sal binne 48 uur antwoord, en jy kan ook na howzit@leadvelocity.co.za e-pos. |
+| `HANDOFF_COMPLAINT` | I'm sorry to hear that. A person from our team will reply within 48 hours, and you can also email hello@sortmycover.co.za. | Jammer om dit te hoor. Iemand van ons span sal binne 48 uur antwoord, en jy kan ook na hello@sortmycover.co.za e-pos. |
 
 `{open_time_word}` is "today" between 00:00 and 08:00 and "tomorrow" between 20:00 and 24:00 (AF: "vandag" / "môre").
 

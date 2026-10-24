@@ -687,7 +687,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: $input.first().json.dec.is_free }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $input.first().json.dec;\nreturn [{ json: { ...d.is_free, ...(d.plan && d.plan.route === 'graph' ? { want_token: true } : {}) } }];"
       }
     },
     {
@@ -1013,11 +1013,42 @@
     },
     {
       "id": "n36",
+      "name": "Re-check token still good? (#37: no second refresh)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String(!!$('W04 is_free (re-check, waits)').first().json.access_token && Date.parse($('W04 is_free (re-check, waits)').first().json.expires_at || '') - Date.now() > 300000) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n37",
       "name": "graph_token input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
+        960,
         800
       ],
       "parameters": {
@@ -1026,12 +1057,12 @@
       }
     },
     {
-      "id": "n37",
+      "id": "n38",
       "name": "W04 graph_token (waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        960,
+        1200,
         800
       ],
       "parameters": {
@@ -1048,26 +1079,26 @@
       }
     },
     {
-      "id": "n38",
+      "id": "n39",
       "name": "Event body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
+        1440,
         800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\nreturn [{ json: { access_token: $input.first().json.access_token || '', event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst d = $('Decide (w05.decide + MX)').first().json;\n// #37: the token W04 graph_token just refreshed, else the one the is_free re-check used (more than 5 min left)\nlet fresh = '';\ntry { fresh = $('W04 graph_token (waits)').first().json.access_token || ''; } catch (e) { fresh = ''; }\nconst access_token = fresh || L.recheckToken($('W04 is_free (re-check, waits)').first().json, Date.now()) || '';\nreturn [{ json: { access_token, event: L.graphEvent(d.ctx, d.dec.plan, { portalUrl: $env.PORTAL_URL }) } }];"
       }
     },
     {
-      "id": "n39",
+      "id": "n40",
       "name": "Graph create event (broker calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1440,
+        1680,
         800
       ],
       "parameters": {
@@ -1104,13 +1135,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n40",
+      "id": "n41",
       "name": "Event body (shared)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        800
+        0,
+        1000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1118,12 +1149,12 @@
       }
     },
     {
-      "id": "n41",
+      "id": "n42",
       "name": "Shared calendar id?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        0,
+        240,
         1000
       ],
       "parameters": {
@@ -1149,12 +1180,12 @@
       }
     },
     {
-      "id": "n42",
+      "id": "n43",
       "name": "Graph create event (howzit@ shared calendar, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        240,
+        480,
         1000
       ],
       "parameters": {
@@ -1186,12 +1217,12 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n43",
+      "id": "n44",
       "name": "After event (w05.finish)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        720,
         1000
       ],
       "parameters": {
@@ -1200,12 +1231,12 @@
       }
     },
     {
-      "id": "n44",
+      "id": "n45",
       "name": "Save event ids + lead (stage, broker, invite email)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        720,
+        960,
         1000
       ],
       "parameters": {
@@ -1224,12 +1255,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n45",
+      "id": "n46",
       "name": "Email verification item (invite email stored)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         1000
       ],
       "parameters": {
@@ -1238,12 +1269,12 @@
       }
     },
     {
-      "id": "n46",
+      "id": "n47",
       "name": "-> Email verify (smc-email-verify issue)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1440,
         1000
       ],
       "parameters": {
@@ -1260,12 +1291,12 @@
       }
     },
     {
-      "id": "n47",
+      "id": "n48",
       "name": "Timeline: booked",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
+        1680,
         1000
       ],
       "parameters": {
@@ -1284,13 +1315,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n48",
+      "id": "n49",
       "name": "Answer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        1000
+        0,
+        1200
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -1298,12 +1329,12 @@
       }
     },
     {
-      "id": "n49",
+      "id": "n50",
       "name": "HTTP lane?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        0,
+        240,
         1200
       ],
       "parameters": {
@@ -1329,12 +1360,12 @@
       }
     },
     {
-      "id": "n50",
+      "id": "n51",
       "name": "Respond (book JSON)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        240,
+        480,
         1200
       ],
       "parameters": {
@@ -1354,12 +1385,12 @@
       }
     },
     {
-      "id": "n51",
+      "id": "n52",
       "name": "Fan out effects",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        720,
         1200
       ],
       "parameters": {
@@ -1368,12 +1399,12 @@
       }
     },
     {
-      "id": "n52",
+      "id": "n53",
       "name": "Effect?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        720,
+        960,
         1200
       ],
       "parameters": {
@@ -1597,12 +1628,12 @@
       }
     },
     {
-      "id": "n53",
+      "id": "n54",
       "name": "Live send?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         1200
       ],
       "parameters": {
@@ -1628,12 +1659,12 @@
       }
     },
     {
-      "id": "n54",
+      "id": "n55",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1440,
         1200
       ],
       "parameters": {
@@ -1650,12 +1681,12 @@
       }
     },
     {
-      "id": "n55",
+      "id": "n56",
       "name": "Touch leads.last_contact_at (lead sends)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1440,
+        1680,
         1200
       ],
       "parameters": {
@@ -1674,13 +1705,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n56",
+      "id": "n57",
       "name": "Email from howzit@ (Graph sendMail)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1680,
-        1200
+        0,
+        1400
       ],
       "parameters": {
         "method": "POST",
@@ -1712,12 +1743,12 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n57",
+      "id": "n58",
       "name": "-> W06 First touch (booking event)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        0,
+        240,
         1400
       ],
       "parameters": {
@@ -1734,12 +1765,12 @@
       }
     },
     {
-      "id": "n58",
+      "id": "n59",
       "name": "-> W09 Reminder sequence (schedule / rebuild)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        240,
+        480,
         1400
       ],
       "parameters": {
@@ -1756,12 +1787,12 @@
       }
     },
     {
-      "id": "n59",
+      "id": "n60",
       "name": "-> W07 post-booking contact confirm",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        480,
+        720,
         1400
       ],
       "parameters": {
@@ -1778,12 +1809,12 @@
       }
     },
     {
-      "id": "n60",
+      "id": "n61",
       "name": "-> CAPI Send (Schedule, no email)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
+        960,
         1400
       ],
       "parameters": {
@@ -1800,12 +1831,12 @@
       }
     },
     {
-      "id": "n61",
+      "id": "n62",
       "name": "-> W28 ask_email",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        960,
+        1200,
         1400
       ],
       "parameters": {
@@ -1822,12 +1853,12 @@
       }
     },
     {
-      "id": "n62",
+      "id": "n63",
       "name": "-> W22 Alerts",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1200,
+        1440,
         1400
       ],
       "parameters": {
@@ -1844,12 +1875,12 @@
       }
     },
     {
-      "id": "n63",
+      "id": "n64",
       "name": "GET /j/:booking_id (join link)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        1440,
+        1680,
         1400
       ],
       "parameters": {
@@ -1861,13 +1892,13 @@
       "webhookId": "w05-join-get"
     },
     {
-      "id": "n64",
+      "id": "n65",
       "name": "Load booking for the join link (no lead PII)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1680,
-        1400
+        0,
+        1600
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -1885,12 +1916,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n65",
+      "id": "n66",
       "name": "Join redirect (w05.joinRedirect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        0,
+        240,
         1600
       ],
       "parameters": {
@@ -1899,12 +1930,12 @@
       }
     },
     {
-      "id": "n66",
+      "id": "n67",
       "name": "Respond (join link)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        240,
+        480,
         1600
       ],
       "parameters": {
@@ -1932,12 +1963,12 @@
       }
     },
     {
-      "id": "n67",
+      "id": "n68",
       "name": "GET /c/:booking_id (.ics)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        480,
+        720,
         1600
       ],
       "parameters": {
@@ -1949,12 +1980,12 @@
       "webhookId": "w05-ics-get"
     },
     {
-      "id": "n68",
+      "id": "n69",
       "name": "Verify .ics caller (w05.parseIcsRequest)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        720,
+        960,
         1600
       ],
       "parameters": {
@@ -1963,12 +1994,12 @@
       }
     },
     {
-      "id": "n69",
+      "id": "n70",
       "name": ".ics caller ok?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         1600
       ],
       "parameters": {
@@ -1994,12 +2025,12 @@
       }
     },
     {
-      "id": "n70",
+      "id": "n71",
       "name": "Load booking for .ics (id only, no lead PII)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1200,
+        1440,
         1600
       ],
       "parameters": {
@@ -2018,22 +2049,8 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n71",
-      "name": "Build .ics (w05.icsResponse)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1440,
-        1600
-      ],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst c = $('Verify .ics caller (w05.parseIcsRequest)').first().json;\nconst x = $input.first().json;\nreturn [{ json: L.icsResponse(x.booking, { adviser: x.adviser || '', caller: c }) }];"
-      }
-    },
-    {
       "id": "n72",
-      "name": ".ics not found (404)",
+      "name": "Build .ics (w05.icsResponse)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -2042,16 +2059,30 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst c = $('Verify .ics caller (w05.parseIcsRequest)').first().json;\nconst x = $input.first().json;\nreturn [{ json: L.icsResponse(x.booking, { adviser: x.adviser || '', caller: c }) }];"
       }
     },
     {
       "id": "n73",
+      "name": ".ics not found (404)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        1800
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }, body: 'not found' } }];"
+      }
+    },
+    {
+      "id": "n74",
       "name": "Respond (.ics)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        0,
+        240,
         1800
       ],
       "parameters": {
@@ -2079,12 +2110,12 @@
       }
     },
     {
-      "id": "n74",
+      "id": "n75",
       "name": "Load booking for method change",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        240,
+        480,
         1800
       ],
       "parameters": {
@@ -2103,26 +2134,26 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n75",
+      "id": "n76",
       "name": "Plan method change (w05.planUpdateMethod)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        720,
         1800
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, guest_drop: !!em.guest_drop, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst dns = require('dns').promises;\nconst x = $input.first().json;\nconst req = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst mx = {};\nconst dom = L.emailDomain(req.email || (x.lead && x.lead.email_verified !== true ? x.lead.email : '') || '');\nif (dom && !L.MX_KNOWN.has(dom)) { try { const r = await Promise.race([dns.resolveMx(dom), new Promise((_, rj) => setTimeout(() => rj(new Error('t')), 300))]); mx[dom] = Array.isArray(r) && r.length > 0; } catch (e) { mx[dom] = false; } }\nconst p = L.planUpdateMethod({ req, booking: x.booking, lead: x.lead, broker: x.broker, mx, now: Date.now() });\nconst em = p.action === 'patch' ? L.methodChangeEmails({ lead: x.lead, broker: x.broker, booking: x.booking }, p.plan, Date.now()) : { mail: null, smc_email: null };\nreturn [{ json: { ...p, booking: x.booking, ask: p.ask_email || null, mail: em.mail, smc_email: em.smc_email, guest_drop: !!em.guest_drop, lead_id: x.lead ? x.lead.id : null, kind: p.action } }];"
       }
     },
     {
-      "id": "n76",
+      "id": "n77",
       "name": "Method plan?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        720,
+        960,
         1800
       ],
       "parameters": {
@@ -2199,12 +2230,12 @@
       }
     },
     {
-      "id": "n77",
+      "id": "n78",
       "name": "Method calendar target (w05.graphEventTarget)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
+        1200,
         1800
       ],
       "parameters": {
@@ -2213,12 +2244,12 @@
       }
     },
     {
-      "id": "n78",
+      "id": "n79",
       "name": "Method event calendar?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        1200,
+        1440,
         1800
       ],
       "parameters": {
@@ -2295,12 +2326,12 @@
       }
     },
     {
-      "id": "n79",
+      "id": "n80",
       "name": "Graph PATCH event (method, howzit@ shared calendar)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1440,
+        1680,
         1800
       ],
       "parameters": {
@@ -2332,13 +2363,13 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n80",
+      "id": "n81",
       "name": "graph_token input (method)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        1800
+        0,
+        2000
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2346,12 +2377,12 @@
       }
     },
     {
-      "id": "n81",
+      "id": "n82",
       "name": "W04 graph_token (method, waits)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        0,
+        240,
         2000
       ],
       "parameters": {
@@ -2368,12 +2399,12 @@
       }
     },
     {
-      "id": "n82",
+      "id": "n83",
       "name": "Graph PATCH event (method, ASSUMPTION)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        240,
+        480,
         2000
       ],
       "parameters": {
@@ -2406,32 +2437,8 @@
       "waitBetweenTries": 2000
     },
     {
-      "id": "n83",
-      "name": "Save method",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        480,
-        2000
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "WITH gd AS (\n  UPDATE public.lead_activities g SET payload = (g.payload - 'guest_email') || jsonb_build_object('dropped_at', now())\n   WHERE $5 = 'true' AND g.idempotency_key = 'w05:guest:' || $1 AND g.payload ? 'guest_email'\n  RETURNING g.id)\nUPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4, join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END, updated_at = now() WHERE id = $1::uuid RETURNING id;",
-        "options": {
-          "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status, p.guest_drop ? 'true' : 'false']; })() }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "",
-          "name": "LV Supabase - n8n_app (least privilege)"
-        }
-      },
-      "alwaysOutputData": true
-    },
-    {
       "id": "n84",
-      "name": "Method invite?",
+      "name": "After method PATCH (w05.afterMethodPatch)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -2440,17 +2447,114 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nconst r = L.afterMethodPatch($input.first().json, p.plan, p.booking.id, p.booking.broker_id);\nreturn [{ json: { ok: r.ok, join_url: r.join_url, alert: r.alert } }];"
       }
     },
     {
       "id": "n85",
-      "name": "ask_email input (method)",
-      "type": "n8n-nodes-base.code",
+      "name": "Method patched?",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         960,
         2000
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n86",
+      "name": "Method PATCH alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        2000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst r = $input.first().json;\nreturn r.alert ? [{ json: { ...r.alert, lead_id: $('Plan method change (w05.planUpdateMethod)').first().json.lead_id || null } }] : [];"
+      }
+    },
+    {
+      "id": "n87",
+      "name": "Method change message (after the change)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        2000
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\n// W10's one lead message for this change (\"I'll change it to Teams.\"), sent only now that the change is saved\nconst q = $('Normalise sub-call (w05.parseSub)').first().json.req;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn q.notify_wa ? [{ json: { kind: 'wa', to: 'lead', lead_id: p.lead_id || null, wa: q.notify_wa } }] : [];"
+      }
+    },
+    {
+      "id": "n88",
+      "name": "Save method",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1680,
+        2000
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH gd AS (\n  UPDATE public.lead_activities g SET payload = (g.payload - 'guest_email') || jsonb_build_object('dropped_at', now())\n   WHERE $5 = 'true' AND g.idempotency_key = 'w05:guest:' || $1 AND g.payload ? 'guest_email'\n  RETURNING g.id)\nUPDATE public.appointments SET method = $2, call_number = NULLIF($3, ''), invite_email_status = $4,\n       join_url = CASE WHEN $2 = 'teams' THEN COALESCE(NULLIF($6, ''), CASE WHEN method = 'teams' THEN join_url END)\n                       WHEN $2 IN ('zoom','meet') THEN join_url ELSE NULL END, updated_at = now()\n WHERE id = $1::uuid AND status IN ('booked','confirmed') RETURNING id;",
+        "options": {
+          "queryReplacement": "={{ (() => { const p = $('Plan method change (w05.planUpdateMethod)').first().json; let j = ''; try { j = $('After method PATCH (w05.afterMethodPatch)').first().json.join_url || ''; } catch (e) { j = ''; } return [p.booking.id, p.appointment_update.method, p.appointment_update.call_number || '', p.appointment_update.invite_email_status, p.guest_drop ? 'true' : 'false', j]; })() }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false
+    },
+    {
+      "id": "n89",
+      "name": "Method invite?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        2200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.mail ? [{ json: { kind: 'mail', mail: p.mail } }] : [];"
+      }
+    },
+    {
+      "id": "n90",
+      "name": "ask_email input (method)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        2200
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2458,13 +2562,13 @@
       }
     },
     {
-      "id": "n86",
+      "id": "n91",
       "name": "Mark invite bounced",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1200,
-        2000
+        480,
+        2200
       ],
       "parameters": {
         "operation": "executeQuery",
@@ -2482,13 +2586,13 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n87",
+      "id": "n92",
       "name": "Bounce prompt (w05.bounceEffect)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        2000
+        720,
+        2200
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2496,13 +2600,13 @@
       }
     },
     {
-      "id": "n88",
+      "id": "n93",
       "name": "-> WhatsApp Send (invite bounce)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        1680,
-        2000
+        960,
+        2200
       ],
       "parameters": {
         "source": "database",
@@ -2518,12 +2622,12 @@
       }
     },
     {
-      "id": "n89",
+      "id": "n94",
       "name": "Every 5 min: release unverified holds",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        0,
+        1200,
         2200
       ],
       "parameters": {
@@ -2538,18 +2642,20 @@
       }
     },
     {
-      "id": "n90",
+      "id": "n95",
       "name": "Release held slots past verify_by (+ timeline)",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        240,
+        1440,
         2200
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- A HELD slot (pending_verification) whose email was not verified by verify_by (min(+24 h, start - 2 h)) is released for\n-- everyone. Nothing reached the broker (no calendar event, no notice), so nothing is undone there.\nWITH r AS (\n  UPDATE public.appointments a SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND a.verify_by <= now()\n  RETURNING a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.method),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified'), now(), 'w05:hold_released:' || r.id::text\n    FROM r\n  ON CONFLICT (idempotency_key) DO NOTHING)\nSELECT r.id, r.appointment_date, r.method, l.id AS lead_id, l.first_name, l.phone, l.language\n  FROM r JOIN public.leads l ON l.id = r.client_id\n WHERE l.opted_out_at IS NULL;",
-        "options": {}
+        "query": "-- A HELD slot (pending_verification) whose email was not verified by verify_by (min(+24 h, start - 2 h)) is released for\n-- everyone. Nothing reached the broker (no calendar event, no notice), so nothing is undone there.\n-- The rebook nudge is a marketing send (smoke test #13): only inside the contact hours ($1 = w05.holdNudgeOpen, lib/contact-hours.mjs).\n-- A hold released outside them is marked nudge 'pending' and nudged by the first sweep inside them (within 4 days), once\n-- (w05:hold_nudge:<booking>), and not at all when the lead has another live booking or opted out meanwhile.\nWITH r AS (\n  UPDATE public.appointments a SET status = 'cancelled', cancelled_at = now(), updated_at = now()\n   WHERE a.brand_id IS NOT NULL AND a.status = 'pending_verification' AND a.verify_by <= now()\n  RETURNING a.id, a.client_id, a.broker_id, a.brand_id, a.appointment_date, a.method),\nt AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT r.client_id, r.brand_id, r.broker_id, 'W05', 'system', 'booking_hold_released', jsonb_build_object('booking_id', r.id, 'reason', 'email_not_verified', 'nudge', 'pending'), now(), 'w05:hold_released:' || r.id::text\n    FROM r\n  ON CONFLICT (idempotency_key) DO NOTHING),\nd AS (\n  SELECT r.id, r.client_id, r.brand_id, r.broker_id, r.appointment_date FROM r WHERE $1::boolean\n  UNION ALL\n  SELECT a.id, a.client_id, a.brand_id, a.broker_id, a.appointment_date\n    FROM public.lead_activities la\n    JOIN public.appointments a ON a.id::text = la.payload->>'booking_id' AND a.status = 'cancelled'\n   WHERE $1::boolean AND la.workflow = 'W05' AND la.activity_type = 'booking_hold_released' AND la.payload->>'nudge' = 'pending'\n     AND la.occurred_at > now() - interval '4 days'),\nn AS (\n  INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, workflow, actor_type, activity_type, payload, occurred_at, idempotency_key)\n  SELECT d.client_id, d.brand_id, d.broker_id, 'W05', 'system', 'booking_hold_nudged', jsonb_build_object('booking_id', d.id), now(), 'w05:hold_nudge:' || d.id::text\n    FROM d\n   WHERE NOT EXISTS (SELECT 1 FROM public.appointments x WHERE x.client_id = d.client_id AND x.id <> d.id AND x.status IN ('pending_verification','booked','confirmed'))\n  ON CONFLICT (idempotency_key) DO NOTHING\n  RETURNING payload->>'booking_id' AS booking_id)\nSELECT d.id, d.appointment_date, l.id AS lead_id, l.first_name, l.phone, l.language\n  FROM n JOIN d ON d.id::text = n.booking_id\n  JOIN public.leads l ON l.id = d.client_id\n WHERE l.opted_out_at IS NULL;",
+        "options": {
+          "queryReplacement": "={{ [String($json.in_hours === true)] }}"
+        }
       },
       "credentials": {
         "postgres": {
@@ -2560,12 +2666,12 @@
       "alwaysOutputData": true
     },
     {
-      "id": "n91",
+      "id": "n96",
       "name": "Rebook nudge (w05.holdReleased)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
+        1680,
         2200
       ],
       "parameters": {
@@ -2574,13 +2680,13 @@
       }
     },
     {
-      "id": "n92",
+      "id": "n97",
       "name": "-> WhatsApp Send (booking_hold_released)",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.1,
       "position": [
-        720,
-        2200
+        0,
+        2400
       ],
       "parameters": {
         "source": "database",
@@ -2596,13 +2702,13 @@
       }
     },
     {
-      "id": "n93",
+      "id": "n98",
       "name": "Email client from SortMyCover (smc-client-email)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        960,
-        2200
+        240,
+        2400
       ],
       "parameters": {
         "method": "POST",
@@ -2635,13 +2741,13 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n94",
+      "id": "n99",
       "name": "Email adviser from SortMyCover (smc-email-send)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
-        2200
+        480,
+        2400
       ],
       "parameters": {
         "method": "POST",
@@ -2678,13 +2784,13 @@
       "onError": "continueRegularOutput"
     },
     {
-      "id": "n95",
+      "id": "n100",
       "name": "Client email result (w05.clientEmailResult)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1440,
-        2200
+        720,
+        2400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2692,17 +2798,31 @@
       }
     },
     {
-      "id": "n96",
+      "id": "n101",
       "name": "Method client email (SortMyCover)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        2200
+        960,
+        2400
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\nreturn p.smc_email ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: p.smc_email } }] : [];"
+        "jsCode": "const L = require('lv-automation').w05;\nconst p = $('Plan method change (w05.planUpdateMethod)').first().json;\n// smoke #3: the Teams join link the PATCH answer gave (the plan was built before it existed)\nlet j = null; try { j = $('After method PATCH (w05.afterMethodPatch)').first().json.join_url || null; } catch (e) { j = null; }\nconst e = p.smc_email && j && p.smc_email.method === 'teams' ? { ...p.smc_email, join_url: j } : p.smc_email;\nreturn e ? [{ json: { kind: 'smc_email', lead_id: p.lead_id || null, smc_email: e } }] : [];"
+      }
+    },
+    {
+      "id": "n102",
+      "name": "Contact hours now (w05.holdNudgeOpen)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        2400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w05;\nreturn [{ json: { in_hours: L.holdNudgeOpen(Date.now()) === true } }];"
       }
     },
     {
@@ -2711,8 +2831,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1480,
-        1200
+        -200,
+        1400
       ],
       "parameters": {
         "conditions": {
@@ -2744,8 +2864,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1680,
-        1360
+        0,
+        1560
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2758,8 +2878,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        760,
-        2200
+        40,
+        2400
       ],
       "parameters": {
         "conditions": {
@@ -2791,8 +2911,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        960,
-        2360
+        240,
+        2560
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2805,8 +2925,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1000,
-        2200
+        280,
+        2400
       ],
       "parameters": {
         "conditions": {
@@ -2838,8 +2958,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1200,
-        2360
+        480,
+        2560
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -2852,7 +2972,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1080,
+        1320,
         1320
       ],
       "parameters": {
@@ -2863,6 +2983,17 @@
   ],
   "connections": {
     "Every 5 min: release unverified holds": {
+      "main": [
+        [
+          {
+            "node": "Contact hours now (w05.holdNudgeOpen)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contact hours now (w05.holdNudgeOpen)": {
       "main": [
         [
           {
@@ -3340,7 +3471,7 @@
       "main": [
         [
           {
-            "node": "graph_token input",
+            "node": "Re-check token still good? (#37: no second refresh)",
             "type": "main",
             "index": 0
           }
@@ -3348,6 +3479,24 @@
         [
           {
             "node": "Event body (shared)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-check token still good? (#37: no second refresh)": {
+      "main": [
+        [
+          {
+            "node": "Event body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "graph_token input",
             "type": "main",
             "index": 0
           }
@@ -3743,7 +3892,7 @@
       "main": [
         [
           {
-            "node": "Save method",
+            "node": "After method PATCH (w05.afterMethodPatch)",
             "type": "main",
             "index": 0
           }
@@ -3776,7 +3925,45 @@
       "main": [
         [
           {
+            "node": "After method PATCH (w05.afterMethodPatch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After method PATCH (w05.afterMethodPatch)": {
+      "main": [
+        [
+          {
+            "node": "Method patched?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Method PATCH alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method patched?": {
+      "main": [
+        [
+          {
             "node": "Save method",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method PATCH alert": {
+      "main": [
+        [
+          {
+            "node": "-> W22 Alerts",
             "type": "main",
             "index": 0
           }
@@ -3793,6 +3980,11 @@
           },
           {
             "node": "Method client email (SortMyCover)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Method change message (after the change)",
             "type": "main",
             "index": 0
           }
@@ -3815,6 +4007,17 @@
         [
           {
             "node": "Live send? (Email client from SortMyCover (smc-client-email))",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Method change message (after the change)": {
+      "main": [
+        [
+          {
+            "node": "Live send?",
             "type": "main",
             "index": 0
           }

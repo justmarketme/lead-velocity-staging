@@ -18,6 +18,7 @@ import {
 } from "../src/lib/start";
 import {
   interpretAdviser, interpretMove, runMove, interpretAnswers, interpretBook, interpretContact, interpretLead, interpretStart, postLead, runBooking, type BookBody, type StartApi,
+  bookErrorText, GENERIC_ERROR,
 } from "../src/lib/start-api";
 
 const PAGE = fs.readFileSync(path.resolve(__dirname, "../src/pages/Start.tsx"), "utf8");
@@ -242,7 +243,8 @@ describe("phone call: POST /start/contact, only on phone, before /book", () => {
     const log: MockLog = { calls: [] };
     const api = createMockApi({ log });
     await expect(api.book(body)).rejects.toThrow(/before \/start\/contact/);
-    expect(await runBooking(api, { method: "phone", contact: { call_number: null }, book: body, contactId: "c1" })).toMatchObject({ kind: "held" });
+    // smoke #1: like W05, a phone call carries no email and is booked at once (never held for an email link)
+    expect(await runBooking(api, { method: "phone", contact: { call_number: null }, book: body, contactId: "c1" })).toMatchObject({ kind: "booked" });
     expect(log.calls.slice(-2)).toEqual(["contact", "book"]);
   }, 15000);
   it("numbers: the WhatsApp number by default (call_number null), a different one, an optional other number", () => {
@@ -398,6 +400,26 @@ describe("reschedule: Move your call (#lt=...&move=1)", () => {
     expect(r2).toMatchObject({ kind: "moved" });
     expect(log.calls.slice(-1)).toEqual(["move"]);
   }, 15000);
+  // review 21 Oct (#11 / #3): the move (and a method change, which now waits for the Outlook change) can pass the page's 10 s
+  // budget although the change was made. A timeout / 5xx re-reads the booking and shows success when it already matches.
+  it("a move that times out re-reads the booking: done -> moved; not done -> the error as before", async () => {
+    const want = { start: "2026-10-27T09:00:00+02:00", end: "2026-10-27T09:30:00+02:00", method: "teams" };
+    const startWith = (b: object | null) => async () => ({ kind: "ok", data: { booking: b } } as any);
+    const failing = { postContact: async () => ({ kind: "ok" }) as any, move: async () => ({ kind: "error" }) as any };
+    const body = moveBody("2026-10-27T07:00:00Z", "teams", "m9");
+    const done = await runMove({ ...failing, getStart: startWith({ ...want, held: false }) }, { contact: null, move: body, contactId: "c9" });
+    expect(done).toEqual({ kind: "moved", booking: { ...want, held: false } });
+    for (const b of [{ ...want, method: "phone", held: false }, { ...want, start: "2026-10-23T08:30:00+02:00", held: false }, null]) {
+      expect(await runMove({ ...failing, getStart: startWith(b) }, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "error" });
+    }
+    expect(await runMove({ ...failing, getStart: async () => ({ kind: "error" }) as any }, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "error" });
+    expect(await runMove(failing, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "error" });
+    // a refused move (taken / invalid / expired) is never re-read
+    let reads = 0;
+    const taken = { ...failing, move: async () => ({ kind: "taken", slots: null }) as any, getStart: async () => { reads++; return { kind: "ok", data: { booking: want } } as any; } };
+    expect(await runMove(taken, { contact: null, move: body, contactId: "c9" })).toEqual({ kind: "taken", slots: null });
+    expect(reads).toBe(0);
+  });
   it("maps /start/move replies like /book", () => {
     const b = { start: "2026-10-24T14:00:00+02:00", end: "2026-10-24T14:30:00+02:00", method: "teams" };
     expect(interpretMove(200, { ok: true, booking: b })).toEqual({ kind: "moved", booking: b });
@@ -456,10 +478,42 @@ describe("API response mapping", () => {
     expect(interpretBook(409, { error: "slot_taken", next: [b] })).toEqual({ kind: "taken", slots: [b] });
     expect(interpretBook(409, { error: "slot_taken" })).toEqual({ kind: "taken", slots: null });
     expect(interpretBook(422, { error: "email_invalid" })).toEqual({ kind: "email" });
+    expect(interpretBook(422, { error: "email_required", error_code: "email_required" })).toEqual({ kind: "email" });
     expect(interpretBook(403, null)).toEqual({ kind: "expired" });
     expect(interpretBook(0, null)).toEqual({ kind: "error" });
     expect(interpretBook(200, { booked: false })).toEqual({ kind: "error" });
   });
+});
+
+describe("a refused booking is never silent (smoke #1, 21 Oct 2026)", () => {
+  it("each W05 refusal maps to a line the page shows; the server's own message wins; only slot_taken re-opens the times", () => {
+    const m = (r: any) => (r.kind === "error" ? r.message : null);
+    expect(m(interpretBook(422, { error: "method_not_supported", error_code: "method_not_supported", methods: ["teams"] }))).toMatch(/doesn't offer this kind of call/);
+    expect(m(interpretBook(409, { error: "already_booked", error_code: "already_booked", booking: { start: "s", method: "phone" } }))).toMatch(/already have a call booked/);
+    expect(m(interpretBook(409, { error: "held_awaiting_email", error_code: "held_awaiting_email" }))).toMatch(/link in your email/);
+    expect(m(interpretBook(409, { error: "opted_out", error_code: "opted_out" }))).toMatch(/stop messaging you/);
+    expect(m(interpretBook(200, { booked: false, fallback: "whatsapp" }))).toMatch(/WhatsApp/);
+    expect(interpretBook(500, { error: "boom", message: "Bookings are paused for a moment." })).toEqual({ kind: "error", message: "Bookings are paused for a moment." });
+    expect(interpretMove(500, { error: "boom", message: "Moves are paused." })).toEqual({ kind: "error", message: "Moves are paused." });
+    expect(interpretBook(500, { error: "boom" })).toEqual({ kind: "error" }); // the generic line
+    expect(bookErrorText("nope")).toBe(GENERIC_ERROR);
+    expect(bookErrorText("email_required")).toMatch(/WhatsApp/);
+  });
+  it("the phone step (no email field) says an email refusal in the error box; the error box shows the message", () => {
+    expect(PAGE).toContain('case "email": return method === "teams" ? setEmailErr(EMAIL_ERR) : setErr({ retry: book, message: bookErrorText("email_required") });');
+    expect(PAGE).toContain("default: return setErr({ retry: book, message: r.message });");
+    expect(PAGE).toContain("default: return setErr({ retry: () => move(fromNumber), message: r.message });");
+    expect(PAGE).toContain("<p>{err.message || GENERIC_ERROR}</p>");
+  });
+  it("the dev mock books a phone call with no email at once, like W05", async () => {
+    const api = createMockApi();
+    await api.postAdviser({ confirm_adviser: MOCK_ADVISER.id, request_id: "a" });
+    await api.postContact({ call_number: null, request_id: "c" });
+    const slot = (await api.getSlots(7) as any).data.slots[0].start;
+    const r = await api.book({ slot_start: slot, method: "phone", request_id: "b", context: { source: "start_page" } });
+    expect(r.kind).toBe("booked");
+    expect((await api.getStart() as any).data.booking).toMatchObject({ method: "phone", held: false });
+  }, 15000);
 });
 
 describe("/start/ copy passes the site wording rules", () => {
