@@ -2732,6 +2732,33 @@
    "human_gate": true,
    "status": "needs_human",
    "section": "0.1 Email · 3.3 Qualified lead · smc_05 access"
+  },
+  {
+   "id": "W41",
+   "title": "W41 SMC broker lead notice (routed, not booked): a consented client routed to an adviser with no booking after a 10-min grace -> ONE WhatsApp (broker_lead_routed) + ONE email to the adviser, claimed once per lead in lead_activities. Built 24 Oct 2026 (build-w41.mjs, lib/w41.mjs, tests/W41.test.mjs, CONTRACTS 'W41'); portal 'Waiting to book' card shows the same leads with the timeline.",
+   "owner": "automation-engineer",
+   "phase": "5",
+   "depends_on": [
+    "W05",
+    "W08"
+   ],
+   "acceptance_test": "node --test automation/tests/W41.test.mjs passes; on staging with DRY_RUN_SENDS=true a routed, unbooked synthetic-free lead produces one broker_notified_routed row and one dry-run send each for WhatsApp and email; a second tick sends nothing",
+   "human_gate": false,
+   "status": "in_progress",
+   "section": "4.12 nurture · 4.6 broker notices · Jonathan 24 Oct"
+  },
+  {
+   "id": "NH-69",
+   "title": "Template gate: submit broker_lead_routed (templates/README 29g) for approval and add its Content SID to TWILIO_CONTENT_SIDS; then SMC_BROKER_LEAD_NOTICE_ENABLED=true + force-recreate n8n + activate smc-w41. Until then the adviser gets W41's email only. Never submitted by an agent (0.1 / routine).",
+   "owner": "jonathan",
+   "phase": "5",
+   "depends_on": [
+    "W41"
+   ],
+   "acceptance_test": "TWILIO_CONTENT_SIDS has broker_lead_routed; one real routed-not-booked lead produces one WhatsApp to the adviser's number with the client's first name + initial and the portal button",
+   "human_gate": true,
+   "status": "needs_human",
+   "section": "4.6 templates · Jonathan 24 Oct"
   }
  ]
 }

@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "key": "broker_lead_routed",
+    "source": "automation/templates/broker_lead_routed.json",
+    "approval": {
+      "name": "smc_broker_lead_routed",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      },
+      {
+        "n": 4,
+        "kind": "body"
+      },
+      {
+        "n": 5,
+        "kind": "button",
+        "type": "url",
+        "index": 0
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_broker_lead_routed",
+    "language": "en",
+    "variables": {
+      "1": "Mark",
+      "2": "Lerato M.",
+      "3": "on Sat 24 Oct at 08:12 via a SortMyCover ad",
+      "4": "opened your booking page but have not confirmed a time",
+      "5": "l/ld_51c9"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, a SortMyCover client, {{2}}, has agreed to be put in touch with you. They came in {{3}} and {{4}}, so there is nothing for you to do yet: we are nudging them to pick a time, and you will get the usual booking message the moment they do. Their details and timeline are in your portal.",
+        "header_text": "New client, not booked yet",
+        "footer": "SortMyCover by Lead Velocity",
+        "actions": [
+          {
+            "type": "URL",
+            "title": "Open in portal",
+            "url": "https://leadvelocity.co.za/{{5}}"
+          }
+        ]
+      }
+    }
+  }
+}

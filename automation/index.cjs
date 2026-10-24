@@ -37,6 +37,7 @@ const MODULES = {
   w37: './lib/w37-cal.mjs',
   w38: './lib/w38.mjs', // W38 SMC lead alert (owner): watermark, de-dupe, minimised message, commit-after-2xx
   w39: './lib/w39.mjs', // W39 Start page API (18 Oct 2026): GET /start + POST /start/answers for sortmycover.co.za/start/
+  w41: './lib/w41.mjs', // W41 SMC broker lead notice (24 Oct 2026): routed, unbooked lead -> adviser WhatsApp + email, once
   w20ms: './lib/w20-ms.mjs',
   w29: './lib/w29.mjs',
   wa: './lib/wa.mjs',

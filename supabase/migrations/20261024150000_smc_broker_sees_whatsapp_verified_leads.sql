@@ -21,6 +21,25 @@
 -- =============================================================================
 BEGIN;
 
+-- 0. smc_broker_has_live_booking(uuid) exists on the live project (20261013210000_appointment_manual_allocation, as read
+--    live on 24 Oct 2026) but has no definition in this repo's migrations; the live body is restated so the file is
+--    self-contained (a no-op where it already exists: CREATE OR REPLACE with the same body).
+CREATE OR REPLACE FUNCTION public.smc_broker_has_live_booking(p_lead_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT p_lead_id IS NOT NULL AND EXISTS (
+    SELECT 1
+      FROM public.appointments a
+     WHERE a.client_id = p_lead_id
+       AND a.brand_id IS NOT NULL
+       AND a.broker_id IS NOT NULL
+       AND a.broker_id = public.smc_current_broker_id()
+       AND a.status IN ('booked', 'confirmed', 'rescheduled', 'attended', 'no_show'))
+$$;
+REVOKE ALL ON FUNCTION public.smc_broker_has_live_booking(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.smc_broker_has_live_booking(uuid) TO authenticated, n8n_app;
+
 -- 1. verified for visibility: email OR WhatsApp (verified_at), same guard as smc_lead_email_verified (file 08)
 CREATE OR REPLACE FUNCTION public.smc_lead_verified(p_lead_id uuid)
 RETURNS boolean

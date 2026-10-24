@@ -49,6 +49,8 @@ export const FLOW_TEMPLATES = [
   // broker side of the flow
   'broker_new_booking', 'broker_booking_changed', 'broker_outcome_check', 'broker_disposition', 'broker_quality', 'broker_lead_offer',
   'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief', 'broker_fit_followup',
+  // W41 (24 Oct 2026): a consented client routed to the adviser who has not booked yet; the adviser is told once
+  'broker_lead_routed',
   // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
   'ops_alert',
   // lead-ad intro card WITH the SortMyCover disclosure (2026-10-18): proposal, for Jono with the Instant Form launch (BROKER-INTRO-V3.md)
