@@ -302,7 +302,10 @@ return out;`));
                -- the 24-h session (last inbound WhatsApp from the lead): closed -> a lead that must be told its adviser first is
                -- held (held_disclosure_pending) instead of getting a session text that could not be delivered
                EXISTS (SELECT 1 FROM public.communications cm WHERE cm.lead_id = l.id AND cm.channel = 'whatsapp' AND cm.direction = 'inbound'
-                          AND cm.sender_type = 'client' AND cm.created_at > now() - interval '24 hours') AS window_open
+                          AND cm.sender_type = 'client' AND cm.created_at > now() - interval '24 hours')
+               -- a click-to-WhatsApp consent IS an inbound message (the tap, the typed yes or the ad's ice breaker; verified_at is
+               -- its time) but is not stored as a client communications row: count it, or a lead routed at consent is held
+               OR (l.origin = 'ctwa' AND l.verified_at > now() - interval '24 hours') AS window_open
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     // first_touch: false = W39 (the /start/ page shows the slots itself): route the same way, no W06 first touch
     // W39 also passes expect_broker_id (route only the adviser the lead confirmed) or hold_only (record a hold, never route)

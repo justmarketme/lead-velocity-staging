@@ -26,7 +26,7 @@ interface LeadAct { lead_id: string; activity_type: string; occurred_at: string;
 const ACT_LABEL: Record<string, string> = {
   ctwa_consent: "Tapped the ad and gave consent", consent: "Gave consent", start_page_pending: "Details received",
   start_page_adviser: "Opened the booking page", adviser_disclosed: "Saw your name, firm and FSP number",
-  routed: "Routed to you", order_attached: "Added to your lead order", nurture_sent: "Nudge sent",
+  routed: "Sent to you", routing_held: "Waiting for an adviser", order_attached: "Added to your lead order", nurture_sent: "Nudge sent",
   booking_created: "Booked a time", booking_moved: "Moved the booking", booking_cancelled: "Cancelled the booking",
   opted_out: "Opted out", voice_callback_requested: "Asked for a call-back",
 };
@@ -50,11 +50,37 @@ const sourceLabel = (l: WaitingLead, acts: LeadAct[]) => {
   return "the SortMyCover page";
 };
 const waLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "")}`;
+const openedBookingPage = (acts: LeadAct[]) => acts.some((a) => a.activity_type.startsWith("start_page_") && a.activity_type !== "start_page_pending");
+
+/** Where the client is in the journey (Jonathan, 24 Oct 2026: "show him where in the pipeline it is"). Done steps tick; the first open one is "now". */
+export const pipeline = (acts: LeadAct[]) => {
+  const has = (...t: string[]) => acts.some((a) => t.includes(a.activity_type));
+  const steps = [
+    { label: "Consented", done: true },
+    { label: "Told your name", done: has("adviser_disclosed") },
+    { label: "Opened booking page", done: openedBookingPage(acts) },
+    { label: "Picked a time", done: has("booking_created") },
+    { label: "Meeting", done: has("outcome_marked", "attended") },
+  ];
+  const now = steps.findIndex((x) => !x.done);
+  return steps.map((x, i) => ({ ...x, now: i === now }));
+};
+function Pipeline({ acts }: { acts: LeadAct[] }) {
+  return (
+    <ol aria-label="Where this client is" className="small" style={{ listStyle: "none", padding: 0, margin: "6px 0", display: "flex", flexWrap: "wrap", gap: "4px 10px" }}>
+      {pipeline(acts).map((x) => (
+        <li key={x.label} aria-current={x.now ? "step" : undefined} style={{ fontWeight: x.now ? 700 : 400, opacity: x.done || x.now ? 1 : 0.55 }}>
+          {x.done ? "✓" : x.now ? "→" : "○"} {x.label}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
   const [open, setOpen] = useState(false);
   const nudges = acts.filter((a) => a.activity_type === "nurture_sent");
-  const openedPage = acts.some((a) => a.activity_type.startsWith("start_page_") && a.activity_type !== "start_page_pending");
+  const openedPage = openedBookingPage(acts);
   const last = acts[acts.length - 1];
   // collapse repeats (two page loads in a row read as one line)
   const steps = acts.filter((a, i) => i === 0 || actLabel(a) !== actLabel(acts[i - 1]));
@@ -64,6 +90,7 @@ export function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
       {l.lead_tier && <b className="tag"> · {l.lead_tier}-tier</b>}{isPremium1500(l.budget_band) && <b className="tag"> · R1,500+</b>}<br />
       <span className="small">WhatsApp <a href={waLink(l.phone)} target="_blank" rel="noreferrer">{l.phone}</a>{l.language ? ` · ${l.language}` : ""}{l.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}{l.method_pref ? ` · prefers ${methodLabel(l.method_pref)}` : ""}</span><br />
       <span className="small">Consented {fmtDayTime(l.consent_at || l.created_at)}, via {sourceLabel(l, acts)}.</span>
+      <Pipeline acts={acts} />
       <p className="alert" style={{ margin: "6px 0" }}>
         {openedPage ? "Opened the booking page but stopped before confirming a time." : "Gave consent but hasn't opened the booking page yet."}{" "}
         {nudges.length ? `We're nudging them: ${nudges.length} nudge${nudges.length === 1 ? "" : "s"} sent, last ${fmtDayTime(nudges[nudges.length - 1].occurred_at)}.` : "The first nudge goes out automatically."}

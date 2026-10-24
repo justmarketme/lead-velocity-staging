@@ -498,6 +498,11 @@ function afterConsent(t, row, ctx, actions) {
     t.stage = 'start_page';
     row.conv_state = { state: 'start_page' };
     send(startPageMessage(sp, ctx));
+    // Route at consent (Jonathan, 24 Oct 2026, his second real lead consented and never opened the page): the consent already
+    // lets us share the name and number with an adviser, so the adviser gets the lead now, not when the page is opened.
+    // W01 core names the adviser first (generic consent: the CHAT-DISCLOSE session text + adviser_disclosed), then routes;
+    // no W06 first touch, because the page still shows the adviser and the slots. Off with SMC_ROUTE_AT_CONSENT=false.
+    if (ctx.route_at_consent === true) actions.push({ kind: 'route_and_first_touch', lead_id: row.id, first_touch: false, source: 'W03:consent' });
     stall('start_page');
     return { thread: t, actions };
   }

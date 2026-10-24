@@ -5,7 +5,9 @@
 #   bash scripts/go-live-20261024.sh switch-on HXxxxxxxxx        # LATER, once Meta approves broker_lead_routed
 # Steps:
 #   1 db        broker visibility change (docs/APPLY-LIVE-20261024-broker-visibility.sql) + check. Safe to re-run.
-#   2 vps       ship this branch to the VPS n8n, import + publish W41 (it stays silent: SMC_BROKER_LEAD_NOTICE_ENABLED is
+#   2 vps       ship this branch to the VPS n8n, import + publish W01 W03 W41. From then on a consented WhatsApp-ad client is
+#               told their adviser's name and handed to the adviser at once (route at consent; SMC_ROUTE_AT_CONSENT=false = off),
+#               and W41 sweeps up any consented, unrouted client hourly. W41's adviser notice stays silent (SMC_BROKER_LEAD_NOTICE_ENABLED is
 #               not touched), and report whether test-practice routing (SMC_TEST_BROKER_IDS) is set.
 #   3 portal    vercel --prod (the "Waiting to book" section in Mark's Leads page).
 #   4 template  submit broker_lead_routed to Twilio/Meta (dry run shown first) and print the switch-on command.
@@ -64,11 +66,11 @@ step_db() {
 }
 
 step_vps() {
-  say "2. VPS: ship this branch to n8n and load W41 (silent until switch-on)"
+  say "2. VPS: ship this branch to n8n; load W01, W03 and W41 (route at consent on; adviser notice silent until switch-on)"
   [ -f "$KEY" ] || die "SSH key $KEY not found (set SSH_KEY=...)"
   bash automation/emma-vps/deploy.sh HEAD
-  "${SSH[@]}" "bash $D/repo/automation/emma-vps/import_wf.sh W41" || die "W41 import failed (see UNBOUND above: add that credential in n8n, then re-run: bash scripts/go-live-20261024.sh vps)"
-  ok "W41 imported and published"
+  "${SSH[@]}" "bash $D/repo/automation/emma-vps/import_wf.sh W01 W03 W41" || die "workflow import failed (see UNBOUND above: add that credential in n8n, then re-run: bash scripts/go-live-20261024.sh vps)"
+  ok "W01, W03, W41 imported and published (route at consent is on)"
   local en ids; en=$(vps_get SMC_BROKER_LEAD_NOTICE_ENABLED || true); ids=$(vps_get SMC_TEST_BROKER_IDS || true)
   ok "SMC_BROKER_LEAD_NOTICE_ENABLED=${en:-unset} (W41 sends nothing until this is true)"
   if [[ "$ids" == *"$TEST_PRACTICE"* ]]; then ok "test-practice routing is set"; else warn "SMC_TEST_BROKER_IDS does not list the test practice ($TEST_PRACTICE): switch-on will refuse until it does"; fi
@@ -118,7 +120,7 @@ switch_on() {
 case "${1:-all}" in
   all)       preflight
              ask "1. Apply the database change?" && step_db || true
-             ask "2. Deploy to the VPS and load W41?" && step_vps || true
+             ask "2. Deploy to the VPS (W01, W03, W41)?" && step_vps || true
              ask "3. Deploy the portal?" && step_portal || true
              ask "4. Submit the WhatsApp template?" && step_template || true
              say "Done. Next: when Meta approves the template, run  bash scripts/go-live-20261024.sh switch-on" ;;

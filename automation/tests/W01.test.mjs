@@ -1354,3 +1354,9 @@ test('low-budget close: not on a Sunday, a Saturday afternoon or a public holida
   assert.ok(W01.lowBudgetClose(held, Date.parse('2026-10-24T09:30:00+02:00')), 'Saturday 09:00-13:00');
   assert.ok(W01.lowBudgetClose(held, Date.parse('2026-10-26T08:00:00+02:00')), 'Monday 08:00');
 });
+
+test('W01 core: a click-to-WhatsApp consent counts as the open 24-h window (route at consent, 24 Oct 2026), so the adviser can be named first', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W01.json', import.meta.url), 'utf8'));
+  const q = wf.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
+  assert.match(q, /cm\.sender_type = 'client' AND cm\.created_at > now\(\) - interval '24 hours'\)\s+-- [^\n]*\n(\s+-- [^\n]*\n)*\s+OR \(l\.origin = 'ctwa' AND l\.verified_at > now\(\) - interval '24 hours'\) AS window_open/);
+});

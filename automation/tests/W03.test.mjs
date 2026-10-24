@@ -973,3 +973,26 @@ test('W03.json: the consent-stall schedule claims due threads (UPDATE = claim; w
   assert.match(b.json.content, /an authorised financial adviser/);
   assert.ok(names('W03 step').parameters.jsCode.includes('SMC_CTWA_ICEBREAKER_CONSENT') && names('W03 step').parameters.jsCode.includes('SMC_CTWA_WELCOME_TEXT'), 'the step reads the ice-breaker env');
 });
+
+// ---------------------------------------------------------------- route at consent (Jonathan, 24 Oct 2026)
+test('route at consent: with the start page, the consent hands the lead to W01 core at once (no W06 first touch); off -> as before', () => {
+  for (const r of [W3.step(null, ibMsg(ICEBREAKER), ibCtx({ route_at_consent: true })), consentThenYes({ brand: SP_BRAND, start_page: { token: SP_TOKEN }, route_at_consent: true })]) {
+    const kinds = r.actions.map((a) => a.kind);
+    const route = r.actions.filter((a) => a.kind === 'route_and_first_touch');
+    assert.equal(route.length, 1);
+    assert.deepEqual(route[0], { kind: 'route_and_first_touch', lead_id: r.thread.lead_id, first_touch: false, source: 'W03:consent' });
+    assert.ok(kinds.indexOf('insert_lead') < kinds.indexOf('route_and_first_touch'), 'the lead row first');
+    assert.deepEqual(sends(r.actions).map((a) => a.message.type), ['cta_url'], 'the client still gets the one Start here card from W03');
+    assert.equal(r.thread.stage, 'start_page');
+  }
+  for (const extra of [{}, { route_at_consent: false }, { route_at_consent: 'true' }]) {
+    assert.equal(W3.step(null, ibMsg(ICEBREAKER), ibCtx(extra)).actions.some((a) => a.kind === 'route_and_first_touch'), false, JSON.stringify(extra));
+  }
+  // the tap-by-tap path (start page off) routes after the answers, exactly as before
+  assert.equal(W3.step(null, ibMsg(ICEBREAKER), ibCtx({ brand: BRAND, start_page: null, route_at_consent: true })).actions.some((a) => a.kind === 'route_and_first_touch'), false);
+});
+
+test('the W03 workflow passes route_at_consent from SMC_ROUTE_AT_CONSENT (on unless "false")', () => {
+  const src = readFileSync(new URL('../build-w03-w28.mjs', import.meta.url), 'utf8');
+  assert.match(src, /route_at_consent: String\(\$env\.SMC_ROUTE_AT_CONSENT \|\| ''\)\.trim\(\)\.toLowerCase\(\) !== 'false'/);
+});

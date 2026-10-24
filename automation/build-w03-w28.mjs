@@ -163,7 +163,8 @@ for (const [i, item] of $input.all().entries()) {
   const icebreaker = { consent: String($env.SMC_CTWA_ICEBREAKER_CONSENT || ''), welcome: String($env.SMC_CTWA_WELCOME_TEXT || '') };
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
     broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: synthetic,
-    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page, icebreaker });
+    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page, icebreaker,
+    route_at_consent: String($env.SMC_ROUTE_AT_CONSENT || '').trim().toLowerCase() !== 'false' });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
   const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;
