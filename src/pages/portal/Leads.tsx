@@ -3,17 +3,74 @@
  * Reads (own rows by RLS): smc_order_capacity (his CRM lead orders), bookings (view), leads, outcomes, replacements.
  * Writes: outcomes(outcome → disposition (4.12a / NH-19 labels) → quality 1-5) on own bookings ("smc broker mark own" / "correct own"),
  *         then smc_portal_event('outcome.marked') → W12/W13/W29. Full names only inside the portal (portal rule 6); health detail never (2.1.7).
+ * "Waiting to book" (24 Oct 2026, Jonathan): a lead routed to this broker who consented but has no live booking yet shows at once,
+ *         with where it came from, when, how far it got and every nudge we sent (lead_activities, own rows by RLS). It moves into
+ *         Today / Coming up the moment a booking lands. Needs the 20261024150000 visibility migration for WhatsApp-only leads.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PortalShell, { StepClip, usePortal } from "./PortalShell";
-import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, isPremium1500, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
+import { AGE_LABEL, BUDGET_LABEL, CLIPS_BASE, isPremium1500, DISPOSITIONS, dispositionLabel, errText, fmtDay, fmtDayTime, fmtTime, methodLabel, portalEvent, saDate, smcDb } from "@/lib/smc";
 import { TERMS } from "@/lib/pricing";
 import type { SmcBooking, SmcOrderCapacity, SmcDispositionCode, SmcLead, SmcOutcome, SmcOutcomeKind, SmcReplacement } from "@/integrations/supabase/smc-types";
 
 const CALL_METHODS = new Set(["phone", "whatsapp_call"]);
 const fullName = (l?: SmcLead) => [l?.first_name, l?.last_name].filter(Boolean).join(" ") || "Lead";
 const endOf = (b: SmcBooking) => new Date(b.ends_at || new Date(new Date(b.starts_at).getTime() + 30 * 60e3).toISOString()).getTime();
+
+/** A lead routed to this broker with no live booking yet (the "Waiting to book" card). */
+type WaitingLead = Pick<SmcLead, "id" | "first_name" | "last_name" | "phone" | "language" | "age_band" | "budget_band" | "method_pref" | "origin" | "ad_id" | "campaign_id" | "created_at" | "verified_at">
+  & { consent_at: string | null; lead_tier: string | null };
+interface LeadAct { lead_id: string; activity_type: string; occurred_at: string; payload: Record<string, unknown> | null }
+
+const ACT_LABEL: Record<string, string> = {
+  ctwa_consent: "Tapped the ad and gave consent", consent: "Gave consent", start_page_pending: "Details received",
+  start_page_adviser: "Opened the booking page", adviser_disclosed: "Saw your name, firm and FSP number",
+  routed: "Routed to you", order_attached: "Added to your lead order", nurture_sent: "Nudge sent",
+  booking_created: "Booked a time", booking_moved: "Moved the booking", booking_cancelled: "Cancelled the booking",
+  opted_out: "Opted out", voice_callback_requested: "Asked for a call-back",
+};
+const actLabel = (a: LeadAct) => {
+  const base = ACT_LABEL[a.activity_type] || a.activity_type.replace(/_/g, " ");
+  const touch = a.activity_type === "nurture_sent" ? String(a.payload?.touch || a.payload?.template || "") : "";
+  return touch ? `${base} (${touch.replace(/_/g, " ")})` : base;
+};
+const sourceLabel = (l: WaitingLead) => {
+  const ad = l.ad_id ? ` (ad …${l.ad_id.slice(-4)})` : "";
+  if (l.origin === "ctwa") return `a click-to-WhatsApp ad${ad}`;
+  if (l.origin === "lead_ad" || l.origin === "instant_form") return `an Instant Form ad${ad}`;
+  if (l.ad_id) return `a Meta ad${ad}`;
+  return "the SortMyCover page";
+};
+
+function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
+  const [open, setOpen] = useState(false);
+  const nudges = acts.filter((a) => a.activity_type === "nurture_sent");
+  const openedPage = acts.some((a) => a.activity_type.startsWith("start_page_") && a.activity_type !== "start_page_pending");
+  const last = acts[acts.length - 1];
+  // collapse repeats (two page loads in a row read as one line)
+  const steps = acts.filter((a, i) => i === 0 || actLabel(a) !== actLabel(acts[i - 1]));
+  return (
+    <div data-lead-id={l.id} style={{ marginBottom: 12 }}>
+      <b>{fullName(l as unknown as SmcLead)}</b>
+      {l.lead_tier && <b className="tag"> · {l.lead_tier}-tier</b>}{isPremium1500(l.budget_band) && <b className="tag"> · R1,500+</b>}<br />
+      <span className="small">{l.phone}{l.language ? ` · ${l.language}` : ""}{l.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}{l.method_pref ? ` · prefers ${methodLabel(l.method_pref)}` : ""}</span><br />
+      <span className="small">Came in {fmtDayTime(l.consent_at || l.created_at)} via {sourceLabel(l)}.</span>
+      <p className="alert" style={{ margin: "6px 0" }}>
+        {openedPage ? "Opened the booking page but stopped before confirming a time." : "Gave consent but hasn't opened the booking page yet."}{" "}
+        {nudges.length ? `We're nudging them: ${nudges.length} nudge${nudges.length === 1 ? "" : "s"} sent, last ${fmtDayTime(nudges[nudges.length - 1].occurred_at)}.` : "The first nudge goes out automatically."}
+        {last ? ` Last activity ${fmtDayTime(last.occurred_at)}.` : ""}
+      </p>
+      <button className="tap g" type="button" onClick={() => setOpen(!open)}>{open ? "Hide timeline" : "Timeline"}</button>
+      {open && (
+        <div className="brief">
+          <ul>{steps.map((a, i) => <li key={`${a.activity_type}-${i}`}>{fmtDayTime(a.occurred_at)} — {actLabel(a)}</li>)}</ul>
+          <p className="small" style={{ margin: "8px 0 0" }}>Everything that happens next (a reply, a booking, a nudge) shows here too. We never show health detail.</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Brief({ b, l }: { b: SmcBooking; l?: SmcLead }) {
   return (
@@ -94,6 +151,8 @@ function Body() {
   const [leads, setLeads] = useState<Record<string, SmcLead>>({});
   const [outcomes, setOutcomes] = useState<Record<string, SmcOutcome>>({});
   const [reps, setReps] = useState<SmcReplacement[]>([]);
+  const [waiting, setWaiting] = useState<WaitingLead[]>([]);
+  const [acts, setActs] = useState<Record<string, LeadAct[]>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [edit, setEdit] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -129,6 +188,21 @@ function Body() {
     }
     const { data: rp } = await smcDb.from("replacements").select("*").eq("broker_id", broker.id).gte("claimed_at", new Date(Date.now() - 30 * 86400e3).toISOString()).order("claimed_at");
     setReps((rp as SmcReplacement[]) || []);
+    // Waiting to book: his routed brand leads (last 30 days) minus any with a live booking, whatever its date.
+    const [{ data: wl }, { data: lb }] = await Promise.all([
+      smcDb.from("leads").select("id, first_name, last_name, phone, language, age_band, budget_band, method_pref, origin, ad_id, campaign_id, created_at, verified_at, consent_at, lead_tier")
+        .eq("broker_id", broker.id).not("brand_id", "is", null).is("opted_out_at", null).gte("created_at", new Date(Date.now() - 30 * 86400e3).toISOString()).order("created_at", { ascending: false }).limit(50),
+      smcDb.from("bookings").select("lead_id").eq("broker_id", broker.id).not("status", "in", "(cancelled,pending_verification)"),
+    ]);
+    const booked = new Set(((lb as { lead_id: string }[]) || []).map((b) => b.lead_id));
+    const wait = ((wl as WaitingLead[]) || []).filter((l) => !booked.has(l.id));
+    setWaiting(wait);
+    if (wait.length) {
+      const { data: la } = await smcDb.from("lead_activities").select("lead_id, activity_type, occurred_at, payload").in("lead_id", wait.map((l) => l.id)).order("occurred_at");
+      const byLead: Record<string, LeadAct[]> = {};
+      for (const a of (la as LeadAct[]) || []) (byLead[a.lead_id] ||= []).push(a);
+      setActs(byLead);
+    } else setActs({});
     setLoaded(true);
   }, [broker.id]);
   useEffect(() => { void load(); }, [load]);
@@ -181,6 +255,14 @@ function Body() {
       </section>
       {err && <p className="err">{err}</p>}
       {missing && <p className="muted" role="status">That lead is no longer in your list</p>}
+
+      {loaded && (
+        <section className="card" id="waiting">
+          <h2>{waiting.length ? `${waiting.length} lead${waiting.length === 1 ? "" : "s"} waiting to book` : "No leads waiting to book"}</h2>
+          <p className="muted">These people agreed to be put in touch with you but haven't confirmed a time yet. We're nudging them; nothing for you to do until they book, unless you'd like to reach out yourself.</p>
+          {waiting.map((l) => <WaitingOne key={l.id} l={l} acts={acts[l.id] || []} />)}
+        </section>
+      )}
 
       <section className="card">
         <h2>Today: {groups.today.length} meeting{groups.today.length === 1 ? "" : "s"}</h2>
