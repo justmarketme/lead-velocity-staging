@@ -131,3 +131,4 @@ Thumbs.db
 desktop.ini
 *.log
 supabase/.branches/
+.golive-*.sid
