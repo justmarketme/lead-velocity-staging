@@ -8,7 +8,7 @@ import { FIX, lead, broker, at, ms } from './_harness.mjs';
 import { checkSql, workflowSql } from './_sqlcheck.mjs';
 import * as W from '../lib/w07.mjs';
 import { decide } from '../../conversation/logic.mjs';
-import { LINES, fill } from '../../conversation/lines.mjs';
+import { LINES, fill, DISCLOSE_PERSON } from '../../conversation/lines.mjs';
 
 const WF = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
 const B = broker();
@@ -534,7 +534,7 @@ test('I-51c: Route outputs keep their targets (W28 removed, nothing else rewired
   // 2026-10-11 (verify gate): a typed email address -> save + smc-email-verify issue + one reply
   // 2026-10-19: W10-bound items pass the reschedule card check first (patch-w07-reschedule-card.mjs; not a card -> -> W10)
   // 2026-10-20 (D5): W35 (lead pulse) and W32 (ops decisions) retired; their rule outputs only log
-  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], W35: ['Paused / opted out: log only'], W32_decision: ['Paused / opted out: log only'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'] });
+  assert.deepEqual(now, { ...expected, W10: ['Reschedule card: brand flag (W07)'], W35: ['Paused / opted out: log only'], W32_decision: ['Paused / opted out: log only'], email_code: ['Email code -> verify item'], email_reply: ['Email reply plan (w07.emailReplyPlan + MX)'], handoff_pre_consent: ['Pre-consent handoff: alert ops (nothing to the person)'] }); // 2026-10-21: distress / person before consent -> ops alert only
   assert.ok(!WF.nodes.some((n) => n.name === '-> W28'));
   route.parameters.rules.values.forEach((v, i) => assert.equal(v.conditions.conditions[0].id, 's' + i));
 });
@@ -766,7 +766,10 @@ test('Lindi turn: "Yes" no longer gets silence; first contact still introduces L
   assert.ok(firstD.body.startsWith(L('DISCLOSE')), 'no "Lindi" in her reply -> the fixed intro is kept');
   const named = lt('hi, can I book a call?', { state: 'unbooked', disclosed: false, nlu: { intent: 'book', topics: ['greeting'] } });
   named.apply("Hi, I'm Lindi from SortMyCover, here to set up your call with Mark.", { disclosed: false });
-  assert.equal(named.plan.delegate.find((x) => x.to === 'W04').body.includes(L('DISCLOSE')), false);
+  const namedBody = named.plan.delegate.find((x) => x.to === 'W04').body;
+  assert.equal(namedBody.includes(L('DISCLOSE')), false);
+  // smoke #23: her own intro carries the WHOLE disclosure: the person line is added when she leaves it out
+  assert.ok(namedBody.startsWith("Hi, I'm Lindi from SortMyCover, here to set up your call with Mark. " + DISCLOSE_PERSON.en), namedBody);
   assert.equal(named.plan.discloses, true);
   const id = lt('my id is 8001015009087, how long is the call?', { nlu: { intent: 'question', topics: ['call_length', 'id_number'] } });
   assert.equal(id.apply("It's 30 minutes with Mark.").used, true);
@@ -909,15 +912,167 @@ test('client-facing lines never mention a failure, a calendar problem or a syste
   for (const [at, text] of strings) assert.doesNotMatch(text, FAILURE_WORDS, `${at}: ${text}`);
 });
 
-test('never silent: every fallback also alerts Jono (gated), without the number or the message', () => {
+test('never silent: every fallback also alerts Jono (WhatsApp from the SMC number, EMMA only as the fallback), without the number or the message', () => {
   const a = W.neverSilentAlert({ route: 'W04', msg: { from: '+27725548057', profile_name: 'Mortso', text: 'hi' }, lead: { id: '3f0c2a9e-0000-4000-8000-000000000001', first_name: 'Mortso' } });
   assert.equal(a.source, 'smc-never-silent');
   assert.match(a.message, /^SortMyCover: Mortso is waiting on open times\..*Please follow up on WhatsApp\. Lead 3f0c2a9e\.$/);
   assert.doesNotMatch(a.message, /7255|548057|\bhi\b/);
   const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
-  const next = (name) => ((wf.connections[name] || {}).main || []).flat().map((x) => x.node);
-  assert.deepEqual(next('Never silent: escalation'), ['Never silent: owner alert (lib w07.neverSilentAlert)']);
-  assert.deepEqual(next('Never silent: owner alert (lib w07.neverSilentAlert)'), ['Live send? (Never silent: notify Jono (EMMA /api/notify))']);
+  const next = (name, i = 0) => (((wf.connections[name] || {}).main || [])[i] || []).map((x) => x.node);
+  const BUILD = 'Never silent: owner alert (lib w07.neverSilentAlert)';
+  assert.deepEqual(next('Never silent: escalation'), [BUILD]);
+  // owner rule (24 Oct 2026, patch-owner-alerts.mjs): the alert is a WhatsApp through smc-whatsapp-send; ok:false -> the EMMA gate
+  assert.deepEqual(next(BUILD), ['Never silent: owner WhatsApp (smc-whatsapp-send)']);
+  const sub = wf.nodes.find((n) => n.name === 'Never silent: owner WhatsApp (smc-whatsapp-send)');
+  assert.deepEqual([sub.parameters.workflowId.value, sub.parameters.options.waitForSubWorkflow, sub.onError], ['smc-whatsapp-send', true, 'continueRegularOutput']);
+  assert.deepEqual(next('Never silent: owner WhatsApp (smc-whatsapp-send)'), ['Never silent: WhatsApp sent? (ok)']);
+  assert.deepEqual([next('Never silent: WhatsApp sent? (ok)', 0), next('Never silent: WhatsApp sent? (ok)', 1)], [[], ['Live send? (Never silent: notify Jono (EMMA /api/notify))']]);
   const send = wf.nodes.find((n) => n.name === 'Never silent: notify Jono (EMMA /api/notify)');
   assert.equal(send.parameters.url, 'https://emmadoesit.cloud/api/notify');
+  assert.equal(send.parameters.jsonBody, `={{ JSON.stringify($('${BUILD}').first().json.request) }}`, 'the fallback body comes from the build node (its input is the sender result)');
+});
+
+// Smoke test 21 Oct 2026 (#9): an unrouted lead with no name got "Hi , I'm Lindi from SortMyCover, here to book your call
+// with your adviser." (Afrikaans: "... met your adviser te bespreek"): preStep's fallback 'your adviser' is always truthy, so
+// DISCLOSE_PRE_ROUTE could never be chosen. The line is chosen by broker_id, and a routed lead with no name gets DISCLOSE_NO_NAME.
+test('#9 disclosure: no broker -> DISCLOSE_PRE_ROUTE; broker + name -> DISCLOSE; broker, no name -> DISCLOSE_NO_NAME (en + af)', () => {
+  const nlu = { intent: 'question', topics: ['call_content'], slots: {}, confidence: 0.9 };
+  const plan = (leadOver, lang = 'en') => {
+    const ld = mkLead(L01, { conv_state: { state: 'start_page' }, ...leadOver });
+    const p = W.preStep({ text: 'how long is the call?' }, ld, ld.broker_id ? BROKER_ROW : {});
+    const d = decide('start_page', nlu, p.pre, {});
+    return W.planActions(d, { lead: ld, booking: null, pre: p.pre, nlu, now_ms: NOON, lang, state: 'start_page', wamid: 'w9', disclosed: false, adviser_first: p.adviser_first, faq: FAQ_MAP, text_store: p.text_store });
+  };
+  for (const lang of ['en', 'af']) {
+    const V = LINES[lang];
+    assert.equal(plan({ broker_id: null, first_name: null }, lang).prefix[0], V.DISCLOSE_PRE_ROUTE, lang);
+    assert.equal(plan({ broker_id: null, first_name: 'Lerato' }, lang).prefix[0], V.DISCLOSE_PRE_ROUTE, `${lang}: unrouted, named`);
+    assert.equal(plan({ first_name: 'Lerato' }, lang).prefix[0], V.DISCLOSE, `${lang}: routed + named`);
+    assert.equal(plan({ first_name: null }, lang).prefix[0], V.DISCLOSE_NO_NAME, `${lang}: routed, no name`);
+    assert.equal(plan({ first_name: '  ' }, lang).prefix[0], V.DISCLOSE_NO_NAME, `${lang}: routed, blank name`);
+  }
+  const txt = (o, lang) => { const p = plan(o, lang); return [...p.prefix].map((l) => fill(l, p.vars)).join(' '); };
+  assert.ok(txt({ broker_id: null, first_name: null }, 'en').startsWith("Hi, I'm Lindi from SortMyCover, here to book your call with an adviser."));
+  assert.ok(txt({ first_name: null }, 'en').startsWith(`Hi, I'm Lindi from SortMyCover, here to book your call with ${BROKER_ROW.contact_person.split(' ')[0]}.`));
+  for (const lang of ['en', 'af']) for (const o of [{ broker_id: null, first_name: null }, { first_name: null }]) {
+    const t = txt(o, lang);
+    assert.doesNotMatch(t, /Hi ,|Hallo ,|your adviser|\{/u, `${lang} ${JSON.stringify(o)}: ${t}`);
+  }
+  // Lindi's own reply keeps the fixed intro when it does not introduce herself (applyModelReply knows the new line too)
+  const p = plan({ first_name: null });
+  W.applyModelReply(p, 'The call takes about 30 minutes.', { disclosed: false });
+  assert.deepEqual(p.prefix, [LINES.en.DISCLOSE_NO_NAME]);
+});
+
+// Smoke test 21 Oct 2026 (#23): Lindi's own first reply on a start_page lead was "Hi, I'm Lindi from SortMyCover! The call takes
+// about 30 minutes, and you can join from your phone. ..." (+27600000912, 20:42). Naming herself dropped the fixed DISCLOSE line,
+// and with it "You can ask for a person at any time." Her intro must carry the whole disclosure: the person line is added.
+test('#23 disclosure: her own intro without the person line gets DISCLOSE_PERSON; with it, nothing is added (en + af)', () => {
+  const nlu = { intent: 'question', topics: ['call_length'], slots: {}, confidence: 0.9 };
+  const plan = (lang = 'en', disclosed = false) => {
+    const ld = mkLead(L01, { conv_state: { state: 'start_page' }, broker_id: null, first_name: null, language: lang });
+    const p = W.preStep({ text: 'how long is the call?' }, ld, {});
+    const d = decide('start_page', nlu, p.pre, {});
+    return W.planActions(d, { lead: ld, booking: null, pre: p.pre, nlu, now_ms: NOON, lang, state: 'start_page', wamid: 'w23', disclosed, adviser_first: p.adviser_first, faq: FAQ_MAP, text_store: p.text_store });
+  };
+  for (const lang of ['en', 'af']) for (const k of ['DISCLOSE', 'DISCLOSE_NO_NAME', 'DISCLOSE_PRE_ROUTE']) assert.ok(LINES[lang][k].endsWith(` ${DISCLOSE_PERSON[lang]}`), `${lang}.${k} ends with DISCLOSE_PERSON`);
+  const send = (p) => W.gateAndAssemble(p, { fallback: '' }).text;
+  const live = "Hi, I'm Lindi from SortMyCover! The call takes about 30 minutes, and you can join from your phone.";
+  const p1 = plan();
+  assert.equal(W.applyModelReply(p1, live, { disclosed: false, question: 'how long is the call?' }).used, true);
+  assert.equal(send(p1), `${live} ${DISCLOSE_PERSON.en}`);
+  assert.equal(p1.discloses, true);
+  assert.match(send(p1), W.PERSON_OFFER.en);
+  // already says it in her own words: nothing added
+  const own = "Hi, I'm Lindi from SortMyCover, here to set up your call with an adviser. You can ask for a real person any time.";
+  const p2 = plan();
+  W.applyModelReply(p2, own, { disclosed: false, question: 'how long is the call?' });
+  assert.equal(send(p2), own);
+  // Afrikaans
+  const af = "Hallo, ek is Lindi van SortMyCover! Die oproep duur omtrent 30 minute.";
+  const p3 = plan('af');
+  W.applyModelReply(p3, af, { disclosed: false, question: 'hoe lank is die oproep?' });
+  assert.equal(send(p3), `${af} ${DISCLOSE_PERSON.af}`);
+  // already disclosed: a later reply naming Lindi is left alone
+  const p4 = plan('en', true);
+  W.applyModelReply(p4, "It's Lindi again. The call takes about 30 minutes.", { disclosed: true, question: 'how long is the call?' });
+  assert.equal(send(p4), "It's Lindi again. The call takes about 30 minutes.");
+  // the prompt asks for it too, so the line is only a safety net
+  const prompt = readFileSync(new URL('../../conversation/prompts/lindi-turn.md', import.meta.url), 'utf8');
+  assert.match(prompt, /If DISCLOSED is false[^\n]*ask for a person at any time/u);
+});
+
+// Smoke test 21 Oct 2026 (#18): Twilio receipts arrive out of order; a late 'sent' overwrote 'failed' (row eb052c4f) and a late
+// 'delivered' overwrote 'read'. The W07 receipt UPDATE only moves a row forward: sent < delivered < read; failed only from
+// pending / sent (Twilio queued / accepted / sending map to 'sent'). Same status again stays a no-op update (idempotent).
+test('#18 receipt status only moves forward (pure rule + the W07 "Status receipt" SQL carries the same rule)', () => {
+  const may = W.receiptMayMove;
+  // the live cases
+  assert.equal(may('failed', 'sent'), false, 'eb052c4f: failed is never overwritten by a late sent');
+  assert.equal(may('read', 'delivered'), false, 'read is never pulled back to delivered');
+  assert.equal(may('delivered', 'sent'), false);
+  assert.equal(may('delivered', 'failed'), false, 'a delivered message cannot fail afterwards');
+  assert.equal(may('read', 'failed'), false);
+  assert.equal(may('failed', 'delivered'), false);
+  // forward moves
+  for (const [a, b] of [[null, 'sent'], ['pending', 'sent'], ['sent', 'delivered'], ['sent', 'read'], ['delivered', 'read'], ['sent', 'failed'], ['pending', 'failed'], [null, 'failed'], ['sent', 'sent'], ['read', 'read']]) assert.equal(may(a, b), true, `${a} -> ${b}`);
+  assert.equal(may('received', 'delivered'), false, 'inbound rows are never receipts');
+  assert.equal(may('sent', 'bogus'), false);
+  // the workflow SQL is generated from the same table (patch-w07-receipt-forward.mjs)
+  const q = WF.nodes.find((n) => n.name === 'Status receipt -> communications + disclosure evidence').parameters.query;
+  assert.ok(q.includes(W.receiptGuardSql('$2')), q);
+  assert.match(q, /WHERE channel = 'whatsapp' AND external_id = \$1 AND brand_id IS NOT NULL\s+AND CASE \$2/);
+  // and the SQL CASE, evaluated, agrees with the pure rule for every pair
+  const sqlRule = (from, to) => { const m = new RegExp(`WHEN '${to}' THEN coalesce\\(status, 'pending'\\) IN \\(([^)]*)\\)`).exec(q); return !!m && m[1].split(',').map((s) => s.trim().replace(/'/g, '')).includes(from == null ? 'pending' : from); };
+  for (const from of [null, 'pending', 'sent', 'delivered', 'read', 'failed', 'received']) for (const to of ['sent', 'delivered', 'read', 'failed']) assert.equal(sqlRule(from, to), may(from, to), `${from} -> ${to}`);
+});
+
+// Smoke test 21 Oct 2026 (#34): a blank message / a location share (Twilio: Body "" + Latitude/Longitude, NumMedia 0; exec
+// 11599) went to Lindi's model ("Hey, are you still there?") and then the Start here card again. No content -> nothing.
+test('#34 an inbound with no content (blank text, location share) never reaches Lindi: route ignore_empty -> the log-only branch', async () => {
+  const { normaliseTwilioInbound } = await import('../lib/wa-provider.mjs');
+  const lead = mkLead(L01, { conv_state: { state: 'start_page' } });
+  const c = { lead, broker_numbers: new Set(), ops_numbers: new Set(), has_live_booking: false };
+  const tw = (p) => normaliseTwilioInbound({ MessageSid: 'SMe1', From: 'whatsapp:+27600000921', To: 'whatsapp:+27600156480', NumMedia: '0', ...p })[0].msg;
+  const meta = (m) => W.normaliseInbound(wa(m))[0];
+  for (const [label, m] of [['twilio blank', tw({ Body: '' })], ['twilio spaces', tw({ Body: '   ' })], ['twilio location', tw({ Body: '', Latitude: '-26.1', Longitude: '28.0', MessageType: 'location' })],
+    ['meta location', meta({ type: 'location', location: { latitude: -26.1, longitude: 28.0 } })], ['meta blank text', meta({ type: 'text', text: { body: '' } })]]) {
+    for (const state of ['start_page', 'unbooked', 'booked', 'q_age']) {
+      const r = W.routeInbound(m, { ...c, lead: { ...lead, conv_state: { state } } });
+      assert.equal(r.route, 'ignore_empty', `${label} / ${state}: ${JSON.stringify(r)}`);
+    }
+  }
+  // the Route switch has no output for it: the fallback is the log-only no-op (no model, no Start here card, no never-silent)
+  const route = WF.nodes.find((n) => n.name === 'Route');
+  assert.equal(route.parameters.rules.values.some((v) => v.outputKey === 'ignore_empty'), false);
+  assert.equal(route.parameters.options.fallbackOutput, 'extra');
+  const fb = WF.connections.Route.main[route.parameters.rules.values.length].map((e) => e.node);
+  assert.deepEqual(fb, ['Paused / opted out: log only']);
+  assert.equal(WF.nodes.find((n) => n.name === fb[0]).type, 'n8n-nodes-base.noOp');
+  // anything with content still flows: a caption-less photo (media), a tap, a typed word, STOP; opted out -> W15; no lead -> W03
+  assert.equal(W.routeInbound(tw({ Body: '', NumMedia: '1', MediaContentType0: 'image/jpeg', MediaUrl0: 'https://api.twilio.com/x' }), c).route, 'nlu');
+  assert.equal(W.routeInbound(tw({ Body: 'hi' }), c).route, 'nlu');
+  assert.equal(W.routeInbound(tw({ Body: 'STOP' }), c).route, 'W15');
+  assert.equal(W.routeInbound(tw({ Body: '' }), { ...c, lead: { ...lead, opted_out_at: '2026-10-21T10:00:00Z' } }).route, 'W15');
+  assert.equal(W.routeInbound(tw({ Body: '' }), { ...c, lead: null }).route, 'W03');
+});
+
+// Smoke test 21 Oct 2026 (#32, part 1): "Can I cancel?" before any booking got FAQ-06 ("Tap Reschedule or Cancel"), and there
+// is no such button yet. Without a booking FAQ-06 is neither chosen by decide() nor offered to Lindi's model. What a CANCEL
+// means before booking is Jono's call and is unchanged here (cancel intent -> close_unbooked as before).
+test('#32 FAQ-06 (cancel / move) only when there is a booking: decide() and the FAQ list Lindi sees', () => {
+  const q = { intent: 'question', topics: ['cancel_move'], slots: {}, confidence: 0.9 };
+  for (const st of ['start_page', 'unbooked', 'booking', 'q_age', 'consent_pending']) {
+    assert.ok(!decide(st, q, {}, {}).actions.includes('answer:FAQ-06'), st);
+  }
+  assert.ok(decide('booked', q, {}, {}).actions.includes('answer:FAQ-06'), 'booked: kept (golden G006)');
+  assert.ok(decide('start_page', q, {}, { booking: { id: 'bk', status: 'booked' } }).actions.includes('answer:FAQ-06'), 'a live booking wins over a stale state');
+  // unchanged: a pre-booking cancel intent still closes the nurture (Jono decides that separately)
+  assert.deepEqual(decide('unbooked', { intent: 'cancel', topics: ['cancel_move'], slots: {}, confidence: 0.9 }, {}, {}).actions, ['close_unbooked']);
+  // the model's FAQ list
+  const j = (booking) => ({ lead: mkLead(L01, { conv_state: { state: 'start_page' } }), booking, broker: BROKER_ROW, adviser_first: 'Mark', pre: {}, text_llm: 'Can I cancel?' });
+  const user = (booking) => W.turnRequest({ j: j(booking), faq: FAQ_MAP, now_ms: NOON }).request.messages[0].content;
+  assert.doesNotMatch(user(null), /FAQ-06:/);
+  assert.match(user({ id: 'bk', status: 'booked', appointment_date: '2026-10-15T10:00:00+02:00', method: 'teams' }), /FAQ-06: /);
+  assert.match(user(null), /FAQ-01: /, 'the other answers stay');
 });

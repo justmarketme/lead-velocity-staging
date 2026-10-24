@@ -19,7 +19,7 @@ import { sourceTag, waHref } from "@/lib/whatsapp";
 import { attribution } from "@/lib/pixel";
 import { Wordmark } from "@/components/Brand";
 import { CampaignFooter } from "@/components/Footer";
-import { createStartApi, postLead, runBooking, runMove, type Adviser, type Booking, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
+import { bookErrorText, createStartApi, GENERIC_ERROR, postLead, runBooking, runMove, type Adviser, type Booking, type LeadPoster, type StartApi, type StartData } from "@/lib/start-api";
 import {
   AGE_BANDS, INCOME_BANDS, INTRO_DISCLOSURE, TOKEN_KEY, TOPICS, WHY_WHATSAPP, afterAdviser, answersPayload, availableMethods, canFinishTopics,
   bookBody, contactPayload, countRows, defaultMethod, firstScreen, formatDay, formatTime, formatWhen, fspLine, groupSlots, initials, leadBody, limitGroups, methodLabel,
@@ -100,7 +100,7 @@ function StartFlow() {
   const [data, setData] = useState<StartData | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<{ retry: () => void } | null>(null);
+  const [err, setErr] = useState<{ retry: () => void; message?: string } | null>(null);
   // time step
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsState, setSlotsState] = useState<"idle" | "loading" | "error">("idle");
@@ -339,9 +339,10 @@ function StartFlow() {
         setPicked(null); setShowAll(false); setTaken(true);
         if (r.slots && r.slots.length) { setSlots(r.slots); go("time"); } else { setSlots(null); go("time"); fetchSlots(); }
         return;
-      case "email": return setEmailErr(EMAIL_ERR);
+      // smoke #1: the phone step has no email field, so a refused email is said in the error box, never silently dropped
+      case "email": return method === "teams" ? setEmailErr(EMAIL_ERR) : setErr({ retry: book, message: bookErrorText("email_required") });
       case "expired": return setScreen({ k: "expired" });
-      default: return setErr({ retry: book });
+      default: return setErr({ retry: book, message: r.message });
     }
   }
 
@@ -389,7 +390,7 @@ function StartFlow() {
         if (r.kind === "taken" && r.slots && r.slots.length) { setSlots(withinDays(r.slots, new Date())); go("move"); } else { setSlots(null); go("move"); fetchMoveSlots(); }
         return;
       case "expired": return setScreen({ k: "expired" });
-      default: return setErr({ retry: () => move(fromNumber) });
+      default: return setErr({ retry: () => move(fromNumber), message: r.message });
     }
   }
 
@@ -432,7 +433,7 @@ function StartFlow() {
   const backLink = step && backTo ? <button type="button" className="st-back" onClick={() => back(step)} disabled={busy}>‹ Back</button> : null;
   const errorBox = (
     <div className="st-live" aria-live="polite">
-      {err && <div className="st-error"><p>Something went wrong.</p><button type="button" className="st-retry" onClick={err.retry} disabled={busy}>Try again</button></div>}
+      {err && <div className="st-error"><p>{err.message || GENERIC_ERROR}</p><button type="button" className="st-retry" onClick={err.retry} disabled={busy}>Try again</button></div>}
     </div>
   );
   const options = <V extends string>(opts: { v: V; t: string }[], value: V | undefined, pick: (v: V) => void) => (

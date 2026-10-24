@@ -1033,7 +1033,7 @@ test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the
   const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
   assert.match(load.parameters.query, /\$2 <> 'false' AS first_touch/);
   assert.match(load.parameters.query, /NULLIF\(\$3, ''\) AS expect_broker_id, \$4 = 'true' AS hold_only/);
-  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}");
+  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true), String($json.route_on_consent === true)] }}");
   const routeOut = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: false }] });
   assert.equal(routeOut[0].json.r.first_touch, null);
   const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': routeOut[0].json } });
@@ -1325,4 +1325,57 @@ test('W01.json: the core Load query gives routeExisting the consent version, the
   assert.deepEqual([held.json.r.action, held.json.update], ['held', { routing_reason: 'held_disclosure_pending' }]);
   const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: GEN_LEAD().id, broker_id: null }], refs: { 'Route (w01.routeExisting)': held.json } });
   assert.deepEqual(w06, [], 'a hold never reaches W06');
+});
+
+// Smoke test 21 Oct 2026 (#38): a desktop /start/ lead carried context.ref ('w-home') into decision.row.ref, but the
+// insert never listed the ref column, so leads.ref stayed NULL (no attribution). Every column the row carries is written.
+test('#38 W01 insert writes every column of decision.row, ref included (desktop /start/ attribution)', () => {
+  const d = W01.decide(W01.normaliseSubmission(spBody(), {}), spCtx());
+  assert.equal(d.row.ref, 'w-book', 'the page ref reaches the row');
+  const q = WF.nodes.find((x) => x.name === 'Insert lead + timeline (one statement; broker_id written before W06 exists)').parameters.query;
+  const cols = /INSERT INTO public\.leads \(([^)]*)\)/.exec(q)[1].split(',').map((s) => s.trim());
+  const sel = /SELECT \(j->>'id'\)::uuid,([\s\S]*?)\n\s*FROM r/.exec(q)[1];
+  const exprs = ["(j->>'id')::uuid", ...sel.split(/,(?![^(]*\))/).map((s) => s.trim()).filter(Boolean)];
+  assert.equal(exprs.length, cols.length, 'one value per column');
+  for (const k of Object.keys(d.row)) {
+    const i = cols.indexOf(k);
+    assert.ok(i >= 0, `column ${k} is inserted`);
+    assert.match(exprs[i], new RegExp(`j(->>|->)'${k}'`), `${k} takes its own value`);
+  }
+});
+
+// Smoke test #13 (21 Oct 2026): the low-budget close follows the same CPA contact hours as every W01 lead send.
+test('low-budget close: not on a Sunday, a Saturday afternoon or a public holiday; the next allowed sweep sends it', () => {
+  const held = { id: '00000000-0000-4000-8000-0000000a0c05', origin: 'page', phone: '+27600000175', first_name: 'Lindi', created_at: '2026-10-17T09:00:00+02:00',
+    conv_state: {}, broker_id: null, routing_reason: 'held_low_budget', stage: 'qualified' };
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-10-24T13:30:00+02:00')), null, 'Saturday afternoon');
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-10-25T10:00:00+02:00')), null, 'Sunday');
+  assert.equal(W01.lowBudgetClose(held, Date.parse('2026-11-04T10:00:00+02:00')), null, 'election day 4 Nov');
+  assert.ok(W01.lowBudgetClose(held, Date.parse('2026-10-24T09:30:00+02:00')), 'Saturday 09:00-13:00');
+  assert.ok(W01.lowBudgetClose(held, Date.parse('2026-10-26T08:00:00+02:00')), 'Monday 08:00');
+});
+
+test('W01 core: a click-to-WhatsApp consent counts as the open 24-h window (route at consent, 24 Oct 2026), so the adviser can be named first', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W01.json', import.meta.url), 'utf8'));
+  const q = wf.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
+  assert.match(q, /cm\.sender_type = 'client' AND cm\.created_at > now\(\) - interval '24 hours'\)\s+-- [^\n]*\n(\s+-- [^\n]*\n)*\s+OR \(l\.origin = 'ctwa' AND l\.verified_at > now\(\) - interval '24 hours'\) AS window_open/);
+});
+
+test('route at consent (Jonathan, 24 Oct 2026): a generic CTWA consent routes at once with route_on_consent, no adviser-naming text; lead ads and other callers unchanged', () => {
+  const lead = GEN_LEAD();
+  const r = W01.routeExisting(lead, { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, route_on_consent: true });
+  assert.deepEqual([r.action, r.update.broker_id, r.first_touch], ['routed', LD_BROKER.id, null], 'the consent covers "an authorised financial adviser, who will contact you"');
+  assert.equal(r.disclose, undefined);
+  // a closed window does not matter: nothing is sent to the lead
+  assert.equal(W01.routeExisting(GEN_LEAD({ window_open: false }), { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, route_on_consent: true }).action, 'routed');
+  // without the flag (the old tap path, W39): the 19 Oct rule still names the adviser first
+  assert.equal(W01.routeExisting(lead, { brokers: [LD_BROKER], now: TC_NOW }).action, 'disclose');
+  // a lead-ad lead keeps its own disclosure rule even with the flag
+  assert.equal(W01.routeExisting({ ...lead, origin: 'lead_ad' }, { brokers: [LD_BROKER], now: TC_NOW, route_on_consent: true, require_disclosure: true }).action, 'disclose');
+  // the core passes the flag through: query parameter 5 and both routeExisting calls
+  const wf = JSON.parse(readFileSync(new URL('../W01.json', import.meta.url), 'utf8'));
+  const load = wf.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
+  assert.match(load.parameters.query, /\$5 = 'true' AS route_on_consent/);
+  assert.match(load.parameters.options.queryReplacement, /String\(\$json\.route_on_consent === true\)/);
+  for (const name of ['Route (w01.routeExisting)', 'Route after the disclosure (w01.routeExisting)']) assert.match(wf.nodes.find((n) => n.name === name).parameters.jsCode, /route_on_consent: (it|x)\.json\.route_on_consent === true|route_on_consent: x\.route_on_consent === true/, name);
 });

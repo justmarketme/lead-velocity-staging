@@ -21,6 +21,8 @@ export const LINES = {
     MEDIA_NOT_OPENED: "I can't open photos or files in this chat, so please keep it for your call with {adviser_first}.",
     // 4.11 disclosure on first free-text contact (approved chat replay, 21:15).
     DISCLOSE: "Hi {first_name}, I'm Lindi from SortMyCover, here to book your call with {adviser_first}. You can ask for a person at any time.",
+    // The same disclosure when the lead has no first name (WhatsApp profile without one). Smoke test 21 Oct 2026: "Hi , I'm Lindi".
+    DISCLOSE_NO_NAME: "Hi, I'm Lindi from SortMyCover, here to book your call with {adviser_first}. You can ask for a person at any time.",
     // Disclosure before an adviser is routed (CTWA consent step, no adviser named yet).
     DISCLOSE_PRE_ROUTE: "Hi, I'm Lindi from SortMyCover, here to book your call with an adviser. You can ask for a person at any time.",
     // 4.12 commitment ask (NHS: writing the details down yourself -> 18% fewer missed appointments).
@@ -58,6 +60,8 @@ export const LINES = {
     SAME_METHOD: "Same as before, by {method}?",
     // reply.md fallbacks (W04/W10 interactive bodies and W07 when a draft is dropped). Fixed, pre-approved (I-35e).
     SLOTS_INTRO: "Here are the next open times with {adviser_first}.",
+    // W28 last resort (booking-flow-endpoint.md ladder step 4): no open times to list, so W07 asks for a day. Never says why.
+    ASK_DAY: "Which day would suit you for your call with {adviser_first}, and roughly what time? I'll find you a time that works.",
     RESCHED_INTRO: "No problem, here are some other times.",
     CANCEL_CONFIRM_Q: "Do you want me to cancel your call on {date} at {time}?",
     CANCEL_DONE: "Done, your call is cancelled. If you'd like another time later, just say.",
@@ -116,6 +120,7 @@ export const LINES = {
     BANK_WARNING: "Vir jou veiligheid, moet asseblief nie bank- of kaartbesonderhede in hierdie klets stuur nie.",
     MEDIA_NOT_OPENED: "Ek kan nie foto's of lêers in hierdie klets oopmaak nie, so hou dit asseblief vir jou oproep met {adviser_first}.",
     DISCLOSE: "Hallo {first_name}, ek is Lindi van SortMyCover, hier om jou oproep met {adviser_first} te bespreek. Jy kan enige tyd vra om met 'n mens te praat.",
+    DISCLOSE_NO_NAME: "Hallo, ek is Lindi van SortMyCover, hier om jou oproep met {adviser_first} te bespreek. Jy kan enige tyd vra om met 'n mens te praat.",
     DISCLOSE_PRE_ROUTE: "Hallo, ek is Lindi van SortMyCover, hier om jou oproep met 'n adviseur te bespreek. Jy kan enige tyd vra om met 'n mens te praat.",
     COMMIT_ASK: "Kan jy asseblief die datum en tyd van jou oproep terugstuur sodat ek weet dit is in jou dagboek?",
     COMMIT_OK: "Perfek, dit is ook in {adviser_first} se dagboek.",
@@ -137,6 +142,7 @@ export const LINES = {
     CONFIRM_THANKS: "Dankie, {first_name}, jy is bevestig. As jy môre 'n salarisstrokie of jou huidige polisskedule byderhand het, help dit, maar dit is nie nodig nie.",
     SAME_METHOD: "Dieselfde as voorheen, per {method}?",
     SLOTS_INTRO: "Hier is die volgende oop tye met {adviser_first}.",
+    ASK_DAY: "Watter dag sal jou pas vir jou oproep met {adviser_first}, en ongeveer hoe laat? Ek kry vir jou 'n tyd wat werk.",
     RESCHED_INTRO: "Geen probleem nie, hier is 'n paar ander tye.",
     CANCEL_CONFIRM_Q: "Wil jy hê ek moet jou oproep op {date} om {time} kanselleer?",
     CANCEL_DONE: "Klaar, jou oproep is gekanselleer. As jy later 'n ander tyd wil hê, sê net.",
@@ -190,6 +196,15 @@ export function fill(line, vars = {}) {
 }
 
 /** All fixed lines for a language, filled, for outputGate/toneCheck allow-lists. */
+// The person part of the 4.11 disclosure on its own (the last sentence of every DISCLOSE line). Added after Lindi's own intro
+// when her reply names her but leaves it out (smoke test #23, 21 Oct 2026: "Hi, I'm Lindi from SortMyCover! The call takes
+// about 30 minutes..." went out without it). Kept out of LINES on purpose: fixedLines() feeds the tone check, which removes
+// fixed lines before grading, and this sentence on its own would be stripped out of every reply that says it.
+export const DISCLOSE_PERSON = {
+  en: "You can ask for a person at any time.",
+  af: "Jy kan enige tyd vra om met 'n mens te praat.",
+};
+
 export function fixedLines(lang = 'en', vars = {}) {
   const set = LINES[lang] || LINES.en;
   return Object.values(set).map((l) => fill(l, vars));

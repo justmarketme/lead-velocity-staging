@@ -84,3 +84,23 @@ test('AdApprovals: one stable list, progress line and Approve all (no separate A
   assert.match(sw, /aria-checked=\{on \? true : pending \? "mixed" : false\}/);
   assert.match(sw, /scrollIntoView/);
 });
+
+test('audit summaries describe the v3 scope (name and photo only); body otherwise equal to 20261018200000 (#30)', () => {
+  const read = (f) => readFileSync(new URL(`../../supabase/migrations/${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const fnOf = (sql) => sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.broker_set_ad_likeness_consent'));
+  const v3 = fnOf(read('20261018200000_ad_consent_name_photo_only.sql'));
+  const fix = fnOf(read('20261021150000_ad_consent_v3_audit_summary.sql'));
+  const summaries = (fn) => {
+    const block = fn.slice(fn.indexOf('CASE WHEN p_consent\n            THEN'), fn.indexOf('jsonb_build_object(\n            \'event\''));
+    return [...block.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1]);
+  };
+  const [grant, withdraw] = summaries(fix);
+  assert.match(grant, /name and photo only/);
+  assert.match(withdraw, /name and photo in SortMyCover ads/);
+  for (const s of [grant, withdraw]) assert.doesNotMatch(s, /name, photo, practice name and FSP number/);
+  // the v2 scope is exactly what the earlier file still stores (the bug)
+  assert.match(summaries(v3)[0], /name, photo, practice name and FSP number/);
+  // nothing else in the function changes
+  const strip = (fn) => { const [g, w] = summaries(fn); return fn.replace(`'${g}'`, "'G'").replace(`'${w}'`, "'W'"); };
+  assert.equal(strip(fix), strip(v3));
+});

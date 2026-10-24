@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-07",
+  "files": [
+    {
+      "file": "SortMyCover-Explainer-1080p.mp4",
+      "bytes": 14634646,
+      "duration": 202.1,
+      "width": 1920,
+      "height": 1080,
+      "chapters": 8,
+      "decode": "passed"
+    },
+    {
+      "file": "SortMyCover-Explainer-WhatsApp-720p.mp4",
+      "bytes": 8498176,
+      "duration": 202.1,
+      "width": 1280,
+      "height": 720,
+      "chapters": 8,
+      "decode": "passed"
+    }
+  ],
+  "captions": 73,
+  "source": "Existing 6 October onboarding film; narration and commercial wording preserved."
+}

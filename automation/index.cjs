@@ -34,12 +34,15 @@ const MODULES = {
   w13: './lib/w13.mjs',
   w15: './lib/w15.mjs',
   w22: './lib/w22.mjs', // W22 Alerts (lean, 18 Oct 2026): normalise, 24 h dedupe, email + WhatsApp plan
+  ownerAlert: './lib/owner-alert.mjs', // 24 Oct 2026: every owner notification = one WhatsApp to Jono from the SMC number (W38, W22, W07, W10)
   w37: './lib/w37-cal.mjs',
   w38: './lib/w38.mjs', // W38 SMC lead alert (owner): watermark, de-dupe, minimised message, commit-after-2xx
   w39: './lib/w39.mjs', // W39 Start page API (18 Oct 2026): GET /start + POST /start/answers for sortmycover.co.za/start/
+  w41: './lib/w41.mjs', // W41 SMC broker lead notice (24 Oct 2026): routed, unbooked lead -> adviser WhatsApp + email, once
   w20ms: './lib/w20-ms.mjs',
   w29: './lib/w29.mjs',
   wa: './lib/wa.mjs',
+  routingSplit: './lib/routing-split.mjs', // 23 Oct 2026: test leads -> test practices only, real leads -> real advisers only (W03 Load context)
   breachDetect: './lib/breach-detect.mjs', // W34 B2 breach-report detector, shared by howzit@ mail (W34) and broker WhatsApp (W07)
   // sub-workflows SUB-*.json (LOCAL-STAGING §7, I-48f)
   subWhatsappSend: './lib/sub-whatsapp-send.mjs',

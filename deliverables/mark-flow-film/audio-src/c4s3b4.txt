@@ -1,0 +1,1 @@
+Your admin signs in and taps Accept, and that's all they do. You tap Sign in with Microsoft again, and you're connected.

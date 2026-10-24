@@ -135,7 +135,8 @@ test('I-54j W05: join_url is stored only for Teams / Zoom / Meet; phone and What
   const t = mk('teams');
   assert.match(t.appointment_update.join_url, /teams\.microsoft\.com/); assert.match(t.response.body.join_url, /teams\.microsoft\.com/);
   const save = JSON.stringify(node(W05J, 'Save method').parameters.query);
-  assert.ok(save.includes("join_url = CASE WHEN $2 IN ('teams','zoom','meet') THEN join_url ELSE NULL END"), 'a Teams -> phone method change clears the stale link');
+  // smoke #3 (21 Oct 2026): Teams takes the join link from the Graph PATCH answer ($6); a change to phone / WhatsApp call still clears it
+  assert.match(save, /join_url = CASE WHEN \$2 = 'teams' THEN COALESCE\(NULLIF\(\$6, ''\), CASE WHEN method = 'teams' THEN join_url END\)(\\n|\s)*WHEN \$2 IN \('zoom','meet'\) THEN join_url ELSE NULL END/, 'a Teams -> phone method change clears the stale link');
 });
 
 test('I-54j W06: latency is computed on the lead clock (never negative under the test clock) and unchanged in production', async () => {

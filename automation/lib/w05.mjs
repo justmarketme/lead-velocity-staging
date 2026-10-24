@@ -34,6 +34,7 @@ import { LINES, fill } from '../../conversation/lines.mjs';
 import { ipKey, turnstileVerdict } from './w01.mjs';
 import { brokerConfig, calendarRoute, clockFor, ms, iso, MIN, D, TZ } from './w04.mjs';
 import { INCOME_LABELS } from './w39.mjs';
+import { inMarketingHours } from './contact-hours.mjs';
 export { clockFor };
 
 const require = createRequire(import.meta.url);
@@ -240,7 +241,10 @@ export function parseSub(j = {}, env = {}, nowMs = Date.now()) {
     if (!j.booking_id) return rej('booking_id missing');
     const method = normMethod(j.method);
     if (!METHODS.includes(method)) return rej('method missing or unknown');
-    return { op: 'update_method', booking_id: String(j.booking_id), method, email: INVITE_METHODS.has(method) && j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true, idempotency_key: keyOk(j.idempotency_key) ? j.idempotency_key : `w05:method:${j.booking_id}:${method}` };
+    // notify_wa (smoke #3, 21 Oct 2026): the one lead message W10 built for this change; W05 sends it only after the change is
+    // saved (Graph PATCH ok, or no event to patch), never before
+    const notify = j.notify_wa && typeof j.notify_wa === 'object' && typeof j.notify_wa.to === 'string' && j.notify_wa.to ? { notify_wa: j.notify_wa } : {};
+    return { op: 'update_method', booking_id: String(j.booking_id), method, email: INVITE_METHODS.has(method) && j.email ? String(j.email) : null, email_confirmed: j.email_confirmed === true, idempotency_key: keyOk(j.idempotency_key) ? j.idempotency_key : `w05:method:${j.booking_id}:${method}`, ...notify };
   }
   if (j.op === 'finalize') {
     // smc-email-verify after the lead verified the email: turn the lead's held slot into a booking (W05 "Load held slot").
@@ -392,8 +396,10 @@ export function decide(ctx = {}) {
   // 2026-10-11 verify gate: an unverified lead needs an email for EVERY method (the verification), invite methods always
   const verifiedBefore = lead.email_verified === true;
   // /start/ v4 (Jono, 2026-10-19): a phone / WhatsApp call for a lead whose WhatsApp number is PROVEN (the lead messaged us)
-  // needs no email and is not held for one. Desktop web leads (origin page, never messaged) keep the email + link rule.
-  const noEmailCall = CALL_METHODS.has(method) && waProven(lead) && !req.email;
+  // needs no email and is not held for one. Smoke #1 (21 Oct 2026): a /start/ PHONE call needs no email either, also for a
+  // desktop web lead that never messaged us (contract v4 step 2b "NO email on the phone path"; the confirmation goes on
+  // WhatsApp to the step 0 number). A WhatsApp call still needs a proven number; other web leads keep the email + link rule.
+  const noEmailCall = CALL_METHODS.has(method) && !req.email && (waProven(lead) || (method === 'phone' && isStartPageLead(lead)));
   if (INVITE_METHODS.has(method) || (!verifiedBefore && !noEmailCall) || req.email) {
     const raw = req.email || (!http && lead.email && lead.email_status !== 'bounced' && (lead.email_purpose === 'meeting_invite' || verifiedBefore) ? lead.email : null);
     if (!raw) {
@@ -563,6 +569,20 @@ export function insertBlocked(rows = [], row, bufferMinutes = 15) {
   return rows.some((x) => x.broker_id === row.broker_id && (LIVE.has(x.status) || x.status === HELD) && x.id !== row.finalize_booking_id && ms(x.appointment_date) < e && s < ms(x.ends_at));
 }
 
+// ---------------------------------------------------------------- #37: one Microsoft token per booking request
+/** The is_free re-check asks W04 for its access token too (want_token, broker calendar only), so the event create reuses it. */
+export const TOKEN_REUSE_MIN_S = 300;
+/**
+ * Smoke #37 (21 Oct 2026): /book refreshed the broker's Microsoft token twice (W04 is_free, then W04 graph_token for the
+ * create). The is_free answer now carries the token it just used; the create reuses it while it has more than 5 minutes
+ * left, else W05 asks W04 graph_token as before. free = the W04 is_free answer. -> the access token or null.
+ */
+export function recheckToken(free, nowMs = Date.now()) {
+  if (!free || typeof free.access_token !== 'string' || !free.access_token) return null;
+  const exp = Date.parse(free.expires_at || '');
+  return Number.isFinite(exp) && exp - nowMs > TOKEN_REUSE_MIN_S * 1000 ? free.access_token : null;
+}
+
 // ---------------------------------------------------------------- Microsoft Graph event (modelled; ASSUMPTION)
 /**
  * Is the client invited by the broker's own Outlook? True when the event goes into his connected calendar (plan route
@@ -586,7 +606,7 @@ export function invitedByOutlook(ctx = {}, p = {}, booking = {}, ev = {}) {
 export function graphEvent(ctx, p, opts = {}) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const first = firstName(lead.first_name || lead.name);
+  const first = firstName(lead.first_name || lead.name) || 'your client';
   const number = lead.call_number || lead.phone;
   const startPage = isStartPageLead(lead);
   const portal = String(opts.portalUrl || PORTAL).replace(/\/$/, '');
@@ -615,7 +635,7 @@ export function graphEvent(ctx, p, opts = {}) {
     reminderMinutesBeforeStart: 15,
     isOnlineMeeting: p.method === 'teams',
     // the guest follows the client's invite rule: an attendee only when the client is one (add_client_as_attendee)
-    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: first }, type: 'required' },
+    attendees: invitedByOutlook(ctx, p, ctx.booking || {}) ? [{ emailAddress: { address: p.email, name: firstName(lead.first_name || lead.name) || p.email }, type: 'required' },
       ...(p.method === 'teams' && p.guest_email ? [{ emailAddress: { address: p.guest_email, name: 'Guest' }, type: 'required' }] : [])] : [],
     body: { contentType: 'text', content: lines.join('\n') },
   };
@@ -754,7 +774,12 @@ export function heldReminderMessage(lead, held) {
  * Release sweep (every 5 min): a held slot whose verify_by passed is released (status cancelled, cancelled_at) and the
  * lead gets ONE nudge to rebook (template booking_hold_released, "See open times" -> the W04 list). row = the released
  * appointment joined with the lead (first_name, phone, language).
+ * The nudge is a marketing send (smoke test #13): the slot is freed at verify_by whatever the hour, but the nudge goes
+ * only inside the contact hours (holdNudgeOpen); a hold released outside them is nudged by the first sweep inside them,
+ * once (lead_activities w05:hold_nudge:<booking>), and not at all if the lead booked again or opted out meanwhile.
  */
+export const holdNudgeOpen = (nowMs = Date.now()) => inMarketingHours(nowMs);
+
 export function holdReleased(row = {}) {
   const vars = [firstName(row.first_name) || 'there', dateLabel(row.appointment_date), timeLabel(row.appointment_date)].map((v) => clean(v));
   return { to: row.phone, kind: 'template', template: 'booking_hold_released', variables: vars, buttons: [{ quick_reply: 'see_open_times' }],
@@ -782,7 +807,7 @@ export function inviteMail(ctx, p, booking, ev = {}) {
   const when = `${dateLabel(p.start)} at ${timeLabel(p.start)} (South African time)`;
   const link = ev.join_url || null;
   const word = METHOD_LABEL[p.method];
-  const text = [`Hi ${firstName(lead.first_name)},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Authorised financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
+  const text = [`Hi ${firstName(lead.first_name) || 'there'},`, '', `Your 30-minute ${word} call with ${adviser} (${b.practice_name || b.firm_name || 'your adviser'}, FSP ${b.fsp_number || '-'}) is on ${when}.`, link ? `Join here: ${link}` : `${adviser} will send the ${word} link before the call.`, '', 'The calendar file is attached. To change the time, reply on WhatsApp.', '', 'SortMyCover', 'hello@sortmycover.co.za · sortmycover.co.za', '', 'SortMyCover gives no financial advice, product comparisons or premium quotes. Authorised financial advisers do.', 'Privacy: sortmycover.co.za/privacy.html'].join('\n');
   const ics = icsFile({ uid: `${booking.id}@sortmycover.co.za`, start: p.start, end: p.end, summary: `Your call with ${adviserFirst}`, description: link ? `Join: ${link}` : `${word} call`, url: link || '' });
   return {
     to: p.email,
@@ -876,11 +901,14 @@ export function clientEmailResult(res = {}, sent = {}) {
   const body = r.body && typeof r.body === 'object' ? r.body : {};
   const e = sent.smc_email || {};
   if (status >= 200 && status < 300 && body.id) {
-    if (!body.guest_error) return null;
-    // the client's email went; only the guest's copy failed (never names the guest)
+    // smoke #10 (21 Oct 2026): a guest_email was sent but no guest_id came back. Either the guest copy failed (guest_error)
+    // or the deployed function predates the guest change and silently ignored the field (it answered { id } only).
+    if (!e.guest_email || (body.guest_id && !body.guest_error)) return null;
+    const why = body.guest_error ? String(body.guest_error).slice(0, 80) : 'no guest id came back: the deployed smc-client-email may not support guests';
+    // the client's email went; only the guest's copy is missing (never names the guest)
     return { signal_key: 'client_email_failed', scope: `booking:${e.booking_id || 'unknown'}:guest`, severity: 'amber',
-      what: `SortMyCover ${e.kind || 'booking'} email to the booking's guest not sent for booking ${e.booking_id || '?'} (${String(body.guest_error).slice(0, 80)})`,
-      impact: 'The client got the email; the guest did not', first_action: 'Check the smc-client-email function logs and Resend; then resend the guest copy by hand',
+      what: `SortMyCover ${e.kind || 'booking'} email to the booking's guest not sent for booking ${e.booking_id || '?'} (${why})`,
+      impact: 'The client got the email; the guest did not', first_action: 'Check the smc-client-email version and function logs and Resend; then resend the guest copy by hand',
       source: 'W05', lead_id: sent.lead_id || null };
   }
   const reason = r.error ? `error: ${String((r.error && r.error.message) || r.error).slice(0, 120)}` : `HTTP ${status || '?'}${body.error ? ` ${body.error}` : ''}${body.status ? ` (Resend ${body.status})` : ''}${Array.isArray(body.fields) ? ` fields ${body.fields.join(',')}` : ''}`;
@@ -909,12 +937,12 @@ export function brokerNotice(ctx, p) {
   const startPage = isStartPageLead(lead);
   const b = brokerConfig(ctx.broker);
   const adviserFirst = firstName(b.adviser_name || b.contact_person);
-  const vars = [adviserFirst, firstName(lead.first_name), dateLabel(p.start), timeLabel(p.start), METHOD_LABEL[p.method], BAND_LABEL.age_band[lead.age_band] || '-', BAND_LABEL.budget_band[lead.budget_band] || '-'].map((v) => clean(v));
+  const vars = [adviserFirst, firstName(lead.first_name) || 'your client', dateLabel(p.start), timeLabel(p.start), METHOD_LABEL[p.method], BAND_LABEL.age_band[lead.age_band] || '-', BAND_LABEL.budget_band[lead.budget_band] || '-'].map((v) => clean(v));
   const to = b.adviser_whatsapp || b.whatsapp_number || null;
   return {
     template: 'broker_new_booking', to, vars,
     wa: to ? templateWa(to, 'broker_new_booking', vars, [{ url: `l/${lead.id}` }]) : null,
-    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1]} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. ${startPage ? startPageNotice(lead, p) : `Age band ${vars[5]}, budget band ${vars[6]}.`}${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
+    email: b.email ? { to: b.email, subject: `New booking: ${vars[1]} on ${vars[2]} at ${vars[3]}`, body: `${vars[1].charAt(0).toUpperCase()}${vars[1].slice(1)} booked a ${vars[4]} call with you on ${vars[2]} at ${vars[3]}. ${startPage ? startPageNotice(lead, p) : `Age band ${vars[5]}, budget band ${vars[6]}.`}${p.method === 'teams' && p.guest_email ? ' Joining: one guest (the guest\'s email is in the Outlook event).' : ''} It is in your Outlook calendar; the pre-call brief follows 15 minutes before the call.\n\nSortMyCover by Lead Velocity` } : null,
   };
 }
 
@@ -922,7 +950,7 @@ export function brokerNotice(ctx, p) {
 export function bookingConfirmed(ctx, p, booking) {
   const lead = leadView(ctx.lead);
   const b = brokerConfig(ctx.broker);
-  const vars = [firstName(lead.first_name), b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id, SITE, booking.call_number || lead.call_number || lead.phone)].map((v) => clean(v));
+  const vars = [firstName(lead.first_name) || 'there', b.adviser_name || b.contact_person, dateLabel(p.start), timeLabel(p.start), confirmDetail(p.method, booking.id, SITE, booking.call_number || lead.call_number || lead.phone)].map((v) => clean(v));
   return templateWa(lead.phone, 'booking_confirmed', vars, [{ url: booking.id }, { quick_reply: `confirm:${booking.id}` }, { quick_reply: `reschedule:${booking.id}` }, { quick_reply: `cancel:${booking.id}` }], lead.language);
 }
 
@@ -1006,7 +1034,9 @@ export function finish(ctx, p, booking, ev = { ok: false }, opts = {}) {
     w07: CALL_METHODS.has(p.method) && !startPage ? { source: 'W05', booking: { id: booking.id, method: p.method }, broker: { contact_person: brokerConfig(ctx.broker).adviser_name }, lead: { id: lead.id, phone: lead.phone, brand_id: lead.brand_id || null, language: lead.language || 'en', conv_state: lead.conv_state || {} } } : null,
     ask_email: p.ask_email ? { op: 'ask_email', lead_id: lead.id, method: p.method, booking_id: booking.id, reason: 'book', delegate: ctx.req && ctx.req.delegate ? ctx.req.delegate : null } : null,
     capi,
-    alert: ev.ok || p.route === 'none' ? null : { signal_key: ev.reason === 'shared_calendar_id_missing' ? 'shared_calendar_id_missing' : 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: ev.reason === 'shared_calendar_id_missing' ? 'Set brokers.calendar_status_detail.shared_calendar_id (or SMC_SHARED_CALENDAR_ID), then add the event by hand' : 'Add the event by hand or reconnect the calendar', source: 'W05' },
+    alert: ev.ok || p.route === 'none' ? null : { signal_key: ev.reason === 'shared_calendar_id_missing' ? 'shared_calendar_id_missing' : 'calendar_event_create_failed', scope: `broker:${booking.broker_id}`, severity: 'red', what: `Outlook event not created for booking ${booking.id} (${ev.reason || 'error'})`, impact: 'The meeting is booked and the broker was told on WhatsApp, but it is not in his calendar', first_action: ev.reason === 'shared_calendar_id_missing' ? 'Set brokers.calendar_status_detail.shared_calendar_id (or SMC_SHARED_CALENDAR_ID), then add the event by hand' : 'Add the event by hand or reconnect the calendar', source: 'W05',
+      // 21 Oct 2026: a test lead's booking -> W22 emails it, marked, and WhatsApps nobody (lib/w22.mjs synthetic)
+      ...(ctx.lead && ctx.lead.is_synthetic === true ? { synthetic: true } : {}) },
   };
 }
 
@@ -1024,10 +1054,18 @@ export function planUpdateMethod(ctx = {}) {
   if (!b.methods_supported.includes(req.method)) return { action: 'reject', reason: 'method_not_offered' };
   let email = null; let status = null;
   if (INVITE_METHODS.has(req.method)) {
-    const raw = req.email || (lead.email && lead.email_purpose === 'meeting_invite' && lead.email_status !== 'bounced' ? lead.email : null);
-    const chk = raw ? checkEmail(raw, { acceptTypo: !!req.email_confirmed, hasMx: mxFrom(ctx.mx) }) : { ok: false };
-    if (!chk.ok) return { action: 'ask_email', ask_email: { op: 'ask_email', lead_id: lead.id, method: req.method, booking_id: booking.id, reason: 'change_method' } };
-    email = chk.email; status = req.email && lead.email_status === 'bounced' ? 'corrected' : chk.status;
+    // Smoke #3 (21 Oct 2026): the lead's VERIFIED email (the link was clicked, so it receives mail) is used as is. It used to go
+    // through checkEmail without the DNS answer, so any domain outside the offline 10-domain list (protonmail.com, a work
+    // domain) was judged no_mx and the client was asked again for an email they had already given. Other addresses are
+    // checked with the real MX answer the 'Plan method change' node passes in ctx.mx.
+    const verified = lead.email_verified === true && !!lead.email && lead.email_status !== 'bounced' && (!req.email || sameEmail(req.email, lead.email));
+    if (verified) { email = String(lead.email).trim().toLowerCase(); status = lead.email_status || 'mx_ok'; }
+    else {
+      const raw = req.email || (lead.email && lead.email_purpose === 'meeting_invite' && lead.email_status !== 'bounced' ? lead.email : null);
+      const chk = raw ? checkEmail(raw, { acceptTypo: !!req.email_confirmed, hasMx: mxFrom(ctx.mx) }) : { ok: false };
+      if (!chk.ok) return { action: 'ask_email', ask_email: { op: 'ask_email', lead_id: lead.id, method: req.method, booking_id: booking.id, reason: 'change_method' } };
+      email = chk.email; status = req.email && lead.email_status === 'bounced' ? 'corrected' : chk.status;
+    }
   }
   const p = { start: iso(ms(booking.appointment_date)), end: iso(ms(booking.ends_at)), method: req.method, email, email_status: status, idempotency_key: booking.idempotency_key || booking.id, booked_via: booking.booked_via,
     guest_email: req.method === 'teams' && booking.guest_email ? String(booking.guest_email) : null }; // a PATCHed attendee list keeps the guest
@@ -1044,6 +1082,30 @@ export function planUpdateMethod(ctx = {}) {
     lead_update: email ? { email, email_status: status, email_purpose: 'meeting_invite' } : {},
     plan: p,
   };
+}
+
+/**
+ * Smoke #3 (21 Oct 2026): the Graph PATCH answer of a method change (n8n fullResponse, neverError) -> { ok, join_url, alert }.
+ * ok = 2xx: only then is the change saved and the lead told (W05 'Method patched?'). The Teams join link comes from the
+ * PATCH answer (the updated event: onlineMeeting.joinUrl, as afterEvent reads a create), so a phone -> Teams change gets the
+ * link the /j/<booking> redirect and the reminders need. A failed PATCH saves nothing (Outlook and the CRM stay the same)
+ * and is a red W22 alert; a Teams event with no link in the answer is saved and flagged amber.
+ */
+export function afterMethodPatch(res, p = {}, bookingId = null, brokerId = null) {
+  const r = res || {};
+  const body = r.body && typeof r.body === 'object' ? r.body : {};
+  const code = Number(r.statusCode || (body.id ? 200 : 0));
+  const ok = code >= 200 && code < 300 && !r.error;
+  const join = ok && p.method === 'teams' ? ((body.onlineMeeting && body.onlineMeeting.joinUrl) || body.onlineMeetingUrl || null) : null;
+  const base = { scope: `booking:${bookingId || 'unknown'}`, source: 'W05', broker_id: brokerId || null };
+  const alert = !ok
+    ? { ...base, signal_key: 'calendar_event_update_failed', severity: 'red', what: `Outlook event not changed to ${TITLE_LABEL[p.method] || p.method} for booking ${bookingId || '?'} (${code ? `HTTP ${code}` : 'no response'}${body.error && body.error.code ? ` ${body.error.code}` : ''})`,
+      impact: 'The call keeps its old method in Outlook and the CRM; the client has not been told about the change', first_action: 'Reconnect the calendar or change the method in Outlook by hand, then tell the client' }
+    : p.method === 'teams' && !join
+      ? { ...base, signal_key: 'teams_join_url_missing', severity: 'amber', what: `Booking ${bookingId || '?'} changed to Teams but Outlook returned no join link`,
+        impact: 'The /j/ link in the reminders will not open the meeting', first_action: 'Copy the Teams link from the Outlook event into appointments.join_url' }
+      : null;
+  return { ok, join_url: join, alert };
 }
 
 /**

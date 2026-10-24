@@ -13,8 +13,8 @@
 //        link -> op finalize -> booked -> W06 op booking (the one intro card, dry); then POST /start/answers v4 -> done
 //   phone a CTWA lead: POST /start/contact (call_number + alt_number) -> /book phone with NO email -> booked at once
 //   move POST /start/move -> W10's own pick op (claim, is_free, move in place) -> the re-read row; past now + 14 days -> 400
-//   web  POST /lead start_page (desktop "Book", no token) -> adviser -> slots -> contact -> /book phone + email -> held for the
-//        email (an unproven number) -> link -> booked -> answers v4 -> done
+//   web  POST /lead start_page (desktop "Book", no token) -> adviser -> slots -> contact -> /book phone with NO email -> booked at
+//        once (smoke #1, 21 Oct 2026: no email on the phone path) -> answers v4 -> done
 //   +    a v3 body (pages opened before the deploy): a will -> a person (escalation)
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -461,31 +461,27 @@ test('the /start/ page v4 on the real schema: CTA link -> adviser confirm -> slo
   assert.deepEqual([lead(WID).broker_id, lead(WID).routing_reason, lead(WID).order_state], [MARK, 'single_broker', 'attached']);
   const wtl = q(`SELECT activity_type FROM public.lead_activities WHERE lead_id = '${WID}' AND activity_type IN ('adviser_disclosed', 'routed') ORDER BY occurred_at`).map((r) => r[0]);
   assert.deepEqual(wtl, ['adviser_disclosed', 'routed']);
-  // slots -> book (held) -> verify -> booked -> W06 intro card (dry)
+  // slots -> book (phone, no email: booked at once) -> W06 intro card skipped for start-page leads (dry)
   const cw = W4.resolveCaller(H(WTOK), { days: '14' }, ENV, Date.now());
   const rw = app(sqlOf(WF04, 'Load lead + broker + holds (http)'), [cw.lead_id, ''])[0];
   const xw = { lane: 'http', req: cw, lead: j(rw[0]), broker: j(rw[1]), bookings: j(rw[2]) || [] };
   const sw = W4.respond({ ...xw, busy: [], route: W4.planRequest(xw).route, now: Date.now(), holidays: HOL });
   assert.ok(sw.body.slots.length > 0);
   const WSLOT = sw.body.slots.find((x) => ![SLOT.start, NEW.start, PSLOT.start].includes(x.start));
-  // phone: the number Mark should call + a fallback (desktop: the WhatsApp number is not proven, so the email link still holds it)
+  // phone: the number Mark should call + a fallback. Smoke #1 (21 Oct 2026): NO email on the phone path, also on desktop (the
+  // number is not proven by a message, but contract v4 step 2b asks no email there): booked at once, confirmed on WhatsApp
   assert.deepEqual((await postContact(WTOK, { request_id: 'req-sp-web-c1', call_number: '011 000 0311', alt_number: '082 000 0311' })).body, { ok: true });
   const lw = lead(WID);
   assert.deepEqual([lw.call_number, lw.alt_number, lw.alt_purpose], ['+27110000311', '+27820000311', 'reach_fallback'], 'a landline to call, the WhatsApp number as the fallback');
-  const pw = W5.parseHttp(H(WTOK), { slot_start: WSLOT.start, method: 'phone', email: 'synthetic-sp-naledi@example.test', request_id: 'req-sp-web-book', context: { source: 'start_page' } }, ENV, Date.now());
-  const bw = book(pw);
-  assert.equal(bw.row.status, 'pending_verification');
-  assert.equal(bw.dec.plan.hold_for, 'email', 'held for the email link only (an unproven number), never for the budget band');
-  assert.equal(apCall(bw.row.id), '+27110000311');
-  const hw = W5.holdPending(bw.ctx, bw.dec.plan, bw.row);
-  app(sqlOf(WF05, 'Save hold: lead email (unverified) + timeline'), evalParam(WF05, 'Save hold: lead email (unverified) + timeline', 'options.queryReplacement', { json: { ...bw.item, booking: bw.row, hold: hw } }));
-  assert.equal(hw.response.body.held, true);
-  q(`UPDATE public.leads SET email_verified = true, email_verified_at = now(), email_verified_via = 'link' WHERE id = '${WID}'`);
-  const fw = app(sqlOf(WF05, 'Load held slot + lead (finalize)'), [WID, ''])[0];
-  const bw2 = book({ lane: 'sub', ok: true, req: W5.finalizeRequest(j(fw[0]), j(fw[1]), Date.now()), hdr: {} });
-  assert.deepEqual([bw2.row.id, bw2.row.status], [bw.row.id, 'booked']);
+  const pw = W5.parseHttp(H(WTOK), { slot_start: WSLOT.start, method: 'phone', request_id: 'req-sp-web-book', context: { source: 'start_page' } }, ENV, Date.now());
+  assert.equal(pw.ok, true, JSON.stringify(pw.body || pw));
+  const bw2 = book(pw);
+  assert.equal(bw2.row.status, 'booked', 'a desktop phone call with no email: booked at once, never 422 email_required, never held');
+  assert.deepEqual([bw2.dec.plan.hold, bw2.dec.plan.email], [false, null]);
+  assert.equal(apCall(bw2.row.id), '+27110000311');
   const evw = W5.afterEvent(W5.sharedEventItem(bw2.ctx, bw2.dec.plan, {}, {}));
   const ffw = W5.finish(bw2.ctx, bw2.dec.plan, bw2.row, evw, { site: ENV.SITE_URL, ics_secret: SECRET });
+  assert.equal(ffw.client_email, null, 'no email on the phone path: the confirmation and reminders go on WhatsApp');
   app(sqlOf(WF05, 'Save event ids + lead (stage, broker, invite email)'), evalParam(WF05, 'Save event ids + lead (stage, broker, invite email)', 'options.queryReplacement', { json: { ...bw2.item, booking: bw2.row, ev: evw, f: ffw } }));
   assert.equal(lead(WID).stage, 'booked');
   assert.equal(ffw.w06, null, 'no W06 card for the web lead either');

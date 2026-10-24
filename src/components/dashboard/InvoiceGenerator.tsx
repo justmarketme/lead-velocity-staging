@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { openAdminDocument } from "@/lib/adminDocs";
 import { getInvoiceEmailSignature } from "@/utils/emailSignature";
 import { BrokerSelector } from "./BrokerSelector";
-import { callLegalAI } from "@/utils/legalAI";
+import { callLegalAI, LEGAL_AI_ENABLED } from "@/utils/legalAI";
 import { TIERS, ALL_PLANS, PILOT, isPilot, TERMS, TOPUP, zar, topupMinimumZar, LATE_PAYMENT_TEXT, type PricingTier } from "@/lib/pricing";
 import type { Tables } from "@/integrations/supabase/types";
 import type { BrokerOnboardingRow } from "@/types/groupA-broker";
@@ -650,6 +650,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                     </Card>
 
                     {/* Premium AI Assistant UI (Grok Style) */}
+                    {LEGAL_AI_ENABLED && (
                     <Card className="bg-[#151719]/80 backdrop-blur-xl border border-white/5 shadow-2xl overflow-hidden shrink-0 rounded-2xl">
                         <CardContent className="p-4 space-y-4">
                             {/* AI Message Bubble */}
@@ -759,6 +760,7 @@ const InvoiceGenerator = ({ onBack, initialData }: InvoiceGeneratorProps) => {
                             </div>
                         </CardContent>
                     </Card>
+                    )}
                 </div>
 
                 {/* Resizable Divider Bar */}

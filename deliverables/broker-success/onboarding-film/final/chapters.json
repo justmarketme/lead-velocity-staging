@@ -1,0 +1,42 @@
+[
+  {
+    "title": "Welcome",
+    "start": 0,
+    "end": 12.733
+  },
+  {
+    "title": "Getting you live",
+    "start": 12.733,
+    "end": 32.633
+  },
+  {
+    "title": "How a lead reaches you",
+    "start": 32.633,
+    "end": 69.033
+  },
+  {
+    "title": "Where your money goes",
+    "start": 69.033,
+    "end": 99.167
+  },
+  {
+    "title": "How we keep improving",
+    "start": 99.167,
+    "end": 129.067
+  },
+  {
+    "title": "More data, better leads",
+    "start": 129.067,
+    "end": 172.467
+  },
+  {
+    "title": "Your part",
+    "start": 172.467,
+    "end": 192.167
+  },
+  {
+    "title": "Close",
+    "start": 192.167,
+    "end": 202.1
+  }
+]

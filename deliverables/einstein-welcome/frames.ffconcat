@@ -1,0 +1,14 @@
+ffconcat version 1.0
+file 'pose-0.png'
+duration 0.25
+file 'pose-1.png'
+duration 0.25
+file 'pose-2.png'
+duration 0.25
+file 'pose-3.png'
+duration 0.25
+file 'pose-2.png'
+duration 0.25
+file 'pose-1.png'
+duration 0.25
+file 'pose-0.png'

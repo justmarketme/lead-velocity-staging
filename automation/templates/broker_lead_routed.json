@@ -1,0 +1,43 @@
+{
+  "name": "broker_lead_routed",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "HEADER",
+      "format": "TEXT",
+      "text": "New client, not booked yet"
+    },
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, a SortMyCover client, {{2}}, has agreed to be put in touch with you. They came in {{3}} and {{4}}, so there is nothing for you to do yet: we are nudging them to pick a time, and you will get the usual booking message the moment they do. Their details and timeline are in your portal.",
+      "example": {
+        "body_text": [
+          [
+            "Mark",
+            "Lerato M.",
+            "on Sat 24 Oct at 08:12 via a SortMyCover ad",
+            "opened your booking page but have not confirmed a time"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover by Lead Velocity"
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Open in portal",
+          "url": "https://leadvelocity.co.za/{{1}}",
+          "example": [
+            "https://leadvelocity.co.za/l/ld_51c9"
+          ]
+        }
+      ]
+    }
+  ]
+}

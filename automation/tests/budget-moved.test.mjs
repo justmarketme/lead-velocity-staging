@@ -150,3 +150,18 @@ test('reminder wiring: W01 15-min sweep -> mark before send (at-most-once) -> sh
   assert.equal(nd('WhatsApp Send (qualify_budget reminder)').parameters.workflowId.value, 'smc-whatsapp-send');
   assert.match(WF03, /retention_delete_after = CASE WHEN \$2::jsonb \? 'qualified_at' OR \$2::jsonb \? 'keep_lead' THEN NULL/);
 });
+
+// Smoke test #13 (21 Oct 2026): the reminder is a marketing send -> CPA contact hours (lib/contact-hours.mjs).
+test('the ONE reminder follows the CPA hours: not on a Sunday, a Saturday afternoon or a public holiday (held, then sent)', () => {
+  const lead = { id: '00000000-0000-4000-8000-0000000a0143', phone: '+27600000143', first_name: 'Synthetic', origin: 'lead_ad', routing_reason: 'held_budget_pending',
+    broker_id: null, opted_out_at: null, disqualified_reason: null, qualified_at: null, created_at: '2026-10-24T10:30:00+02:00', conv_state: { state: 'q_budget' } };
+  // in Sat 10:30 -> due 13:30 (Saturday afternoon) -> held over Sunday -> Monday 08:00
+  for (const t of ['2026-10-24T13:30:00+02:00', '2026-10-24T18:00:00+02:00', '2026-10-25T10:00:00+02:00', '2026-10-26T07:59:00+02:00'])
+    assert.equal(W01.budgetReminder(lead, Date.parse(t)), null, t);
+  assert.ok(W01.budgetReminder(lead, Date.parse('2026-10-26T08:00:00+02:00')), 'Monday 08:00');
+  const sat = { ...lead, created_at: '2026-10-24T06:00:00+02:00' };
+  assert.ok(W01.budgetReminder(sat, Date.parse('2026-10-24T09:00:00+02:00')), 'Saturday morning 09:00-13:00 is allowed');
+  const hol = { ...lead, created_at: '2026-11-03T18:00:00+02:00' };
+  assert.equal(W01.budgetReminder(hol, Date.parse('2026-11-04T10:00:00+02:00')), null, '4 Nov 2026 election day');
+  assert.ok(W01.budgetReminder(hol, Date.parse('2026-11-05T08:00:00+02:00')));
+});

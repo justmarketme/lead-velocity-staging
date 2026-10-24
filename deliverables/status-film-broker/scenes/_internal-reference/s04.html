@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>04 The system</title>
+<link rel="stylesheet" href="film.css">
+<style>
+  .grid6 { position: absolute; left: 140px; right: 140px; top: 330px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+  .tile { height: 276px; padding: 32px 34px; position: relative; }
+  .tile .tx { margin-top: 24px; font-size: 33px; font-weight: 700; color: var(--navy); line-height: 1.15; }
+  .tile .sb { margin-top: 8px; font-size: 21px; color: var(--muted); line-height: 1.35; }
+  .tile .tick { position: absolute; right: 30px; top: 30px; }
+  .old { position: absolute; left: 34px; bottom: 26px; font-size: 18px; font-weight: 700; color: var(--faint); }
+  .old s { text-decoration-thickness: 2.5px; text-decoration-color: var(--pink); }
+</style></head>
+<body data-scene="s04"><div class="stage">
+  <div class="top"><div class="eyebrow">Done</div><h1 class="h"><i></i>The system</h1></div>
+  <div class="grid6">
+    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13l2 2 4-4"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="old"><s>Commission tiers</s></div><div class="tx">CRM contract generator</div><div class="sb">Generates only the new agreement</div></div>
+    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 18.5h4M9 8h6M9 11.5h4"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">Today screen</div><div class="sb">New phone layout for the broker portal</div></div>
+    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11l4.3.9a2 2 0 0 1 1.6 2.2l-.6 5A2 2 0 0 1 15.3 21H11a2 2 0 0 1-1.6-.8L5.8 15.6a1.5 1.5 0 0 1 2.2-2L9 14.5"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">One-tap feedback</div><div class="sb">Attendance only, plus no-show proof</div></div>
+    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">Cycle card + top-ups</div><div class="sb">Where each broker is in the cycle</div></div>
+    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">R1,500+ targeting</div><div class="sb">Clients who can budget R1,500 a month or more</div></div>
+    <div class="card tile"><div class="ic-g"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z"/></svg></div><div class="tick"><svg viewBox="0 0 24 24"><path pathLength="1" stroke-dasharray="1" stroke-dashoffset="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="tx">Onboarding film</div><div class="sb">Finished</div></div>
+  </div>
+</div>
+<script src="timings.js"></script><script src="film.js"></script>
+<script>
+  const tiles = $$('.tile');
+  const tT = [cue('CRM'), cue('today'), cue('onetap'), cue('cycle'), cue('campaigns'), cue('onboarding')];
+  const tDone = [cue('gone'), cue('today') + .6, cue('attendance'), cue('top', 1, cue('cycle')), cue('budget'), cue('finished')];
+  window.update = t => {
+    rv('.top .eyebrow', t, .2, { y: 16 });
+    rv('.top h1', t, .3, { y: 30, blur: 6, dur: 1 });
+    tiles.forEach((c, i) => {
+      rv(c, t, tT[i] - .4, { y: 40, scale: .95, dur: .9 });
+      tick(c.querySelector('.tick'), t, tDone[i]);
+      const hot = P(t, tT[i] - .2, .4) * (1 - (i < 5 ? P(t, tT[i + 1] - .2, .6) : 0));
+      c.style.borderColor = `rgba(219,39,119,${(hot * .5).toFixed(3)})`;
+    });
+    rv('.old', t, cue('old') - .1, { y: 10, dur: .6 });
+  };
+</script></body></html>

@@ -139,12 +139,15 @@ test('free text mid-question re-asks the same question and logs the text for the
   assert.equal(r3.actions.find((a) => a.kind === 'send').message.type, 'list');
 });
 
-test('stall nudges at +1 h, +20 h, +68 h (inside the 72-h CTWA window) and cancelled when qualifying ends', () => {
+test('stall nudges: the consent question carries its +2 h / +20 h re-ask clock; qualifying +1 h, +20 h, +68 h (inside the 72-h CTWA window), cancelled when qualifying ends', () => {
   const { actions } = run(lead('L04'));
   const st = actions.filter((a) => a.kind === 'schedule_stall');
-  assert.ok(st.length >= 1);
-  assert.deepEqual(st[0].hours, [1, 20, 68]);
-  assert.ok(Math.max(...st[0].hours) < 72);
+  assert.ok(st.length >= 2);
+  // 24 Oct 2026: before this the consent question scheduled no stall, so wa_threads.stall_due_at stayed NULL and nobody was re-asked
+  assert.deepEqual([st[0].stage, st[0].hours], ['await_consent', [2, 20]]);
+  const q = st.find((s) => s.stage !== 'await_consent');
+  assert.deepEqual(q.hours, [1, 20, 68]);
+  assert.ok(Math.max(...q.hours) < 72);
   assert.ok(actions.some((a) => a.kind === 'cancel_stall'));
 });
 
@@ -423,8 +426,8 @@ test('opener from an unknown number: lead stored at once with the opener consent
   assert.equal(s.length, 1, 'one message');
   assert.equal(s[0].message.type, 'list');
   assert.match(s[0].message.body, /^Hi Thabo, I'm Lindi from SortMyCover\. /);
-  assert.equal(/AI/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
-  assert.match(s[0].message.body, /Thanks for getting in touch about cover for my family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
+  assert.equal(/\bAI\b/.test(s[0].message.body), false, 'no AI wording (Jono, 17 Oct)');
+  assert.match(s[0].message.body, /Thanks for getting in touch about cover for your family\. If it's something else, just tell me\.\n\nWhich age group are you in\?$/);
   assert.equal(r.thread.stage, 'q_age');
   assert.equal(r.thread.lead_id, 'lead_opener_1');
 });
@@ -578,7 +581,7 @@ test('start page ON: a website opener greets, then the call-to-action (wills ope
   const s = sends(r.actions);
   assert.equal(s.length, 1);
   assert.equal(s[0].message.type, 'cta_url');
-  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for my family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
+  assert.equal(s[0].message.body, "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.\n\nHere's how it works:\n1. Pick a time for your 30-minute call: Microsoft Teams or phone.\n2. Tell us where to send your invite.\n3. Meet your adviser and answer two quick questions so they come prepared.\n4. You're back here on WhatsApp.\nI'll be here to guide you all the way.");
   assert.deepEqual(r.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'start_page', topic: 'cover for my family', ref: 'a06' });
   assert.equal(r.thread.stage, 'start_page');
   const w = W3.step(null, msg(OPENER('a will', 'Capital Legacy', 'b02')), ctx);
@@ -683,4 +686,313 @@ test('start page ON: the Start here card never comes before the consent tap (Hi 
   const cta = sends(yes.actions).map((a) => a.message);
   assert.deepEqual(cta.map((m) => m.type), ['cta_url'], 'Yes -> the Start here card');
   assert.equal(cta[0].header_image, 'https://n8n.sortmycover.co.za/media/whatsapp/headers/header-welcome.png', 'the card keeps its own welcome header');
+});
+
+// ---------------------------------------------------------------- typed consent (Jono, 21 Oct 2026)
+const TYPED_YES = ['yes', 'Yes', 'YES!!', 'yes please', 'Yes I agree', 'yes, I agree.', 'I agree', 'agree', 'ok yes', 'Okay', 'yes continue', 'Yes, continue', 'ja', 'Yebo', 'yes 👍', '👍 Yes please 🙏', 'I consent', 'agreed', 'Yes I agree to this'];
+const TYPED_NO = ['no', 'No.', 'no thanks', 'No thank you', 'nee', 'NO!!', 'nope', 'I don’t agree', 'I do not agree', 'not interested', 'No, I do not agree'];
+const TYPED_AMBIGUOUS = ['yes but', 'Yes, but what does it cost', 'what is this', 'not yet', 'maybe', 'yes?', 'Yes I agree?', 'ok?', 'who are you', 'yes if it is free', 'yes no', 'no I agree', 'ok no', 'hi', '👍', '', '   ', 'yes 2', 'sure', 'I do', 'stop', 'Is this legit', 'yes I agree but only by email', 'no idea'];
+
+test('typedConsent: plain yes -> consent_yes, plain no -> consent_no, anything else -> null (re-ask)', () => {
+  const t = (s) => W3.typedConsent({ type: 'text', text: { body: s } });
+  for (const s of TYPED_YES) assert.equal(t(s), 'consent_yes', s);
+  for (const s of TYPED_NO) assert.equal(t(s), 'consent_no', s);
+  for (const s of TYPED_AMBIGUOUS) assert.equal(t(s), null, JSON.stringify(s));
+  assert.equal(W3.typedConsent({ type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'x' } } }), null, 'taps are not typed');
+  assert.equal(W3.typedConsent({ type: 'text', text: 'yes' }), 'consent_yes', 'flat text shape');
+});
+
+const typedCtx = (id, extra = {}) => ({ at: '2026-10-21T09:00:00+02:00', mobile: '+27600000570', profile_name: 'Ann', lead_id: 'lead_typed_1', broker: MARK, brand: BRAND, existing_open_lead_id: null, suppressed: false, wamid: id, is_synthetic: true, ...extra });
+const typedFirst = (extra) => W3.step(null, { from: '27600000570', id: 'SMt0', timestamp: '1', type: 'text', text: { body: 'hi' }, referral: { source_type: 'ad', source_id: '1203', source_url: 'https://fb.me/y', headline: 'H', ctwa_clid: 'clid_t' } }, typedCtx('SMt0', extra));
+const typedMsg = (body, id = 'SMt1') => ({ from: '27600000570', id, timestamp: '2', type: 'text', text: { body } });
+
+test('typed yes at await_consent: lead stored exactly like a tap, then q_age; typed words + consent_method recorded', () => {
+  for (const words of TYPED_YES) {
+    const first = typedFirst();
+    const r = W3.step(first.thread, typedMsg(words), typedCtx('SMt1'));
+    const ins = r.actions.filter((a) => a.kind === 'insert_lead');
+    assert.equal(ins.length, 1, words);
+    const row = ins[0].row;
+    assert.equal(row.consent_text, sends(first.actions)[0].message.body, 'stored consent = the words shown');
+    assert.equal(row.consent_text_version, 'ctwa-named-v3');
+    assert.equal(row.consent_source, 'ctwa_ad', 'door unchanged');
+    assert.equal(row.stage, 'verified');
+    assert.equal(row.provenance.consent_method, 'typed', words);
+    assert.equal(row.provenance.opener_text, words.trim(), 'the exact typed words are the evidence');
+    assert.equal(row.provenance.inbound_sid, 'SMt1');
+    assert.equal(row.optin.opener_text, words.trim(), 'lead_optins.opener_text (CRM "Message sent")');
+    assert.equal(row.optin.message_sid, 'SMt1');
+    assert.equal(r.thread.stage, 'q_age');
+    assert.equal(sends(r.actions)[0].message.body, 'Which age group are you in?');
+    assert.equal(r.actions.filter((a) => a.kind === 'capi' && a.event_name === 'Lead').length, 1);
+    assert.equal(JSON.stringify(r.thread).includes(words.trim()) && words.trim().length > 3, false, 'no free text in thread state');
+  }
+  // v4 /start/ brand: typed "Yes I agree" -> the Start here card, like the tap
+  const v4ctx = { brand: { ...SP_BRAND, consent_mode: 'named' }, broker: null, start_page: { token: SP_TOKEN } };
+  const v4 = typedFirst(v4ctx);
+  const y = W3.step(v4.thread, typedMsg('Yes I agree'), typedCtx('SMt2', v4ctx));
+  assert.deepEqual(sends(y.actions).map((a) => a.message.type), ['cta_url']);
+  assert.equal(y.actions.find((a) => a.kind === 'insert_lead').row.consent_text_version, 'ctwa-generic-v4');
+});
+
+test('typed no at await_consent closes like the No thanks tap (hash suppressed, nothing stored)', () => {
+  for (const words of TYPED_NO) {
+    const first = typedFirst();
+    const r = W3.step(first.thread, typedMsg(words), typedCtx('SMt3'));
+    assert.equal(r.actions.some((a) => a.kind === 'insert_lead'), false, words);
+    assert.deepEqual(r.actions.filter((a) => a.kind === 'suppress').map((a) => a.source), ['no_consent_ctwa'], words);
+    assert.deepEqual(r.thread, { stage: 'closed', closed_reason: 'consent_no', at: '2026-10-21T09:00:00+02:00' });
+    assert.equal(sends(r.actions)[0].message.body, 'No problem. We won’t contact you again. Take care.');
+  }
+});
+
+test('ambiguous typed text at await_consent re-asks with the consent buttons; nothing stored, stage unchanged', () => {
+  for (const words of TYPED_AMBIGUOUS) {
+    const first = typedFirst();
+    const r = W3.step(first.thread, typedMsg(words), typedCtx('SMt4'));
+    assert.equal(r.actions.some((a) => a.kind === 'insert_lead' || a.kind === 'suppress'), false, JSON.stringify(words));
+    assert.equal(r.thread.stage, 'await_consent');
+    const s = sends(r.actions);
+    assert.equal(s.length, 1);
+    assert.deepEqual(s[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no']);
+  }
+});
+
+test('button tap path unchanged: no consent_method, empty opener_text', () => {
+  const first = typedFirst();
+  const r = W3.step(first.thread, { id: 'SMt5', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, typedCtx('SMt5'));
+  const row = r.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal('consent_method' in row.provenance, false);
+  assert.equal(row.provenance.opener_text, '');
+  assert.equal(row.optin.opener_text, null);
+  // a tap is a tap, whatever its title says
+  const no = W3.step(first.thread, { id: 'SMt6', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_no', title: 'yes' } } }, typedCtx('SMt6'));
+  assert.equal(no.thread.closed_reason, 'consent_no');
+});
+
+test('W03.json inlines typedConsent', () => {
+  assert.ok(WF.nodes.find((n) => n.name === 'W03 step').parameters.jsCode.includes('function typedConsent('));
+});
+
+// Smoke test 21 Oct 2026 (#2): W07 hands W03 its normalised msg, and the WhatsApp profile name lives ON the msg
+// (wa-provider normaliseTwilioInbound / w07 normaliseInbound). The hand-off node read j.profile_name / m.profile_name only,
+// so every WhatsApp lead was stored with first_name NULL ("Hi -, you are booked", Mark's notice "-", blank Outlook title).
+test('#2 W07 -> W03 hand-off keeps the profile name from msg: consent says the name and the lead row stores a cleaned first name', async () => {
+  const handoff = (profile_name) => ({ source: 'W07', route: 'W03', msg: { wamid: 'SMname1', from: '+27600000921', at_ms: Date.parse('2026-10-21T14:24:24Z'), type: 'text', text: 'Hi', profile_name }, lead: null });
+  const [ad] = await runCode(WF, 'W07 hand-off -> Cloud API message', { items: [handoff('Smoke Test')] });
+  assert.equal(ad.json.profile_name, 'Smoke Test');
+  const SPB = { ...BRAND, consent_mode: 'generic', start_page: true };
+  const ctx = (extra) => ({ at: ad.json.at, mobile: ad.json.mobile, profile_name: ad.json.profile_name, lead_id: 'lead_name_1', broker: null, brand: SPB, existing_open_lead_id: null, suppressed: false, wamid: 'SMname1', is_synthetic: true, start_page: { token: 'lt1.x' }, ...extra });
+  const first = W3.step(null, ad.json.msg, ctx());
+  assert.match(sends(first.actions)[0].message.body, /^Thanks, Smoke\. /);
+  const yes = W3.step(first.thread, { id: 'SMname2', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx({ wamid: 'SMname2' }));
+  assert.equal(yes.actions.find((a) => a.kind === 'insert_lead').row.first_name, 'Smoke Test');
+  // a profile name with no letters stores no name (the senders then say "there" / "your client"), never an emoji or '-'
+  for (const odd of ['🙂🙂', ' - ', '', null]) {
+    const r = W3.step(first.thread, { id: 'SMname3', type: 'interactive', interactive: { type: 'button_reply', button_reply: { id: 'consent_yes' } } }, ctx({ wamid: 'SMname3', profile_name: odd }));
+    assert.equal(r.actions.find((a) => a.kind === 'insert_lead').row.first_name, null, JSON.stringify(odd));
+  }
+  assert.equal(W3.cleanName('  Thabo 🙂 Mokoena '), 'Thabo Mokoena');
+});
+
+// Smoke test 21 Oct 2026 (#36): the opener's topic is the person's words ("cover for my family"); echoed back as-is it read
+// as if Lindi had a family. The greeting swaps "my" for "your"; the stored topic (conv_state.topic) stays their words.
+test('#36 opener greeting: "my" in the topic becomes "your" in the greeting only', () => {
+  assert.equal(W3.openerGreeting({ topic: 'cover for my family' }, 'Thabo'), "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.");
+  assert.match(W3.openerGreeting({ topic: 'My income' }, ''), /about your income\./);
+  assert.match(W3.openerGreeting({ topic: 'life cover for mylene' }, ''), /about life cover for mylene\./, 'whole word only');
+});
+
+// ---------------------------------------------------------------- one-tap consent from the ad (Jono, 24 Oct 2026)
+const WELCOME = JSON.parse(readFileSync(new URL('../meta/ctwa-welcome-message.json', import.meta.url), 'utf8'));
+const WELCOME_TEXT = WELCOME.page_welcome_message.text_format.message.text;
+const ICEBREAKER = WELCOME.page_welcome_message.text_format.message.ice_breakers[0].title;
+const IB_ENV = { consent: ICEBREAKER, welcome: WELCOME_TEXT };
+const REFERRAL = { source_type: 'ad', source_id: '120212345678901234', source_url: 'https://fb.me/x', headline: 'Book a 30-minute call', ctwa_clid: 'ARAk_ib' };
+const ibCtx = (extra = {}) => ({ at: '2026-10-24T08:12:49+02:00', mobile: '+27600000124', profile_name: 'Cassiem Adams', lead_id: 'lead_ib_1', broker: MARK, brand: SP_BRAND, existing_open_lead_id: null, suppressed: false, wamid: 'SMib0', is_synthetic: true, start_page: { token: SP_TOKEN }, icebreaker: IB_ENV, ...extra });
+const ibMsg = (body, referral = REFERRAL) => ({ from: '27600000124', id: 'SMib0', timestamp: '1792822369', type: 'text', text: { body }, ...(referral ? { referral } : {}) });
+
+test('ice breaker tap = consent on first contact: lead stored like a Yes tap (welcome wording, ctwa-icebreaker-v1, generic, ctwa_ad), no question, the Start here card at once', () => {
+  const r = W3.step(null, ibMsg(ICEBREAKER), ibCtx());
+  const ins = r.actions.filter((a) => a.kind === 'insert_lead');
+  assert.equal(ins.length, 1);
+  const row = ins[0].row;
+  assert.equal(row.consent_text, WELCOME_TEXT, 'the words shown above the button');
+  assert.equal(row.consent_text_version, 'ctwa-icebreaker-v1'); assert.equal(row.consent_mode, 'generic'); assert.equal(row.consent_source, 'ctwa_ad');
+  assert.equal(row.consent_at, '2026-10-24T08:12:49+02:00'); assert.equal(row.verified_at, row.consent_at); assert.equal(row.wa_delivered_at, row.consent_at); assert.equal(row.stage, 'verified');
+  assert.deepEqual([row.ad_id, row.ctwa_clid, row.origin, row.first_name, row.phone, row.is_synthetic], ['120212345678901234', 'ARAk_ib', 'ctwa', 'Cassiem Adams', '+27600000124', true]);
+  assert.equal(row.provenance.consent_method, 'icebreaker'); assert.equal(row.provenance.door, 'ctwa_ad'); assert.equal(row.provenance.opener_text, ICEBREAKER);
+  assert.equal(row.provenance.first_inbound_sid, 'SMib0'); assert.equal(row.provenance.welcome_text_from, 'env'); assert.equal(row.provenance.referral.ctwa_clid, 'ARAk_ib');
+  assert.equal(row.optin.consent_version, 'ctwa-icebreaker-v1'); assert.equal(row.optin.consent_text, WELCOME_TEXT); assert.equal(row.optin.opener_text, ICEBREAKER);
+  assert.equal(row.optin.message_sid, 'SMib0'); assert.equal(row.optin.ctwa_clid, 'ARAk_ib'); assert.equal(row.optin.referral_source_type, 'ad');
+  assert.deepEqual(row.conv_state, { state: 'start_page' });
+  const s = sends(r.actions);
+  assert.deepEqual(s.map((a) => a.message.type), ['cta_url'], 'no consent buttons: straight to how it works + Start here');
+  assert.match(s[0].message.body, /^Hi Cassiem, I'm Lindi from SortMyCover\. Here's how it works:/);
+  assert.equal(r.thread.stage, 'start_page'); assert.equal(r.thread.lead_id, 'lead_ib_1'); assert.equal(r.thread.consent.version, 'ctwa-icebreaker-v1');
+  assert.equal(r.thread.first_wamid, 'SMib0'); assert.deepEqual(r.thread.first_referral, REFERRAL);
+  assert.equal(r.actions.find((a) => a.kind === 'schedule_stall').stage, 'start_page');
+  const capi = r.actions.filter((a) => a.kind === 'capi');
+  assert.deepEqual(capi.map((c) => [c.event_name, c.action_source, c.ctwa_clid, c.lead_id]), [['Lead', 'business_messaging', 'ARAk_ib', 'lead_ib_1']]);
+  // start page off: the first tap question, exactly as a Yes tap would
+  const off = W3.step(null, ibMsg(ICEBREAKER), ibCtx({ brand: BRAND, start_page: null }));
+  assert.equal(sends(off.actions)[0].message.type, 'list'); assert.equal(off.thread.stage, 'q_age');
+  assert.equal(off.actions.find((a) => a.kind === 'insert_lead').row.consent_text_version, 'ctwa-icebreaker-v1');
+  assert.deepEqual(off.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'q_age' });
+});
+
+test('ice breaker match is exact after trim + case-fold; the referral welcome_message.text (what Meta says was shown) wins over the env wording', () => {
+  for (const v of [' yes, I AGREE ', 'YES, I AGREE', 'yes, i agree\n']) assert.ok(W3.step(null, ibMsg(v), ibCtx()).actions.some((a) => a.kind === 'insert_lead'), JSON.stringify(v));
+  const shown = 'Hi! Before we chat: SortMyCover may message you on WhatsApp and share your name and number with an authorised financial adviser. Reply STOP to opt out.';
+  const r = W3.step(null, ibMsg(ICEBREAKER, { ...REFERRAL, welcome_message: { text: shown } }), ibCtx());
+  const row = r.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.consent_text, shown); assert.equal(row.provenance.welcome_text_from, 'referral'); assert.equal(row.optin.consent_text, shown);
+  // review 24 Oct: the ad's greeting drifted from the recorded wording (an edit, a truncation): one version would cover two texts, so it is flagged
+  assert.equal(row.provenance.welcome_text_mismatch, true);
+  const al = r.actions.find((a) => a.kind === 'alert');
+  assert.equal(al.signal_key, 'ctwa_welcome_text_mismatch'); assert.equal(al.scope, 'ad:120212345678901234'); assert.equal(al.severity, 'amber'); assert.equal(al.source, 'W03');
+  // the same wording (case / outer whitespace aside): the referral is still the source, no flag, no signal
+  const same = W3.step(null, ibMsg(ICEBREAKER, { ...REFERRAL, welcome_message: { text: ` ${WELCOME_TEXT.toUpperCase()} ` } }), ibCtx());
+  const sr = same.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(sr.provenance.welcome_text_from, 'referral'); assert.equal('welcome_text_mismatch' in sr.provenance, false); assert.ok(!same.actions.some((a) => a.kind === 'alert'));
+  // env wording only (Twilio: the referral never carries the greeting): nothing to compare, no flag
+  assert.equal('welcome_text_mismatch' in W3.step(null, ibMsg(ICEBREAKER), ibCtx()).actions.find((a) => a.kind === 'insert_lead').row.provenance, false);
+  assert.equal(W3.iceBreakerConsent(ibMsg(ICEBREAKER), ibCtx()).version, W3.ICEBREAKER_CONSENT_VERSION);
+});
+
+test("anything else keeps today's behaviour: no referral, another text, env unset or no welcome wording -> the consent question, nothing stored", () => {
+  const cases = [
+    ['no referral', ibMsg(ICEBREAKER, null), ibCtx()],
+    ['another text', ibMsg('Yes I agree with you'), ibCtx()],
+    ['the ad prefill', ibMsg("Hi, I'd like to book a 30-minute call with an adviser."), ibCtx()],
+    ['env unset', ibMsg(ICEBREAKER), ibCtx({ icebreaker: { consent: '', welcome: WELCOME_TEXT } })],
+    ['no ctx.icebreaker at all', ibMsg(ICEBREAKER), ibCtx({ icebreaker: undefined })],
+    ['no welcome wording anywhere', ibMsg(ICEBREAKER), ibCtx({ icebreaker: { consent: ICEBREAKER, welcome: '' } })],
+  ];
+  for (const [why, msg, ctx] of cases) {
+    const r = W3.step(null, msg, ctx);
+    assert.ok(!r.actions.some((a) => a.kind === 'insert_lead'), why);
+    assert.equal(sends(r.actions)[0].message.type, 'button', why);
+    assert.deepEqual(sends(r.actions)[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no'], why);
+    assert.equal(r.thread.stage, 'await_consent', why);
+  }
+  // an existing open lead who taps the ad again: merged, never a second consent or a second lead
+  const again = W3.step(null, ibMsg(ICEBREAKER), ibCtx({ existing_open_lead_id: 'lead_ib_1', lead: { id: 'lead_ib_1', conv_state: { state: 'unbooked' }, origin: 'ctwa', broker_id: MARK.broker_id } }));
+  assert.ok(!again.actions.some((a) => a.kind === 'insert_lead'));
+  assert.ok(again.actions.every((a) => a.kind === 'forward_w07'));
+  // a suppressed (STOP) number is W15's, whatever it taps
+  assert.deepEqual(W3.step(null, ibMsg(ICEBREAKER), ibCtx({ suppressed: true })).actions, [{ kind: 'ignore', reason: 'suppressed' }]);
+});
+
+test('W03.json "W03 step": with SMC_CTWA_ICEBREAKER_CONSENT + SMC_CTWA_WELCOME_TEXT set the ice breaker creates the lead and sends the card; unset, the consent question with its +2 h clock', async () => {
+  const msg = { msg: { from: '27600000124', id: 'SMib0', timestamp: '1792822369', type: 'text', text: { body: 'Yes, I agree' }, referral: REFERRAL }, at: '2026-10-24T08:12:49+02:00', mobile: '+27600000124', profile_name: 'Cassiem', external_id: 'SMib0', hops: 0 };
+  const row = { brand_id: 'b-smc', broker: { ...MARK, consent_mode: 'named' }, existing_open_lead_id: null, lead: null, suppressed: false, thread: null, new_lead_id: '11111111-2222-4333-8444-555555555556', start_page: true };
+  const run = async (env) => (await runCode(WF, 'W03 step', { items: [row], refs: { 'W07 hand-off -> Cloud API message': msg }, env: { LEAD_TOKEN_SECRET: 'x'.repeat(40), ...env } }))[0].json;
+  const on = await run({ SMC_CTWA_ICEBREAKER_CONSENT: ICEBREAKER, SMC_CTWA_WELCOME_TEXT: WELCOME_TEXT });
+  assert.equal(on.actions.find((a) => a.kind === 'insert_lead').row.consent_text, WELCOME_TEXT);
+  assert.equal(on.actions.find((a) => a.kind === 'send').message.type, 'cta_url');
+  assert.equal(on.thread.stage, 'start_page'); assert.equal(on.lead_id, '11111111-2222-4333-8444-555555555556');
+  assert.equal(on.stall_due_at, new Date(Date.parse('2026-10-24T08:12:49+02:00') + 1 * 3600e3).toISOString(), 'the start_page stall, as after a Yes tap');
+  const off = await run({});
+  assert.ok(!off.actions.some((a) => a.kind === 'insert_lead'));
+  assert.equal(off.actions.find((a) => a.kind === 'send').message.type, 'button');
+  assert.equal(off.stall_due_at, new Date(Date.parse('2026-10-24T08:12:49+02:00') + 2 * 3600e3).toISOString(), 'the consent question now carries its +2 h re-ask clock (was NULL)');
+});
+
+// ---------------------------------------------------------------- consent-stall re-asks (Jono, 24 Oct 2026)
+test('the consent question schedules the +2 h / +20 h re-ask clock; a free-text re-ask restarts it; a yes replaces it, a no cancels it', () => {
+  const first = typedFirst();
+  assert.deepEqual(first.actions.filter((a) => a.kind === 'schedule_stall').map((s) => [s.stage, s.hours, s.from]), [['await_consent', [2, 20], '2026-10-21T09:00:00+02:00']]);
+  const again = W3.step(first.thread, typedMsg('what is this?'), typedCtx('SMt1'));
+  assert.equal(again.thread.stage, 'await_consent');
+  assert.deepEqual(again.actions.filter((a) => a.kind === 'schedule_stall').map((s) => [s.stage, s.hours]), [['await_consent', [2, 20]]]);
+  const yes = W3.step(first.thread, typedMsg('yes'), typedCtx('SMt2'));
+  assert.deepEqual(yes.actions.filter((a) => a.kind === 'schedule_stall').map((s) => s.stage), ['q_age'], 'consent given: the qualifying stall replaces it');
+  const no = W3.step(first.thread, typedMsg('no thanks'), typedCtx('SMt3'));
+  assert.ok(no.actions.some((a) => a.kind === 'cancel_stall')); assert.ok(!no.actions.some((a) => a.kind === 'schedule_stall'));
+  assert.deepEqual(W3.CONSENT_STALL_HOURS, [2, 20]); assert.equal(W3.CONSENT_REASK_MAX, 2);
+});
+
+test('consentReask: re-ask 1 and 2 as session buttons (an authorised financial adviser, reply "Yes, I agree", STOP), one reply key per stage, nothing past the last', () => {
+  const state = { stage: 'await_consent', consent: { version: 'ctwa-generic-v4', mode: 'generic', yes: 'Yes, I agree', text: 'x' }, first_wamid: 'SMq1', answers: {} };
+  const one = W3.consentReask({ n: 1, state, first_wamid: 'SMq1' });
+  assert.equal(one.kind, 'send'); assert.equal(one.reply_key, 'reask:SMq1:1'); assert.equal(one.n, 1);
+  assert.equal(one.message.type, 'button'); assert.deepEqual(one.message.buttons, [{ id: 'consent_yes', title: 'Yes, I agree' }, { id: 'consent_no', title: 'No thanks' }]);
+  assert.match(one.message.body, /an authorised financial adviser/); assert.match(one.message.body, /reply "Yes, I agree"/); assert.match(one.message.body, /Reply STOP to opt out\.$/);
+  assert.match(one.message.body, /SortMyCover may message you on WhatsApp about your call and share your details/);
+  const two = W3.consentReask({ n: 2, state, first_wamid: 'SMq1' });
+  assert.equal(two.reply_key, 'reask:SMq1:2'); assert.match(two.message.body, /one last check/); assert.match(two.message.body, /an authorised financial adviser/);
+  assert.match(two.message.body, /won't message again/); assert.match(two.message.body, /Reply STOP to opt out\.$/);
+  for (const m of [one, two]) {
+    assert.ok(m.message.body.length <= 1024); assert.doesNotMatch(m.message.body, /\bfree\b|\bAI\b|Lead Velocity|licensed/i);
+    const api = W3.toCloudApi('+27600000001', m.message).interactive;
+    assert.equal(api.type, 'button'); for (const b of api.action.buttons) assert.ok(b.reply.title.length <= 20);
+  }
+  // a thread that got the named v3 question ("Yes, continue"): the button and the quoted words follow the thread's own consent
+  const v3 = W3.consentReask({ n: 1, state: { ...state, consent: W3.consentFor('named', MARK) }, first_wamid: 'SMq2' });
+  assert.equal(v3.message.buttons[0].title, 'Yes, continue'); assert.match(v3.message.body, /reply "Yes, continue"/);
+  assert.equal(W3.consentReask({ n: 3, state, first_wamid: 'SMq1' }), null, 'never a third');
+  assert.equal(W3.consentReask({ n: 1, state: { ...state, stage: 'q_age' } }), null, 'not waiting for consent');
+  assert.equal(W3.consentReask({ n: 0, state }), null); assert.equal(W3.consentReask(null), null);
+});
+
+test('W03.json: the consent-stall schedule claims due threads (UPDATE = claim; window, suppression, read-or-sent anchor, contact hours) and feeds Action? as a plain send', async () => {
+  const names = (n) => WF.nodes.find((x) => x.name === n);
+  const trig = names('Every 5 minutes (consent stall)');
+  assert.equal(trig.type, 'n8n-nodes-base.scheduleTrigger'); assert.equal(trig.parameters.rule.interval[0].expression, '*/5 * * * *');
+  const q = names('Stalled consent threads (claim + advance)').parameters.query;
+  assert.match(q, /UPDATE public\.wa_threads t/); assert.match(q, /t\.stage = 'await_consent'/); assert.match(q, /t\.last_inbound_at > now\(\) - interval '24 hours'/);
+  assert.match(q, /coalesce\(c\.read_at, c\.created_at\) AS asked_at/, 'read receipt first, else the send time');
+  assert.match(q, /interval '2 hours'/); assert.match(q, /interval '20 hours'/); assert.match(q, /n <= 2/);
+  assert.match(q, /NOT EXISTS \(SELECT 1 FROM public\.suppression s/); assert.match(q, /coalesce\(c\.status, ''\) <> 'failed'/); assert.match(q, /t\.expires_at > now\(\)/);
+  assert.match(q, /c\.metadata->>'reply_to' = t\.state->>'first_wamid'/, "the phone comes from the consent question's own outbound row");
+  assert.match(q, /public\.smc_hash_contact\(c\.recipient_contact\) = t\.mobile_hash/);
+  assert.match(q, /t\.stall_due_at = d\.stall_due_at/, 'optimistic: a reply that moved the clock meanwhile wins');
+  assert.match(q, /'consent_reasks'/); assert.match(q, /ELSE NULL END/);
+  // contact hours (review 24 Oct 2026): the CPA s12 / Reg 4 rule every W08 nudge follows (lib/contact-hours.mjs), holidays stamped from data/za-public-holidays.json
+  assert.doesNotMatch(q, /BETWEEN 7 AND 20/, 'no plain night gate: Sundays, Saturday afternoons and public holidays are out too');
+  assert.match(q, /CASE extract\(dow FROM now\(\) AT TIME ZONE 'Africa\/Johannesburg'\)\s+WHEN 0 THEN false\s+WHEN 6 THEN extract\(hour FROM now\(\) AT TIME ZONE 'Africa\/Johannesburg'\) BETWEEN 9 AND 12\s+ELSE extract\(hour FROM now\(\) AT TIME ZONE 'Africa\/Johannesburg'\) BETWEEN 8 AND 19 END\)/);
+  const hol = JSON.parse(readFileSync(new URL('../../data/za-public-holidays.json', import.meta.url), 'utf8')).holidays.map((h) => h.date);
+  assert.ok(hol.length >= 12); for (const d of hol) assert.ok(q.includes(`'${d}'`), `holiday ${d} stamped`);
+  assert.match(q, /\(now\(\) AT TIME ZONE 'Africa\/Johannesburg'\)::date NOT IN \('/);
+  assert.equal(WF.connections['Every 5 minutes (consent stall)'].main[0][0].node, 'Stalled consent threads (claim + advance)');
+  assert.equal(WF.connections['Stalled consent threads (claim + advance)'].main[0][0].node, 'Consent re-ask (w03.consentReask)');
+  assert.equal(WF.connections['Consent re-ask (w03.consentReask)'].main[0][0].node, 'Action?');
+  const { checkSql, workflowSql } = await import('./_sqlcheck.mjs');
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  // the real Code node: a claimed row -> the send item in the fan-out shape; it then takes the normal reply claim + sender + outbound log
+  const state = { stage: 'await_consent', consent: { version: 'ctwa-generic-v4', mode: 'generic', yes: 'Yes, I agree', text: 'x' }, first_wamid: 'SMq1' };
+  const items = await runCode(WF, 'Consent re-ask (w03.consentReask)', { items: [
+    { brand_id: 'b-smc', mobile: '+27600000124', phone_number_id: 'pn1', n: 1, state, first_wamid: 'SMq1' },
+    { brand_id: 'b-smc', mobile: '+27600000125', phone_number_id: 'pn1', n: 3, state, first_wamid: 'SMq9' }], env: {} });
+  assert.equal(items.length, 1, 'past the last re-ask: nothing');
+  const it = items[0].json;
+  assert.deepEqual([it.kind, it._wamid, it._mobile, it._brand_id, it._pnid, it._lead_id, it.reask], ['send', 'reask:SMq1:1', '+27600000124', 'b-smc', 'pn1', null, 1]);
+  const [b] = await runCode(WF, 'Build Cloud API body', { items: [it], env: {} });
+  assert.equal(b.json.body.interactive.type, 'button'); assert.equal(b.json.wamid, 'reask:SMq1:1'); assert.equal(b.json.lead_id, null); assert.equal(b.json.close_line, false);
+  assert.match(b.json.content, /an authorised financial adviser/);
+  assert.ok(names('W03 step').parameters.jsCode.includes('SMC_CTWA_ICEBREAKER_CONSENT') && names('W03 step').parameters.jsCode.includes('SMC_CTWA_WELCOME_TEXT'), 'the step reads the ice-breaker env');
+});
+
+// ---------------------------------------------------------------- route at consent (Jonathan, 24 Oct 2026)
+test('route at consent: with the start page, the consent hands the lead to W01 core at once (no W06 first touch); off -> as before', () => {
+  for (const r of [W3.step(null, ibMsg(ICEBREAKER), ibCtx({ route_at_consent: true })), consentThenYes({ brand: SP_BRAND, start_page: { token: SP_TOKEN }, route_at_consent: true })]) {
+    const kinds = r.actions.map((a) => a.kind);
+    const route = r.actions.filter((a) => a.kind === 'route_and_first_touch');
+    assert.equal(route.length, 1);
+    assert.deepEqual(route[0], { kind: 'route_and_first_touch', lead_id: r.thread.lead_id, first_touch: false, route_on_consent: true, source: 'W03:consent' });
+    assert.ok(kinds.indexOf('insert_lead') < kinds.indexOf('route_and_first_touch'), 'the lead row first');
+    assert.deepEqual(sends(r.actions).map((a) => a.message.type), ['cta_url'], 'the client still gets the one Start here card from W03');
+    assert.equal(r.thread.stage, 'start_page');
+  }
+  for (const extra of [{}, { route_at_consent: false }, { route_at_consent: 'true' }]) {
+    assert.equal(W3.step(null, ibMsg(ICEBREAKER), ibCtx(extra)).actions.some((a) => a.kind === 'route_and_first_touch'), false, JSON.stringify(extra));
+  }
+  // the tap-by-tap path (start page off) routes after the answers, exactly as before
+  assert.equal(W3.step(null, ibMsg(ICEBREAKER), ibCtx({ brand: BRAND, start_page: null, route_at_consent: true })).actions.some((a) => a.kind === 'route_and_first_touch'), false);
+});
+
+test('the W03 workflow passes route_at_consent from SMC_ROUTE_AT_CONSENT (on unless "false")', () => {
+  const src = readFileSync(new URL('../build-w03-w28.mjs', import.meta.url), 'utf8');
+  assert.match(src, /route_at_consent: String\(\$env\.SMC_ROUTE_AT_CONSENT \|\| ''\)\.trim\(\)\.toLowerCase\(\) !== 'false'/);
 });

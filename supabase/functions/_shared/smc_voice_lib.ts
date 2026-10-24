@@ -4,10 +4,11 @@
 export const SAST_OFFSET_MS = 2 * 3600_000; // Africa/Johannesburg, no DST
 
 // SA public holidays (Public Holidays Act, Sunday rule applied), copied from
-// data/za-public-holidays.json, which W04 also uses. Add new years there and here.
+// data/za-public-holidays.json, which W04 also uses. Add new years and gazetted days (2026-11-04 election day) there and
+// here: automation/tests/contact-hours.test.mjs fails when the two lists differ.
 export const ZA_HOLIDAYS = new Set([
   "2026-01-01", "2026-03-21", "2026-04-03", "2026-04-06", "2026-04-27", "2026-05-01", "2026-06-16", "2026-08-09",
-  "2026-08-10", "2026-09-24", "2026-12-16", "2026-12-25", "2026-12-26", "2027-01-01", "2027-03-21", "2027-03-22",
+  "2026-08-10", "2026-09-24", "2026-11-04", "2026-12-16", "2026-12-25", "2026-12-26", "2027-01-01", "2027-03-21", "2027-03-22",
   "2027-03-26", "2027-03-29", "2027-04-27", "2027-05-01", "2027-06-16", "2027-08-09", "2027-09-24", "2027-12-16",
   "2027-12-25", "2027-12-26", "2027-12-27",
 ]);
@@ -67,6 +68,15 @@ export function callbackDueAt(missedAtMs: number): number {
  */
 export function dialedWithin24h(others: { id: string; metadata?: { dialed_at?: string } | null }[], selfId: string, nowMs: number): boolean {
   return others.some((o) => o.id !== selfId && !!o.metadata?.dialed_at && nowMs - Date.parse(o.metadata.dialed_at) < 24 * 3600_000);
+}
+
+/**
+ * Schedule-time cap: a callback counts towards the 24 h limit unless it was cancelled without ever being dialled
+ * (e.g. while SMC_CALLBACKS_ENABLED was off). Without this, a missed call during an "off" spell blocked the next
+ * real callback to that number for a day (KG's test, 21 Oct 2026).
+ */
+export function countsTowardCap(metadata?: { state?: string; dialed_at?: string } | null): boolean {
+  return !(metadata?.state === "cancelled" && !metadata?.dialed_at);
 }
 
 /** "2026-10-14T10:00:00+02:00"-style SAST string, for logs and CRM notes. */
@@ -275,4 +285,64 @@ export function callbackClosedActivity(
 export function callContactAt(startedMs: number, durationSecs: number, nowMs = Date.now()): string {
   const end = startedMs > 0 ? startedMs + Math.max(0, durationSecs) * 1000 : nowMs;
   return new Date(Math.min(end, nowMs)).toISOString();
+}
+
+// ---------------------------------------------------------------------------- contact route (WhatsApp or team call-back)
+
+export type ContactRoute = "whatsapp" | "callback";
+
+/**
+ * Which consent save_caller_details was given (Jono, 21 Oct 2026): a yes to WhatsApp, or (after a no to WhatsApp) a yes to a
+ * call-back from the SortMyCover team. WhatsApp wins if both are 'yes'. Null = no consent, nothing may be saved.
+ */
+export function voiceContactRoute(p: { whatsapp_consent?: unknown; callback_consent?: unknown }): ContactRoute | null {
+  const yes = (v: unknown) => String(v ?? "").trim().toLowerCase() === "yes";
+  return yes(p.whatsapp_consent) ? "whatsapp" : yes(p.callback_consent) ? "callback" : null;
+}
+
+/** WhatsApp needs an SA mobile (+27 6x/7x/8x); a team call-back takes any SA number, landlines included (+27 1x-8x). */
+export function voicePhoneOk(phone: string | null | undefined, route: ContactRoute): boolean {
+  if (!phone) return false;
+  return route === "whatsapp" ? /^\+27[6-8]\d{8}$/.test(phone) : /^\+27[1-8]\d{8}$/.test(phone);
+}
+
+/** leads.line_type for an SA E.164 number: 06x/07x/081-084 mobile, 087 VoIP, 01x-05x landline. */
+export function zaLineType(phone: string | null | undefined): "mobile" | "landline" | "voip" | "unknown" {
+  if (!phone) return "unknown";
+  if (/^\+27(6\d|7\d|8[1-4])\d{7}$/.test(phone)) return "mobile";
+  if (/^\+2787\d{7}$/.test(phone)) return "voip";
+  if (/^\+27[1-5]\d{8}$/.test(phone)) return "landline";
+  return "unknown";
+}
+
+/**
+ * Who hears about a call-back request: the team inbox plus Jono and KG, through team-notify (Resend, from howzit@).
+ * Every address must be in team-notify's TEAM list, or team-notify refuses the send.
+ */
+export const SMC_CALLBACK_ALERT_TO = ["howzit@leadvelocity.co.za", "jonojettoo@leadvelocity.co.za"];
+export const SMC_CALLBACK_ALERT_CC = ["kgomotsopule@leadvelocity.co.za"];
+
+/** The internal email for a call-back request. Team-only, so it carries the number to call; never health, ID or banking details. */
+export function callbackAlertEmail(a: {
+  firstName: string; phoneSpoken: string; lineType: string; preferredTime: string | null; helpWith: string[];
+  conversationId: string; leadId: string; atMs: number; synthetic?: boolean;
+}): { subject: string; text: string } {
+  const test = a.synthetic ? "[TEST] " : "";
+  return {
+    subject: `${test}SortMyCover call-back: ${a.firstName} on ${a.phoneSpoken}`.slice(0, 200),
+    text: [
+      `${a.firstName} called SortMyCover, said no to WhatsApp and asked for a call-back from the SortMyCover team (Lindi, phone).`,
+      "",
+      `Call: ${a.phoneSpoken} (${a.lineType})`,
+      `Best time of day: ${a.preferredTime || "not given"}`,
+      `Wants help with: ${a.helpWith.join(", ").replace(/_/g, " ") || "not sure"}`,
+      `Asked at: ${spokenSast(a.atMs)} (SAST)`,
+      "",
+      "This is a SortMyCover team call, not the adviser: the lead is not routed and no adviser details were shared.",
+      "Call inside CPA hours (Mon-Fri 08:00-20:00, Sat 09:00-13:00, not Sundays or public holidays). Don't WhatsApp them: they declined it.",
+      "",
+      `Lead: ${a.leadId}`,
+      `Conversation: ${a.conversationId} (transcript on the lead's call record)`,
+    ].join("\n"),
+  };
 }

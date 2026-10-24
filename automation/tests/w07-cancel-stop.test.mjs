@@ -107,3 +107,103 @@ test('a question with a side "reschedule" label never moves a booked call (KG, 2
   // before a booking, a side "book" still offers times (harmless)
   assert.ok(decide('booking', { intent: 'question', secondary_intents: ['book'], topics: [], slots: {}, confidence: 0.9 }, {}, {}).actions.some((a) => /slots/.test(a)));
 });
+
+test('21 Oct 2026 (KG): "Can I cancel" with a live booking after the phone hand-off (state start_page) is a cancel, never a nurture close', async () => {
+  const { decide } = await import('../../conversation/logic.mjs');
+  const booking = { status: 'booked', time: '14:00' };
+  for (const state of ['start_page', 'q_age', 'consent_pending', 'unbooked', 'booking', 'closed_unbooked']) {
+    const d = decide(state, { intent: 'cancel', confidence: 0.9 }, {}, { booking });
+    assert.ok(d.actions.includes('cancel_confirm'), `${state}: ${d.actions}`);
+    assert.ok(!d.actions.includes('close_unbooked'), state);
+  }
+  // no live booking: the nurture close stays; opted out / handoff are never overridden by a booking
+  assert.ok(decide('start_page', { intent: 'cancel' }, {}, {}).actions.includes('close_unbooked'));
+  assert.deepEqual(decide('opted_out', { intent: 'cancel' }, {}, { booking }).actions, ['human_review']);
+});
+
+test('21 Oct 2026: distress or "a person" from a number with no lead -> handoff_pre_consent (no consent form); W07 wires it to the ops alert only', () => {
+  const noLead = { lead: null, broker_numbers: new Set(), ops_numbers: new Set() };
+  assert.equal(routeInbound(msg({ text: 'My husband passed away last week and I dont know what to do' }), noLead).route, 'handoff_pre_consent');
+  assert.equal(routeInbound(msg({ text: 'Can I please speak to a real person' }), noLead).route, 'handoff_pre_consent');
+  assert.equal(routeInbound(msg({ text: 'Hi I saw your ad' }), noLead).route, 'W03');
+  assert.equal(routeInbound(msg({ text: 'STOP' }), noLead).route, 'W15', 'STOP still wins');
+  const route = W07.nodes.find((n) => n.name === 'Route');
+  const i = route.parameters.rules.values.findIndex((r) => r.outputKey === 'handoff_pre_consent');
+  assert.ok(i >= 0);
+  const target = W07.connections.Route.main[i][0].node;
+  assert.deepEqual(W07.connections[target].main[0].map((e) => e.node), ['Live send? (alert)'], 'only the ops alert, never a reply or the never-silent fallback');
+  assert.match(W07.nodes.find((n) => n.name === target).parameters.jsCode, /ops_alert/);
+});
+
+test('21 Oct 2026: W28 last resort ({lead_id, body, last_resort}) is its own sub-call route -> load lead -> one session text via smc-whatsapp-send', async () => {
+  const sub = W07.nodes.find((n) => n.name === 'Sub-call from? (W03 forward / W05)');
+  const keys = sub.parameters.rules.values.map((r) => r.outputKey);
+  assert.deepEqual(keys, ['w03_forward', 'w28_last_resort']);
+  const outs = W07.connections['Sub-call from? (W03 forward / W05)'].main;
+  assert.equal(outs.length, keys.length + 1, 'rules + fallback');
+  assert.deepEqual(outs[1].map((e) => e.node), ['W28 last resort: load lead']);
+  assert.deepEqual(outs[2].map((e) => e.node), ['Contact start (call methods only)'], 'the W05 contact path is still the fallback');
+  assert.match(W07.nodes.find((n) => n.name === 'W28 last resort: load lead').parameters.query, /opted_out_at IS NULL/);
+  assert.equal(W07.connections['W28 last resort: build the message'].main[0][0].node, 'W28 last resort: send (smc-whatsapp-send)');
+  const items = await runCode(W07, 'W28 last resort: build the message', { items: [{ id: 'L1', phone: '+27820000001', broker_id: 'B1' }],
+    refs: { 'Sub-call from? (W03 forward / W05)': { lead_id: 'L1', body: 'Which day suits you?', last_resort: true } } });
+  assert.equal(items.length, 1);
+  assert.deepEqual(items[0].json.wa, { messaging_product: 'whatsapp', to: '27820000001', type: 'text', text: { body: 'Which day suits you?' } });
+  assert.equal(items[0].json.record, true);
+});
+
+// Smoke test 21 Oct 2026 (#12): the cancel card itself now opens the typed-reason wait, so it is read more often. Safety first:
+// STOP, distress, asking for a person, a complaint or a claim problem typed while it is open never becomes a cancel reason.
+test('#12 typed-reason wait: safety words go first (STOP -> W15; distress / person / complaint / claim problem -> the normal path, never a cancel)', () => {
+  const pending = { booking_id: BK, until: new Date(NOW + 10 * 60_000).toISOString() };
+  const c = ctx({ lead: lead({ conv_state: { state: 'booked', cancel_reason_pending: pending } }) });
+  assert.equal(routeInbound(msg({ text: 'STOP' }), c).route, 'W15');
+  for (const text of ['Can I speak to a real person please', 'I want to make a complaint about this', "I feel like ending it all, I can't go on", 'The insurer refused my claim']) {
+    const r = routeInbound(msg({ text }), c);
+    assert.notEqual(r.route, 'W10', text); assert.equal(r.delegate, undefined, text);
+  }
+  // an ordinary typed reason (the row's own title) still goes to W10, which reads it as that reason
+  const r = routeInbound(msg({ text: "I'm not ready yet" }), c);
+  assert.equal(r.route, 'W10');
+  assert.equal(classifyOp({ msg: { text: "I'm not ready yet" }, delegate: r.delegate }), 'cancel');
+  assert.equal(classifyOp({ msg: { text: 'Keep my call' }, delegate: r.delegate }), 'keep');
+});
+
+// Review 21 Oct 2026 (smoke #12 follow-up): the wait the CARD opens (via 'card') must never turn an unclear reply into a cancel.
+// The card's "I need a different time" row is reschedule:<id>, which W07 answers with the reschedule card (start_page on), so
+// W10 never runs and the wait stays open; a typed time preference after it, an aside or a method change is not a cancel.
+test('review #12: a card-opened wait cancels only on a clear reason; unclear replies go to Lindi, keep words keep, negation cancels', () => {
+  const card = { booking_id: BK, until: new Date(NOW + 10 * 60_000).toISOString(), via: 'card' };
+  const c = ctx({ lead: lead({ conv_state: { state: 'booked', cancel_reason_pending: card } }) });
+  const opOf = (text) => { const r = routeInbound(msg({ text }), c); return r.route === 'W10' ? classifyOp({ msg: { text }, delegate: r.delegate }) : r.route; };
+  // card -> "different time" tap (W07 card, no W10) -> a typed preference: the times, never a cancel
+  for (const text of ['Mornings are better for me', 'After work would be better', 'Any time later this week']) assert.equal(opOf(text), 'offer', text);
+  // asides and acknowledgements: kept, or Lindi; never a cancel
+  for (const text of ['No', 'Wait', 'Actually no', "Please don't", 'I changed my mind', 'no wait']) assert.equal(opOf(text), 'keep', text);
+  for (const text of ['ok', 'Thanks', 'Not now', 'My husband handles it', 'Never mind, I will sort it myself']) assert.equal(opOf(text), 'nlu', text);
+  // a method is a method change for Lindi, not a cancel
+  for (const text of ["I'd rather a WhatsApp call", 'I want a WhatsApp call instead', 'Can we do it on Teams']) assert.equal(opOf(text), 'nlu', text);
+  // negated keep and a plain cancel command cancel; a named reason still cancels with that reason
+  for (const text of ['I cant keep it, something came up', "Sorry, I can't keep my booking", 'never mind cancel it', 'Please just cancel it']) assert.equal(opOf(text), 'cancel', text);
+  assert.equal(opOf("I'm not ready yet"), 'cancel');
+  assert.equal(opOf('Keep my call'), 'keep');
+  // after the explicit "Another reason" tap (via other, or a wait written before via existed) the text IS the reason, as before
+  const other = ctx({ lead: lead({ conv_state: { state: 'booked', cancel_reason_pending: { ...card, via: 'other' } } }) });
+  const legacy = ctx({ lead: lead({ conv_state: { state: 'booked', cancel_reason_pending: { booking_id: BK, until: card.until } } }) });
+  for (const cx of [other, legacy]) {
+    assert.equal(routeInbound(msg({ text: 'My husband handles it' }), cx).route, 'W10');
+    assert.equal(routeInbound(msg({ text: 'ok' }), cx).route, 'nlu', 'an acknowledgement is never the reason');
+  }
+});
+
+test('review #12: W07 answering "a different time" with the reschedule card ends the cancel card\'s typed-reason wait', async () => {
+  const { checkSql, workflowSql } = await import('./_sqlcheck.mjs');
+  const END = 'End typed-reason wait (reschedule card, W07)';
+  const outs = W07.connections['Reschedule card? (W07)'].main.map((o) => (o || []).map((t) => t.node));
+  assert.deepEqual(outs, [['SUB input (Send reschedule card (W07))', END], ['Not a card: on to W10 (W07)']], 'only when the card is sent; W10 ends it otherwise');
+  const n = W07.nodes.find((x) => x.name === END);
+  assert.match(n.parameters.query, /SET conv_state = l\.conv_state - 'cancel_reason_pending'/);
+  assert.match(n.parameters.query, /WHERE l\.id = \$1::uuid AND l\.conv_state \? 'cancel_reason_pending'/);
+  assert.equal(n.onError, 'continueRegularOutput', 'never blocks the card');
+  assert.deepEqual(checkSql(workflowSql(W07).filter((x) => x.node === END)), []);
+});

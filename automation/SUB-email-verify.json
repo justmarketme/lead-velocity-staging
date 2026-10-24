@@ -105,7 +105,8 @@
         "operation": "executeQuery",
         "query": "SELECT l.id::text AS id, l.first_name, l.email, l.email_verified, l.email_verify_code_hash, l.email_verify_sent_at,\n       l.email_verify_expires_at, l.email_verify_attempts, l.opted_out_at, l.phone, l.brand_id::text AS brand_id, l.broker_id::text AS broker_id,\n       b.contact_person AS adviser_name\n  FROM public.leads l LEFT JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id ] }}"
+          "queryReplacement": "={{ [ $json.lead_id ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-5",
@@ -173,7 +174,8 @@
         "operation": "executeQuery",
         "query": "-- Only the hash is stored (capture-v2 issueEmailVerification). A newer email replaces the older code.\nWITH u AS (\n  UPDATE public.leads SET email_verify_code_hash = $2, email_verify_sent_at = $3::timestamptz, email_verify_expires_at = $4::timestamptz,\n                          email_verify_attempts = 0, updated_at = now()\n   WHERE id = $1::uuid AND brand_id IS NOT NULL AND email_verified IS NOT TRUE\n  RETURNING id, brand_id, broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'system', 'email_verify_sent', jsonb_build_object('via', 'resend', 'expires_at', $4::text), now(), 'ev:sent:' || u.id::text || ':' || $3\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id::text AS lead_id;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id, $json.set.email_verify_code_hash, $json.set.email_verify_sent_at, $json.set.email_verify_expires_at ] }}"
+          "queryReplacement": "={{ [ $json.lead_id, $json.set.email_verify_code_hash, $json.set.email_verify_sent_at, $json.set.email_verify_expires_at ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-8",
@@ -298,7 +300,8 @@
         "operation": "executeQuery",
         "query": "-- The CRM's UnifiedCommunicationHub shows this row on the lead. Content never holds the code or the link.\nINSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, subject, content, status, external_id, failed_reason, lead_id, broker_id, author, workflow, template_name, metadata)\nVALUES (NULLIF($1, '')::uuid, 'email', 'outbound', 'system', 'client', $2, $3, '[email verification: code + link]', $4, NULLIF($5, ''), NULLIF($6, ''), $7::uuid, NULLIF($8, '')::uuid, 'system', 'smc-email-verify', 'email_verification',\n        jsonb_build_object('provider', 'resend', 'from', $9::text, 'dry_run', $5 LIKE 'dry:%'))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const p = $('Plan issue (code + link, 10-min gap)').item.json; return [ p.brand_id || '', p.email, p.resend.body.subject, $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '', p.lead_id, p.broker_id || '', p.resend.body.from ]; })() }}"
+          "queryReplacement": "={{ (() => { const p = $('Plan issue (code + link, 10-min gap)').item.json; return [ p.brand_id || '', p.email, p.resend.body.subject, $json.ok ? 'sent' : 'failed', $json.external_id || '', $json.error || '', p.lead_id, p.broker_id || '', p.resend.body.from ]; })() }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-13",
@@ -321,7 +324,8 @@
         "operation": "executeQuery",
         "query": "INSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT l.id, l.brand_id, l.broker_id, 'system', 'email_verify_skipped', jsonb_build_object('reason', $2::text), now(), 'ev:skip:' || l.id::text || ':' || $2 || ':' || to_char(now(), 'YYYYMMDDHH24')\n  FROM public.leads l WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL AND $2 NOT IN ('recently_sent', 'already_verified')\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id || '', $json.reason || 'unknown' ] }}"
+          "queryReplacement": "={{ [ $json.lead_id || '', $json.reason || 'unknown' ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-14",
@@ -344,7 +348,8 @@
         "operation": "executeQuery",
         "query": "SELECT l.id::text AS id, l.first_name, l.email, l.email_verified, l.email_verify_code_hash, l.email_verify_sent_at,\n       l.email_verify_expires_at, l.email_verify_attempts, l.opted_out_at, l.phone, l.brand_id::text AS brand_id, l.broker_id::text AS broker_id,\n       b.contact_person AS adviser_name\n  FROM public.leads l LEFT JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id ] }}"
+          "queryReplacement": "={{ [ $json.lead_id ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-15",
@@ -381,7 +386,8 @@
         "operation": "executeQuery",
         "query": "WITH u AS (\n  UPDATE public.leads SET email_verified = COALESCE(($2::jsonb->>'email_verified')::boolean, email_verified),\n                          email_verified_at = COALESCE(($2::jsonb->>'email_verified_at')::timestamptz, email_verified_at),\n                          email_verified_via = COALESCE($2::jsonb->>'email_verified_via', email_verified_via),\n                          email_verify_attempts = COALESCE(($2::jsonb->>'email_verify_attempts')::int, email_verify_attempts),\n                          email_unverified_flag = CASE WHEN ($2::jsonb->>'email_verified')::boolean THEN false ELSE email_unverified_flag END,\n                          updated_at = now()\n   WHERE id = $1::uuid AND brand_id IS NOT NULL\n  RETURNING id, brand_id, broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'lead', $3, $4::jsonb, now(), 'ev:code:' || u.id::text || ':' || $5\n  FROM u\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING lead_id::text AS lead_id;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id, JSON.stringify($json.set || {}), $json.activity.activity_type, JSON.stringify($json.activity.payload), String($('Normalise input').item.json.wamid || Date.now()) ] }}"
+          "queryReplacement": "={{ [ $json.lead_id, JSON.stringify($json.set || {}), $json.activity.activity_type, JSON.stringify($json.activity.payload), String($('Normalise input').item.json.wamid || Date.now()) ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-17",
@@ -539,7 +545,8 @@
         "operation": "executeQuery",
         "query": "SELECT l.id::text AS id, l.first_name, l.email, l.email_verified, l.email_verify_code_hash, l.email_verify_sent_at,\n       l.email_verify_expires_at, l.email_verify_attempts, l.opted_out_at, l.phone, l.brand_id::text AS brand_id, l.broker_id::text AS broker_id,\n       b.contact_person AS adviser_name\n  FROM public.leads l LEFT JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = NULLIF($1, '')::uuid AND l.brand_id IS NOT NULL;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id ] }}"
+          "queryReplacement": "={{ [ $json.lead_id ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-25",
@@ -576,7 +583,8 @@
         "operation": "executeQuery",
         "query": "WITH u AS (\n  UPDATE public.leads SET email_verified = true, email_verified_at = ($2::jsonb->>'email_verified_at')::timestamptz, email_verified_via = 'link',\n                          email_unverified_flag = false, updated_at = now()\n   WHERE id = NULLIF($1, '')::uuid AND brand_id IS NOT NULL AND $3::boolean AND ($2::jsonb->>'email_verified') = 'true'\n  RETURNING id, brand_id, broker_id)\nINSERT INTO public.lead_activities (lead_id, brand_id, broker_id, actor_type, activity_type, payload, occurred_at, idempotency_key)\nSELECT u.id, u.brand_id, u.broker_id, 'lead', 'email_verified', '{\"via\":\"link\"}'::jsonb, now(), 'ev:link:' || u.id::text FROM u\nON CONFLICT (idempotency_key) DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ [ $json.lead_id || '', JSON.stringify($json.set || {}), !!$json.ok ] }}"
+          "queryReplacement": "={{ [ $json.lead_id || '', JSON.stringify($json.set || {}), !!$json.ok ] }}",
+          "queryBatching": "independently"
         }
       },
       "id": "smc-email-verify-27",

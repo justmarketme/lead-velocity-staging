@@ -162,10 +162,13 @@ const s = $('Guard passed?').first().json;
 const resp = s.need_lookup ? $input.first().json : null;
 const line_type = s.lookup_override ? L.lineTypeOf(s.lookup_override) : resp ? L.lineTypeFromLookup(resp) : (s.ctx.prior && s.ctx.prior.line_type) || 'unknown';
 const brokers = s.ctx.brokers || [];
-const routable = brokers.find((b) => b.status === 'active' && b.routing_on !== false);
+// test lead -> test practices only, real lead -> real advisers only (Jono, 23 Oct 2026; env SMC_TEST_BROKER_IDS, lib/routing-split.mjs).
+// is_synthetic exactly as the row stores it below; null pool (env unset) = no filter.
+const pool = L.routingPool({ phone: s.mobile, is_synthetic: !!s.sub.is_synthetic && s.test_hooks }, $env);
+const routable = brokers.find((b) => L.inPool(b, pool) && b.status === 'active' && b.routing_on !== false);
 const sub = L.withRegistryText(s.sub, routable); // lead-ad registry text gets the practice once the broker is known
 const decision = L.decide(sub, { mobile: s.mobile, line_type, prior: s.ctx.prior, suppressed: s.ctx.suppressed, brokers, brand_id: s.ctx.brand_uuid,
-  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check,
+  consent_mode: (routable && routable.consent_mode) || 'named', now: s.now, lead_id: s.lead_id, bot_check: s.g.bot_check, pool,
   start_here: L.startHereReady($env) }); // lead ad -> /start/ (start_here template) once Twilio has its SID + LEAD_TOKEN_SECRET
 if (decision.row) decision.row.is_synthetic = !!s.sub.is_synthetic && s.test_hooks;
 const audit = L.consentAudit(sub, L.consentRegistry(routable || {}));
@@ -190,7 +193,7 @@ ins AS (
   INSERT INTO public.leads (id, brand_id, origin, source, is_synthetic, created_at, first_name, phone, line_type, language,
                             age_band, budget_band, bond, dependants, work_cover, method_pref, angle, product_interest, email, email_purpose, email_status,
                             consent_text, consent_text_version, consent_mode, consent_at, consent_page_url, consent_source, consent_ads_at,
-                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id,
+                            lead_event_id, fbclid, fbp, fbc, ad_id, adset_id, campaign_id, leadgen_id, ref,
                             utm_source, utm_medium, utm_campaign, utm_content, utm_term, page_url, client_ip, client_user_agent,
                             broker_id, routed_at, routing_reason, stage, disqualified_reason, retention_delete_after, opted_out_at, conv_state)
   SELECT (j->>'id')::uuid, (j->>'brand_id')::uuid, j->>'origin', j->>'source', COALESCE((j->>'is_synthetic')::boolean, false), (j->>'created_at')::timestamptz,
@@ -198,7 +201,7 @@ ins AS (
          j->>'age_band', j->>'budget_band', (j->>'bond')::boolean, (j->>'dependants')::boolean, (j->>'work_cover')::boolean, j->>'method_pref', j->>'angle', j->>'product_interest',
          j->>'email', j->>'email_purpose', j->>'email_status',
          j->>'consent_text', j->>'consent_text_version', j->>'consent_mode', (j->>'consent_at')::timestamptz, j->>'consent_page_url', j->>'consent_source', (j->>'consent_ads_at')::timestamptz,
-         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id',
+         j->>'lead_event_id', j->>'fbclid', j->>'fbp', j->>'fbc', j->>'ad_id', j->>'adset_id', j->>'campaign_id', j->>'leadgen_id', j->>'ref',
          j->>'utm_source', j->>'utm_medium', j->>'utm_campaign', j->>'utm_content', j->>'utm_term', j->>'page_url', j->>'client_ip', j->>'client_user_agent',
          (j->>'broker_id')::uuid, (j->>'routed_at')::timestamptz, j->>'routing_reason', j->>'stage', j->>'disqualified_reason',
          (j->>'retention_delete_after')::timestamptz, (j->>'opted_out_at')::timestamptz, j->'conv_state'
@@ -288,9 +291,10 @@ return out;`));
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
                   WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,
-       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only
+       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only, $5 = 'true' AS route_on_consent
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.consent_text_version, l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
+               l.is_synthetic, -- test / real routing pool (lib/routing-split.mjs, with the phone)
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed,
                -- lead-ad disclosure: the brokers this lead was already told about (W01 / W39 'adviser_disclosed')
                (SELECT COALESCE(jsonb_agg(DISTINCT a.payload->>'broker_id'), '[]'::jsonb) FROM public.lead_activities a
@@ -298,18 +302,24 @@ return out;`));
                -- the 24-h session (last inbound WhatsApp from the lead): closed -> a lead that must be told its adviser first is
                -- held (held_disclosure_pending) instead of getting a session text that could not be delivered
                EXISTS (SELECT 1 FROM public.communications cm WHERE cm.lead_id = l.id AND cm.channel = 'whatsapp' AND cm.direction = 'inbound'
-                          AND cm.sender_type = 'client' AND cm.created_at > now() - interval '24 hours') AS window_open
+                          AND cm.sender_type = 'client' AND cm.created_at > now() - interval '24 hours')
+               -- a click-to-WhatsApp consent IS an inbound message (the tap, the typed yes or the ad's ice breaker; verified_at is
+               -- its time) but is not stored as a client communications row: count it, or a lead routed at consent is held
+               OR (l.origin = 'ctwa' AND l.verified_at > now() - interval '24 hours') AS window_open
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     // first_touch: false = W39 (the /start/ page shows the slots itself): route the same way, no W06 first touch
     // W39 also passes expect_broker_id (route only the adviser the lead confirmed) or hold_only (record a hold, never route)
-    "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}"));
+    // route_on_consent: W03 / W41 route at the click-to-WhatsApp consent (no adviser-naming text first, Jonathan 24 Oct 2026)
+    "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true), String($json.route_on_consent === true)] }}"));
   n.push(code('Route (w01.routeExisting)', pos(3, 7), prelude('w01.mjs') +
 `const out = [];
 for (const it of $input.all()) {
   // lead-ad and generic-consent leads: no hand-over before the adviser is named (action 'disclose' -> the branch below; window
   // closed -> held_disclosure_pending). routeExisting enforces the generic rule itself; require_disclosure adds the lead-ad one.
+  // pool: a test lead routes only to a test practice, a real lead never to one (SMC_TEST_BROKER_IDS; unset = no filter)
   const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,
-    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env) });
+    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env), route_on_consent: it.json.route_on_consent === true,
+    pool: L.routingPool(it.json.lead, $env) });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
 }
 return out;`));
@@ -336,7 +346,8 @@ LIMIT 1;`,
 `const x = $('Load CTWA lead + brokers').first().json;
 const logged = ($input.first() && $input.first().json && $input.first().json.broker_id) || null;
 const r = L.routeAfterDisclosure(x.lead, { brokers: x.brokers || [], now: Date.now(), first_touch: x.first_touch !== false,
-  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env) }, logged);
+  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env), route_on_consent: x.route_on_consent === true,
+  pool: L.routingPool(x.lead, $env) }, logged);
 return [{ json: { lead_id: x.lead && x.lead.id, r, routed: r.action === 'routed', update: r.update || null } }];`));
   n.push(ifTrue('Routed or held? (write it)', pos(4, 7), "['routed', 'held'].includes($json.r.action)"));
   n.push(pg('Write routing (only if not routed yet) + timeline', pos(5, 7),
@@ -421,7 +432,7 @@ return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.c
   chain(c, 'Write routing (only if not routed yet) + timeline', 'W06 input (CTWA)', 'W06 First touch (CTWA)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'Low-budget held notice (CTWA / held at intake)', 'WhatsApp Send (lead_low_budget_held, core)');
   chain(c, 'Write routing (only if not routed yet) + timeline', 'CAPI Lead at hand-over (held -> routed)', 'CAPI Send (Lead at hand-over)');
-  // ---- entry 4: the ONE qualify_budget reminder (lead-ad leads, no tap within 3 h; quiet hours 20:00-08:00 SAST)
+  // ---- entry 4: the ONE qualify_budget reminder (lead-ad leads, no tap within 3 h; marketing contact hours, lib/contact-hours.mjs)
   n.push(node('Every 15 min: budget reminder sweep', 'scheduleTrigger', 1.2, pos(0, 9), { rule: { interval: [{ field: 'minutes', minutesInterval: 15 }] } }));
   n.push(pg('Leads waiting on the budget tap (> 3 h, not reminded)', pos(1, 9),
 `SELECT l.id, l.phone, l.first_name, l.origin, l.routing_reason, l.broker_id, l.opted_out_at, l.disqualified_reason, l.qualified_at, l.created_at, l.conv_state
@@ -432,7 +443,7 @@ return (() => { const a = $('Route (w01.routeExisting)').all(); try { return a.c
    AND l.created_at <= now() - interval '3 hours'
  LIMIT 200;`));
   n.push(code('Budget reminder (w01.budgetReminder)', pos(2, 9),
-`// One reminder, same template, never in quiet hours (a lead due at night is picked up by the 08:00 sweep); then nothing.
+`// One reminder, same template, only inside the contact hours (a lead due outside them is picked up by the next sweep inside them); then nothing.
 const L = require('lv-automation').w01;
 return $input.all().filter((i) => i.json && i.json.id).map((i) => L.budgetReminder(i.json, Date.now())).filter(Boolean).map((r) => ({ json: r }));`));
   n.push(pg('Mark reminded (at-most-once) + delete 24 h after', pos(3, 9),
@@ -502,7 +513,7 @@ RETURNING lead_id;`, '={{ [$json.lead_id] }}'));
   n.push(code('Close send input (only rows just closed)', pos(5, 12),
 `const closed = new Set($input.all().map((i) => i.json && i.json.lead_id).filter(Boolean).map(String));
 return $('Hand off or close?').all().filter((i) => i.json.type === 'close' && i.json.send && closed.has(String(i.json.lead_id))).map((i) => ({ json: i.json.send }));`));
-  n.push(sub('WhatsApp Send (lead_low_budget_closed)', pos(6, 12), 'WhatsApp Send', false, 'Polite close, once (correlation w01:low_budget_closed:<lead>). Never in quiet hours (lowBudgetClose defers to the 08:00 sweep).'));
+  n.push(sub('WhatsApp Send (lead_low_budget_closed)', pos(6, 12), 'WhatsApp Send', false, 'Polite close, once (correlation w01:low_budget_closed:<lead>). Only inside the contact hours (lowBudgetClose defers to the next sweep inside them, lib/contact-hours.mjs).'));
   chain(c, 'Every 15 min: low-budget sweep (tier C)', 'Tier-C leads: assigned (hand off) or held 7 days (close)', 'Plan (w01.lowBudgetHandoff / lowBudgetClose)', 'Hand off or close?');
   link(c, 'Hand off or close?', 'Claim the hand-off (once per lead)', 0);
   link(c, 'Hand off or close?', 'Close politely (only if still held) + timeline', 1);
@@ -677,7 +688,7 @@ VALUES ($1::uuid, 'sms', 'outbound', 'system', 'client', $2, $3, CASE WHEN $4 <>
 ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;`,
     "={{ (() => { const p = $('Evidence rows (w06.communicationRow + sentUpdate)').first().json; return [p.l.brand_id, p.sms.to, p.sms.text, ($json.sid || ''), p.l.id, p.l.broker_id, p.wamid || 'rejected']; })() }}"));
   n.push(ifTrue('Slower than 60 s or slots short? -> W22', pos(19, 1), "$json.slow || $json.plan.fallback_from === 'not_enough_slots'"));
-  n.push(code('W22 signal', pos(20, 1), "return $input.all().map((i) => ({ json: { signal_key: i.json.slow ? 'first_touch_slow' : 'w06_no_slots', scope: 'lead:' + i.json.l.id, severity: i.json.slow ? 'red' : 'amber', source: 'W06', what: i.json.slow ? 'First WhatsApp later than 60 s' : 'Fewer than 3 free slots: Flow card sent instead of the 3-slot card', impact: 'HBR speed SLO', first_action: 'Check the W06 execution and the broker calendar' } }));"));
+  n.push(code('W22 signal', pos(20, 1), "// synthetic (21 Oct 2026): a SYNTHETIC_TEST_NUMBERS lead -> W22 emails it, marked, and WhatsApps nobody\nconst W = require('lv-automation').wa;\nreturn $input.all().map((i) => ({ json: { signal_key: i.json.slow ? 'first_touch_slow' : 'w06_no_slots', scope: 'lead:' + i.json.l.id, severity: i.json.slow ? 'red' : 'amber', synthetic: W.isSyntheticNumber(i.json.l.phone, $env), source: 'W06', what: i.json.slow ? 'First WhatsApp later than 60 s' : 'Fewer than 3 free slots: Flow card sent instead of the 3-slot card', impact: 'HBR speed SLO', first_action: 'Check the W06 execution and the broker calendar' } }));"));
   n.push(sub('W22 Alerts (W06)', pos(21, 1), 'W22 Alerts'));
 
   // status branch
@@ -695,9 +706,17 @@ const msg = { wamid: ev.wamid, template: m.template_name, variables: (m.metadata
 const e = L.statusEffect(msg, { status: ev.status, at: ev.at || new Date().toISOString() });
 return [{ json: { skip: false, ev, m, e, sms: e.sms ? { to: m.recipient_contact, text: e.sms.text } : null, l: { id: m.lead_id, brand_id: m.brand_id, broker_id: m.broker_id, phone: m.recipient_contact }, wamid: ev.wamid } }];`));
   n.push(pg('Stamp disclosure evidence (first delivery wins)', pos(4, 3),
-`WITH c AS (
-  UPDATE public.communications SET status = $3, delivered_at = CASE WHEN $3 IN ('delivered','read') THEN COALESCE(delivered_at, $4::timestamptz) ELSE delivered_at END,
-         failed_reason = CASE WHEN $3 = 'failed' THEN $5 ELSE failed_reason END, updated_at = now()
+`-- Receipts arrive out of order (Twilio: 'undelivered' then 'sent' a second later, smoke test #18, 21 Oct 2026), so the
+-- status only moves forward: pending < sent < delivered < read; failed lands only over pending / sent and is terminal.
+WITH c AS (
+  UPDATE public.communications SET
+         status = CASE WHEN status = 'failed' THEN status
+                       WHEN $3 = 'failed' THEN CASE WHEN COALESCE(status, 'pending') IN ('pending', 'sent') THEN 'failed' ELSE status END
+                       WHEN (CASE $3 WHEN 'read' THEN 3 WHEN 'delivered' THEN 2 WHEN 'sent' THEN 1 ELSE 0 END)
+                          > (CASE status WHEN 'read' THEN 3 WHEN 'delivered' THEN 2 WHEN 'sent' THEN 1 ELSE 0 END) THEN $3
+                       ELSE status END,
+         delivered_at = CASE WHEN $3 IN ('delivered','read') THEN COALESCE(delivered_at, $4::timestamptz) ELSE delivered_at END,
+         failed_reason = CASE WHEN $3 = 'failed' AND COALESCE(status, 'pending') IN ('pending', 'sent') THEN $5 ELSE failed_reason END, updated_at = now()
    WHERE id = $1::uuid RETURNING id)
 UPDATE public.leads l
    SET wa_delivered_at = COALESCE(l.wa_delivered_at, $4::timestamptz), disclosure_delivered_at = COALESCE(l.disclosure_delivered_at, $4::timestamptz),
@@ -821,7 +840,9 @@ return [{ json: { e, ctx, plan } }];`));
   INSERT INTO public.suppression (mobile_hash, source, brand_id, lead_id, note)
   SELECT public.smc_hash_contact($1), 'stop', NULL, $2::uuid, $3
    WHERE $1 IS NOT NULL AND $1 <> ''
-  ON CONFLICT (mobile_hash, source) DO NOTHING
+  ON CONFLICT (mobile_hash, brand_id) WHERE mobile_hash IS NOT NULL DO UPDATE
+     SET source = 'stop', lead_id = COALESCE(EXCLUDED.lead_id, suppression.lead_id), note = EXCLUDED.note
+   WHERE suppression.source <> 'stop'   -- an earlier objection/no-consent row becomes the STOP (21 Oct 2026: it used to crash on suppression_mobile_uidx)
   RETURNING id),
 claim AS (SELECT (EXISTS (SELECT 1 FROM sup) OR $1 IS NULL OR $1 = '') AS ok),
 upd AS (

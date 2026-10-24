@@ -1,23 +1,36 @@
-// automation/lib/w38.mjs  -  W38 SMC lead alert (owner), 18 Oct 2026.
+// automation/lib/w38.mjs  -  W38 SMC owner alert (leads, bookings, booking changes, console escalations), 18 Oct 2026.
 // Imported by the Code nodes of automation/W38.json (require('lv-automation').w38) and by automation/tests/W38.test.mjs.
 //
 // Why: the SortMyCover dry-run ads route every lead to Jono's own "SortMyCover test practice" broker record, and nothing
 // tells him a lead arrived (W22 covers incidents only; broker notices fire at booking, and the test record has no WhatsApp
 // number on purpose: W07 would treat Jono's own test messages as broker messages).
+// 24 Oct 2026 (owner rule, docs/OWNER-ALERTS-AUDIT.md): the first real lead (Cassiem, 08:12 SAST) reached Teams and Telegram
+// through EMMA and never Jono's WhatsApp. The transport is now ONE WhatsApp from the SortMyCover number through
+// smc-whatsapp-send (lib/owner-alert.mjs); EMMA /api/notify stays as the fallback rung when the sender answers ok:false.
+// The same tick also sweeps the console queue (public.escalations: W10 / W11 / W12 / W13 / W15 / W39 rows nobody pushed
+// anywhere) and the booking changes and voice call-backs in public.lead_activities, so those workflows need no edit.
 //
-// Every minute: SortMyCover leads (public.leads) and bookings (public.appointments) created since a watermark kept in the
-// workflow's static data -> ONE short plain-text message through EMMA (POST NOTIFY_URL, header x-emma-secret; EMMA delivers
-// to Jono by Teams / Telegram / WhatsApp and answers 200 when delivered, 502 when not).
+// Every minute: SortMyCover leads (public.leads), bookings (public.appointments), escalations (raised_at) and a short list of
+// lead_activities (booking_moved / booking_cancelled / voice_callback_requested / voice_callback_scheduled) created since a
+// watermark kept in the workflow's static data -> ONE short message:
 //   - first run (no watermark): watermark = the database's now(), nothing is sent (history is never replayed);
 //   - each tick reads created_at > watermark - OVERLAP_MS (late commits, and W01 stamps created_at itself before the insert)
 //     and drops ids already sent (the seen map, pruned to the overlap window and capped at SEEN_CAP);
-//   - the new watermark is committed only after a 2xx (or DRY_RUN_SENDS=true: logged, not posted). A non-2xx or no answer
-//     keeps the old watermark, so the next tick sends the same items again; the ALERT_AFTER_FAILS-th failure in a row fails
-//     the run once, so W22 (the error workflow) emails ops;
+//   - the new watermark is committed only after the WhatsApp sender answered ok (or EMMA 2xx on the fallback, or the
+//     DRY_RUN_SENDS stub). Anything else keeps the old watermark, so the next tick sends the same items again; the
+//     ALERT_AFTER_FAILS-th failure in a row fails the run once, so W22 (the error workflow) emails ops;
 //   - SMC_LEAD_ALERT_ENABLED !== 'true': nothing runs and the state is dropped, so switching it on again starts fresh.
 // POPIA data minimisation: the SQL returns only a first name, the last 3 digits of the number, attribution labels, the routed
-// practice and, for a booking, its time and method. Never email, the full number, ID numbers or message text; format()
-// masks again in case a wider row ever reaches it.
+// practice, a booking's time and method, an escalation's kind / severity / esc_kind token (never its note text) and an
+// activity's type / new time. Never email, the full number, ID numbers or message text; format() masks again in case a wider
+// row ever reaches it, and owner-alert redacts every template variable once more.
+// Test / real split (23 Oct 2026, lib/routing-split.mjs): both rows of the split carry the same practice name, so the SQL
+// also returns two booleans, test_lead (is_synthetic, or the number is on SYNTHETIC_TEST_NUMBERS / SMC_TEST_PHONES, compared
+// inside the database) and test_practice (the broker is on SMC_TEST_BROKER_IDS; null while the rule is off), plus
+// split_unknown_ids (an id on SMC_TEST_BROKER_IDS is no broker: the split cannot be trusted). line() labels the side and
+// flags an item on the wrong side; format() puts the misconfiguration warning on top.
+import { testBrokerIds, testPhoneDigits } from './routing-split.mjs';
+import { ownerAlert, firstNameOf, phoneTail as tail3 } from './owner-alert.mjs';
 
 export const SMC_BRAND_ID = '6e532b05-984f-4906-90a0-a5257cde328c';
 export const NOTIFY_URL = 'https://emmadoesit.cloud/api/notify';
@@ -29,6 +42,16 @@ export const ROW_LIMIT = 200; // the SQL's LIMIT in build-w38.mjs (a full page a
 export const MAX_LINES = 25;
 export const MAX_CHARS = 3500; // EMMA keeps the first 4000
 export const ALERT_AFTER_FAILS = 3;
+export const KINDS = ['lead', 'booking', 'escalation', 'activity'];
+/**
+ * lead_activities rows the tick reports (W10 booking changes, smc-voice call-backs, W01 routing): the SQL's IN list in
+ * build-w38.mjs. `routed` (W01, key w01:routed:<lead>) closes the gap of 24 Oct: the lead line is written at the tick after
+ * the leads row ("not routed" for a Click-to-WhatsApp lead, routed only after /start/answers), and nothing said afterwards
+ * which adviser got it. A routed row that arrives in the same tick as its lead, whose line already says "routed to", is
+ * dropped (plan()), so a lead-ad lead stays one line.
+ */
+export const ACTIVITY_TYPES = ['booking_moved', 'booking_cancelled', 'voice_callback_requested', 'voice_callback_scheduled', 'routed'];
+const isRouted = (r) => r && r.kind === 'activity' && r.activity === 'routed';
 
 /** The two switches, read exactly as the other workflows read DRY_RUN_SENDS. */
 export const gates = (env = {}) => ({ enabled: env.SMC_LEAD_ALERT_ENABLED === 'true', dryRun: env.DRY_RUN_SENDS === 'true' });
@@ -59,13 +82,13 @@ export function prune(seen = {}, watermarkMs) {
  * The query result { db_now, items } -> what this tick does:
  *   { action: 'init', next }                               first run: watermark = db_now, nothing sent
  *   { action: 'idle', next }                               nothing new: the watermark advances now
- *   { action: 'send', next, items, keys, message, request } new items: `next` is committed only after a 2xx (commit())
+ *   { action: 'send', next, items, keys, message, request } new items: `next` is committed only after an ok / 2xx (commit())
  */
-export function plan(state = {}, rows = [], dbNow) {
+export function plan(state = {}, rows = [], dbNow, opts = {}) {
   const now = ms(dbNow);
   if (!Number.isFinite(now)) throw new Error('w38.plan: no db_now from the query');
   const arr = typeof rows === 'string' ? JSON.parse(rows) : rows; // jsonb arrives parsed; a text cast would not
-  const list = (Array.isArray(arr) ? arr : []).filter((r) => r && r.id && (r.kind === 'lead' || r.kind === 'booking'));
+  const list = (Array.isArray(arr) ? arr : []).filter((r) => r && r.id && KINDS.includes(r.kind));
   const old = ms(state && state.watermark);
   if (!Number.isFinite(old)) {
     const seen = Object.fromEntries(list.map((r) => [keyOf(r), Number.isFinite(ms(r.created_at)) ? ms(r.created_at) : now]));
@@ -79,27 +102,49 @@ export function plan(state = {}, rows = [], dbNow) {
   for (const r of fresh) seen[keyOf(r)] = Number.isFinite(ms(r.created_at)) ? ms(r.created_at) : now;
   const next = { watermark: new Date(wm).toISOString(), seen: prune(seen, wm) };
   if (!fresh.length) return { action: 'idle', next };
-  const message = format(fresh);
-  return { action: 'send', next, items: fresh.length, keys: fresh.map(keyOf), message, request: requestBody(message) };
+  // a `routed` row whose lead is in the same tick with its practice already set: the Lead line says "routed to ..." (one line, not two)
+  const covered = (r) => isRouted(r) && r.lead && fresh.some((x) => x.kind === 'lead' && x.lead === r.lead && x.practice);
+  const shown = fresh.filter((r) => !covered(r));
+  const message = format(shown, opts); // opts.split_unknown_ids: the misconfiguration warning line
+  return { action: 'send', next, items: shown.length, keys: fresh.map(keyOf), message, request: requestBody(message) };
 }
 
 /**
- * After the POST (or the dry-run stub): a 2xx, or the stub's dry_run, commits plan.next; anything else keeps the old
- * watermark and seen map (the next tick sends the same items again) and counts the failure.
- * -> { state, delivered, dry_run, status, alert } (alert: the ALERT_AFTER_FAILS-th failure in a row; the run fails once -> W22).
+ * The owner WhatsApp for a planned tick (lib/owner-alert.mjs): ONE smc-whatsapp-send `prebuilt` item to the owner number,
+ * template ops_update / ops_alert, var 2 = the head line ("1 new lead, 1 booking change"), var 3 = the item lines joined
+ * " | " (clipped by the helper). Key = the tick's new watermark, so a retried tick carries the same correlation.
  */
-export function commit(state = {}, p = {}, res = {}, nowIso = new Date().toISOString()) {
+export function ownerItems(p = {}, env = {}) {
+  const [head, ...lines] = String(p.message || '').split('\n');
+  return ownerAlert({ what: head.replace(/^SortMyCover:\s*/, ''), detail: lines, who: 'owner', source: 'W38', key: `tick:${(p.next && p.next.watermark) || ''}` }, env);
+}
+
+/**
+ * After the send: the sender's { ok: true } (external_id `dry:` = the DRY_RUN_SENDS / synthetic dry run), EMMA's 2xx on the
+ * fallback, or the dry-run stub commits plan.next; anything else keeps the old watermark and seen map (the next tick sends
+ * the same items again) and counts the failure.
+ * `sender` = the WhatsApp sender's own answer when the commit comes from the EMMA fallback: its error is kept as
+ * `last.sender_error` (EMMA carried the tick, so nothing else records why the WhatsApp rung said no).
+ * -> { state, delivered, dry_run, status, channel, alert } (alert: the ALERT_AFTER_FAILS-th failure in a row; the run fails once -> W22).
+ */
+const errorText = (r) => String((r && ((r.body && (r.body.error || r.body.message)) || (r.error && (r.error.message || r.error)))) || '');
+export function commit(state = {}, p = {}, res = {}, nowIso = new Date().toISOString(), sender = null) {
   const r = res || {};
-  const status = Number(r.statusCode || 0);
-  const dry = r.dry_run === true;
+  const viaSender = r.ok === true || r.ok === false; // smc-whatsapp-send Result { ok, external_id, error }
+  const dry = r.dry_run === true || (viaSender && r.ok && /^dry:/.test(String(r.external_id || '')));
+  // the EMMA stub passes the sender's { ok: false } through with its own fake 2xx (dry_run: true, statusCode: 200)
+  const status = r.dry_run === true ? Number(r.statusCode || 200) : viaSender ? (r.ok ? 200 : 0) : Number(r.statusCode || 0);
   if (dry || (status >= 200 && status < 300)) {
-    const last = { at: nowIso, items: p.items || 0, status, dry_run: dry, ...(dry ? { message: p.message } : {}) };
-    return { delivered: !dry, dry_run: dry, status, alert: false, state: { ...p.next, fails: 0, last } };
+    const channel = dry ? 'dry' : viaSender ? 'whatsapp' : 'emma';
+    const senderError = channel === 'emma' && sender && sender.ok !== true ? (errorText(sender) || 'no answer').slice(0, 200) : null;
+    const last = { at: nowIso, items: p.items || 0, status, dry_run: dry, channel, ...(viaSender && r.external_id ? { external_id: String(r.external_id) } : {}),
+      ...(senderError ? { sender_error: senderError } : {}), ...(dry ? { message: p.message } : {}) };
+    return { delivered: !dry, dry_run: dry, status, channel, alert: false, state: { ...p.next, fails: 0, last } };
   }
   const fails = (Number(state && state.fails) || 0) + 1;
-  const err = (r.body && (r.body.error || r.body.message)) || (r.error && (r.error.message || r.error)) || '';
+  const err = (viaSender && r.error) || errorText(r);
   const last_error = { at: nowIso, status, detail: String(err).slice(0, 200) };
-  return { delivered: false, dry_run: false, status, alert: fails === ALERT_AFTER_FAILS, state: { ...state, fails, last_error } };
+  return { delivered: false, dry_run: false, status, channel: null, alert: fails === ALERT_AFTER_FAILS, state: { ...state, fails, last_error } };
 }
 
 export const requestBody = (message) => ({ message, source: SOURCE, title: TITLE });
@@ -121,14 +166,10 @@ export function sastText(iso) {
 }
 
 /** Last 3 digits only, whatever arrives (the SQL already sends only phone_last3). */
-export const phoneTail = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return d.length >= 3 ? d.slice(-3) : ''; };
+export const phoneTail = tail3;
 
 /** First word of the name, letters only; an email or a number typed into the name field is never echoed. */
-export function firstName(v) {
-  const w = String(v == null ? '' : v).trim().split(/\s+/)[0] || '';
-  const clean = w.replace(/[^\p{L}\p{M}'-]/gu, '').slice(0, 30);
-  return !w || /@|\d{4,}/.test(w) || !clean ? 'name not given yet' : clean;
-}
+export const firstName = firstNameOf;
 
 /** Attribution label from public values (angle, utm, ref): no token with "@", no digit runs, short. */
 const safeLabel = (v) => String(v == null ? '' : v).split(/\s+/).filter((t) => t && !t.includes('@')).join(' ')
@@ -141,13 +182,35 @@ export function sourceText(r = {}) {
   return origin && detail ? `${origin} (${detail})` : origin || detail;
 }
 
-const practiceText = (r) => { const p = String(r.practice || '').replace(/\s+/g, ' ').trim().slice(0, 60); return p || 'not routed'; };
+const isTestItem = (r) => r.synthetic === true || r.test_lead === true;
+/** Which side of the test / real split the practice is on (only while the rule is on: test_practice is then a boolean). */
+const sideText = (r) => (!r.practice || typeof r.test_practice !== 'boolean' ? ''
+  : (r.test_practice ? ' (TEST practice)' : ' (real adviser)') + (r.test_practice !== isTestItem(r) ? ' [WRONG SIDE of the test/real split: check it now]' : ''));
+const practiceText = (r) => { const p = String(r.practice || '').replace(/\s+/g, ' ').trim().slice(0, 60); return (p || 'not routed') + sideText(r); };
+export const SPLIT_WARNING = '! Test/real routing split: SMC_TEST_BROKER_IDS names an id that is no broker. Check the n8n .env now.';
+/** The split's env lists as query parameters ($3 test broker ids, $4 test numbers as E.164 digits; '' = none). */
+export const splitParams = (env = {}) => ({ test_broker_ids: [...testBrokerIds(env)].join(','), test_phones: testPhoneDigits(env).join(',') });
+
+/** Console escalation labels by the esc_kind token (the note's `esc_kind=<token>` prefix) or, without one, by escalations.kind. */
+export const ESC_LABEL = {
+  broker_no_show: 'the lead says the adviser did not call', outcome_disputed: 'outcome disputed', two_unconfirmed: 'two unconfirmed outcomes',
+  outcome_unmarked: 'outcome not marked', late_broker_mark: 'late adviser mark after the apology', second_reschedule: 'second reschedule',
+  replacement_weekly_max: 'replacement limit reached', replacement_due: 'replacement due', replacement_disputed: 'replacement disputed',
+  broker_no_whatsapp: 'adviser has no WhatsApp number', dsr: 'data-subject request', guardrail_trip: 'guardrail trip', sensitive: 'sensitive chat',
+  human_handoff: 'asked for a person', needs_human: 'needs a person', complaint: 'complaint', band_conflict: 'budget band conflict',
+  opted_out_message: 'message after opting out', replacement_dispute: 'replacement disputed', classifier_invalid: 'reply check failed', other: 'needs a person',
+};
+const escText = (r) => {
+  const k = safeLabel(r.esc_kind || '').trim().replace(/\s+/g, '_').toLowerCase().replace(/^_+|_+$/g, '');
+  return ESC_LABEL[k] || (k ? k.replace(/_/g, ' ') : ESC_LABEL[String(r.esc || '')] || 'needs a person'); // an unknown token: its words, never free text
+};
+const ACTIVITY_LABEL = { booking_moved: 'Booking moved', booking_cancelled: 'Booking cancelled', voice_callback_requested: 'Call-back asked (phone)', voice_callback_scheduled: 'Missed call, automatic call-back set', routed: 'Routed' };
 
 /** One line per item. Only the allowed fields are ever read. */
 export function line(r = {}) {
   const tail = phoneTail(r.phone_last3 != null ? r.phone_last3 : r.phone);
   const phone = tail ? `phone ends ${tail}` : 'no number';
-  const test = r.synthetic === true ? ' [test data]' : '';
+  const test = isTestItem(r) ? ' [test data]' : '';
   if (r.kind === 'booking') {
     const what = r.rebooked ? 'Rebooking' : 'Booking';
     const held = r.status === 'pending_verification' ? ' (held until the email is verified)' : '';
@@ -155,20 +218,33 @@ export function line(r = {}) {
     const practice = r.practice ? `with ${practiceText(r)}` : 'not routed';
     return `- ${what}: ${firstName(r.first_name)}, ${sastText(r.at)}, ${method}, ${phone}, ${practice}${held}${test}`;
   }
+  if (r.kind === 'escalation') {
+    const urgent = r.severity === 'red' ? ' (RED)' : r.severity === 'urgent' ? ' (urgent)' : '';
+    const practice = r.practice ? `, with ${practiceText(r)}` : '';
+    return `- Needs a person${urgent}: ${escText(r)}, ${firstName(r.first_name)}, ${phone}${practice}${test}`;
+  }
+  if (r.kind === 'activity') {
+    const label = ACTIVITY_LABEL[r.activity] || safeLabel(String(r.activity || '').replace(/_/g, ' ')) || 'Update';
+    const when = r.activity === 'booking_moved' && r.at ? `, to ${sastText(r.at)}` : '';
+    // routed: "to <practice> (real adviser)" is the point of the line (the side label + WRONG SIDE flag come with it)
+    const practice = r.practice ? `, ${isRouted(r) ? 'to' : 'with'} ${practiceText(r)}` : isRouted(r) ? ', practice not found' : '';
+    return `- ${label}: ${firstName(r.first_name)}${when}, ${phone}${practice}${test}`;
+  }
   const src = sourceText(r);
   const routed = r.practice ? `routed to ${practiceText(r)}` : 'not routed';
   return `- ${r.repeat ? 'Repeat lead' : 'Lead'}: ${firstName(r.first_name)}${src ? `, ${src}` : ''}, ${phone}, ${routed}${test}`;
 }
 
 /** The message for a tick's new items (oldest first), plain text, at most MAX_LINES lines and MAX_CHARS characters. */
-export function format(items = []) {
-  const leads = items.filter((r) => r.kind === 'lead').length;
-  const bookings = items.length - leads;
-  const n = (k, one, many) => `${k} new ${k === 1 ? one : many}`;
-  const head = `SortMyCover: ${[leads ? n(leads, 'lead', 'leads') : null, bookings ? n(bookings, 'booking', 'bookings') : null].filter(Boolean).join(', ')}`;
+export function format(items = [], opts = {}) {
+  const count = (k) => items.filter((r) => r.kind === k).length;
+  const routed = items.filter(isRouted).length;
+  const n = (k, one, many) => (k ? `${k} ${k === 1 ? one : many}` : null);
+  const head = `SortMyCover: ${[n(count('lead'), 'new lead', 'new leads'), n(routed, 'lead routed', 'leads routed'), n(count('booking'), 'new booking', 'new bookings'),
+    n(count('activity') - routed, 'booking change', 'booking changes'), n(count('escalation'), 'needs a person', 'need a person')].filter(Boolean).join(', ')}`;
   const lines = items.slice(0, MAX_LINES).map(line);
   if (items.length > MAX_LINES) lines.push(`...and ${items.length - MAX_LINES} more (see the CRM)`);
-  let text = [head, ...lines].join('\n');
+  let text = [head, ...(opts && opts.split_unknown_ids === true ? [SPLIT_WARNING] : []), ...lines].join('\n');
   if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS - 20).replace(/\n[^\n]*$/, '') + '\n...(cut, see the CRM)';
   return text;
 }

@@ -202,7 +202,7 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   assert.equal(q('SELECT public.appointment_request_sweep()')[0][0], '0', 'a held slot is not a request: the lead is already waiting on its time');
   // the hold times out (email never verified): the W05 release sweep cancels it ...
   q(`UPDATE public.appointments SET verify_by = now() - interval '1 minute' WHERE id = '${holdD}'`);
-  const released = app(SQL_RELEASE);
+  const released = app(SQL_RELEASE, [true]); // $1 = w05.holdNudgeOpen (smoke #13): inside the contact hours, so the released hold is returned for its nudge
   assert.equal(released.length, 1, 'W05 released the hold');
   // ... and the CRM's 10-minute sweep turns the qualified, band-carrying lead into a request instead of letting it vanish
   assert.equal(q('SELECT public.appointment_request_sweep()')[0][0], '1');
@@ -212,7 +212,7 @@ test('quiz v2 band step on the real schema: lead saved, band asked (dry), tap se
   // a lead that never gave a band is NOT queued: nothing may reach a broker without it
   const E = postLead('+27820000105'); const holdE = hold(E.id);
   q(`UPDATE public.leads SET is_synthetic = false, stage_entered_at = now() - interval '1 hour' WHERE id = '${E.id}'`);
-  q(`UPDATE public.appointments SET verify_by = now() - interval '1 minute' WHERE id = '${holdE}'`); app(SQL_RELEASE);
+  q(`UPDATE public.appointments SET verify_by = now() - interval '1 minute' WHERE id = '${holdE}'`); app(SQL_RELEASE, [true]);
   assert.equal(q('SELECT public.appointment_request_sweep()')[0][0], '0', 'no band, not qualified, no request');
 
   // =========================================================================================== F: the sender, as the role n8n really uses

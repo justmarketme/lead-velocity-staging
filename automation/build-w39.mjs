@@ -57,8 +57,9 @@ const PICK_SQL = () => `-- The same lead columns and broker list as W01 "Load CT
 -- display columns (adviser, practice, FSP, approved bio + picture). Nothing is written here.
 SELECT to_jsonb(q) AS lead, ${BROKER_LIST} AS brokers
   FROM (${PICK_LEAD}) q;`;
+// phone + is_synthetic: the test / real routing pool (lib/routing-split.mjs routingPool, 23 Oct 2026)
 const PICK_LEAD = `SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
-               l.routing_reason, l.budget_band, l.product_interest,
+               l.routing_reason, l.budget_band, l.product_interest, l.phone, l.is_synthetic,
                EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = public.smc_hash_contact(l.phone) AND (s.brand_id IS NULL OR s.brand_id = l.brand_id)) AS suppressed
           FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL`;
 // One statement: claim the request_id (lead_activities idempotency key), then write the lead only if the claim is ours, cancel
@@ -138,7 +139,7 @@ function buildW39() {
   n.push(ifTrue('Caller ok? (start)', '$json.ok === true'));
   n.push(pg('Load lead, adviser, live booking', `-- The broker comes from leads.broker_id (CONTRACTS.md lead_token); the live booking is the lead's own (held or booked).
 -- v4: while the lead is not routed, the preview pick (lib/w39.mjs pickAdviser over the W01 broker list) shows the card first.
-SELECT (SELECT to_jsonb(x) || jsonb_build_object('routed_at', p.routed_at, 'consent_text', p.consent_text, 'consent_mode', p.consent_mode, 'suppressed', p.suppressed)
+SELECT (SELECT to_jsonb(x) || jsonb_build_object('routed_at', p.routed_at, 'consent_text', p.consent_text, 'consent_mode', p.consent_mode, 'suppressed', p.suppressed, 'is_synthetic', p.is_synthetic)
           FROM (SELECT ${LEAD_COLS} FROM public.leads l WHERE l.id::text = $1 AND l.brand_id IS NOT NULL) x, (${PICK_LEAD}) p) AS lead,
        (SELECT to_jsonb(k) || jsonb_build_object(${CARD_COLS('b')}) FROM (SELECT b.id, b.contact_person, b.firm_name, b.practice_name, b.fsp_number
                                    FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id
@@ -147,7 +148,7 @@ SELECT (SELECT to_jsonb(x) || jsonb_build_object('routed_at', p.routed_at, 'cons
        (SELECT to_jsonb(a) FROM (SELECT a.id, a.appointment_date, a.ends_at, a.method, a.status FROM public.appointments a
                                   WHERE a.client_id::text = $1 AND a.brand_id IS NOT NULL AND a.status IN ('pending_verification','booked','confirmed') AND a.ends_at > now()
                                   ORDER BY a.appointment_date LIMIT 1) a) AS booking;`, '={{ [$json.lead_id] }}'));
-  n.push(code('View (w39.startView)', 'w39.mjs', `const r = $input.first().json;\nconst g = L.leadGate(r.lead);\nif (!g.ok) return [{ json: { status: g.status, body: g.body, reason: g.reason } }];\nreturn [{ json: L.startView({ lead: r.lead, broker: r.broker, brokers: r.brokers || null, booking: r.booking }) }];`));
+  n.push(code('View (w39.startView)', 'w39.mjs', `const r = $input.first().json;\nconst g = L.leadGate(r.lead);\nif (!g.ok) return [{ json: { status: g.status, body: g.body, reason: g.reason } }];\n// pool: the preview pick follows the same test / real split W01 routes on (lib/routing-split.mjs, env SMC_TEST_BROKER_IDS)\nreturn [{ json: L.startView({ lead: r.lead, broker: r.broker, brokers: r.brokers || null, booking: r.booking, pool: L.routingPool(r.lead, $env) }) }];`));
   n.push(respond('Respond (start)'));
   chain(c, 'GET /start', 'Resolve caller (start)', 'Caller ok? (start)');
   link(c, 'Caller ok? (start)', 'Load lead, adviser, live booking', 0); link(c, 'Caller ok? (start)', 'Respond (start)', 1);
@@ -172,7 +173,7 @@ SELECT (SELECT to_jsonb(x) || jsonb_build_object('routed_at', p.routed_at, 'cons
   // shows the card; only the confirm call with that broker's id routes, and its 'adviser_disclosed' row is written first.
   n.push(ifTrue('Cover path? (adviser card first)', "$('Decide (w39.decideAnswers)').first().json.plan.cover === true"));
   n.push(pg('Load lead + brokers (pick)', PICK_SQL(), "={{ [$('Decide (w39.decideAnswers)').first().json.lead_id] }}"));
-  n.push(code('Adviser step (w39.coverStep)', 'w39.mjs', `const r = $input.first().json;\nconst d = $('Decide (w39.decideAnswers)').first().json;\nreturn [{ json: { lead_id: d.lead_id, step: L.coverStep({ plan: d.plan, lead: r.lead || { id: d.lead_id }, brokers: r.brokers || [] }) } }];`));
+  n.push(code('Adviser step (w39.coverStep)', 'w39.mjs', `const r = $input.first().json;\nconst d = $('Decide (w39.decideAnswers)').first().json;\n// pool: a test lead is shown (and routed to) only a test practice, a real lead never one (lib/routing-split.mjs)\nreturn [{ json: { lead_id: d.lead_id, step: L.coverStep({ plan: d.plan, lead: r.lead || { id: d.lead_id }, brokers: r.brokers || [], pool: L.routingPool(r.lead, $env) }) } }];`));
   n.push(ifTrue('Disclose? (confirmed adviser)', "($json.step.steps || []).includes('disclose')"));
   n.push(pg('Log adviser_disclosed (before routing)', `-- The page showed this adviser's card (name, practice, FSP number) and the lead confirmed it. Written BEFORE the routing call;
 -- once per lead and broker (idempotency key w39:disclosed:<lead>:<broker>).

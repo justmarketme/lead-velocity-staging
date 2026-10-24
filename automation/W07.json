@@ -185,7 +185,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- delivery receipts: sent / delivered / read / failed (W06 disclosure evidence uses the same rows).\n-- I-45d: the row says whether the message was a W06 card, so W06 { op:'status' } gets delivered/failed (SMS fallback).\nWITH c AS (\n  UPDATE public.communications\n     SET status = $2,\n         delivered_at = CASE WHEN $2 IN ('delivered','read') THEN COALESCE(delivered_at, to_timestamp($3)) ELSE delivered_at END,\n         read_at = CASE WHEN $2 = 'read' THEN COALESCE(read_at, to_timestamp($3)) ELSE read_at END,\n         failed_reason = CASE WHEN $2 = 'failed' THEN $4 ELSE failed_reason END,\n         updated_at = now()\n   WHERE channel = 'whatsapp' AND external_id = $1 AND brand_id IS NOT NULL\n  RETURNING lead_id, workflow),\nu AS (\n  UPDATE public.leads l\n     SET wa_delivered_at = COALESCE(l.wa_delivered_at, to_timestamp($3)),\n         disclosure_delivered_at = CASE WHEN l.disclosure_msg_id = $1 THEN COALESCE(l.disclosure_delivered_at, to_timestamp($3)) ELSE l.disclosure_delivered_at END\n    FROM c\n   WHERE l.id = c.lead_id AND $2 IN ('delivered','read')\n  RETURNING l.id)\nSELECT $1 AS wamid, $2 AS status, to_timestamp($3) AS at, $4 AS error,\n       EXISTS (SELECT 1 FROM c WHERE c.workflow = 'W06') AS w06_card,\n       (SELECT count(*) FROM u)::int AS leads_stamped;",
+        "query": "-- delivery receipts: sent / delivered / read / failed (W06 disclosure evidence uses the same rows).\n-- I-45d: the row says whether the message was a W06 card, so W06 { op:'status' } gets delivered/failed (SMS fallback).\nWITH c AS (\n  UPDATE public.communications\n     SET status = $2,\n         delivered_at = CASE WHEN $2 IN ('delivered','read') THEN COALESCE(delivered_at, to_timestamp($3)) ELSE delivered_at END,\n         read_at = CASE WHEN $2 = 'read' THEN COALESCE(read_at, to_timestamp($3)) ELSE read_at END,\n         failed_reason = CASE WHEN $2 = 'failed' THEN $4 ELSE failed_reason END,\n         updated_at = now()\n   WHERE channel = 'whatsapp' AND external_id = $1 AND brand_id IS NOT NULL\n     AND CASE $2 WHEN 'sent' THEN coalesce(status, 'pending') IN ('pending', 'sent') WHEN 'delivered' THEN coalesce(status, 'pending') IN ('pending', 'sent', 'delivered') WHEN 'read' THEN coalesce(status, 'pending') IN ('pending', 'sent', 'delivered', 'read') WHEN 'failed' THEN coalesce(status, 'pending') IN ('pending', 'sent', 'failed') ELSE false END -- forward only (#18)\n  RETURNING lead_id, workflow),\nu AS (\n  UPDATE public.leads l\n     SET wa_delivered_at = COALESCE(l.wa_delivered_at, to_timestamp($3)),\n         disclosure_delivered_at = CASE WHEN l.disclosure_msg_id = $1 THEN COALESCE(l.disclosure_delivered_at, to_timestamp($3)) ELSE l.disclosure_delivered_at END\n    FROM c\n   WHERE l.id = c.lead_id AND $2 IN ('delivered','read')\n  RETURNING l.id)\nSELECT $1 AS wamid, $2 AS status, to_timestamp($3) AS at, $4 AS error,\n       EXISTS (SELECT 1 FROM c WHERE c.workflow = 'W06') AS w06_card,\n       (SELECT count(*) FROM u)::int AS leads_stamped;",
         "options": {
           "queryReplacement": "={{ [$json.wamid, $json.status, $json.ts, $json.error] }}"
         }
@@ -799,6 +799,28 @@
                   }
                 ]
               }
+            },
+            {
+              "outputKey": "handoff_pre_consent",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "s19",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "handoff_pre_consent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
             }
           ]
         },
@@ -1255,7 +1277,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build labels request (ElevenLabs)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst turn = L.parseTurn(raw); // { nlu, reply }: one call (lindi-turn.md)\nconst nlu = turn.nlu;\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0, age_accepted: cs.age_accepted === true });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, broker: j.broker || null, unanswered: cs.unanswered || 0, text_store: j.text_store });\n// deterministic gates; STOP / distress / a person / consent / qualifying stay fixed; never a second model call\nconst model_reply = L.applyModelReply(plan, turn.reply, { question: (j.msg && j.msg.text) || '', disclosed: !!cs.disclosed, lead_used_emoji: !!(j.pre && j.pre.lead_used_emoji), topics: nlu.topics });\nreturn { json: { ...j, nlu, decision, plan, model_reply, latency_ms: Date.now() - j.t0 } };"
+        "jsCode": "const REPO = $env.REPO_DIR || '/home/node/repo';\nconst L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $('Build labels request (ElevenLabs)').item.json;\nconst raw = ($json.content && $json.content[0] && $json.content[0].text) || '';\nconst turn = L.parseTurn(raw); // { nlu, reply }: one call (lindi-turn.md)\nconst nlu = turn.nlu;\nconst fs = require('fs');\nconst faq = L.parseFaqMd(fs.readFileSync(REPO + '/knowledge/faq.md', 'utf8'));\nconst lang = ((j.lead && j.lead.language) || nlu.language) === 'af' ? 'af' : 'en';\nconst cs = (j.lead && j.lead.conv_state) || {};\nconst decision = D.decide(j.state, nlu, j.pre, { booking: j.booking, unanswered: cs.unanswered || 0, age_accepted: cs.age_accepted === true });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, lang), faq, pre: j.pre, nlu, now_ms: Date.now(), lang, state: j.state, wamid: j.msg.wamid, synthetic: L.syntheticSubject(j, $env), disclosed: !!cs.disclosed, adviser_first: j.adviser_first, broker: j.broker || null, unanswered: cs.unanswered || 0, text_store: j.text_store });\n// deterministic gates; STOP / distress / a person / consent / qualifying stay fixed; never a second model call\nconst model_reply = L.applyModelReply(plan, turn.reply, { question: (j.msg && j.msg.text) || '', disclosed: !!cs.disclosed, lead_used_emoji: !!(j.pre && j.pre.lead_used_emoji), topics: nlu.topics });\nreturn { json: { ...j, nlu, decision, plan, model_reply, latency_ms: Date.now() - j.t0 } };"
       }
     },
     {
@@ -1367,7 +1389,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// One ops alert per recipient (Jonathan / KG). Runs once for all items: a for-each Code node may not return an array\n// (n8n: \"A 'json' property isn't an object\"), which crashed every handoff on 17 Oct. No recipients configured -> no alert.\nconst plans = $('Carry plan').all();\nconst out = [];\n$input.all().forEach((_, i) => {\n  const j = (plans[i] || plans[0]).json;\n  const e = j.plan.escalation;\n  const who = j.lead ? (j.lead.first_name || '') + ' ' + String(j.lead.last_name || '').slice(0, 1) : 'unknown';\n  const to = e.notify.map((n) => n === 'KG' ? $env.OPS_WHATSAPP_KG : $env.OPS_WHATSAPP_JONATHAN).filter(Boolean);\n  for (const t of to) out.push({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: 'Chat handoff (' + e.note.replace('esc_kind=', '') + '): ' + who.trim() }, { type: 'text', text: 'now' }, { type: 'text', text: e.severity === 'red' ? 'Red: reply personally, nothing automated was sent' : 'Lead is waiting for a person' }, { type: 'text', text: 'Open the conversation in the console' }] }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: (e.deep_link || '').replace(/^\\//, '') }] }] } } }, pairedItem: { item: i } });\n});\nreturn out;"
+        "jsCode": "// One owner WhatsApp per recipient (Jono; KG too on a sensitive chat) through lib/owner-alert.mjs: template ops_update /\n// ops_alert from the SortMyCover number, first name + phone last 3 only, bypass_suppression (Jono's number is also a test lead).\n// Runs once for all items: a for-each Code node may not return an array (n8n: \"A 'json' property isn't an object\", which\n// crashed every handoff on 17 Oct). notify = [] (a SYNTHETIC_TEST_NUMBERS subject, lib/w07.mjs escalationRow) -> no alert.\nconst O = require('lv-automation').ownerAlert;\nconst plans = $('Carry plan').all();\nconst out = [];\n$input.all().forEach((it, i) => {\n  const j = (plans[i] || plans[0]).json;\n  const e = (j.plan && j.plan.escalation) || {};\n  const notify = Array.isArray(e.notify) ? e.notify : [];\n  if (!notify.length) return;\n  const esc = String(e.note || '').split(';')[0].replace(/^esc_kind=/, '').replace(/_/g, ' ') || e.kind || 'hand-off';\n  const red = e.severity === 'red';\n  const items = O.ownerAlert({\n    what: (red ? 'RED: ' : '') + 'Chat hand-off (' + esc + ')',\n    detail: O.personLabel(j.lead || {}) + '; ' + (red ? 'reply personally, nothing automated was sent' : 'the lead is waiting for a person') + '; open the conversation in the console',\n    who: notify.includes('KG') ? 'both' : 'owner', source: 'W07', key: (j.msg && j.msg.wamid) || e.ref_id || it.json.id || '',\n    subject: { phone: j.lead && j.lead.phone, from: j.msg && j.msg.from },\n  }, $env);\n  for (const item of items) out.push({ json: item, pairedItem: { item: i } });\n});\nreturn out;"
       }
     },
     {
@@ -1968,9 +1990,9 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_category, intent, llm_model, latency_ms, guardrail_trip, guardrail_rule, handoff, metadata)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4, $5::uuid, $6::uuid, 'bot', 'W07', 'service', $7, $8, $9, $10::boolean, $11, $12::boolean, '{}'::jsonb)\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
+        "query": "INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, broker_id, author, workflow, template_category, intent, llm_model, latency_ms, guardrail_trip, guardrail_rule, handoff, metadata, failed_reason)\nVALUES ($1::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, $13, NULLIF($4, ''), $5::uuid, $6::uuid, 'bot', 'W07', 'service', $7, $8, $9, $10::boolean, $11, $12::boolean, '{}'::jsonb, NULLIF($14, ''))\nON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING;",
         "options": {
-          "queryReplacement": "={{ (() => { const s = $('Anything to send?').item.json; return [s.brand_id, s.msg.from, s.text, ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:' + s.msg.wamid), s.lead ? s.lead.id : null, s.lead ? s.lead.broker_id : null, s.intent || null, s.model, s.latency_ms || null, !!s.trip, s.rule || null, !!s.handoff]; })() }}"
+          "queryReplacement": "={{ (() => { const s = $('Anything to send?').item.json; const got = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; const failed = !got && $json.ok === false; return [s.brand_id, s.msg.from, s.text, got || (failed ? '' : 'dry:' + s.msg.wamid), s.lead ? s.lead.id : null, s.lead ? s.lead.broker_id : null, s.intent || null, s.model, s.latency_ms || null, !!s.trip, s.rule || null, !!s.handoff, failed ? 'failed' : 'sent', failed ? String($json.error || 'send_failed').slice(0, 300) : '']; })() }}"
         }
       },
       "credentials": {
@@ -2023,7 +2045,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $json; const cs = (j.lead && j.lead.conv_state) || {};\nconst state = cs.state || (j.booking ? 'booked' : 'unbooked');\nconst nlu = { intent: 'other', topics: [], slots: {}, confidence: 1 };\nconst decision = D.decide(state, nlu, j.pre, { booking: j.booking });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, (j.lead && j.lead.language) === 'af' ? 'af' : 'en'), pre: j.pre, nlu, now_ms: Date.now(), lang: (j.lead && j.lead.language) || 'en', state, wamid: j.msg.wamid, disclosed: !!cs.disclosed, adviser_first: j.adviser_first, text_store: j.text_store });\nreturn { json: { ...j, state, nlu, decision, plan } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst D = require('lv-automation').logic;\nconst j = $json; const cs = (j.lead && j.lead.conv_state) || {};\nconst state = cs.state || (j.booking ? 'booked' : 'unbooked');\nconst nlu = { intent: 'other', topics: [], slots: {}, confidence: 1 };\nconst decision = D.decide(state, nlu, j.pre, { booking: j.booking });\nconst plan = L.planActions(decision, { lead: j.lead, booking: L.bookingView(j.booking, (j.lead && j.lead.language) === 'af' ? 'af' : 'en'), pre: j.pre, nlu, now_ms: Date.now(), lang: (j.lead && j.lead.language) || 'en', state, wamid: j.msg.wamid, synthetic: L.syntheticSubject(j, $env), disclosed: !!cs.disclosed, adviser_first: j.adviser_first, text_store: j.text_store });\nreturn { json: { ...j, state, nlu, decision, plan } };"
       }
     },
     {
@@ -2050,7 +2072,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nconst j = $json; const q = L.contactStart(j.booking, j.broker || {}, (j.lead && j.lead.language) || 'en');\nif (!q) return { json: { skip: true } };\nreturn { json: { skip: false, send: true, brand_id: j.lead.brand_id, msg: { from: j.lead.phone, wamid: 'w05:' + j.booking.id }, lead: j.lead, text: q.body, wa: { messaging_product: 'whatsapp', to: j.lead.phone, type: 'interactive', interactive: { type: 'button', body: { text: q.body }, action: { buttons: q.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } }, intent: 'contact', model: null, trip: false, rule: null, handoff: false } };"
+        "jsCode": "const L = require('lv-automation').w07;\nconst j = $json;\n// 21 Oct 2026: W28's last-resort hand-off ({lead_id, body, last_resort}) also lands here and crashed on j.booking.method.\nif (!j.booking || !j.lead) return { json: { skip: true, reason: j.last_resort ? 'w28_last_resort_unhandled' : 'no_booking' } };\nconst q = L.contactStart(j.booking, j.broker || {}, (j.lead && j.lead.language) || 'en');\nif (!q) return { json: { skip: true } };\nreturn { json: { skip: false, send: true, brand_id: j.lead.brand_id, msg: { from: j.lead.phone, wamid: 'w05:' + j.booking.id }, lead: j.lead, text: q.body, wa: { messaging_product: 'whatsapp', to: j.lead.phone, type: 'interactive', interactive: { type: 'button', body: { text: q.body }, action: { buttons: q.buttons.map(([id, t]) => ({ type: 'reply', reply: { id, title: t } })) } } }, intent: 'contact', model: null, trip: false, rule: null, handoff: false } };"
       }
     },
     {
@@ -2116,6 +2138,28 @@
                     "id": "f0",
                     "leftValue": "={{ String($json.origin || '') }}",
                     "rightValue": "w03",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "w28_last_resort",
+              "renameOutput": true,
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "f1",
+                    "leftValue": "={{ String($json.last_resort === true) }}",
+                    "rightValue": "true",
                     "operator": {
                       "type": "string",
                       "operation": "equals"
@@ -2483,7 +2527,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// lib/wa-route.cjs: \"Send ops alert\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W07\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W07:Send ops alert:\" + exec + ':' + idx,\n} };"
+        "jsCode": "// lib/owner-alert.mjs items (24 Oct 2026) arrive complete: kind prebuilt, record:false, bypass_suppression:true, correlation, caller.\nif ($json.kind === 'prebuilt' && $json.wa && $json.correlation) return { json: $json };\n// lib/wa-route.cjs: \"Send ops alert\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W07\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W07:Send ops alert:\" + exec + ':' + idx,\n} };"
       }
     },
     {
@@ -2993,8 +3037,8 @@
         2300
       ],
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const L = require('lv-automation').w07;\nconst j = $('Never silent: wait 25 s').item.json;\nreturn { json: { request: L.neverSilentAlert(j) } };"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const L = require('lv-automation').w07;\nconst O = require('lv-automation').ownerAlert;\n// one owner WhatsApp per item through lib/owner-alert.mjs (the EMMA /api/notify body stays on the item as `request`, for\n// the fallback); none for a SYNTHETIC_TEST_NUMBERS number (the escalation row above is the record)\nconst out = [];\n$input.all().forEach((_, i) => {\n  const j = $('Never silent: wait 25 s').itemMatching(i).json;\n  const request = L.neverSilentAlert(j, $env);\n  if (!request) return;\n  const items = O.ownerAlert({ what: 'Lead needs a person (Lindi sent a holding line)', detail: request.message.replace(/^SortMyCover:\\s*/, ''),\n    who: 'owner', source: 'W07', key: (j.msg && j.msg.wamid) || (j.lead && j.lead.id) || '', subject: { phone: j.lead && j.lead.phone, from: j.msg && j.msg.from } }, $env);\n  for (const item of items) out.push({ json: { ...item, request }, pairedItem: { item: i } });\n});\nreturn out;"
       }
     },
     {
@@ -3024,7 +3068,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "jsonBody": "={{ JSON.stringify($('Never silent: owner alert (lib w07.neverSilentAlert)').first().json.request) }}",
         "options": {
           "timeout": 10000,
           "response": {
@@ -3039,7 +3083,7 @@
       "maxTries": 2,
       "waitBetweenTries": 2000,
       "onError": "continueRegularOutput",
-      "notes": "Owner alert for every never-silent fallback (lib/w07.mjs neverSilentAlert): first name, the silent hand-off, the lead id; never the number or the message."
+      "notes": "Fallback only (24 Oct 2026): runs when smc-whatsapp-send answered ok:false. Owner alert for every never-silent fallback (lib/w07.mjs neverSilentAlert): first name, the silent hand-off, the lead id; never the number or the message."
     },
     {
       "id": "05121bfc-43e8-1144-05a5-57b4b20ff3ad",
@@ -3389,6 +3433,175 @@
           "waitForSubWorkflow": true
         }
       }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// handoff_pre_consent: lib/w07.mjs routeInbound (distress or \"a person\" from a number with no lead yet). One owner WhatsApp\n// per ops number (Jono + KG) through lib/owner-alert.mjs (ops_update / ops_alert); the person gets nothing automated.\n// POPIA: the last 3 digits only (find the chat in the SortMyCover WhatsApp inbox by the time and those digits);\n// a SYNTHETIC_TEST_NUMBERS number alerts nobody (the helper checks the subject).\nconst O = require('lv-automation').ownerAlert;\nconst out = [];\n$input.all().forEach((it, i) => {\n  const msg = it.json.msg || {};\n  const red = String(it.json.reason || '').startsWith('distress'); // the Route node carries route + reason only\n  const items = O.ownerAlert({\n    what: red ? 'RED: new WhatsApp in distress, no consent yet' : 'New WhatsApp asked for a person, no consent yet',\n    detail: O.personLabel({ first_name: msg.profile_name, phone: msg.from }) + '; nothing automated was sent: reply from the SortMyCover WhatsApp',\n    who: 'both', source: 'W07', key: msg.wamid || msg.from || '', subject: { from: msg.from },\n  }, $env);\n  for (const item of items) out.push({ json: item, pairedItem: { item: i } });\n});\nreturn out;"
+      },
+      "id": "w07-preconsent-handoff",
+      "name": "Pre-consent handoff: alert ops (nothing to the person)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        760
+      ]
+    },
+    {
+      "id": "w07-w28-lr-load",
+      "name": "W28 last resort: load lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": false,
+      "position": [
+        1580,
+        1560
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id, l.phone, l.brand_id, l.broker_id FROM public.leads l WHERE l.id = $1::uuid AND l.opted_out_at IS NULL AND l.phone IS NOT NULL;",
+        "options": {
+          "queryReplacement": "={{ [$json.lead_id || '00000000-0000-0000-0000-000000000000'] }}"
+        }
+      }
+    },
+    {
+      "id": "w07-w28-lr-build",
+      "name": "W28 last resort: build the message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1560
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// One session text per lead; the body is W28's own \"ask for a day\" text. No lead / opted out -> nothing (load returned no row).\nconst src = $('Sub-call from? (W03 forward / W05)').all();\nreturn $input.all().filter((it) => it.json && it.json.id).map((it, i) => {\n  const s = (src.find((x) => x.json.lead_id === it.json.id) || src[0]).json;\n  const to = String(it.json.phone).replace(/\\D/g, '');\n  const body = String(s.body || '').slice(0, 1000);\n  return { json: { kind: 'prebuilt', wa: { messaging_product: 'whatsapp', to, type: 'text', text: { body } }, to, record: true, caller: 'W07',\n    bypass_suppression: false, phone_number_id: null, lead_id: it.json.id, broker_id: it.json.broker_id || null,\n    correlation: 'W07:w28_last_resort:' + it.json.id + ':' + body.length } };\n}).filter((x) => x.json.wa.text.body);"
+      }
+    },
+    {
+      "id": "w07-w28-lr-send",
+      "name": "W28 last resort: send (smc-whatsapp-send)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2100,
+        1560
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "w07-resched-endwait",
+      "name": "End typed-reason wait (reschedule card, W07)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        320,
+        80
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "",
+          "name": "LV Supabase - n8n_app (least privilege)"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- The client picked \"a different time\" (reschedule card): the cancel card's typed-reason wait ends here.\nUPDATE public.leads l SET conv_state = l.conv_state - 'cancel_reason_pending', updated_at = now()\n WHERE l.id = $1::uuid AND l.conv_state ? 'cancel_reason_pending'\nRETURNING l.id;",
+        "options": {
+          "queryReplacement": "={{ [ ($json.lead && $json.lead.id) || '00000000-0000-0000-0000-000000000000' ] }}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// W09 pause contract (CONTRACTS.md): { op: 'pause', lead_id, reason }. A sensitive hand-off (distress) pauses every unsent\n// reminder for the lead; only a person resumes them (console, op 'resume').\nconst e = $json.plan.escalation || {};\nreturn { json: { op: 'pause', lead_id: e.lead_id || ($json.lead && $json.lead.id) || null, reason: 'sensitive', source: 'W07' } };"
+      },
+      "id": "w07-w09-pause-input",
+      "name": "W09 pause input (op pause, sensitive)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1120
+      ]
+    },
+    {
+      "id": "w07-ns-owner-send",
+      "name": "Never silent: owner WhatsApp (smc-whatsapp-send)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3700,
+        2300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Waits for the sender: Result { ok, external_id, error }. ok:false (no Content SID, Twilio error, sub down) takes the EMMA /api/notify fallback."
+    },
+    {
+      "id": "w07-ns-owner-ok",
+      "name": "Never silent: WhatsApp sent? (ok)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        2300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -3688,6 +3901,13 @@
         ],
         [
           {
+            "node": "Pre-consent handoff: alert ops (nothing to the person)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "Paused / opted out: log only",
             "type": "main",
             "index": 0
@@ -3904,7 +4124,7 @@
       "main": [
         [
           {
-            "node": "-> W09 pause",
+            "node": "W09 pause input (op pause, sensitive)",
             "type": "main",
             "index": 0
           }
@@ -4134,6 +4354,13 @@
         [
           {
             "node": "W03 forward: loop guard (origin w03)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "W28 last resort: load lead",
             "type": "main",
             "index": 0
           }
@@ -4605,7 +4832,7 @@
       "main": [
         [
           {
-            "node": "Live send? (Never silent: notify Jono (EMMA /api/notify))",
+            "node": "Never silent: owner WhatsApp (smc-whatsapp-send)",
             "type": "main",
             "index": 0
           }
@@ -4726,6 +4953,11 @@
             "node": "SUB input (Send reschedule card (W07))",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "End typed-reason wait (reschedule card, W07)",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -4787,6 +5019,73 @@
         [
           {
             "node": "Send Start here again (W07)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-consent handoff: alert ops (nothing to the person)": {
+      "main": [
+        [
+          {
+            "node": "Live send? (alert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W28 last resort: load lead": {
+      "main": [
+        [
+          {
+            "node": "W28 last resort: build the message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W28 last resort: build the message": {
+      "main": [
+        [
+          {
+            "node": "W28 last resort: send (smc-whatsapp-send)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "W09 pause input (op pause, sensitive)": {
+      "main": [
+        [
+          {
+            "node": "-> W09 pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: owner WhatsApp (smc-whatsapp-send)": {
+      "main": [
+        [
+          {
+            "node": "Never silent: WhatsApp sent? (ok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: WhatsApp sent? (ok)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Live send? (Never silent: notify Jono (EMMA /api/notify))",
             "type": "main",
             "index": 0
           }

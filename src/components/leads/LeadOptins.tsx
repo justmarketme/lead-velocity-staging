@@ -14,6 +14,7 @@ export const OPTIN_CHANNELS = {
   instagram_post: "Instagram post",
   website: "Website",
   whatsapp_direct: "WhatsApp direct",
+  voice_call: "Phone call (Lindi)",
 } as const;
 
 export type OptinChannel = keyof typeof OPTIN_CHANNELS;

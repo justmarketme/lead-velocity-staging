@@ -11,9 +11,14 @@ import { inlineModule } from './security/inline-for-n8n.mjs';
 // I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent, W03 already gated).
 const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
+// consent-stall re-asks (24 Oct 2026): the hours live in ctwa/w03.js (CONSENT_STALL_HOURS) and are stamped into the SQL below
+const { CONSENT_STALL_HOURS, CONSENT_REASK_MAX } = createRequire(import.meta.url)('./ctwa/w03.js');
+// contact hours for the re-asks (review 24 Oct 2026): the CPA s12 / Reg 4 rule of lib/contact-hours.mjs, with the public holidays of
+// data/za-public-holidays.json stamped into the SQL (re-run this builder and re-import W03 after editing that file)
+const ZA_HOLIDAYS = createRequire(import.meta.url)('../data/za-public-holidays.json').holidays.map((h) => h.date);
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
-const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
+const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, ASK_DAY: L.ASK_DAY, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: '', name: 'LV Supabase - n8n_app (least privilege)' } };
@@ -57,15 +62,19 @@ function buildW03() {
     'W03 Click-to-WhatsApp intake (automation-engineer). Sub-workflow since I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply) and calls W03 for unknown numbers / CTWA entries / qualifying taps (automation/CONTRACTS.md "Inbound ownership"). ' +
     'The adapter rebuilds the Cloud API message from W07\'s normalised msg -> W03 step. GET /whatsapp verify handshake stays here until W07 has one (one GET handler only). ' +
     'W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. ' +
-    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of unfinished-CTWA stall nudges (+1/+20/+68 h, inside the 72-h window; before consent they only re-ask the consent question); W08 skips every lead without broker_id. Consent text version ctwa-named-v3 (responsible party + STOP + privacy link; v3 scope "insurance and financial planning"). Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
-    'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto.' }));
+    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of pre-consent stall nudges: "Every 5 minutes (consent stall)" re-asks the consent question once 2 h after it was read (or sent) and once more at 20 h, inside the 24-h window and the contact hours (Mon-Fri 08:00-20:00, Sat 09:00-13:00, no Sunday / public holiday), never to a suppressed number (24 Oct 2026; before that the consent question scheduled no stall and stall_due_at stayed NULL). After consent W08 owns the Start here / unbooked nudges. ' +
+    'One-tap consent from the ad (24 Oct 2026): a first message with referral data equal to env SMC_CTWA_ICEBREAKER_CONSENT (the ad welcome message\'s one ice breaker) is the consent itself, stored as env SMC_CTWA_WELCOME_TEXT (version ctwa-icebreaker-v1; automation/meta/CTWA-WELCOME.md), and the Start here card follows at once. Consent text version ctwa-named-v3 (responsible party + STOP + privacy link; v3 scope "insurance and financial planning"). Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
+    'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS, SMC_CTWA_ICEBREAKER_CONSENT, SMC_CTWA_WELCOME_TEXT. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto. The schedule trigger only runs while the workflow is active (publish it on import).' }));
 
   // I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply). W03 is a sub-workflow:
   // W07 calls it with { source: 'W07', route, msg, lead, booking } where msg is W07's normaliseInbound() shape. The adapter below
   // rebuilds the Cloud API message object that ctwa/w03.js step() reads, so the tested logic is unchanged.
   n.push(node('Called by W07 (CTWA lead)', 'executeWorkflowTrigger', 1.1, [0, 0], { inputSource: 'passthrough' }));
   n.push(code('W07 hand-off -> Cloud API message', [220, 0],
-`const out = [];
+`// test / real routing pool for "Load context" (Jono, 23 Oct 2026; lib/routing-split.mjs): with SMC_TEST_BROKER_IDS set a test
+// number (SYNTHETIC_TEST_NUMBERS, SMC_TEST_PHONES) gets only a test practice, any other number never one; unset = no filter
+const TR = require('lv-automation').routingSplit;
+const out = [];
 for (const it of $input.all()) {
   const j = it.json || {};
   const g = j.msg || {};
@@ -79,7 +88,9 @@ for (const it of $input.all()) {
   // I-47a: a W07 delegation carries the intent-slot NLU slots (typed answer); I-48b: msg.hops = hand-offs so far.
   const d = j.delegate && typeof j.delegate === 'object' ? j.delegate : null;
   const typed = d && d.to === 'W03' ? { slots: d.slots || {}, actions: d.actions || (d.action ? [d.action] : []) } : null;
-  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id || (j.metadata && j.metadata.phone_number_id) || null, mobile: '+' + m.from, profile_name: j.profile_name || m.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), lead_id: (j.lead && j.lead.id) || null, typed, hops: Number(g.hops) || 0 } });
+  const pool = TR.routingPool({ phone: '+' + m.from, is_synthetic: j.lead && j.lead.is_synthetic }, $env);
+  out.push({ json: { kind: 'lead', source: j.source || 'W07', external_id: g.wamid, phone_number_id: g.phone_number_id || (j.metadata && j.metadata.phone_number_id) || null, mobile: '+' + m.from, profile_name: j.profile_name || g.profile_name || null, msg: m, at: new Date(Number(m.timestamp) * 1000).toISOString(), lead_id: (j.lead && j.lead.id) || null, typed, hops: Number(g.hops) || 0,
+    is_test: !!(pool && pool.test), test_broker_ids: pool ? pool.test_broker_ids.join(',') : '' } });
 }
 return out;`));
   n.push(pg('Load context', [1340, 200],
@@ -88,6 +99,10 @@ return out;`));
 -- pre-consent thread (public.wa_threads, needs_human schema pass 3).
 -- I-47b: always one row; brand_id NULL = no brand for this receiving number -> W03 step logs it + W22 signal.
 -- I-47a: lead = the open lead W07 passed (or W03's own 90-day match), so a q_* answer without a wa_thread is qualified.
+-- 23 Oct 2026 (Jono; lib/routing-split.mjs): $5 = SMC_TEST_BROKER_IDS (the test practices, comma separated; '' = no filter).
+-- A test lead ($4: a SYNTHETIC_TEST_NUMBERS / SMC_TEST_PHONES number, or an is_synthetic open lead) gets only a test practice,
+-- any other lead never one; nobody in its pool -> broker NULL, the normal "no broker" path. Ids compared as text (a typo in the
+-- env list can never break the query).
 SELECT br.id AS brand_id,
        (SELECT row_to_json(k) FROM (
           SELECT b.id AS broker_id, b.practice_name, b.fsp_number, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name,
@@ -96,6 +111,7 @@ SELECT br.id AS brand_id,
            WHERE b.brand_id = br.id AND b.active AND b.routing_on AND NOT b.bookings_paused AND b.status = 'active'
              -- capacity: only a broker with an open paid SortMyCover lead order (the database enforces it again at routing)
              AND EXISTS (SELECT 1 FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = br.id AND c.open)
+             AND (coalesce($5, '') = '' OR (b.id::text = ANY (string_to_array(lower($5), ','))) = (coalesce($4, '') = 'true' OR coalesce(ol.is_synthetic, false)))
            ORDER BY b.next_free_slot_at NULLS LAST, b.created_at
            LIMIT 1) k) AS broker,
        ol.id AS existing_open_lead_id,
@@ -114,19 +130,24 @@ SELECT br.id AS brand_id,
   FROM (SELECT 1) one
   LEFT JOIN public.brands br ON br.phone_number_id = $1
   LEFT JOIN LATERAL (
-       SELECT l.id FROM public.leads l
+       SELECT l.id, l.is_synthetic FROM public.leads l
         WHERE l.brand_id = br.id
           AND (l.id = nullif($3, '')::uuid OR l.dedupe_hash = public.smc_hash_contact($2))
           AND l.created_at > now() - interval '90 days' AND l.opted_out_at IS NULL
           AND coalesce(l.stage, 'new') NOT IN ('disqualified', 'unbooked_closed', 'opted_out')
         ORDER BY (l.id = nullif($3, '')::uuid) DESC, l.created_at DESC LIMIT 1) ol ON true
  LIMIT 1;`,
-    '={{ [ $json.phone_number_id || "", $json.mobile, $json.lead_id || "" ] }}'));
+    '={{ [ $json.phone_number_id || "", $json.mobile, $json.lead_id || "", String($json.is_test === true), $json.test_broker_ids || "" ] }}'));
   n.push(code('W03 step', [1560, 200], W3 + LT +
 `// /start/ page (brand flag start_page): the link only goes out when the transport can carry it (Meta interactive cta_url, or the
 // smc_start_cta Content SID under Twilio) and a lead token can be minted for the lead this tap creates; otherwise the tap path.
 const PROVIDER = String($env.WHATSAPP_PROVIDER || 'meta').trim().toLowerCase();
 let SIDS = {}; try { SIDS = JSON.parse($env.TWILIO_CONTENT_SIDS || '{}') || {}; } catch (e) { SIDS = {}; }
+// smoke test #16 (21 Oct 2026): a test number is stored as a synthetic lead. Review 21 Oct: only the exact numbers in env
+// SYNTHETIC_TEST_NUMBERS (lib/wa.mjs isSyntheticNumber; there is no reserved test mobile range in South Africa). 23 Oct 2026: the
+// lib itself, so this flag and the routing split (lib/routing-split.mjs) read the list the same way (E.164 digits). A tester's
+// number (SMC_TEST_PHONES) is NOT stored synthetic: is_synthetic dry-runs sends, and the testers' messages must really send.
+const WAL = require('lv-automation').wa;
 const out = [];
 for (const [i, item] of $input.all().entries()) {
   const ctxRow = item.json;
@@ -137,20 +158,27 @@ for (const [i, item] of $input.all().entries()) {
   if (brand.start_page && (PROVIDER !== 'twilio' || !!SIDS.smc_start_cta)) {
     try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
   }
+  const synthetic = WAL.isSyntheticNumber(m.mobile, $env);
+  // one-tap consent from the ad (24 Oct 2026, w03.js iceBreakerConsent): the ice breaker's words and the welcome wording shown above it
+  const icebreaker = { consent: String($env.SMC_CTWA_ICEBREAKER_CONSENT || ''), welcome: String($env.SMC_CTWA_WELCOME_TEXT || '') };
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
-    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: false,
-    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });
+    broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: synthetic,
+    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page, icebreaker,
+    route_at_consent: String($env.SMC_ROUTE_AT_CONSENT || '').trim().toLowerCase() !== 'false' });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
   const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;
   const leadId = (r.thread && r.thread.lead_id) || ctxRow.existing_open_lead_id || null;
-  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions: r.actions, stall_due_at: stallDue, lead_id: leadId, hops: m.hops || 0, store_thread: !!ctxRow.brand_id && !r.no_thread && !!r.thread } });
+  // 21 Oct 2026: a W22 alert caused by a test number goes by email only, marked (lib/w22.mjs synthetic); never WhatsApp to Jono / KG
+  const actions = synthetic ? r.actions.map((a) => (a.kind === 'alert' ? { ...a, synthetic: true } : a)) : r.actions;
+  out.push({ json: { brand_id: ctxRow.brand_id, mobile: m.mobile, wamid: m.external_id, at: m.at, phone_number_id: m.phone_number_id, broker, thread: r.thread, actions, stall_due_at: stallDue, lead_id: leadId, hops: m.hops || 0, store_thread: !!ctxRow.brand_id && !r.no_thread && !!r.thread } });
 }
 return out;`));
   n.push(ifTrue('Store thread? (brand known)', [1700, 60], '={{ $json.store_thread === true }}'));
   n.push(pg('Save thread', [1780, 120],
 `-- No PII in state: stage, answers (bands), origin (ad id / ctwa_clid / ref), consent text + version. Purged after expires_at.
--- W08 polls stall_due_at for the +1 h / +20 h / +68 h nudges (4.6 step 7); a reply moves it forward.
+-- stall_due_at: at await_consent it is the consent re-ask clock, consumed by this workflow's "Every 5 minutes (consent stall)"
+-- (24 Oct 2026); a reply moves it forward. After consent W08 owns the nudges (it reads leads, not this column).
 INSERT INTO public.wa_threads (brand_id, mobile_hash, state, stage, last_inbound_at, stall_due_at, expires_at, updated_at)
 VALUES ($1::uuid, public.smc_hash_contact($2), $3::jsonb, $3::jsonb->>'stage', $4::timestamptz, $5::timestamptz, $4::timestamptz + interval '72 hours', now())
 ON CONFLICT (brand_id, mobile_hash) DO UPDATE
@@ -171,7 +199,7 @@ RETURNING stage;`,
   // Session banner (Jono, 19 Oct 2026; lib/wa-banner.cjs): with WA_SESSION_BANNERS=on a reply that cannot carry an image header
   // (a list; Twilio reply buttons) gets its header card as an image message first. Off (default): banner null, nothing changes.
   n.push(code('Build Cloud API body', [2240, 490], W3 + WB + "const BENV = { WA_SESSION_BANNERS: $env.WA_SESSION_BANNERS, WHATSAPP_PROVIDER: $env.WHATSAPP_PROVIDER };\n" +
-    "return $input.all().map((it) => { const sb = WB.sessionBanner(W3.toCloudApi(it.json._mobile, it.json.message), BENV); return { json: { pnid: it.json._pnid, body: sb.wa, banner: sb.banner, brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body } }; });"));
+    "return $input.all().map((it) => { const sb = WB.sessionBanner(W3.toCloudApi(it.json._mobile, it.json.message), BENV); return { json: { pnid: it.json._pnid, body: sb.wa, banner: sb.banner, brand_id: it.json._brand_id, lead_id: it.json._lead_id || null, mobile: it.json._mobile, wamid: it.json._wamid, content: it.json.message.body, close_line: it.json.close_line === true } }; });"));
   n.push(pg('Reply claim (w07:reply:{wamid})', [2460, -120],
 `-- I-48b: one inbound message -> at most one lead-facing reply (W03 and W07 share the key). Second claim -> 0 rows -> nothing sent.
 WITH c AS (
@@ -197,15 +225,16 @@ SELECT c.id AS reply_claim_id, $3::jsonb AS out FROM c;`,
   }, { credentials: WA }));
   n.push(code('Banner done: the message (W03)', [3010, -300], "return { json: $('Banner first? (W03)').item.json };", 'runOnceForEachItem'));
   n.push({ ...pg('Store outbound (W03)', [3120, -120],
-`-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}.
-INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, lead_id, author, workflow, template_category, metadata)
+`-- Same row shape as W07 "Store outbound"; DRY_RUN rows carry external_id dry:w03:{wamid}. A send the sender refused or
+-- that failed (suppressed, not allow-listed, provider error) is logged 'failed' with the reason and no id (smoke test #7).
+INSERT INTO public.communications (brand_id, channel, direction, sender_type, recipient_type, recipient_contact, content, status, external_id, failed_reason, lead_id, author, workflow, template_category, metadata)
 -- lead_id only when the lead row exists (a first message's insert may not have committed): never a foreign-key stop.
-VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, 'sent', $4,
+VALUES (nullif($1, '')::uuid, 'whatsapp', 'outbound', 'system', 'client', $2, $3, $8, nullif($4, ''), nullif($9, ''),
         (SELECT l.id FROM public.leads l WHERE l.id = nullif($5, '')::uuid), 'bot', 'W03', 'service',
         jsonb_build_object('dry_run', $6::boolean, 'reply_to', $7::text, 'lead_id_wanted', nullif($5, '')))
 ON CONFLICT (channel, external_id) WHERE brand_id IS NOT NULL AND external_id IS NOT NULL DO NOTHING
 RETURNING id;`,
-    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const id = ($json.messages && $json.messages[0] && $json.messages[0].id) || ('dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', !($json.messages && $json.messages[0]), o.wamid]; })() }}"), onError: 'continueRegularOutput' });
+    "={{ (() => { const o = $('Reply claim (w07:reply:{wamid})').item.json.out; const got = ($json.messages && $json.messages[0] && $json.messages[0].id) || ''; const failed = !got && $json.ok === false; const id = got || (failed ? '' : 'dry:w03:' + o.wamid); return [o.brand_id || '', o.mobile, o.content || '', id, o.lead_id || '', id.startsWith('dry:'), o.wamid, failed ? 'failed' : 'sent', failed ? String($json.error || 'send_failed').slice(0, 300) : '']; })() }}"), onError: 'continueRegularOutput' });
   // 17 Oct 2026: a website opener that needs a person (wills: no wills calendar yet) opens a console escalation. Positioned
   // below 'Insert lead' so the v1 execution order writes the lead first; never fails the run.
   n.push({ ...pg('Escalate to a person (opener)', [2240, 1260],
@@ -321,6 +350,63 @@ RETURNING id;`,
     { name: 'Referrer-Policy', value: 'no-referrer' },
   ]));
 
+  // Consent-stall re-asks (Jono, 24 Oct 2026; ctwa/w03.js consentReask). Third entry: a 5-minute schedule claims every thread still
+  // at await_consent whose re-ask is due and feeds 'Action?' as a plain `send`, so the reply claim (reask:<sid>:<n>), the DRY_RUN
+  // gate, the provider route, the session banner and 'Store outbound (W03)' are exactly the ones every other W03 reply uses.
+  n.push(node('Every 5 minutes (consent stall)', 'scheduleTrigger', 1.2, [0, 1300], { rule: { interval: [{ field: 'cronExpression', expression: '*/5 * * * *' }] } }));
+  n.push(pg('Stalled consent threads (claim + advance)', [220, 1300],
+`-- Consent re-asks (24 Oct 2026): a thread still at await_consent gets ONE re-ask ${CONSENT_STALL_HOURS[0]} h after the consent question was
+-- READ (or sent, with no read receipt) and a last one at ${CONSENT_STALL_HOURS[1]} h, both inside the 24-h session window the person's own
+-- message opened. This UPDATE is the claim: it moves stall_due_at on (NULL after the last) and appends the re-ask number to
+-- state.consent_reasks, so two overlapping runs never pick a thread twice (the reply claim reask:<sid>:<n> is the second lock).
+-- The phone comes from the consent question's own outbound row (wa_threads holds only the hash; the inbound row holds our number).
+-- Never: a STOP / suppressed number, a closed window, a question that failed to send, an expired thread, or outside the contact
+-- hours every other nudge keeps (lib/contact-hours.mjs, CPA s12 / Reg 4: Mon-Fri 08:00-20:00, Sat 09:00-13:00 SAST, no Sunday or
+-- public holiday; a re-ask due outside waits for the next opening and is dropped if the window closed by then). Synthetic numbers
+-- dry-run in smc-whatsapp-send.
+WITH q AS (
+  SELECT t.brand_id, t.mobile_hash, t.stall_due_at, t.state->>'first_wamid' AS first_wamid,
+         coalesce(jsonb_array_length(CASE WHEN jsonb_typeof(t.state->'consent_reasks') = 'array' THEN t.state->'consent_reasks' END), 0) + 1 AS n,
+         c.recipient_contact AS mobile, coalesce(c.read_at, c.created_at) AS asked_at, br.phone_number_id
+    FROM public.wa_threads t
+    JOIN public.brands br ON br.id = t.brand_id
+    JOIN LATERAL (SELECT c.recipient_contact, c.read_at, c.created_at, c.status FROM public.communications c
+                   WHERE c.channel = 'whatsapp' AND c.direction = 'outbound' AND c.workflow = 'W03' AND c.brand_id = t.brand_id
+                     AND c.metadata->>'reply_to' = t.state->>'first_wamid'
+                   ORDER BY c.created_at LIMIT 1) c ON true
+   WHERE t.stage = 'await_consent' AND t.stall_due_at IS NOT NULL AND t.stall_due_at <= now() AND t.expires_at > now()
+     AND t.last_inbound_at > now() - interval '24 hours'
+     AND coalesce(c.status, '') <> 'failed' AND c.recipient_contact IS NOT NULL
+     AND public.smc_hash_contact(c.recipient_contact) = t.mobile_hash
+     AND NOT EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = t.mobile_hash AND (s.brand_id IS NULL OR s.brand_id = t.brand_id))
+     -- contact hours (lib/contact-hours.mjs MARKETING_HOURS): Mon-Fri 08:00-19:59, Sat 09:00-12:59 SAST, never a Sunday or a public holiday
+     AND (CASE extract(dow FROM now() AT TIME ZONE 'Africa/Johannesburg')
+            WHEN 0 THEN false
+            WHEN 6 THEN extract(hour FROM now() AT TIME ZONE 'Africa/Johannesburg') BETWEEN 9 AND 12
+            ELSE extract(hour FROM now() AT TIME ZONE 'Africa/Johannesburg') BETWEEN 8 AND 19 END)
+     AND (now() AT TIME ZONE 'Africa/Johannesburg')::date NOT IN (${ZA_HOLIDAYS.map((d) => `'${d}'`).join(', ')})),
+due AS (
+  SELECT * FROM q
+   WHERE n <= ${CONSENT_REASK_MAX}
+     AND asked_at + (CASE n WHEN 1 THEN interval '${CONSENT_STALL_HOURS[0]} hours' ELSE interval '${CONSENT_STALL_HOURS[1]} hours' END) <= now())
+UPDATE public.wa_threads t
+   SET stall_due_at = CASE WHEN d.n < ${CONSENT_REASK_MAX} THEN d.asked_at + interval '${CONSENT_STALL_HOURS[1]} hours' ELSE NULL END,
+       state = coalesce(t.state, '{}'::jsonb) || jsonb_build_object('consent_reasks',
+                 coalesce(CASE WHEN jsonb_typeof(t.state->'consent_reasks') = 'array' THEN t.state->'consent_reasks' END, '[]'::jsonb) || jsonb_build_array(d.n)),
+       updated_at = now()
+  FROM due d
+ WHERE t.brand_id = d.brand_id AND t.mobile_hash = d.mobile_hash AND t.stage = 'await_consent' AND t.stall_due_at = d.stall_due_at
+RETURNING t.brand_id, d.mobile, d.phone_number_id, d.n, d.asked_at, d.first_wamid, t.state, t.last_inbound_at, t.expires_at;`,
+    '={{ [] }}'));
+  n.push(code('Consent re-ask (w03.consentReask)', [440, 1300], W3 +
+`// each claimed thread -> one 'send' action in the shape 'Fan out actions' emits (the reply key stands in for the inbound wamid)
+const now = new Date().toISOString();
+return $input.all().flatMap((it) => {
+  const r = W3.consentReask(it.json);
+  if (!r) return [];
+  return [{ json: { kind: 'send', message: r.message, reask: r.n, _brand_id: it.json.brand_id, _mobile: it.json.mobile, _wamid: r.reply_key, _at: now, _pnid: it.json.phone_number_id || null, _broker: null, _lead_id: null, _hops: 0 } }];
+});`));
+
   // Meta GET handshake
   n.push(node('Meta webhook verify (GET)', 'webhook', 2, [0, 900], { httpMethod: 'GET', path: 'whatsapp', responseMode: 'responseNode', options: {} }, { webhookId: 'w03-waba-get' }));
   n.push(code('Check hub.verify_token', [220, 900], VW + "const q = $input.first().json.query || {};\nconst r = VW.metaVerifyHandshake(q, $env.META_WEBHOOK_VERIFY_TOKEN);\nreturn [{ json: r }];"));
@@ -355,6 +441,9 @@ RETURNING id;`,
   link(c, 'Build redirect', 'Respond 302 to wa.me');
   link(c, 'Meta webhook verify (GET)', 'Check hub.verify_token');
   link(c, 'Check hub.verify_token', 'Respond hub.challenge');
+  link(c, 'Every 5 minutes (consent stall)', 'Stalled consent threads (claim + advance)');
+  link(c, 'Stalled consent threads (claim + advance)', 'Consent re-ask (w03.consentReask)');
+  link(c, 'Consent re-ask (w03.consentReask)', 'Action?');
   return { id: 'smc-w03', name: 'W03 Lead intake (Click-to-WhatsApp)', nodes: n, connections: c, active: false, settings: SETTINGS, pinData: {}, tags: [{ name: 'intake' }, { name: 'whatsapp' }], meta: { notes: 'automation-engineer. Logic: automation/ctwa/w03.js. Generated by automation/build-w03-w28.mjs; do not hand-edit Code nodes.' } };
 }
 
@@ -448,7 +537,7 @@ return [{ json: { response: out.response, effects: out.effects, lead_id: ctx.lea
   n.push(switchOn('Op?', [220, 600], '={{ $json.op }}', ['send_list', 'revert', 'ask_email']));
   n.push(code('Normalise send_list input', [1760, 280], "return $input.all().map((it) => ({ json: { op: 'send_list', lead_id: it.json._lead_id || it.json.lead_id, reason: it.json.reason || null } }));"));
   n.push(pg('Load lead for list', [440, 520],
-    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(b.adviser_name, ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
+    "SELECT l.id AS lead_id, l.phone, l.brand_id, l.opted_out_at, l.language, l.first_name, b.id AS broker_id, b.adviser_name, split_part(coalesce(nullif(b.adviser_name, ''), b.contact_person), ' ', 1) AS adviser_first_name\n  FROM public.leads l JOIN public.brokers b ON b.id = l.broker_id\n WHERE l.id = $1::uuid AND l.opted_out_at IS NULL;",
     '={{ [ $json.lead_id ] }}'));
   n.push(node('W04 Slot engine (list)', 'executeWorkflow', 1.1, [660, 520], { source: 'database', workflowId: ref('W04 Slots API'), options: { waitForSubWorkflow: true } }));
   n.push(code('Build 10-slot list', [880, 520], EP_SAFE() + LINES_W28 +
@@ -458,7 +547,12 @@ const spread = (slots, n) => { const by = new Map(); for (const s of slots) { co
 const l = $('Load lead for list').first().json;
 const w04 = $input.first().json || {};
 let delegate = null; try { delegate = $('Called by W06/W07/W10/W22').first().json.delegate || null; } catch (e) { delegate = null; }   // I-39k
-if (w04.fallback || !(w04.slots || []).length) return [{ json: { lead_id: l.lead_id, body: null, last_resort: true } }];   // ladder step 4: W07 asks for a day
+// ladder step 4: W07 asks for a day. The body is the ASK_DAY line itself (21 Oct 2026: it was null and W07 sent nothing).
+if (w04.fallback || !(w04.slots || []).length) {
+  const AL = LINES[l.language === 'af' ? 'af' : 'en'];
+  // review 21 Oct: no adviser name -> the lead's own language (never English inside the Afrikaans line)
+  return [{ json: { lead_id: l.lead_id, body: AL.ASK_DAY.replace('{adviser_first}', l.adviser_first_name || (l.language === 'af' ? 'jou adviseur' : 'your adviser')), last_resort: true } }];
+}
 const body = EP.listFallback({ adviser_name: l.adviser_name, adviser_first_name: l.adviser_first_name }, w04.slots, spread, l.phone, { delegate, lead: { language: l.language, first_name: l.first_name }, lines: LINES });
 return [{ json: { lead_id: l.lead_id, brand_id: l.brand_id, broker_id: l.broker_id, body, last_resort: false } }];`));
   n.push(ifTrue('Have slots?', [1100, 520], '={{ !$json.last_resort }}'));
@@ -526,7 +620,8 @@ function EP_SAFE() { return W28; }
 // GEN_OUT_DIR: write elsewhere (automation/tests/generators.test.mjs regenerates into a temp dir and compares, I-40a).
 const OUT_DIR = process.env.GEN_OUT_DIR || HERE;
 // 2026-10-11: every WhatsApp send goes through smc-whatsapp-send (lib/wa-route.cjs), so WHATSAPP_PROVIDER switches it.
-const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false }, 'WhatsApp send (banner)': { record: false } } }; // Store outbound (W03) logs the reply
+// bypass_suppression only for the consent "No thanks" close line (ctwa/w03.js close_line): its suppression row is written first
+const W03_ROUTE = { caller: 'W03', nodes: { 'WhatsApp send (session)': { record: false, bypass_suppression: '$json.out.close_line' }, 'WhatsApp send (banner)': { record: false } } }; // Store outbound (W03) logs the reply
 /** The banner send never stops the reply: routing rebuilt the node, so its error mode is set after routing. */
 const bannerNeverBlocks = (wf) => { for (const x of wf.nodes) if (x.name === 'WhatsApp send (banner)') x.onError = 'continueRegularOutput'; return wf; };
 const W28_ROUTE = { caller: 'W28', nodes: { 'WhatsApp send list': { record: true }, 'WhatsApp send ask_email': { record: true } } };

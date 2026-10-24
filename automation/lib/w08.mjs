@@ -12,8 +12,11 @@
 //  - Template-only outside the 24-h customer-service window. Inside it the same words go as a session
 //    interactive message (no template fee), with the same two buttons.
 //  - Stops at once on: live booking, opted out, suppressed, handoff, "No thanks", closed stage.
-//  - ASSUMPTION: quiet hours 20:00-08:00 SAST - a nudge due then waits to 08:00 (CTWA: never past the 72-h window,
-//    so a CTWA nudge that would be pushed past it is skipped).
+//  - Contact hours (smoke test #13, 21 Oct 2026; was an ASSUMPTION of quiet hours 20:00-08:00 every day): nudges are direct
+//    marketing, so they follow the CPA s12 / Reg 4 hours in lib/contact-hours.mjs: Mon-Fri 08:00-20:00, Sat 09:00-13:00,
+//    never Sunday or a public holiday (data/za-public-holidays.json). A nudge due outside them moves to the next allowed
+//    time, at least MIN_NUDGE_GAP after the previous nudge (CTWA: never past the 72-h window, so a stall nudge pushed past
+//    it is skipped and the last Start here nudge goes at the latest allowed moment inside it).
 //  - ASSUMPTION: close = 24 h after the last nudge (so a tap on the last nudge still books).
 //  - Idempotency: lead_activities.idempotency_key = w08:{lead_id}:{touch}; INSERT ... ON CONFLICT DO NOTHING
 //    RETURNING id, and only a returned row is sent. A scheduler that fires twice sends once.
@@ -26,18 +29,31 @@
 //    /start/#lt=<token> button: welcome, then video (Mark's hello), then adviser. Covers "never opened the page" and
 //    "opened it and left without booking" alike (routing on the page writes broker_id but books nothing).
 import { LINES } from '../../conversation/lines.mjs';
+import { inMarketingHours, nextMarketingTime, latestMarketingTimeBefore } from './contact-hours.mjs';
 export const H = 3600_000;
-const SAST = 2 * H;
 export const OFFSETS = {
   unbooked: [{ touch: 'unbooked_nudge_2h', after: 2 * H }, { touch: 'unbooked_nudge_24h', after: 24 * H }, { touch: 'unbooked_nudge_72h', after: 72 * H }],
   ctwa_stall: [{ touch: 'unbooked_nudge_2h', after: 1 * H }, { touch: 'unbooked_nudge_24h', after: 20 * H }, { touch: 'unbooked_nudge_72h', after: 68 * H }],
   start: [{ touch: 'start_nudge_2h', after: 2 * H }, { touch: 'start_nudge_24h', after: 24 * H }, { touch: 'start_nudge_final', after: 72 * H }],
   start_ctwa: [{ touch: 'start_nudge_2h', after: 2 * H }, { touch: 'start_nudge_24h', after: 24 * H }, { touch: 'start_nudge_final', after: 68 * H }]
 };
+// 30-minute "where you left off" nudge (Jono, 24 Oct 2026): a Start here lead who OPENED the page (lead_activities start_page_* /
+// adviser_disclosed; W08.json page_last_at) and left without booking gets the first nudge 30 min after the last page activity instead
+// of 2 h after the card: the smc_start_cta session card with the left-off words (the approved start_nudge_2h template when the
+// 24-h window has closed). Leads that never opened the page keep the 2-h timing (W01's intake row start_page_pending is NOT a page
+// activity: W08.json excludes it). The two are ONE first nudge: whichever went out first satisfies both (never a second "first"
+// nudge), and the +24 h / final nudges follow as today, at least MIN_NUDGE_GAP apart; a page visit after the first nudge changes
+// nothing (due() drops page_last_at once a first nudge is out).
+export const PAGE_NUDGE_AFTER = 30 * 60_000;
+export const FIRST_START_TOUCHES = new Set(['start_nudge_2h', 'start_nudge_30m']);
+/** The last /start/ page activity as ms (W08.json page_last_at), or null when the lead never opened the page. */
+export const pageActivityAt = (lead) => { const p = Date.parse(lead.page_last_at || ''); return Number.isFinite(p) ? p : null; };
 export const START_LINK = 'https://sortmycover.co.za/start/#lt=';
 export const HEADER_BASE = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/';
-/** touch -> banner card (checklist/whatsapp-kit/profile/headers). */
+/** touch -> banner card (checklist/whatsapp-kit/profile/headers). Its keys are also the approved start_nudge_* templates
+ *  (templates/twilio/build-content.mjs START_NUDGES), so the 30-min card is NOT a key: it rides on start_nudge_2h (startBanner). */
 export const START_BANNER = { start_nudge_2h: 'welcome', start_nudge_24h: 'video', start_nudge_final: 'adviser' };
+export const startBanner = (touch) => START_BANNER[touch === 'start_nudge_30m' ? 'start_nudge_2h' : touch] || null;
 const TOKEN_SAFE = /^lt1\.[A-Za-z0-9._-]{10,400}$/;
 /** Start here went out and nothing is booked yet; a lead W06 already introduced (first_message_at) keeps the classic track. */
 export function isStartPending(lead) {
@@ -46,7 +62,10 @@ export function isStartPending(lead) {
 }
 export const CLOSE_AFTER_LAST = 24 * H;
 export const CTWA_WINDOW = 72 * H;
-export const QUIET = { from: 20, to: 8 };
+/** Two nudges that both move to the same opening (a weekend, a holiday) go at least this far apart, never together. */
+export const MIN_NUDGE_GAP = 6 * H;
+/** A restarted (post-cancel) nudge goes out before W10's C1A decision at cancelled_at + 96 h (lib/w10.mjs C1A_SEQUENCE_MS), with 2 h to spare. */
+export const RESTART_LAST_BEFORE = 94 * H;
 export const MAX_LEAD_MESSAGES = 12; // 4.6 cost design
 const STALL_STATES = new Set(['consent_pending', 'q_age', 'q_bond', 'q_dependants', 'q_budget', 'q_budget_clarify']);
 const CLOSED = new Set(['unbooked_closed', 'opted_out', 'disqualified', 'booked', 'confirmed', 'attended', 'no_show', 'dispositioned', 'replacement_due']);
@@ -57,23 +76,11 @@ export function track(lead) {
   return lead.origin === 'ctwa' && STALL_STATES.has(state) ? 'ctwa_stall' : 'unbooked';
 }
 
-/** Shift a time out of quiet hours to 08:00 SAST. */
-export function outOfQuiet(t) {
-  const d = new Date(t + SAST);
-  const h = d.getUTCHours();
-  if (h >= QUIET.to && h < QUIET.from) return t;
-  const base = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + (h >= QUIET.from ? 1 : 0), QUIET.to, 0) - SAST;
-  return base;
-}
+/** Shift a time into the contact hours (lib/contact-hours.mjs): t itself when allowed, else the next opening. */
+export const outOfQuiet = (t) => nextMarketingTime(t);
 
-/** The latest moment at or before t that is outside quiet hours (19:30 SAST the evening before, when t is at night). */
-export function latestDaytimeBefore(t) {
-  const d = new Date(t + SAST);
-  const h = d.getUTCHours();
-  if (h >= QUIET.to && h < QUIET.from) return t;
-  const dayShift = h < QUIET.to ? -1 : 0;
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + dayShift, QUIET.from - 1, 30) - SAST;
-}
+/** The latest moment at or before t inside the contact hours (19:30 on a weekday, 12:30 on a Saturday, when t is outside). */
+export const latestDaytimeBefore = (t) => latestMarketingTimeBefore(t);
 
 /** The plan for one lead: [{touch, due_ms}] + close_ms. Pure. */
 export function nurturePlan(lead) {
@@ -82,14 +89,26 @@ export function nurturePlan(lead) {
   const restart = restartFrom(lead);
   const tr = restart ? 'unbooked' : track(lead);
   const t0 = restart ?? Date.parse(tr.startsWith('start') ? (lead.start_sent_at || lead.created_at) : lead.first_message_at);
+  // the page was opened: the first nudge is the 30-min "where you left off" card, counted from the last page activity (never before the card)
+  const page = tr.startsWith('start') ? pageActivityAt(lead) : null;
+  const offsets = page !== null ? [{ touch: 'start_nudge_30m', at_ms: Math.max(page, t0) + PAGE_NUDGE_AFTER }, ...OFFSETS[tr].slice(1)] : OFFSETS[tr];
   const steps = [];
-  for (const s of OFFSETS[tr]) {
-    const due = outOfQuiet(t0 + s.after);
+  for (const s of offsets) {
+    const prev = steps.length ? steps[steps.length - 1].due_ms : null;
+    let due = outOfQuiet(s.at_ms !== undefined ? s.at_ms : t0 + s.after);
+    if (prev !== null && due < prev + MIN_NUDGE_GAP) due = outOfQuiet(prev + MIN_NUDGE_GAP);
     if (tr === 'ctwa_stall' && due >= t0 + CTWA_WINDOW) continue; // never spend outside the free entry window on a stall nudge
+    if (restart !== null && due >= restart + RESTART_LAST_BEFORE) {
+      // review 21 Oct: the contact hours pushed it past W10's 96 h C1A decision (e.g. a Wednesday-afternoon cancel's +72 h is
+      // Saturday afternoon -> Monday): send at the latest contact-hours moment before it instead, if still after the last
+      const back = latestDaytimeBefore(restart + RESTART_LAST_BEFORE);
+      if (back > (prev !== null ? prev + MIN_NUDGE_GAP : t0)) steps.push({ touch: s.touch, due_ms: back });
+      continue;
+    }
     if (tr === 'start_ctwa' && due >= t0 + CTWA_WINDOW) {
       // quiet hours pushed it past the free window: send at the latest daytime moment inside it instead (if still after the last)
       const back = latestDaytimeBefore(t0 + CTWA_WINDOW - 30 * 60_000);
-      if (back > (steps.length ? steps[steps.length - 1].due_ms + 6 * H : t0)) steps.push({ touch: s.touch, due_ms: back });
+      if (back > (prev !== null ? prev + MIN_NUDGE_GAP : t0)) steps.push({ touch: s.touch, due_ms: back });
       continue;
     }
     steps.push({ touch: s.touch, due_ms: due });
@@ -127,27 +146,37 @@ export function stopReason(lead, ctx = {}) {
 
 /**
  * due(lead, ctx, now_ms) -> { action: 'send'|'close'|'wait'|'stop', touch?, channel?, template?, vars?, idempotency_key?, reason? }
- * ctx = { has_live_booking, suppressed, sent: Set(touch), last_inbound_ms, broker: {contact_person, intro_video_url, bio_short}, outbound_count }
+ * ctx = { has_live_booking, suppressed, sent: Set(touch), last_nudge_ms (when the last of `sent` went out), last_inbound_ms,
+ *         broker: {contact_person, intro_video_url, bio_short}, outbound_count }
  */
 export function due(lead, ctx, now_ms) {
   const why = stopReason(lead, ctx);
   if (why) return { action: 'stop', reason: why };
-  const p = nurturePlan(lead);
-  const next = p.steps.find((s) => !(ctx.sent || new Set()).has(s.touch));
+  const sent = ctx.sent || new Set();
+  const firstDone = [...FIRST_START_TOUCHES].some((t) => sent.has(t)); // the 2-h and the 30-min card are one first nudge
+  // Review 24 Oct 2026: the page only anchors the plan while no first nudge is out. A visit AFTER one reshaped the whole plan
+  // (a 30-min step nobody would send, the +24 h / final pushed MIN_NUDGE_GAP after it, a CTWA final pushed past the free window
+  // and dropped). Once a first nudge went out the +24 h and final keep the times they had; the gap from the nudge actually sent
+  // (ctx.last_nudge_ms, W08.json last_nudge_at) is enforced below, so a late 30-min card never has the +24 h one 30 min behind it.
+  const p = nurturePlan(firstDone ? { ...lead, page_last_at: null } : lead);
+  const next = p.steps.find((s) => !sent.has(s.touch) && !(FIRST_START_TOUCHES.has(s.touch) && firstDone));
   const cyc = p.restart_ms ? `:r${p.restart_ms}` : ''; // new idempotency keys for the restarted sequence
   if (!next) {
     if (p.restart_ms) return { action: 'stop', reason: 'post_cancel_sequence_done_w10_sweep_decides' };
     return now_ms >= p.close_ms ? { action: 'close', reason: 'sequence finished', idempotency_key: `w08:${lead.id}:close` } : { action: 'wait' };
   }
   if (now_ms < next.due_ms) return { action: 'wait', touch: next.touch, due_ms: next.due_ms };
-  if (new Date(now_ms + SAST).getUTCHours() >= QUIET.from || new Date(now_ms + SAST).getUTCHours() < QUIET.to) return { action: 'wait', reason: 'quiet hours' };
+  // never two nudges within MIN_NUDGE_GAP of each other, whatever the plan says (the last one sent is the truth, not the plan's slot)
+  const gapUntil = Number.isFinite(ctx.last_nudge_ms) ? ctx.last_nudge_ms + MIN_NUDGE_GAP : -Infinity;
+  if (now_ms < gapUntil) return { action: 'wait', reason: 'min gap', touch: next.touch, due_ms: outOfQuiet(gapUntil) };
+  if (!inMarketingHours(now_ms)) return { action: 'wait', reason: 'contact hours', due_ms: outOfQuiet(now_ms) };
   return { action: 'send', touch: next.touch, ...message(lead, ctx, next.touch, now_ms), idempotency_key: `w08:${lead.id}:${next.touch}${cyc}`, restart: Boolean(p.restart_ms) };
 }
 
 const firstName = (l) => (l.first_name || '').trim() || 'there';
 const adviserFirst = (b) => String(b.contact_person || '').split(' ')[0];
 export function message(lead, ctx, touch, now_ms) {
-  if (START_BANNER[touch]) return startMessage(lead, ctx, touch, now_ms);
+  if (startBanner(touch)) return startMessage(lead, ctx, touch, now_ms);
   const b = ctx.broker || {};
   const lang = lead.language === 'af' ? 'af' : 'en';
   const video = (b.intro_video_url && (b.intro_video_url[lang] || b.intro_video_url.en)) || null;
@@ -166,13 +195,18 @@ export function message(lead, ctx, touch, now_ms) {
 
 // ---------- Start here nudges (templates start_nudge_2h / _24h / _final; session = the smc_start_cta card) ----------
 const START_EN = {
+  // 30 min after the page was left (24 Oct 2026). `chosen`: the lead confirmed the adviser on the page (adviser_disclosed -> routed).
+  // No "free" (Jono, 19 Oct 2026: client wording), no STOP line (20 Oct 2026).
+  start_nudge_30m: (v, o = {}) => (o.chosen
+    ? `Hi ${v[0]}, you got as far as choosing ${v[1]} as your adviser, an authorised financial adviser. Tap below to finish where you left off and book your 30-minute call, on Microsoft Teams or by phone. No obligation.`
+    : `Hi ${v[0]}, you got as far as the booking page. Tap below to finish where you left off and book your 30-minute call with an authorised financial adviser, on Microsoft Teams or by phone. No obligation.`),
   start_nudge_2h: (v) => `Hi ${v[0]}, your 30-minute call with ${v[1]} is one tap away. Pick a time that suits you, by Microsoft Teams or phone. It takes about a minute.`,
   start_nudge_24h: (v) => `Hi ${v[0]}, ${v[1]} still has open times this week for your 30-minute call. There's no obligation to buy anything, and any next step is your choice. Tap below to pick a time.`,
   start_nudge_final: (v) => `Hi ${v[0]}, this is our last message about your call with ${v[1]}. If you'd still like to talk it through, tap below to pick a time. If not, no problem, we won't message again.`
 };
 // 20 Oct 2026 (Jono's final rule: only the W03 consent says "Reply STOP to opt out."): no STOP line, in session and in the
 // *_v2 templates. The 19 Oct start_nudge_* Content keeps it as submitted (templates/twilio/build-content.mjs START_NUDGE_V1_TAIL).
-export const startWords = (touch, vars) => (START_EN[touch] ? START_EN[touch](vars) : '');
+export const startWords = (touch, vars, opts = {}) => (START_EN[touch] ? START_EN[touch](vars, opts) : '');
 /**
  * One Start here nudge. channel 'session' inside the 24-h window (a cta_url card: welcome banner, "Start here" URL button,
  * which lib/wa-provider.mjs maps to the smc_start_cta Content under Twilio), else the start_nudge_* template: banner image
@@ -185,9 +219,12 @@ export function startMessage(lead, ctx, touch, now_ms) {
   const vars = [firstName(lead), adviserFirst(b) || 'an adviser'];
   const window = Number.isFinite(ctx.last_inbound_ms) && now_ms - ctx.last_inbound_ms < 24 * H;
   const reply = touch === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
-  return { kind: 'start', channel: window ? 'session' : 'template', template: touch, template_lang: 'en', lang: 'en', vars,
-    header: { type: 'image', link: HEADER_BASE + 'header-' + START_BANNER[touch] + '.png' }, banner: START_BANNER[touch],
-    buttons: [reply], payload_suffix: `:${lead.id}`, needs_token: true, session: { body: startWords(touch, vars), lang: 'en' } };
+  // the 30-min card has no template of its own: outside the window it goes as the approved start_nudge_2h template (same banner, token, reply)
+  const template = touch === 'start_nudge_30m' ? 'start_nudge_2h' : touch;
+  const chosen = !!lead.broker_id && !!adviserFirst(b);
+  return { kind: 'start', channel: window ? 'session' : 'template', template, template_lang: 'en', lang: 'en', vars,
+    header: { type: 'image', link: HEADER_BASE + 'header-' + startBanner(touch) + '.png' }, banner: startBanner(touch),
+    buttons: [reply], payload_suffix: `:${lead.id}`, needs_token: true, session: { body: startWords(touch, vars, { chosen }), lang: 'en' } };
 }
 /** Cloud API body for a start nudge, given the minted token. null on a bad token or no phone (W08 then skips the send). */
 export function startPayload(d, token) {

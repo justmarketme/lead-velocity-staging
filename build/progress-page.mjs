@@ -41,21 +41,32 @@ const now = new Date().toUTCString().replace(/:\d\d GMT$/, ' UTC');
 
 // ---- hand-kept: what is built (edit each tick) ---------------------------------
 const BUILT = [
-  ['Database schema', 'done', '13 migrations drafted and validated twice on a local Postgres stub. <b>Not applied to the live project</b> until you answer NH-15 (security fixes) and NH-11 (schema dump).'],
-  ['Automation (n8n)', 'run', 'All 35 workflows plus the four shared sub-workflows exist as drafts and run through their tests against the real workflow code. The 8 core-path flows (W01, W04–W06, W09, W12, W13, W15) wait for your approval of their acceptance tests. n8n runs for real in the sandbox: all files import and a synthetic WhatsApp conversation runs end to end in dry-run.'],
-  ['WhatsApp templates', 'wait', '56 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted to Meta; submission is your click (GATE-TEMPLATES).'],
+  ['Database schema', 'done', 'The CRM nurture migrations look applied to the live Supabase project (11 Oct: smc_08 applied live; the marketing-media bucket exists). Still to confirm: the whole chain, including the smc_24 security sweep (NH-11 / NH-15).'],
+  ['Automation (n8n)', 'run', '<b>Live on the VPS</b> at n8n.sortmycover.co.za since 11 Oct (laptop n8n retired). Every workflow runs in dry-run, so nothing is sent to a real person until go-live. The 8 core-path flows still need your approval of their acceptance tests.'],
+  ['Meta + WhatsApp', 'run', 'Business Verification is done (KG). The Facebook Page is live, the WhatsApp number is linked to Twilio, and we are working in Ads Manager with the first ads about to go up. Still to confirm on the tracker: Pixel, Instagram and template approvals.'],
+  ['WhatsApp templates', 'wait', '56 templates drafted with samples (fictional adviser, FSP 00000). Nothing submitted yet. Submission is your click (GATE-TEMPLATES).'],
   ['Broker portal + admin console', 'done', 'Built in the existing CRM behind a feature flag (off by default): onboarding wizard, calendar connect, billing, weekly report, intro recorder, pulse screen, console on admin-only RPCs.'],
-  ['Landing pages + holding site', 'done', 'Quiz template, 10 angle pages, holding site with the full privacy page and first-party opt-out. Staging only; nothing public.'],
+  ['Domain + website', 'done', '<b>sortmycover.co.za is bought</b> (Hostinger, 5 Oct) and the holding site is <b>live on Vercel</b> with privacy and terms pages. The 10 quiz pages are built but not public yet. Not bought: sortmycover.com and coverklaar (optional).'],
   ['Creative', 'done', '15 concepts, 111 code-rendered assets (stills, Reels, stories, end cards, intro cards), palette B test arm, first batch of 16 ads. Review-5 re-renders done.'],
   ['Conversation AI (Thandi)', 'done', 'Persona, state machine, guardrail classifier, golden set + 126 red-team turns, EN/AF lines, FAQ v1.0.3. Eval gate passes at 100%.'],
   ['Contracts + compliance pack', 'wait', 'Broker agreement (incl. Schedule C1A), privacy notice v1.1, consent, PAIA, NCC pack, practitioner brief Q1–Q24. All DRAFT: they need your company details (NH-20) and the practitioner opinion.'],
   ['Billing', 'done', 'Paystack checkout, Instant EFT, manual EFT with inContact parsing, renewals and reminders (W16–W19, W25). Live only after Paystack KYC (your login).'],
   ['Compliance QA', 'done', '5 reviews done; fix waves 1–5 applied (every review-4 blocking item is closed in code; review 6 runs after the next build wave).'],
-  ['Infrastructure', 'wait', 'Docker + tunnel for local staging, VPS runbook, backups, CORS, secrets guard, edge function skeleton. VPS is bought only after first payment (GATE-VPS).'],
+  ['Infrastructure', 'run', 'n8n runs on the existing EMMA VPS (no new VPS bought). DNS is at Hostinger and the site is hosted on Vercel. The nightly database backup still sits on the same server and needs an off-server copy.'],
   ['Tests', 'done', '781 offline tests green across every suite, including a repo-wide check that no workflow can send WhatsApp, SMS or email while dry-run is on. Rehearsal round 4: all 8 stages (lead in, first touch, slots, booking, reminders, outcome, no-show + replacement, STOP) pass end to end on the local n8n from a real page submission, with zero messages reaching the outside world.'],
 ];
 const PILL = { done: ['Drafted & tested', 'p-ok'], run: ['In progress', 'p-run'], wait: ['Waiting on you', 'p-wait'] };
 
+const LIVE = [
+  '<b>sortmycover.co.za</b> is bought and the holding site is live (Vercel, TLS, www redirects to the apex).',
+  '<b>n8n</b> is live at n8n.sortmycover.co.za on the EMMA VPS, in dry-run.',
+  '<b>Mark</b>: contract signed; Bronze (20 leads, R16,500) <b>paid 11 Oct</b>; FSP verified; Outlook calendar connected 15 Oct; hours, call methods and intro card set (live CRM). Left: approve him live in the console and switch lead routing on.',
+  '<b>Meta Business Verification</b> is done (KG). We are working in Ads Manager and the first ads are about to go up.',
+  '<b>Facebook Page</b> "Sort My Cover" is live with posts. The <b>WhatsApp number</b> is linked to Twilio.',
+  '<b>hello@sortmycover.co.za</b> is a working mailbox.',
+  '<b>Live CRM database</b> has the nurture migrations (applied 11 Oct). The full chain still needs confirming.',
+  '<b>When a lead counts</b> is decided (yours, 11 Oct): the broker marks the meeting attended and the lead\'s email is verified. The agreement text still has to be brought in line.',
+];
 const TODAY = [
   'Microsoft 365 calendar connect for the broker (sign-in, callback, disconnect; token stored only in the vault).',
   'Intro-script generator: three FAIS-checked script options from the interview, plus a live re-check for edits.',
@@ -84,7 +95,7 @@ const bar = (c) => ['green', 'in_progress', 'needs_human', 'pending'].filter((k)
 const keys = (c) => ['green', 'in_progress', 'needs_human', 'pending'].filter((k) => c[k]).map((k) => `${LBL[k]} ${c[k]}`).join(' · ');
 const owners = {};
 for (const r of running) owners[r.owner] = (owners[r.owner] || 0) + 1;
-const li = (n) => `<li><code>${esc(n.id)}</code> ${esc((n.title || '').slice(0, 150))}${(n.title || '').length > 150 ? '…' : ''}${n.section ? ` <small>§${esc(n.section)}</small>` : ''}</li>`;
+const li = (n) => `<li><code>${esc(n.id)}</code> ${esc((n.title || '').slice(0, 150))}${(n.title || '').length > 150 ? '…' : ''}${n.section ? ` <small>§${esc(n.section)}</small>` : ''}${n.reconciled ? `<br><small><i>reconciled ${esc(n.reconciled)}:</i> ${esc(n.note.split(' [')[0])}</small>` : ''}</li>`;
 
 const html = `<title>SortMyCover Build Progress</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap">
@@ -187,8 +198,14 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
   </section>
 
   <section class="todo">
-    <b>The three answers that unblock the most</b>
-    <p><b>GATE-DOMAINS</b> (register sortmycover.co.za + .com, the only pre-payment spend, ~R250), <b>NH-15</b> (apply the security fixes to the live CRM) and <b>NH-11</b> (a read-only schema dump of the live Supabase project). Until those land, the database stays on the local stub and nothing can be deployed. Then the A2 rows in <code>build/gates-batch.md</code>; each has a recommended default.</p>
+    <b>What unblocks the most now</b>
+    <p><b>0. Mark is paid and set up but not switched on</b>: approve him live in the console and turn routing on when the ads start. <b>1. GATE-TEST</b>: approve the 8 drafted acceptance tests (<code>build/gate-test-summaries.md</code>) so the core workflows can leave dry-run. <b>2. WhatsApp templates</b> approved, so first touch and reminders can send. <b>3. Pixel + CAPI</b> on the site, so the ads optimise on real leads.</p>
+  </section>
+
+  <section class="card">
+    <h2>Already live / done outside the build</h2>
+    <ul>${LIVE.map((x) => `<li>${x}</li>`).join('')}</ul>
+    <p class="foot" style="margin:8px 0 0">Re-checked against the repo and Jonathan's update on 17 Oct. Items marked <i>reconciled</i> below carry a note saying what is done and what is left.</p>
   </section>
 
   <section class="card">
@@ -197,7 +214,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
   </section>
 
   <section class="card">
-    <h2>Landed today (${new Date().toISOString().slice(0, 10)})</h2>
+    <h2>Build work to date (offline)</h2>
     <ul>${TODAY.map((x) => `<li>${x}</li>`).join('')}</ul>
   </section>
 
@@ -227,7 +244,7 @@ summary:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-off
 
   <section class="card"><details><summary><h2>Latest commits</h2></summary>
     <div class="tw" style="margin-top:8px"><table>${commits.map(([d, h, s]) => `<tr><td class="num">${esc(d)}</td><td><code>${esc(h)}</code></td><td>${esc(s.slice(0, 120))}</td></tr>`).join('')}</table></div>
-    <p class="foot">${esc(stat)} across ${esc(nCommits)} commits since the branch started. Nothing bought, published, submitted to Meta/Paystack/NCC, applied to the live database, or sent to a real person.</p></details>
+    <p class="foot">${esc(stat)} across ${esc(nCommits)} commits since the branch started. Live outside the build: the domain, holding site and hello@ mailbox; n8n on the VPS (dry-run); Meta verified with ads being set up; the WhatsApp number; Mark's signed contract; and the CRM nurture migrations.</p></details>
   </section>
 </div>
 `;

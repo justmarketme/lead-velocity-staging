@@ -1,0 +1,43 @@
+;FFMETADATA1
+title=SortMyCover — What happens next
+artist=Lead Velocity
+[CHAPTER]
+TIMEBASE=1/1000
+START=0
+END=12733
+title=Welcome
+[CHAPTER]
+TIMEBASE=1/1000
+START=12733
+END=32633
+title=Getting you live
+[CHAPTER]
+TIMEBASE=1/1000
+START=32633
+END=69033
+title=How a lead reaches you
+[CHAPTER]
+TIMEBASE=1/1000
+START=69033
+END=99167
+title=Where your money goes
+[CHAPTER]
+TIMEBASE=1/1000
+START=99167
+END=129067
+title=How we keep improving
+[CHAPTER]
+TIMEBASE=1/1000
+START=129067
+END=172467
+title=More data, better leads
+[CHAPTER]
+TIMEBASE=1/1000
+START=172467
+END=192167
+title=Your part
+[CHAPTER]
+TIMEBASE=1/1000
+START=192167
+END=202100
+title=Close

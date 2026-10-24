@@ -198,6 +198,8 @@ export function entryFrom(item = {}) {
 // ------------------------------------------------------------------ after STOP: a reason, "I changed my mind", CANCEL
 const norm = (t) => String(t || '').toLowerCase().replace(/[\u2019']/g, "'").replace(/[^a-z' ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const CANCEL_RX = /^\s*cancel\s*[.!]*\s*$/iu;
+// Smoke test 21 Oct 2026 (#33): the carrier keywords for coming back after STOP take the "I changed my mind" path.
+const START_RX = /^\s*(start|unstop)\s*[.!]*\s*$/iu;
 /**
  * An inbound message from an opted-out number -> { type: 'why', code } | { type: 'undo' } | { type: 'cancel' } | null.
  * A list row id (stop_why:<code> / stop_undo:*), or the row title typed back (Twilio's text fallback lists the titles).
@@ -215,6 +217,7 @@ export function followupOf(e = {}) {
   if (r) return { type: 'why', code: r.code };
   if (t === norm(STOP_UNDO.title)) return { type: 'undo' };
   if (CANCEL_RX.test(e.text || '')) return { type: 'cancel' };
+  if (START_RX.test(e.text || '')) return { type: 'undo' };
   return null;
 }
 
