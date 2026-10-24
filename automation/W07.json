@@ -1389,7 +1389,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// One ops alert per recipient (Jonathan / KG). Runs once for all items: a for-each Code node may not return an array\n// (n8n: \"A 'json' property isn't an object\"), which crashed every handoff on 17 Oct. No recipients configured -> no alert.\nconst plans = $('Carry plan').all();\nconst out = [];\n$input.all().forEach((_, i) => {\n  const j = (plans[i] || plans[0]).json;\n  const e = j.plan.escalation;\n  const who = j.lead ? (j.lead.first_name || '') + ' ' + String(j.lead.last_name || '').slice(0, 1) : 'unknown';\n  const to = e.notify.map((n) => n === 'KG' ? $env.OPS_WHATSAPP_KG : $env.OPS_WHATSAPP_JONATHAN).filter(Boolean);\n  for (const t of to) out.push({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: 'Chat handoff (' + e.note.replace('esc_kind=', '') + '): ' + who.trim() }, { type: 'text', text: 'now' }, { type: 'text', text: e.severity === 'red' ? 'Red: reply personally, nothing automated was sent' : 'Lead is waiting for a person' }, { type: 'text', text: 'Open the conversation in the console' }] }, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: (e.deep_link || '').replace(/^\\//, '') }] }] } } }, pairedItem: { item: i } });\n});\nreturn out;"
+        "jsCode": "// One owner WhatsApp per recipient (Jono; KG too on a sensitive chat) through lib/owner-alert.mjs: template ops_update /\n// ops_alert from the SortMyCover number, first name + phone last 3 only, bypass_suppression (Jono's number is also a test lead).\n// Runs once for all items: a for-each Code node may not return an array (n8n: \"A 'json' property isn't an object\", which\n// crashed every handoff on 17 Oct). notify = [] (a SYNTHETIC_TEST_NUMBERS subject, lib/w07.mjs escalationRow) -> no alert.\nconst O = require('lv-automation').ownerAlert;\nconst plans = $('Carry plan').all();\nconst out = [];\n$input.all().forEach((it, i) => {\n  const j = (plans[i] || plans[0]).json;\n  const e = (j.plan && j.plan.escalation) || {};\n  const notify = Array.isArray(e.notify) ? e.notify : [];\n  if (!notify.length) return;\n  const esc = String(e.note || '').split(';')[0].replace(/^esc_kind=/, '').replace(/_/g, ' ') || e.kind || 'hand-off';\n  const red = e.severity === 'red';\n  const items = O.ownerAlert({\n    what: (red ? 'RED: ' : '') + 'Chat hand-off (' + esc + ')',\n    detail: O.personLabel(j.lead || {}) + '; ' + (red ? 'reply personally, nothing automated was sent' : 'the lead is waiting for a person') + '; open the conversation in the console',\n    who: notify.includes('KG') ? 'both' : 'owner', source: 'W07', key: (j.msg && j.msg.wamid) || e.ref_id || it.json.id || '',\n    subject: { phone: j.lead && j.lead.phone, from: j.msg && j.msg.from },\n  }, $env);\n  for (const item of items) out.push({ json: item, pairedItem: { item: i } });\n});\nreturn out;"
       }
     },
     {
@@ -2527,7 +2527,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// lib/wa-route.cjs: \"Send ops alert\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W07\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W07:Send ops alert:\" + exec + ':' + idx,\n} };"
+        "jsCode": "// lib/owner-alert.mjs items (24 Oct 2026) arrive complete: kind prebuilt, record:false, bypass_suppression:true, correlation, caller.\nif ($json.kind === 'prebuilt' && $json.wa && $json.correlation) return { json: $json };\n// lib/wa-route.cjs: \"Send ops alert\" sends through smc-whatsapp-send (WHATSAPP_PROVIDER meta | twilio). Generated: edit the\n// generator / route-wa-sends.mjs config, not this node. record:false (this workflow logs the message from the returned id).\nconst wa = $json.wa;\nconst exec = (typeof $execution !== 'undefined' && $execution && $execution.id) || 'x';\nconst idx = (typeof $itemIndex !== 'undefined') ? $itemIndex : 0;\nreturn { json: {\n  kind: 'prebuilt', wa, to: wa && wa.to,\n  record: false, caller: \"W07\", bypass_suppression: false,\n  phone_number_id: null,\n  lead_id: null, broker_id: null,\n  correlation: \"W07:Send ops alert:\" + exec + ':' + idx,\n} };"
       }
     },
     {
@@ -3038,7 +3038,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const L = require('lv-automation').w07;\n// one owner alert per item; none for a SYNTHETIC_TEST_NUMBERS number (the escalation row above is the record)\nconst out = [];\n$input.all().forEach((_, i) => {\n  const request = L.neverSilentAlert($('Never silent: wait 25 s').itemMatching(i).json, $env);\n  if (request) out.push({ json: { request }, pairedItem: { item: i } });\n});\nreturn out;"
+        "jsCode": "const L = require('lv-automation').w07;\nconst O = require('lv-automation').ownerAlert;\n// one owner WhatsApp per item through lib/owner-alert.mjs (the EMMA /api/notify body stays on the item as `request`, for\n// the fallback); none for a SYNTHETIC_TEST_NUMBERS number (the escalation row above is the record)\nconst out = [];\n$input.all().forEach((_, i) => {\n  const j = $('Never silent: wait 25 s').itemMatching(i).json;\n  const request = L.neverSilentAlert(j, $env);\n  if (!request) return;\n  const items = O.ownerAlert({ what: 'Lead needs a person (Lindi sent a holding line)', detail: request.message.replace(/^SortMyCover:\\s*/, ''),\n    who: 'owner', source: 'W07', key: (j.msg && j.msg.wamid) || (j.lead && j.lead.id) || '', subject: { phone: j.lead && j.lead.phone, from: j.msg && j.msg.from } }, $env);\n  for (const item of items) out.push({ json: { ...item, request }, pairedItem: { item: i } });\n});\nreturn out;"
       }
     },
     {
@@ -3068,7 +3068,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "jsonBody": "={{ JSON.stringify($('Never silent: owner alert (lib w07.neverSilentAlert)').first().json.request) }}",
         "options": {
           "timeout": 10000,
           "response": {
@@ -3083,7 +3083,7 @@
       "maxTries": 2,
       "waitBetweenTries": 2000,
       "onError": "continueRegularOutput",
-      "notes": "Owner alert for every never-silent fallback (lib/w07.mjs neverSilentAlert): first name, the silent hand-off, the lead id; never the number or the message."
+      "notes": "Fallback only (24 Oct 2026): runs when smc-whatsapp-send answered ok:false. Owner alert for every never-silent fallback (lib/w07.mjs neverSilentAlert): first name, the silent hand-off, the lead id; never the number or the message."
     },
     {
       "id": "05121bfc-43e8-1144-05a5-57b4b20ff3ad",
@@ -3437,7 +3437,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// handoff_pre_consent: lib/w07.mjs routeInbound. One ops_alert per ops number; the person gets nothing automated.\nconst W = require('lv-automation').w07;\nconst out = [];\n$input.all().forEach((it, i) => {\n  if (W.syntheticSubject(it.json, $env)) return; // a SYNTHETIC_TEST_NUMBERS number: no ops WhatsApp (lib/w07.mjs syntheticSubject)\n  const red = String(it.json.reason || '').startsWith('distress'); // the Route node carries route + reason only\n  const from = String((it.json.msg && it.json.msg.from) || ''); // full number: the team must be able to reply to someone with no lead yet\n  for (const t of [$env.OPS_WHATSAPP_JONATHAN, $env.OPS_WHATSAPP_KG].filter(Boolean)) {\n    out.push({ json: { wa: { messaging_product: 'whatsapp', to: t, type: 'template', template: { name: 'ops_alert', language: { code: 'en' }, components: [\n      { type: 'body', parameters: [\n        { type: 'text', text: 'New WhatsApp, ' + (red ? 'distress' : 'asked for a person') + ' (no consent yet): ' + from },\n        { type: 'text', text: 'now' },\n        { type: 'text', text: red ? 'Red: reply personally, nothing automated was sent' : 'Waiting for a person, nothing automated was sent' },\n        { type: 'text', text: 'Reply from the SortMyCover WhatsApp' } ] },\n      { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'console' }] } ] } } }, pairedItem: { item: i } });\n  }\n});\nreturn out;"
+        "jsCode": "// handoff_pre_consent: lib/w07.mjs routeInbound (distress or \"a person\" from a number with no lead yet). One owner WhatsApp\n// per ops number (Jono + KG) through lib/owner-alert.mjs (ops_update / ops_alert); the person gets nothing automated.\n// POPIA: the last 3 digits only (find the chat in the SortMyCover WhatsApp inbox by the time and those digits);\n// a SYNTHETIC_TEST_NUMBERS number alerts nobody (the helper checks the subject).\nconst O = require('lv-automation').ownerAlert;\nconst out = [];\n$input.all().forEach((it, i) => {\n  const msg = it.json.msg || {};\n  const red = String(it.json.reason || '').startsWith('distress'); // the Route node carries route + reason only\n  const items = O.ownerAlert({\n    what: red ? 'RED: new WhatsApp in distress, no consent yet' : 'New WhatsApp asked for a person, no consent yet',\n    detail: O.personLabel({ first_name: msg.profile_name, phone: msg.from }) + '; nothing automated was sent: reply from the SortMyCover WhatsApp',\n    who: 'both', source: 'W07', key: msg.wamid || msg.from || '', subject: { from: msg.from },\n  }, $env);\n  for (const item of items) out.push({ json: item, pairedItem: { item: i } });\n});\nreturn out;"
       },
       "id": "w07-preconsent-handoff",
       "name": "Pre-consent handoff: alert ops (nothing to the person)",
@@ -3546,6 +3546,62 @@
         700,
         1120
       ]
+    },
+    {
+      "id": "w07-ns-owner-send",
+      "name": "Never silent: owner WhatsApp (smc-whatsapp-send)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3700,
+        2300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "smc-whatsapp-send",
+          "cachedResultName": "WhatsApp Send"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "notes": "Waits for the sender: Result { ok, external_id, error }. ok:false (no Content SID, Twilio error, sub down) takes the EMMA /api/notify fallback."
+    },
+    {
+      "id": "w07-ns-owner-ok",
+      "name": "Never silent: WhatsApp sent? (ok)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        2300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.ok === true) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -4776,7 +4832,7 @@
       "main": [
         [
           {
-            "node": "Live send? (Never silent: notify Jono (EMMA /api/notify))",
+            "node": "Never silent: owner WhatsApp (smc-whatsapp-send)",
             "type": "main",
             "index": 0
           }
@@ -5007,6 +5063,29 @@
         [
           {
             "node": "-> W09 pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: owner WhatsApp (smc-whatsapp-send)": {
+      "main": [
+        [
+          {
+            "node": "Never silent: WhatsApp sent? (ok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Never silent: WhatsApp sent? (ok)": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Live send? (Never silent: notify Jono (EMMA /api/notify))",
             "type": "main",
             "index": 0
           }

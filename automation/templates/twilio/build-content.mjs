@@ -51,6 +51,8 @@ export const FLOW_TEMPLATES = [
   'broker_lead_opted_out', 'broker_daily_digest', 'precall_brief', 'broker_fit_followup',
   // W22 Alerts, lean (2026-10-18): the one ops template, to our own numbers (Jono / KG) for red alerts
   'ops_alert',
+  // Owner updates (24 Oct 2026, lib/owner-alert.mjs): every owner notification (W38 / W22 / W07 / W10) once its SID is set; ops_alert until then
+  'ops_update',
   // lead-ad intro card WITH the SortMyCover disclosure (2026-10-18): proposal, for Jono with the Instant Form launch (BROKER-INTRO-V3.md)
   'broker_intro_slots_v3',
   // Start here for Instant Form leads (19 Oct 2026): the smc_start_cta text as an approved template (they never messaged us)

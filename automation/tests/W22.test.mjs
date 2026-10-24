@@ -74,7 +74,7 @@ test('dedupe: one alert per signal_key|scope|severity per 24 h; old keys are pru
   assert.deepEqual(Object.keys(L.dedupe({ old: NOW - 25 * 3600_000 }, k, NOW).sent), [k]);
 });
 
-test('plan: email always (SortMyCover relay body); WhatsApp ops_alert only for red, only once the SID is set', () => {
+test('plan: email always (SortMyCover relay body); WhatsApp to the owner for EVERY alert (red and amber), once a Content SID is set', () => {
   const red = L.normalise(errorTrigger());
   const p = L.plan(red, ENV, NOW);
   const email = p.find((x) => x.channel === 'email');
@@ -84,13 +84,22 @@ test('plan: email always (SortMyCover relay body); WhatsApp ops_alert only for r
   assert.equal(email.relay.idempotency_key, 'w22:workflow_failed|workflow:smc-w05:Graph create event|red:2026-10-18');
   const wa = p.find((x) => x.channel === 'whatsapp').send;
   assert.deepEqual([wa.kind, wa.to, wa.record, wa.caller, wa.bypass_suppression], ['prebuilt', '+27725550000', false, 'W22', true]);
-  assert.equal(wa.wa.template.name, 'ops_alert');
-  assert.deepEqual(wa.wa.template.components[0].parameters.map((x) => x.text), ['Jono', 'W05 Book failed at "Graph create event"', 'A lead or booking step did not finish']);
+  assert.equal(wa.correlation, 'owner:W22:workflow_failed|workflow:smc-w05:Graph_create_event|red:2026-10-18:owner');
+  assert.equal(wa.wa.template.name, 'ops_alert', 'the approved stopgap until ops_update has a SID');
+  assert.deepEqual(wa.wa.template.components[0].parameters.map((x) => x.text), ['Jono', 'Red alert: W05 Book failed at "Graph create event"', 'A lead or booking step did not finish']);
+  assert.equal(L.plan(red, { ...ENV, TWILIO_CONTENT_SIDS: JSON.stringify({ ops_alert: 'HX0123', ops_update: 'HX0456' }) }, NOW).find((x) => x.channel === 'whatsapp').send.wa.template.name, 'ops_update', 'the owner template once its SID is set');
   assert.deepEqual(L.plan(red, { ...ENV, TWILIO_CONTENT_SIDS: '{}' }, NOW).map((x) => x.channel), ['email'], 'no SID yet -> email only');
-  assert.deepEqual(L.plan(L.normalise(errorTrigger('W36 Capital Legacy watch')), ENV, NOW).map((x) => x.channel), ['email'], 'amber -> email only');
-  assert.deepEqual(L.plan(L.normalise({ kind: 'dsar_received', dsr_id: 'd1' }), ENV, NOW).map((x) => x.channel), ['email', 'whatsapp'], 'notify_now amber still goes by WhatsApp');
+  // owner rule (24 Oct 2026): amber goes by WhatsApp too (the 24-h dedupe keeps the volume down)
+  const amber = L.plan(L.normalise(errorTrigger('W36 Capital Legacy watch')), ENV, NOW);
+  assert.deepEqual(amber.map((x) => x.channel), ['email', 'whatsapp'], 'amber -> email + WhatsApp');
+  assert.equal(amber[1].send.wa.template.components[0].parameters[1].text, 'Alert: W36 Capital Legacy watch failed at "Graph create event"');
+  assert.deepEqual(L.plan(L.normalise({ kind: 'dsar_received', dsr_id: 'd1' }), ENV, NOW).map((x) => x.channel), ['email', 'whatsapp'], 'W34 DSR intake reaches the owner');
+  // the one amber that stays email-only: the WhatsApp sender's own failure (W22 can never loop on WhatsApp)
+  assert.ok(L.EMAIL_ONLY_SIGNALS.has('whatsapp_send_failed'));
+  assert.deepEqual(L.plan(L.normalise({ signal_key: 'whatsapp_send_failed', scope: 'lead:null', severity: 'amber', what: 'WhatsApp send failed (ops_alert): x' }), ENV, NOW).map((x) => x.channel), ['email']);
   const both = L.plan(L.normalise({ kind: 'popia_breach', severity: 'red' }), { ...ENV, OPS_WHATSAPP_KG: '+27725550001' }, NOW).filter((x) => x.channel === 'whatsapp');
-  assert.deepEqual(both.map((x) => [x.who, x.send.wa.template.components[0].parameters[0].text]), [['jonathan', 'Jono'], ['kg', 'KG']]);
+  assert.deepEqual(both.map((x) => [x.who, x.send.to, x.send.wa.template.components[0].parameters[0].text]), [['jonathan', '+27725550000', 'Jono'], ['kg', '+27725550001', 'KG']]);
+  assert.equal(L.plan(red, { ...ENV, SMC_OWNER_WHATSAPP: '+27820000009' }, NOW).find((x) => x.channel === 'whatsapp').send.to, '+27820000009', 'SMC_OWNER_WHATSAPP wins (Zoe Experience later)');
   for (const v of wa.wa.template.components[0].parameters) assert.doesNotMatch(v.text, /[\n\t]|\s{5,}/, 'WhatsApp template variables: no newlines, tabs or long space runs');
 });
 
@@ -101,7 +110,9 @@ test('the Plan node: dedupe in static data across runs, then one email + one Wha
   assert.deepEqual(first.map((x) => x.json.channel), ['email', 'whatsapp']);
   assert.deepEqual(await run(errorTrigger()), [], 'the same failure again inside 24 h sends nothing');
   assert.equal(Object.keys(sd.sent).length, 1);
-  assert.deepEqual((await run({ signal_key: 'x', scope: 'y', severity: 'amber', what: 'z' })).map((x) => x.json.channel), ['email']);
+  assert.deepEqual((await run({ signal_key: 'x', scope: 'y', severity: 'amber', what: 'z' })).map((x) => x.json.channel), ['email', 'whatsapp'], 'amber reaches the owner too (24 Oct 2026)');
+  assert.deepEqual((await run({ signal_key: 'whatsapp_send_failed', scope: 'lead:null', severity: 'amber', what: 'z' })).map((x) => x.json.channel), ['email'], 'the sender\'s own failure never loops on WhatsApp');
+  assert.match(WF.nodes.find((n) => n.name === PLAN).parameters.jsCode, /SMC_OWNER_WHATSAPP: \$env\.SMC_OWNER_WHATSAPP/, 'the Plan node hands the owner number env to the helper');
 });
 
 test('wiring: email gated by DRY_RUN_SENDS and never stops the run; WhatsApp through smc-whatsapp-send', () => {

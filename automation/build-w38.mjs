@@ -3,15 +3,18 @@
 // booking comes through; the dry-run ads route every lead to his own test practice, which has no WhatsApp number on purpose).
 //   node automation/build-w38.mjs
 // Logic: automation/lib/w38.mjs (tests: automation/tests/W38.test.mjs). Contract: CONTRACTS.md "W38 SMC lead alert (owner)".
-// Every minute: new leads + bookings since the watermark (workflow static data) -> one message through EMMA
-// POST https://emmadoesit.cloud/api/notify (x-emma-secret). The watermark moves only after a 2xx, so a failed send is retried.
-// Env: SMC_LEAD_ALERT_ENABLED ('true' = on; anything else: nothing runs), EMMA_SHARED_SECRET, DRY_RUN_SENDS (true: logged,
-// not posted; the gate is inserted by gateSenders). Credential by name only (id ''), bound at import. Inactive in the file.
+// Every minute: new leads + bookings + console escalations + booking changes / voice call-backs since the watermark (workflow
+// static data) -> ONE WhatsApp to the owner from the SortMyCover number through smc-whatsapp-send (lib/owner-alert.mjs; owner
+// rule 24 Oct 2026, docs/OWNER-ALERTS-AUDIT.md). The sender answering ok:false falls back to EMMA POST
+// https://emmadoesit.cloud/api/notify (x-emma-secret). The watermark moves only after an ok / 2xx, so a failed send is retried.
+// Env: SMC_LEAD_ALERT_ENABLED ('true' = on; anything else: nothing runs), SMC_OWNER_WHATSAPP (else OPS_WHATSAPP_JONATHAN, else
+// the documented default), TWILIO_CONTENT_SIDS (ops_update, else ops_alert), EMMA_SHARED_SECRET (fallback), DRY_RUN_SENDS
+// (the sender dry-runs; the EMMA gate is inserted by gateSenders). Credential by name only (id ''), bound at import. Inactive in the file.
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { NOTIFY_URL, ROW_LIMIT } from './lib/w38.mjs';
+import { NOTIFY_URL, ROW_LIMIT, ACTIVITY_TYPES } from './lib/w38.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
@@ -26,9 +29,12 @@ const link = (from, to, out = 0) => { const x = (c[from] ||= { main: [] }); whil
 
 const TRIGGER = 'Every minute';
 const START = 'Start tick (w38.start: gate + window)';
-const READ = 'Read new SMC leads + bookings';
+const READ = 'Read new SMC leads, bookings, escalations, changes';
 const PLAN = 'Plan alert (w38.plan)';
-const SEND = 'Notify Jono (EMMA /api/notify)';
+const OWNER = 'Owner WhatsApp item (w38.ownerItems)';
+const OWNER_SEND = 'Owner WhatsApp (smc-whatsapp-send)';
+const OWNER_OK = 'WhatsApp sent? (ok)';
+const SEND = 'Notify Jono (EMMA /api/notify, fallback)';
 const COMMIT = 'Commit or hold (w38.commit)';
 const FAILING = 'Third failure in a row?';
 const STOP = 'Fail the run once (W22 emails ops)';
@@ -41,9 +47,12 @@ const PERSON = `'first_name', split_part(btrim(coalesce(l.first_name, '')), ' ',
 const PHONE_E164 = `regexp_replace(regexp_replace(regexp_replace(coalesce(l.phone, ''), '[^0-9]', '', 'g'), '^00', ''), '^0([0-9]{9})$', '27\\1')`;
 const SPLIT = (brokerCol) => `'test_lead', coalesce(l.is_synthetic, false) OR coalesce(${PHONE_E164} = ANY (string_to_array(nullif($4, ''), ',')), false),
                     'test_practice', CASE WHEN coalesce($3, '') = '' OR ${brokerCol} IS NULL THEN NULL ELSE ${brokerCol}::text = ANY (string_to_array($3, ',')) END`;
-const QUERY = `-- W38 SMC lead alert: SortMyCover leads + bookings created after the window start (the watermark minus the overlap;
--- empty on the first run, so no rows, only now()). Only a first name, the last 3 digits of the number, attribution labels,
--- the routed practice and the booking time + method leave the database: never email, the full number or message text.
+const ACTIVITY_IN = ACTIVITY_TYPES.map((t) => `'${t}'`).join(', ');
+const QUERY = `-- W38 SMC owner alert: SortMyCover leads, bookings, console escalations and booking changes created after the window
+-- start (the watermark minus the overlap; empty on the first run, so no rows, only now()). Only a first name, the last 3
+-- digits of the number, attribution labels, the routed practice, the booking time + method, an escalation's kind / severity /
+-- esc_kind token and an activity's type + new time leave the database: never email, the full number, note or message text.
+-- Escalations W07 raised (ref_table communications: chat hand-offs, never-silent) are left out: W07 alerts those itself.
 -- Test / real split: test_lead + test_practice (booleans) per item; split_unknown_ids = an SMC_TEST_BROKER_IDS id is no broker.
 SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS db_now,
        CASE WHEN coalesce($3, '') = '' THEN false
@@ -70,18 +79,39 @@ SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS db_
              LEFT JOIN public.leads l ON l.id = a.client_id
              LEFT JOIN public.brokers b ON b.id = a.broker_id
             WHERE a.brand_id = $1::uuid AND a.created_at > nullif($2, '')::timestamptz
+           UNION ALL
+           SELECT e.raised_at, jsonb_build_object(
+                    'kind', 'escalation', 'id', e.id, 'created_at', e.raised_at, 'esc', e.kind, 'severity', e.severity,
+                    'esc_kind', CASE WHEN coalesce(e.note, '') LIKE 'esc_kind=%' THEN split_part(split_part(e.note, ';', 1), '=', 2) ELSE '' END,
+                    ${PERSON},
+                    'practice', b.practice_name, 'synthetic', coalesce(l.is_synthetic, false),
+                    ${SPLIT('e.broker_id')})
+             FROM public.escalations e
+             LEFT JOIN public.leads l ON l.id = e.lead_id
+             LEFT JOIN public.brokers b ON b.id = e.broker_id
+            WHERE e.brand_id = $1::uuid AND e.raised_at > nullif($2, '')::timestamptz AND coalesce(e.ref_table, '') <> 'communications'
+           UNION ALL
+           SELECT la.occurred_at, jsonb_build_object(
+                    'kind', 'activity', 'id', la.id, 'created_at', la.occurred_at, 'activity', la.activity_type, 'at', la.payload->>'to',
+                    ${PERSON},
+                    'practice', b.practice_name, 'synthetic', coalesce(l.is_synthetic, false),
+                    ${SPLIT('la.broker_id')})
+             FROM public.lead_activities la
+             LEFT JOIN public.leads l ON l.id = la.lead_id
+             LEFT JOIN public.brokers b ON b.id = la.broker_id
+            WHERE la.brand_id = $1::uuid AND la.occurred_at > nullif($2, '')::timestamptz AND la.activity_type IN (${ACTIVITY_IN})
          ) x ORDER BY t LIMIT ${ROW_LIMIT}) u), '[]'::jsonb) AS items;`;
 
 const n = [];
-n.push(node('Sticky: read me', 'stickyNote', 1, [0, -420], { width: 760, height: 370, content:
-  '## W38 SMC lead alert (owner), 18 Oct 2026\n' +
-  'Every minute: new SortMyCover leads (public.leads) and bookings (public.appointments) since the watermark in this workflow\'s static data -> ONE plain-text message to Jono through EMMA (POST https://emmadoesit.cloud/api/notify, x-emma-secret; EMMA answers 200 delivered, 502 not).\n' +
+n.push(node('Sticky: read me', 'stickyNote', 1, [0, -460], { width: 820, height: 410, content:
+  '## W38 SMC owner alert (leads, bookings, escalations), 18 Oct 2026 / owner rule 24 Oct 2026\n' +
+  'Every minute: new SortMyCover leads (public.leads), bookings (public.appointments), console escalations (public.escalations, not the ones W07 alerts itself) and booking changes / voice call-backs (public.lead_activities) since the watermark in this workflow\'s static data -> ONE WhatsApp to the owner from the SortMyCover number through smc-whatsapp-send (lib/owner-alert.mjs: template ops_update, else ops_alert; SMC_OWNER_WHATSAPP, else OPS_WHATSAPP_JONATHAN). The sender answering ok:false -> EMMA POST https://emmadoesit.cloud/api/notify (Teams / Telegram) as the fallback.\n' +
   '- First run: watermark = the database\'s now(), nothing sent (history is never replayed). Each tick re-reads a 5-minute overlap and skips ids already sent (de-dupe map, at most 200).\n' +
-  '- The watermark moves only after a 2xx; a failed send is retried on the next tick; the 3rd failure in a row fails the run once, so W22 emails ops.\n' +
-  '- POPIA: first name, the last 3 digits of the number, source / ad angle, the routed practice, booking time (SAST) and method. Never email, the full number, ID numbers or message text.\n' +
+  '- The watermark moves only after the sender answered ok (or EMMA 2xx); a failed send is retried on the next tick; the 3rd failure in a row fails the run once, so W22 emails ops.\n' +
+  '- POPIA: first name, the last 3 digits of the number, source / ad angle, the routed practice, booking time (SAST) and method, an escalation\'s kind + severity + esc_kind token. Never email, the full number, ID numbers, note or message text.\n' +
   '- Test / real split (23 Oct 2026): each line says TEST practice / real adviser and [test data]; WRONG SIDE flags an item routed across the line; a top warning when SMC_TEST_BROKER_IDS names an id that is no broker.\n' +
-  'Env: SMC_LEAD_ALERT_ENABLED=true (anything else: nothing runs and the state is dropped), EMMA_SHARED_SECRET, DRY_RUN_SENDS (true: logged, not posted); SMC_TEST_BROKER_IDS / SMC_TEST_PHONES / SYNTHETIC_TEST_NUMBERS for the labels.\n' +
-  'Logic: automation/lib/w38.mjs. Generated by automation/build-w38.mjs; do not hand-edit.' }));
+  'Env: SMC_LEAD_ALERT_ENABLED=true (anything else: nothing runs and the state is dropped), SMC_OWNER_WHATSAPP / OPS_WHATSAPP_JONATHAN, TWILIO_CONTENT_SIDS (ops_update | ops_alert), EMMA_SHARED_SECRET (fallback), DRY_RUN_SENDS (the sender dry-runs: logged, watermark advances); SMC_TEST_BROKER_IDS / SMC_TEST_PHONES / SYNTHETIC_TEST_NUMBERS for the labels.\n' +
+  'Logic: automation/lib/w38.mjs + lib/owner-alert.mjs. Generated by automation/build-w38.mjs; do not hand-edit.' }));
 n.push(node(TRIGGER, 'scheduleTrigger', 1.2, [0, 0], { rule: { interval: [{ field: 'minutes', minutesInterval: 1 }] } }));
 n.push(code(START, [220, 0],
 `const L = require('lv-automation').w38;
@@ -99,40 +129,56 @@ const sd = $getWorkflowStaticData('global');
 const r = $input.first().json || {};
 const p = L.plan(sd, r.items, r.db_now, { split_unknown_ids: r.split_unknown_ids === true });
 // init (first run) and idle (nothing new): the new watermark is kept now and nothing is sent.
-// send: "Commit or hold" keeps the new watermark only after EMMA answers 2xx (or the dry-run stub).
+// send: "Commit or hold" keeps the new watermark only after the WhatsApp sender answered ok (or EMMA 2xx on the fallback).
 if (p.action !== 'send') { Object.assign(sd, p.next); return []; }
 return [{ json: p }];`));
-n.push(node(SEND, 'httpRequest', 4.2, [1100, 0], {
+n.push(code(OWNER, [880, 0],
+`const L = require('lv-automation').w38;
+// ONE smc-whatsapp-send item to the owner number (lib/owner-alert.mjs): record:false, bypass_suppression:true, template
+// ops_update / ops_alert, from the SortMyCover number. The sender applies the dry-run switch and the Content SID itself
+// (this node must not name that switch: egress-gate reads upstream nodes to decide whether the EMMA fallback needs its own gate).
+const p = $input.first().json;
+const items = L.ownerItems(p, { SMC_OWNER_WHATSAPP: $env.SMC_OWNER_WHATSAPP, OPS_WHATSAPP_JONATHAN: $env.OPS_WHATSAPP_JONATHAN, TWILIO_CONTENT_SIDS: $env.TWILIO_CONTENT_SIDS });
+return items.map((it) => ({ json: it }));`));
+n.push(node(OWNER_SEND, 'executeWorkflow', 1.2, [1100, 0],
+  { source: 'database', workflowId: { __rl: true, mode: 'id', value: 'smc-whatsapp-send', cachedResultName: 'WhatsApp Send' }, options: { waitForSubWorkflow: true } },
+  { onError: 'continueRegularOutput', notes: 'Waits for the sender: its Result { ok, external_id, error } decides the commit; ok:false (no SID, Twilio error, sub down) takes the EMMA fallback.' }));
+n.push(ifTrue(OWNER_OK, [1320, 0], '$json.ok === true'));
+n.push(node(SEND, 'httpRequest', 4.2, [1760, 160], {
   method: 'POST', url: NOTIFY_URL,
   sendHeaders: true, headerParameters: { parameters: [{ name: 'content-type', value: 'application/json' }, { name: 'x-emma-secret', value: '={{ $env.EMMA_SHARED_SECRET }}' }] },
-  sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.request) }}',
+  sendBody: true, specifyBody: 'json', jsonBody: `={{ JSON.stringify($('${PLAN}').first().json.request) }}`,
   options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true } } } }, { onError: 'continueRegularOutput' }));
-n.push(code(COMMIT, [1320, 0],
+n.push(code(COMMIT, [1980, 0],
 `const L = require('lv-automation').w38;
-// 2xx (or the dry-run stub): keep the new watermark. Anything else: keep the old one, so the next tick sends the same items.
+// Sender ok (or EMMA 2xx on the fallback, or the dry-run stub): keep the new watermark. Anything else: keep the old one, so the next tick sends the same items.
 const sd = $getWorkflowStaticData('global');
 const p = $('${PLAN}').first().json;
 const c = L.commit(sd, p, $input.first().json || {}, new Date().toISOString());
 for (const k of Object.keys(sd)) delete sd[k];
 Object.assign(sd, c.state);
 if (c.dry_run) console.log('[W38 DRY_RUN_SENDS=true: logged, not sent]\\n' + p.message);
-return [{ json: { delivered: c.delivered, dry_run: c.dry_run, status: c.status, items: p.items, fails: c.state.fails || 0, alert: c.alert } }];`));
-n.push(ifTrue(FAILING, [1540, 0], '$json.alert === true'));
-n.push(node(STOP, 'stopAndError', 1, [1760, 0], { errorMessage: '=W38: EMMA /api/notify has not delivered the SortMyCover lead alert {{ $json.fails }} ticks in a row (last status {{ $json.status }}). The watermark is held and every tick retries.' }));
+return [{ json: { delivered: c.delivered, dry_run: c.dry_run, status: c.status, channel: c.channel, items: p.items, fails: c.state.fails || 0, alert: c.alert } }];`));
+n.push(ifTrue(FAILING, [2200, 0], '$json.alert === true'));
+n.push(node(STOP, 'stopAndError', 1, [2420, 0], { errorMessage: '=W38: neither smc-whatsapp-send nor EMMA /api/notify has delivered the SortMyCover owner alert {{ $json.fails }} ticks in a row (last status {{ $json.status }}). The watermark is held and every tick retries.' }));
 
 link(TRIGGER, START);
 link(START, READ);
 link(READ, PLAN);
-link(PLAN, SEND);
+link(PLAN, OWNER);
+link(OWNER, OWNER_SEND);
+link(OWNER_SEND, OWNER_OK);
+link(OWNER_OK, COMMIT, 0);
+link(OWNER_OK, SEND, 1);
 link(SEND, COMMIT);
 link(COMMIT, FAILING);
 link(FAILING, STOP, 0);
 
-// gateSenders inserts "Live send? (Notify Jono ...)" (DRY_RUN_SENDS) before the POST and a dry-run stub that hands
-// { dry_run: true, statusCode: 200 } to "Commit or hold".
+// gateSenders inserts "Live send? (Notify Jono ...)" (DRY_RUN_SENDS) before the EMMA POST and a dry-run stub that hands
+// { dry_run: true, statusCode: 200 } to "Commit or hold". The WhatsApp sender gates itself (SUB.test.mjs).
 const wf = gateSenders({ id: 'smc-w38', name: 'W38 SMC lead alert (owner)', nodes: n, connections: c, active: false,
   settings: { executionOrder: 'v1', timezone: 'Africa/Johannesburg', saveDataSuccessExecution: 'none', saveDataErrorExecution: 'all', saveManualExecutions: true,
     saveExecutionProgress: false, errorWorkflow: 'smc-w22', callerPolicy: 'workflowsFromSameOwner' },
-  pinData: {}, tags: [{ name: 'SortMyCover' }, { name: 'alerts' }], meta: { notes: 'Generated by automation/build-w38.mjs; logic automation/lib/w38.mjs; do not hand-edit.' } });
+  pinData: {}, tags: [{ name: 'SortMyCover' }, { name: 'alerts' }], meta: { notes: 'Generated by automation/build-w38.mjs; logic automation/lib/w38.mjs + lib/owner-alert.mjs; do not hand-edit.' } });
 writeFileSync(join(HERE, 'W38.json'), JSON.stringify(wf, null, 2) + '\n');
 console.log('wrote automation/W38.json', wf.nodes.length, 'nodes');

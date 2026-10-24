@@ -912,17 +912,24 @@ test('client-facing lines never mention a failure, a calendar problem or a syste
   for (const [at, text] of strings) assert.doesNotMatch(text, FAILURE_WORDS, `${at}: ${text}`);
 });
 
-test('never silent: every fallback also alerts Jono (gated), without the number or the message', () => {
+test('never silent: every fallback also alerts Jono (WhatsApp from the SMC number, EMMA only as the fallback), without the number or the message', () => {
   const a = W.neverSilentAlert({ route: 'W04', msg: { from: '+27725548057', profile_name: 'Mortso', text: 'hi' }, lead: { id: '3f0c2a9e-0000-4000-8000-000000000001', first_name: 'Mortso' } });
   assert.equal(a.source, 'smc-never-silent');
   assert.match(a.message, /^SortMyCover: Mortso is waiting on open times\..*Please follow up on WhatsApp\. Lead 3f0c2a9e\.$/);
   assert.doesNotMatch(a.message, /7255|548057|\bhi\b/);
   const wf = JSON.parse(readFileSync(new URL('../W07.json', import.meta.url), 'utf8'));
-  const next = (name) => ((wf.connections[name] || {}).main || []).flat().map((x) => x.node);
-  assert.deepEqual(next('Never silent: escalation'), ['Never silent: owner alert (lib w07.neverSilentAlert)']);
-  assert.deepEqual(next('Never silent: owner alert (lib w07.neverSilentAlert)'), ['Live send? (Never silent: notify Jono (EMMA /api/notify))']);
+  const next = (name, i = 0) => (((wf.connections[name] || {}).main || [])[i] || []).map((x) => x.node);
+  const BUILD = 'Never silent: owner alert (lib w07.neverSilentAlert)';
+  assert.deepEqual(next('Never silent: escalation'), [BUILD]);
+  // owner rule (24 Oct 2026, patch-owner-alerts.mjs): the alert is a WhatsApp through smc-whatsapp-send; ok:false -> the EMMA gate
+  assert.deepEqual(next(BUILD), ['Never silent: owner WhatsApp (smc-whatsapp-send)']);
+  const sub = wf.nodes.find((n) => n.name === 'Never silent: owner WhatsApp (smc-whatsapp-send)');
+  assert.deepEqual([sub.parameters.workflowId.value, sub.parameters.options.waitForSubWorkflow, sub.onError], ['smc-whatsapp-send', true, 'continueRegularOutput']);
+  assert.deepEqual(next('Never silent: owner WhatsApp (smc-whatsapp-send)'), ['Never silent: WhatsApp sent? (ok)']);
+  assert.deepEqual([next('Never silent: WhatsApp sent? (ok)', 0), next('Never silent: WhatsApp sent? (ok)', 1)], [[], ['Live send? (Never silent: notify Jono (EMMA /api/notify))']]);
   const send = wf.nodes.find((n) => n.name === 'Never silent: notify Jono (EMMA /api/notify)');
   assert.equal(send.parameters.url, 'https://emmadoesit.cloud/api/notify');
+  assert.equal(send.parameters.jsonBody, `={{ JSON.stringify($('${BUILD}').first().json.request) }}`, 'the fallback body comes from the build node (its input is the sender result)');
 });
 
 // Smoke test 21 Oct 2026 (#9): an unrouted lead with no name got "Hi , I'm Lindi from SortMyCover, here to book your call
