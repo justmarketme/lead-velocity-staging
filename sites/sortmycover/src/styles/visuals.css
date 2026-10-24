@@ -164,3 +164,32 @@
 .card-tile i{display:block;height:10px;border-radius:5px;background:var(--sm-amber)}
 .card-tile i:nth-child(2){opacity:.7}.card-tile i:nth-child(3){opacity:.45}
 @media (min-width:640px){.prose-sm .card-thumb>.card-tile{width:168px;flex:none}}
+
+/* bars drawn to scale (Bars): one row per figure, the number is always text; widths are classes, never inline styles, and the
+   fill draws in from the left (pageMotion). Phone: label and number on one line, the bar under them. */
+.viz-bars{background:var(--sm-surface-raised);border:1px solid var(--sm-border);border-radius:18px;padding:14px 22px 20px}
+.prose-sm .viz-bars li.vb-row{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t v" "bar bar";gap:6px 12px;align-items:baseline;padding:12px 0;border-top:1px solid var(--sm-border)}
+.prose-sm .viz-bars li.vb-row:first-child{border-top:0}
+.vb-t{grid-area:t;font-weight:700;color:#36414b}
+.vb-v{grid-area:v;font-weight:800;color:var(--sm-charcoal);text-align:right}
+.vb-track{grid-area:bar;display:block;height:14px;border-radius:999px;background:#ecedee;overflow:hidden}
+.vb-fill{display:block;height:100%;border-radius:999px;background:var(--sm-charcoal);transform-origin:0 50%}
+.vb-fill.vb-amber{background:var(--sm-amber)}
+.vb-w9{width:9%}.vb-w17{width:17%}.vb-w19{width:19%}.vb-w24{width:24%}.vb-w39{width:39%}.vb-w100{width:100%}
+@media (min-width:640px){.prose-sm .viz-bars li.vb-row{grid-template-columns:minmax(150px,1fr) minmax(0,1.5fr) minmax(104px,auto);grid-template-areas:"t bar v";align-items:center}}
+.prose-sm .viz-bars li.vb-total{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t v";border-top:2px solid var(--sm-charcoal);padding-top:14px}
+.viz-bars .vb-total .vb-t{color:var(--sm-charcoal);font-weight:800}
+.prose-sm .viz-bars .vb-pick{margin:14px 0 0;padding:14px 16px;border:2px solid var(--sm-amber);border-radius:14px;background:#fff;color:var(--sm-charcoal);font-weight:600}
+.viz-bars figcaption{margin-top:14px}
+
+/* the claims grid (ClaimsGrid): one hundred squares, ninety-six filled, beside the reasons a claim is declined */
+.viz-claims{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+.viz-claims figcaption{grid-column:1/-1;margin-top:0}
+@media (max-width:640px){.viz-claims{grid-template-columns:1fr}}
+.cw-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;max-width:280px}
+.cw-grid i,.cw-key i{display:block;aspect-ratio:1;border-radius:4px}
+.cw-y{background:var(--sm-amber)}
+.cw-n{background:#fff;box-shadow:inset 0 0 0 2px var(--sm-charcoal)}
+.cw-key{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:14px;font-weight:700;color:var(--sm-charcoal)}
+.cw-key span{display:inline-flex;align-items:center;gap:8px}
+.cw-key i{width:14px;height:14px}

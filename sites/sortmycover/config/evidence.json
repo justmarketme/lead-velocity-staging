@@ -315,16 +315,6 @@
     "note": "Read at source on 17 Oct 2026."
   },
   {
-    "id": "vuk-uif-2019",
-    "claim": "A government guide (Vuk'uzenzele, May 2019) lists sole owners of a business among the workers who do not have to pay UIF.",
-    "title": "Vuk'uzenzele guide to the UIF (May 2019)",
-    "publisher": "Government Communication and Information System (GCIS), Vuk'uzenzele",
-    "url": "https://www.vukuzenzele.gov.za/all-you-need-know-about-uif",
-    "month": "2019-05",
-    "status": "usable",
-    "note": "Government newspaper, not the Act. FLAG: re-confirm against the Unemployment Insurance Act / Department of Employment and Labour before any ad quotes it. The position of directors paid through payroll was not verified and is phrased only as a question on the page."
-  },
-  {
     "id": "fais-gcoc",
     "claim": "FAIS General Code of Conduct (BN 80 of 2003, consolidated June 2020): s5 lists what a provider must tell a client at the earliest reasonable opportunity (names and contact details, legal status and who takes responsibility, compliance contacts, authorised financial services and conditions, professional indemnity or fidelity insurance, supervision, exemptions; oral information confirmed in writing within 30 days); s3 requires conflicts of interest to be avoided or mitigated and disclosed; s8 sets the order of advice (gather needs, financial situation, risk profile and product knowledge; analyse; identify appropriate products) and s8(4) requires the client to be told of limits when information is withheld or a different product chosen; s9 requires a record of advice, given to the client in writing, where a product is taken up as a result of the advice.",
     "title": "FAIS General Code of Conduct for Authorised Financial Services Providers and Representatives (BN 80 of 2003, consolidated June 2020)",
@@ -488,5 +478,250 @@
     "checked": "2026-10-18",
     "status": "verified",
     "note": "Read at source on 18 Oct 2026 (docs/WILLS-ESTATE-SOURCES-2026-10-18.md)."
+  },
+  {
+    "id": "asisa-death-claims-2025",
+    "claim": "ASISA media release of 10 June 2026: in 2025 life insurers processed 1 080 930 death claims and paid 1 016 794 (94.1%), worth R44.2 billion (2024: 95.6%, R39.5 billion); 96.0% of claims against life policies were paid (254 377 claims, R29.3 billion), 99.9% of universal life, 93.1% of credit life and 93.2% of funeral policies; the average payout rate for life and funeral policies stayed between 94% and 96% over five years; when a claim against a life insurance policy is declined it is most often due to material non-disclosure; other reasons given are fraud, contractual exclusions such as suicide within the first two years, credit life cover that lapsed through non-payment, and waiting periods and unpaid premiums on funeral policies.",
+    "title": "Life insurers settled 94.1% of all death claims in 2025",
+    "publisher": "ASISA",
+    "url": "https://www.asisa.org.za/media-releases/life-insurers-settled-941-of-all-death-claims-in-2025/",
+    "month": "2026-06",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026. Industry totals only; no insurer is named in our copy. PDF of the release: https://www.asisa.org.za/media/0uwhmypt/20260610_life-insurers-settled-941-of-all-death-claims-in-2025.pdf"
+  },
+  {
+    "id": "asisa-lt-stats-2025",
+    "claim": "ASISA long-term insurance statistics release of 31 March 2026: in 2025 consumers bought 10.8 million new individual recurring-premium risk policies (6.2 million funeral, 1.9 million credit life, 2.7 million life, disability, critical illness and income protection), up 3.8% on 2024's 10.4 million; 8.7 million risk policies lapsed in 2025 (8.2 million in 2024, 8.3 million in 2023 and 2022); a lapse occurs when the policyholder stops paying premiums on a risk policy, resulting in no fund value; 'Unless lapsed policies are replaced with new policies, lapses widen South Africa's sizeable insurance gap'.",
+    "title": "Assets managed by SA life insurers exceed R5 trillion for the first time (2025 long-term insurance statistics)",
+    "publisher": "ASISA",
+    "url": "https://www.asisa.org.za/media/4rpl201h/20260331_assets-managed-by-sa-life-insurers-exceed-r5-trillion-for-the-first-time.pdf",
+    "month": "2026-03",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "PDF text extracted and read on 24 Oct 2026."
+  },
+  {
+    "id": "bcea-sick-leave",
+    "claim": "Basic Conditions of Employment Act 75 of 1997, section 22: a sick leave cycle is 36 months' employment with the same employer; in every cycle an employee is entitled to paid sick leave equal to the number of days the employee would normally work in six weeks; during the first six months of employment the entitlement is one day's paid sick leave for every 26 days worked, and the employer may reduce the first cycle's entitlement by the days taken in those six months. Section 23: an employer is not required to pay for sick leave if the employee is absent for more than two consecutive days, or on more than two occasions in eight weeks, and does not produce a medical certificate on request.",
+    "title": "Basic Conditions of Employment Act 75 of 1997 (as published), sections 22 and 23",
+    "publisher": "Government of South Africa (gov.za)",
+    "url": "https://www.gov.za/sites/default/files/gcis_document/201409/a75-97.pdf",
+    "month": "2026-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Section 22 text extracted from the gov.za PDF on 24 Oct 2026; section 23 confirmed in the Department of Employment and Labour's Basic Guide to Sick Leave (labour-sick-leave-guide). '30 days' for a five-day week is computed from s22(2). Consolidated text to 1 May 2026 on SAFLII returned 403 on 24 Oct 2026."
+  },
+  {
+    "id": "labour-sick-leave-guide",
+    "claim": "Department of Employment and Labour plain-language guide: paid sick leave equal to the days normally worked in six weeks per three-year cycle; one day of paid sick leave for every 26 days worked in the first six months; an employer may require a medical certificate for an absence of more than two consecutive days or more than twice in an eight-week period.",
+    "title": "Basic Guide to Sick Leave",
+    "publisher": "Department of Employment and Labour",
+    "url": "https://www.labour.gov.za/DocumentCenter/Pages/Basic-Guide-to-Sick-Leave.aspx",
+    "month": "2026-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026. The page's own section citations are blank; the Act (bcea-sick-leave) is the primary."
+  },
+  {
+    "id": "vuk-uif-2019",
+    "claim": "A government guide (Vuk'uzenzele, May 2019, 2nd edition): workers contribute 1% of salary and the employer a matching 1%; some workers do not pay UIF, including those who work less than 24 hours a month, sole owners of a business, commission-only workers and members of Parliament and councils; the Fund's benefit scale ranges between 38% and 60% of salary for the first 238 credit days (lower earners at the higher end), with one day's credit for every four days worked; illness benefits are only payable for an illness lasting longer than seven days, need a medical certificate, and must be claimed within 12 months of being unable to work.",
+    "title": "Vuk'uzenzele guide to the UIF (May 2019, 2nd edition)",
+    "publisher": "Government Communication and Information System (GCIS), Vuk'uzenzele",
+    "url": "https://www.vukuzenzele.gov.za/all-you-need-know-about-uif",
+    "month": "2019-05",
+    "checked": "2026-10-24",
+    "status": "usable",
+    "note": "Government newspaper, not the Act. Re-read at source on 24 Oct 2026 (replaces the 17 Oct entry). The 38% to 60% scale is stated in the guide's unemployment-benefit section and is quoted on the site as the Fund's benefit scale, never as a rand amount for a salary. Older third-party pages still quote 14 days and six months for illness claims; the guide gives seven days and 12 months. FLAG: confirm both against labour.gov.za before any ad quotes them."
+  },
+  {
+    "id": "cansa-ncr-2024",
+    "claim": "CANSA, citing the National Cancer Registry 2024 report: the estimated lifetime risk of a cancer diagnosis is 1 in 7 for males and 1 in 8 for females; prostate cancer 1 in 17 (males), breast cancer 1 in 28 and cervical cancer 1 in 39 (females); pathology-based registration under-reports some cancers.",
+    "title": "South African cancer statistics (NCR 2024)",
+    "publisher": "Cancer Association of South Africa (CANSA)",
+    "url": "https://cansa.org.za/south-african-cancer-statistics/",
+    "month": "2026-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026. The page writes the risks as ratios (1:7, 1:8)."
+  },
+  {
+    "id": "statssa-p03093-2024",
+    "claim": "Stats SA statistical release P0309.3, Mortality and causes of death in South Africa, 2024 (released 22 September 2026): 474 366 deaths occurred in 2024; leading underlying natural causes were diabetes mellitus (28 767 deaths, 6.1%), hypertensive diseases (5.5%) and cerebrovascular diseases (5.4%), then tuberculosis (3.9%) and HIV (3.8%); neoplasms were 46 264 deaths (9.8%) as a main group; diabetes was the leading cause of death among those aged 45 to 64 (7.9%) and among females (7.9%); tuberculosis led among males (4.8%).",
+    "title": "P0309.3 Mortality and causes of death in South Africa, 2024: Findings from death notification",
+    "publisher": "Statistics South Africa",
+    "url": "https://www.statssa.gov.za/publications/P03093/P030932024.pdf",
+    "month": "2026-09",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "PDF text extracted and read on 24 Oct 2026 (Tables 4.3, 4.5, 4.6 and section 4.6.3)."
+  },
+  {
+    "id": "cms-pmb",
+    "claim": "Council for Medical Schemes: Prescribed Minimum Benefits are a set of defined benefits every medical scheme must cover, made up of any emergency medical condition, 271 diagnosis-specific conditions (diagnosis-and-treatment pairs) and 26 chronic conditions on the Chronic Disease List; treatment at a designated service provider, following the scheme's protocols and formularies, is covered in full; if a member chooses not to use the DSP a co-payment may apply, as a percentage or the difference between the DSP tariff and the provider's charge.",
+    "title": "Prescribed Minimum Benefits",
+    "publisher": "Council for Medical Schemes",
+    "url": "https://www.medicalschemes.co.za/prescribed-minimum-benefits/",
+    "month": "2026-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026. Schemes and gap cover are described on the site, never recommended; no scheme is named."
+  },
+  {
+    "id": "cms-industry-2024",
+    "claim": "Analysis of Council for Medical Schemes data reported on 8 June 2026: the industry had 4.11 million principal members and 9.04 million beneficiaries in 2024, across 70 registered schemes (131 in 2005).",
+    "title": "Bigger, older, and more concentrated: 7 facts reshaping medical schemes",
+    "publisher": "Moonstone Information Refinery (reporting Alexforbes' analysis of CMS data)",
+    "url": "https://www.moonstone.co.za/bigger-older-and-more-concentrated-7-facts-reshaping-medical-schemes/",
+    "month": "2026-06",
+    "status": "usable",
+    "note": "Secondary source read on 24 Oct 2026; the CMS annual report itself was not opened. Used only for the beneficiary and scheme counts."
+  },
+  {
+    "id": "statssa-mype-2025",
+    "claim": "Stats SA mid-year population estimates 2025: South Africa's population is estimated at 63 100 945 (63.10 million), up 772 291 on 2024.",
+    "title": "Mid-year population estimates 2025 (presentation)",
+    "publisher": "Statistics South Africa",
+    "url": "https://www.statssa.gov.za/publications/P0302/Presentation%20_Mid%20year%20estimates%202025.pdf",
+    "month": "2025-07",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "PDF text extracted and read on 24 Oct 2026. Used with cms-industry-2024 for the computed 'about 14% of people belong to a medical scheme' (9.04m / 63.1m = 14.3%)."
+  },
+  {
+    "id": "ooba-q2-2026",
+    "claim": "ooba (bond originator) data for Q2 2026: first-time buyers are 48% of applications; their average purchase price rose from R1 239 413 in Q2 2025 to R1 315 396 in Q2 2026 (+6.1%); the average first-time deposit fell to 8.9% of the purchase price; zero-deposit home loans were more than 56.9% of all applications in the first half of 2026.",
+    "title": "Average price paid by first-time home buyers (mid-2026)",
+    "publisher": "ooba Home Loans",
+    "url": "https://www.ooba.co.za/resources/average-price-first-time-home-buyers",
+    "month": "2026-08",
+    "status": "usable",
+    "note": "ooba's own page read on 24 Oct 2026 (undated, mid-2026 data); the 56.9% zero-deposit figure is from Everything Property's report of the Q2 2026 oobarometer, 30 Jul 2026 (https://everythingproperty.co.za/q2-2026-data-shows-banks-willingness-to-back-buyers-as-housing-market-holds-firm/). The Q2 share of 47.3% and the average age of 36 quoted in other coverage were not confirmed at source and are not used."
+  },
+  {
+    "id": "sars-transfer-duty",
+    "claim": "SARS transfer duty table with effect from 1 April 2025, unchanged for the year from 1 April 2026: 0% on the first R1 210 000; 3% of the value above R1 210 000 up to R1 663 800; R13 614 + 6% above R1 663 800 to R2 329 300; R53 544 + 8% above R2 329 300 to R2 994 800; R106 784 + 11% above R2 994 800 to R13 310 000; R1 241 456 + 13% above that. Computed: R8 700 on R1 500 000 and R67 200 on R2 500 000.",
+    "title": "Transfer Duty rates",
+    "publisher": "South African Revenue Service (SARS)",
+    "url": "https://www.sars.gov.za/tax-rates/transfer-duty/",
+    "month": "2026-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026 (table '2027 (With effect from 1 April 2026)': 'No changes from last year')."
+  },
+  {
+    "id": "lssa-conveyancing-2025",
+    "claim": "Law Society of South Africa conveyancing fee guideline effective 1 August 2025 (a guideline, negotiable, not a tariff): R25 370 for the first R1 000 000 of the purchase price or bond amount plus R2 050 for every R200 000 or part thereof above that, excluding VAT. Computed: R31 520 + 15% VAT = R36 248 on R1 500 000; R48 036 on R2 500 000.",
+    "title": "Conveyancing Fee Guidelines 2025",
+    "publisher": "Law Society of South Africa (LSSA)",
+    "url": "https://www.lssa.org.za/wp-content/uploads/2025/08/CONVEYANCING-FEE-GUIDELINES-2025_14.08.2025-final.pdf",
+    "month": "2025-08",
+    "status": "usable",
+    "note": "Read for the house-call research pack on 24 Oct 2026 (checklist/creative/ads/house-call/research.md, source 3); not re-opened for this entry. ooba (19 Feb 2026) quotes R34 000 to R38 000 for a R1.5m property, consistent with the computed figure."
+  },
+  {
+    "id": "deeds-office-fees-2025",
+    "claim": "Deeds Office schedule of fees effective 1 April 2025 (Government Gazette 52191, 28 Feb 2025): the registration fee for a transfer or a bond of R1 500 000 is R1 646, and for R2 500 000 it is R2 281.",
+    "title": "Deeds Office fees",
+    "publisher": "Department of Agriculture, Land Reform and Rural Development (Deeds Office)",
+    "url": "https://www.deeds.gov.za/fees.php",
+    "month": "2025-04",
+    "status": "usable",
+    "note": "Read for the house-call research pack on 24 Oct 2026 (source 4 there); not re-opened for this entry."
+  },
+  {
+    "id": "bank-initiation-fee-2025",
+    "claim": "A home loan initiation fee of R6 037.50 (including VAT) is the figure quoted across 2025 South African conveyancing cost guides; it may be added to the loan, where it attracts interest.",
+    "title": "Costs involved in the conveyancing process",
+    "publisher": "Legal500 (South Africa real estate intelligence), 8 August 2025",
+    "url": "https://www.legal500.com/intelligence/south-africa/real-estate-and-construction/costs-involved-in-the-conveyancing-process",
+    "month": "2025-08",
+    "status": "usable",
+    "note": "Secondary source (figure 'as at 16 July 2025'), read for the house-call pack on 24 Oct 2026. Banks set their own fee within the National Credit Act's cap; the site quotes the figure as 'the figure quoted across 2025 guides', never as any bank's fee."
+  },
+  {
+    "id": "sarb-mpc-2026-09",
+    "claim": "The SARB Monetary Policy Committee increased the repo rate by 25 basis points to 7.25% with effect from 25 September 2026, the second increase of 2026; the banks' prime lending rate moved to 10.75% (Moneyweb, 23 Sep 2026), from 10.25% at the start of 2026. Computed from those rates: a R1 500 000 bond over 20 years costs about R15 228 a month at 10.75% and about R14 724 at 10.25%, a difference of about R504; total interest over the term at 10.75% is roughly R2.15 million.",
+    "title": "Statement of the Monetary Policy Committee, September 2026",
+    "publisher": "South African Reserve Bank",
+    "url": "https://www.resbank.co.za/en/home/publications/publication-detail-pages/statements/monetary-policy-statements/2026/september",
+    "month": "2026-09",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "SARB statement read at source on 24 Oct 2026 (7.25%, 25 bp, effective 25 Sep). Prime 10.75% and 'second increase this year' from Moneyweb, 23 Sep 2026 (https://www.moneyweb.co.za/news/economy/sarb-ups-repo-rate-to-7-25/); 10.25% at the start of 2026 from the house-call pack (RODE Q1 2026). Instalments are standard amortisation, checked in Python on 24 Oct 2026."
+  },
+  {
+    "id": "nfo-beneficiary-nomination",
+    "claim": "National Financial Ombud case note (5 Feb 2025): when there is a valid beneficiary nomination on a policy, the policy does not form part of the estate and the proceeds are paid directly to the beneficiary, saving time and money on executor's fees; a nomination has to be communicated to the insurer to count (a signed replacement form found in a desk drawer after death was not a nomination), so the insurer was directed to pay the beneficiary it held on record.",
+    "title": "Policy beneficiaries must be kept up-to-date with insurer",
+    "publisher": "National Financial Ombud Scheme South Africa (NFO)",
+    "url": "https://nfosa.co.za/policy-beneficiaries-must-be-kept-up-to-date-with-insurer/",
+    "month": "2025-02",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026. The 'does not form part of the estate' line is the Ombud's general explanation; the ruling itself turned on communication of the nomination."
+  },
+  {
+    "id": "sars-estate-duty-guide-buy-sell",
+    "claim": "SARS external guide GEN-ED-01-G01 (effective 1 Oct 2012): under section 3(3)(a) of the Estate Duty Act any amount due and recoverable under a 'domestic policy' on the life of the deceased is deemed property of the deceased; the test is not who owned the policy but whose life was assured; it applies whether the proceeds are payable to the estate, ceded to a beneficiary during the deceased's lifetime or paid to a nominated beneficiary; proceeds paid to a surviving spouse or a public benefit organisation qualify for the section 4(q) or 4(h) deduction; the only other exclusions are those in section 3(3)(a)(i), (iA) and (ii).",
+    "title": "GEN-ED-01-G01 Estate duty implications on buy-and-sell arrangements (external guide)",
+    "publisher": "South African Revenue Service (SARS)",
+    "url": "https://www.sars.gov.za/gen-ed-01-g01-estate-duty-implications-on-buy-and-sell-agreements-external-guide",
+    "month": "2012-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "PDF text extracted and read on 24 Oct 2026. Used only for the deemed-property rule and the spouse deduction; the buy-and-sell exclusions are not described on the site."
+  },
+  {
+    "id": "truecaller-2025",
+    "claim": "Truecaller Global Insights Report 2025 (published 4 May 2026, figures via May 2026 coverage): South Africa ranked 9th in the world for spam calls, about 30% of calls from unknown numbers were spam, and insurance was the largest spam category in South Africa at 14%, ahead of financial services (10%) and debt collection (6%).",
+    "title": "The ten most spammed countries in the world (Global Insights Report 2025)",
+    "publisher": "Truecaller",
+    "url": "https://www.truecaller.com/blog/insights/the-ten-most-spammed-countries-in-the-world",
+    "month": "2026-05",
+    "status": "usable",
+    "note": "Report figures taken from coverage (Pretoria News 6 May 2026; Inside Politics and Ecofin Agency 9 May 2026) for the house-call pack on 24 Oct 2026; the report PDF confirms the category mix. A commercial app's data, quoted as such."
+  },
+  {
+    "id": "ncc-opt-out-registry-2026",
+    "claim": "National Consumer Commission notice of 7 October 2026: the National Opt-Out Registry opened to direct marketers for registration from 15 September 2026 until December 2026; failure to register after that period may constitute a contravention of section 11 of the Consumer Protection Act; marketers then have five months, December 2026 to April 2027, to cleanse their lists, and must cleanse monthly before any campaign; from May 2027 consumers who have registered on the registry can pre-emptively block direct marketers so that they do not receive unwanted direct communication; further guidance for consumers and marketers will follow; South Africans received 17.47 billion spam calls between January and June 2026, up 25.2% year on year (Truecaller 2026).",
+    "title": "NCC launches the national Opt-Out registry to curb unwanted direct marketing",
+    "publisher": "National Consumer Commission",
+    "url": "https://thencc.org.za/ncc-launches-the-national-opt-out-registry-to-curb-unwanted-direct-marketing/",
+    "month": "2026-10",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "Read at source on 24 Oct 2026. The notice does not itself state the 15 April 2027 enforcement date or the fines (see itweb-opt-out-2026). Consumer registration runs through the NCC eServices portal (eservice.thencc.org.za)."
+  },
+  {
+    "id": "itweb-opt-out-2026",
+    "claim": "ITWeb report of the NCC media briefing (8 Oct 2026): the Commission enforces the law in full as of 15 April 2027; contraventions can be referred to the National Consumer Tribunal, which may impose an administrative fine of up to R1 million or 10% of the marketer's annual turnover in the preceding financial year, whichever is greater; consumers can start blocking from May 2027.",
+    "title": "Opt-out registry arrives as marketers go social",
+    "publisher": "ITWeb",
+    "url": "https://www.itweb.co.za/article/opt-out-registry-arrives-as-marketers-go-social/G98YdqLGAxNMX2PD",
+    "month": "2026-10",
+    "status": "usable",
+    "note": "Secondary (trade press) report of the briefing, read on 24 Oct 2026. The fine ceiling matches section 112 of the Consumer Protection Act."
+  },
+  {
+    "id": "sapeople-opt-out-2026",
+    "claim": "The Consumer Protection Act Amendment Regulations took effect on 15 April 2026; direct marketers must register and cleanse their databases monthly; if someone registers a pre-emptive block, the NCC says it overrides previous consent to electronic direct marketing.",
+    "title": "Spam calls: when will I really be able to get rid of this irritation?",
+    "publisher": "SA People",
+    "url": "https://www.sapeople.com/tech/spam-calls-when-will-i-really-be-able-to-get-rid-of-this-irritation/",
+    "month": "2026-09",
+    "status": "usable",
+    "note": "Secondary source read on 24 Oct 2026; used only for the 'overrides previous consent' line, attributed to the NCC."
+  },
+  {
+    "id": "inforeg-cpa-statement-2026",
+    "claim": "Information Regulator media statement of 21 April 2026 on the CPA Amendment Regulations gazetted on 15 April 2026: POPIA compliance stays mandatory whether or not a consumer is on the pre-emptive block or the opt-out registry; section 69(1) prohibits direct marketing by electronic communication unless the data subject has consented or is a customer of the responsible party (subject to s69(3)); section 69(2) allows a responsible party to approach a data subject whose consent is required, and who has not previously withheld it, only once to request consent, in the prescribed manner and form; under s69(3) a direct marketer can only keep a database of data subjects who are its customers; 'by merely opting-out, a data subject cannot be regarded as having given consent'; the Regulator's Guidance Note on Direct Marketing covers unsolicited electronic communications under s69, including spam calls.",
+    "title": "Media statement: Regulator notes published Gazette of the Consumer Protection Act Amendment Regulations 2026",
+    "publisher": "Information Regulator (South Africa)",
+    "url": "https://inforegulator.org.za/wp-content/uploads/2026/04/MEDIA-STATEMENT-REGULATOR-NOTES-PUBLISHED-GAZETTE-OF-THE-CONSUMER-PROTECT-ACT-AMENDMENT-REGULATIONS-2026.pdf",
+    "month": "2026-04",
+    "checked": "2026-10-24",
+    "status": "verified",
+    "note": "PDF text extracted and read on 24 Oct 2026. The statement frames spam calls as the problem section 69 addresses; the Guidance Note (April 2025) is where the Regulator classifies marketing calls as electronic communication."
   }
 ]

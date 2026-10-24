@@ -139,6 +139,10 @@ function vizMotion(main: HTMLElement): Off {
   main.querySelectorAll<HTMLElement>(".mf-x").forEach((x, i) => offs.push(settleOnEnter(x, "translate(-50%,-50%) scale(1.6) rotate(-45deg)", { amount: 0.6, delay: 0.25 + i * 0.12, stiffness: 420, damping: 18, to: "translate(-50%,-50%)" })));
   main.querySelectorAll<HTMLElement>(".viz-split .viz-card").forEach((c, i) => offs.push(settleOnEnter(c, narrow() ? "translateY(26px)" : `translateX(${i ? 28 : -28}px)`, { amount: 0.3, delay: i * 0.08 })));
 
+  // bars draw in from the left (their numbers are text and always on screen); the claims cards step in like the who-does-what cards
+  main.querySelectorAll<HTMLElement>(".vb-fill").forEach((b, i) => offs.push(drawOnEnter(b, "x", 0.1 + i * 0.1)));
+  main.querySelectorAll<HTMLElement>(".viz-claims .viz-card").forEach((c, i) => offs.push(settleOnEnter(c, narrow() ? "translateY(26px)" : `translateX(${i ? 28 : -28}px)`, { amount: 0.3, delay: i * 0.08 })));
+
   // checking an adviser: the progress line follows the scroll, the cards step in, the tick draws itself
   main.querySelectorAll<HTMLElement>(".viz-check").forEach((v) => {
     const line = v.querySelector<HTMLElement>(".ck-line");

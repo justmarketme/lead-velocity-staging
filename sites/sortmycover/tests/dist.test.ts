@@ -23,8 +23,8 @@ const meta = (html: string, re: RegExp) => (re.exec(html) || [])[1];
 const visible = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, " ").replace(/<noscript[\s\S]*?<\/noscript>/g, " ").replace(/<head[\s\S]*?<\/head>/, " ").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 
 describe.skipIf(!have)("pre-rendered output", () => {
-  it("renders every route (74 files) with real content", () => {
-    expect(pages.length).toBe(75); // + /legal/ (Legal & disclosures, 21 Oct 2026) // + /start/ (Lindi's per-lead page, 18 Oct 2026) // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
+  it("renders every route (82 files) with real content", () => {
+    expect(pages.length).toBe(82); // 75 + the seven social-week-2 guides (24 Oct 2026); 75 = + /legal/ (Legal & disclosures, 21 Oct 2026) // + /start/ (Lindi's per-lead page, 18 Oct 2026) // + five wills guides and /learn/sources/ (18 Oct 2026) // 62 + the two search-led guides of 16 Oct 2026 + the four cycle-1 ad guides of 17 Oct 2026 - /book/thanks/ (WhatsApp-only booking)
     for (const p of pages) expect(visible(p.html).length, p.rel).toBeGreaterThan(300);
     expect(pages.find((p) => p.rel === "learn/how-to-check-an-adviser/index.html")!.html).toContain("FSCA");
   });
@@ -88,7 +88,7 @@ describe.skipIf(!have)("pre-rendered output", () => {
   });
   it("every article: answer block 40-60 words with the scope sentence, dateModified equals the visible last-reviewed date", () => {
     const arts = pages.filter((p) => /^(learn|wills|cover)\//.test(p.rel) && /data-answer/.test(p.html));
-    expect(arts.length).toBe(30);
+    expect(arts.length).toBe(37); // 30 + the seven social-week-2 guides (24 Oct 2026)
     for (const p of arts) {
       const ans = /<div class="answer-block" data-answer[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/.exec(p.html)![1].replace(/<[^>]+>/g, "");
       const n = ans.split(/\s+/).filter(Boolean).length;
@@ -385,6 +385,14 @@ describe.skipIf(!have)("pre-rendered output", () => {
       "advisers/index.html": ["check", "On the FSCA register"],
       "legal/index.html": ["company", "Legally responsible"], // the company card moved from /about/ (spec section 5)
       "book/index.html": ["phone", "Lindi is an automated assistant, and you can ask for a person at any time"],
+      // the seven social-week-2 guides carry a code-drawn diagram instead of a photo (24 Oct 2026)
+      "learn/how-much-life-cover-is-enough/index.html": ["bars", "Cover the average earner holds"],
+      "learn/why-life-insurance-claims-get-declined/index.html": ["claims", "Why a claim is declined"],
+      "learn/when-sick-leave-runs-out/index.html": ["flow", "Income protection once its waiting period ends"],
+      "learn/severe-illness-cover-vs-medical-aid/index.html": ["fork", "A lump sum, to use for anything"],
+      "learn/the-real-cost-of-a-home-loan/index.html": ["bars", "Before the first instalment"],
+      "learn/life-insurance-and-your-estate/index.html": ["fork", "The payout stays out of the estate's administration"],
+      "learn/how-to-stop-insurance-sales-calls/index.html": ["flow", "Consumers who have registered can block direct marketers"],
     };
     for (const [rel, [viz, words]] of Object.entries(want)) {
       const h = pages.find((p) => p.rel === rel)!.html;
