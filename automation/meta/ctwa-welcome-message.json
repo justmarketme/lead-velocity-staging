@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "purpose": "SortMyCover click-to-WhatsApp ads: the welcome message that shows the POPIA consent wording BEFORE the person sends anything, with ONE ice breaker. Tapping it sends the ice breaker text as the person's first message, which W03 (automation/ctwa/w03.js iceBreakerConsent) records as the consent (version ctwa-icebreaker-v1) and answers with the Start here card at once.",
+    "how_to_apply": "automation/meta/CTWA-WELCOME.md",
+    "field": "page_welcome_message, inside object_story_spec.link_data (or video_data) of the ad creative (POST /act_<AD_ACCOUNT_ID>/adcreatives); Ads Manager: ad level > Message template > Welcome message + Frequently asked questions",
+    "doc": "https://developers.facebook.com/docs/marketing-api/ad-creative/messaging-ads/click-to-whatsapp (section 'Adding icebreakers with a greeting message'; read 24 Oct 2026, API v26.0)",
+    "env": {
+      "SMC_CTWA_WELCOME_TEXT": "= text_format.message.text below, word for word",
+      "SMC_CTWA_ICEBREAKER_CONSENT": "= text_format.message.ice_breakers[0].title below"
+    },
+    "consent_text_version": "ctwa-icebreaker-v1",
+    "limits": "greeting kept under 300 characters and the ice breaker under 80 (the documented limits of the same page_welcome_message field for Messenger; Meta documents none for WhatsApp, so Ads Manager's preview is the final check)",
+    "rule": "change the wording = change the ad, the env values and this file together, and bump ICEBREAKER_CONSENT_VERSION in automation/ctwa/w03.js (consent evidence must match what was shown)"
+  },
+  "page_welcome_message": {
+    "type": "VISUAL_EDITOR",
+    "version": 2,
+    "landing_screen_type": "welcome_message",
+    "media_type": "text",
+    "text_format": {
+      "customer_action_type": "ice_breakers",
+      "message": {
+        "text": "Hi from SortMyCover. Your consent (POPIA): we may message you on WhatsApp to book your call and share your name and number with an authorised financial adviser, who will contact you. Lead Velocity (Pty) Ltd is responsible for your details. Reply STOP to opt out. Privacy: sortmycover.co.za/privacy",
+        "ice_breakers": [
+          { "title": "Yes, I agree" }
+        ]
+      }
+    }
+  }
+}

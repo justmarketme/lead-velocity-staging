@@ -139,12 +139,15 @@ test('free text mid-question re-asks the same question and logs the text for the
   assert.equal(r3.actions.find((a) => a.kind === 'send').message.type, 'list');
 });
 
-test('stall nudges at +1 h, +20 h, +68 h (inside the 72-h CTWA window) and cancelled when qualifying ends', () => {
+test('stall nudges: the consent question carries its +2 h / +20 h re-ask clock; qualifying +1 h, +20 h, +68 h (inside the 72-h CTWA window), cancelled when qualifying ends', () => {
   const { actions } = run(lead('L04'));
   const st = actions.filter((a) => a.kind === 'schedule_stall');
-  assert.ok(st.length >= 1);
-  assert.deepEqual(st[0].hours, [1, 20, 68]);
-  assert.ok(Math.max(...st[0].hours) < 72);
+  assert.ok(st.length >= 2);
+  // 24 Oct 2026: before this the consent question scheduled no stall, so wa_threads.stall_due_at stayed NULL and nobody was re-asked
+  assert.deepEqual([st[0].stage, st[0].hours], ['await_consent', [2, 20]]);
+  const q = st.find((s) => s.stage !== 'await_consent');
+  assert.deepEqual(q.hours, [1, 20, 68]);
+  assert.ok(Math.max(...q.hours) < 72);
   assert.ok(actions.some((a) => a.kind === 'cancel_stall'));
 });
 
@@ -798,4 +801,159 @@ test('#36 opener greeting: "my" in the topic becomes "your" in the greeting only
   assert.equal(W3.openerGreeting({ topic: 'cover for my family' }, 'Thabo'), "Hi Thabo, I'm Lindi from SortMyCover. Thanks for getting in touch about cover for your family. If it's something else, just tell me.");
   assert.match(W3.openerGreeting({ topic: 'My income' }, ''), /about your income\./);
   assert.match(W3.openerGreeting({ topic: 'life cover for mylene' }, ''), /about life cover for mylene\./, 'whole word only');
+});
+
+// ---------------------------------------------------------------- one-tap consent from the ad (Jono, 24 Oct 2026)
+const WELCOME = JSON.parse(readFileSync(new URL('../meta/ctwa-welcome-message.json', import.meta.url), 'utf8'));
+const WELCOME_TEXT = WELCOME.page_welcome_message.text_format.message.text;
+const ICEBREAKER = WELCOME.page_welcome_message.text_format.message.ice_breakers[0].title;
+const IB_ENV = { consent: ICEBREAKER, welcome: WELCOME_TEXT };
+const REFERRAL = { source_type: 'ad', source_id: '120212345678901234', source_url: 'https://fb.me/x', headline: 'Book a 30-minute call', ctwa_clid: 'ARAk_ib' };
+const ibCtx = (extra = {}) => ({ at: '2026-10-24T08:12:49+02:00', mobile: '+27600000124', profile_name: 'Cassiem Adams', lead_id: 'lead_ib_1', broker: MARK, brand: SP_BRAND, existing_open_lead_id: null, suppressed: false, wamid: 'SMib0', is_synthetic: true, start_page: { token: SP_TOKEN }, icebreaker: IB_ENV, ...extra });
+const ibMsg = (body, referral = REFERRAL) => ({ from: '27600000124', id: 'SMib0', timestamp: '1792822369', type: 'text', text: { body }, ...(referral ? { referral } : {}) });
+
+test('ice breaker tap = consent on first contact: lead stored like a Yes tap (welcome wording, ctwa-icebreaker-v1, generic, ctwa_ad), no question, the Start here card at once', () => {
+  const r = W3.step(null, ibMsg(ICEBREAKER), ibCtx());
+  const ins = r.actions.filter((a) => a.kind === 'insert_lead');
+  assert.equal(ins.length, 1);
+  const row = ins[0].row;
+  assert.equal(row.consent_text, WELCOME_TEXT, 'the words shown above the button');
+  assert.equal(row.consent_text_version, 'ctwa-icebreaker-v1'); assert.equal(row.consent_mode, 'generic'); assert.equal(row.consent_source, 'ctwa_ad');
+  assert.equal(row.consent_at, '2026-10-24T08:12:49+02:00'); assert.equal(row.verified_at, row.consent_at); assert.equal(row.wa_delivered_at, row.consent_at); assert.equal(row.stage, 'verified');
+  assert.deepEqual([row.ad_id, row.ctwa_clid, row.origin, row.first_name, row.phone, row.is_synthetic], ['120212345678901234', 'ARAk_ib', 'ctwa', 'Cassiem Adams', '+27600000124', true]);
+  assert.equal(row.provenance.consent_method, 'icebreaker'); assert.equal(row.provenance.door, 'ctwa_ad'); assert.equal(row.provenance.opener_text, ICEBREAKER);
+  assert.equal(row.provenance.first_inbound_sid, 'SMib0'); assert.equal(row.provenance.welcome_text_from, 'env'); assert.equal(row.provenance.referral.ctwa_clid, 'ARAk_ib');
+  assert.equal(row.optin.consent_version, 'ctwa-icebreaker-v1'); assert.equal(row.optin.consent_text, WELCOME_TEXT); assert.equal(row.optin.opener_text, ICEBREAKER);
+  assert.equal(row.optin.message_sid, 'SMib0'); assert.equal(row.optin.ctwa_clid, 'ARAk_ib'); assert.equal(row.optin.referral_source_type, 'ad');
+  assert.deepEqual(row.conv_state, { state: 'start_page' });
+  const s = sends(r.actions);
+  assert.deepEqual(s.map((a) => a.message.type), ['cta_url'], 'no consent buttons: straight to how it works + Start here');
+  assert.match(s[0].message.body, /^Hi Cassiem, I'm Lindi from SortMyCover\. Here's how it works:/);
+  assert.equal(r.thread.stage, 'start_page'); assert.equal(r.thread.lead_id, 'lead_ib_1'); assert.equal(r.thread.consent.version, 'ctwa-icebreaker-v1');
+  assert.equal(r.thread.first_wamid, 'SMib0'); assert.deepEqual(r.thread.first_referral, REFERRAL);
+  assert.equal(r.actions.find((a) => a.kind === 'schedule_stall').stage, 'start_page');
+  const capi = r.actions.filter((a) => a.kind === 'capi');
+  assert.deepEqual(capi.map((c) => [c.event_name, c.action_source, c.ctwa_clid, c.lead_id]), [['Lead', 'business_messaging', 'ARAk_ib', 'lead_ib_1']]);
+  // start page off: the first tap question, exactly as a Yes tap would
+  const off = W3.step(null, ibMsg(ICEBREAKER), ibCtx({ brand: BRAND, start_page: null }));
+  assert.equal(sends(off.actions)[0].message.type, 'list'); assert.equal(off.thread.stage, 'q_age');
+  assert.equal(off.actions.find((a) => a.kind === 'insert_lead').row.consent_text_version, 'ctwa-icebreaker-v1');
+  assert.deepEqual(off.actions.find((a) => a.kind === 'insert_lead').row.conv_state, { state: 'q_age' });
+});
+
+test('ice breaker match is exact after trim + case-fold; the referral welcome_message.text (what Meta says was shown) wins over the env wording', () => {
+  for (const v of [' yes, I AGREE ', 'YES, I AGREE', 'yes, i agree\n']) assert.ok(W3.step(null, ibMsg(v), ibCtx()).actions.some((a) => a.kind === 'insert_lead'), JSON.stringify(v));
+  const shown = 'Hi! Before we chat: SortMyCover may message you on WhatsApp and share your name and number with an authorised financial adviser. Reply STOP to opt out.';
+  const r = W3.step(null, ibMsg(ICEBREAKER, { ...REFERRAL, welcome_message: { text: shown } }), ibCtx());
+  const row = r.actions.find((a) => a.kind === 'insert_lead').row;
+  assert.equal(row.consent_text, shown); assert.equal(row.provenance.welcome_text_from, 'referral'); assert.equal(row.optin.consent_text, shown);
+  assert.equal(W3.iceBreakerConsent(ibMsg(ICEBREAKER), ibCtx()).version, W3.ICEBREAKER_CONSENT_VERSION);
+});
+
+test("anything else keeps today's behaviour: no referral, another text, env unset or no welcome wording -> the consent question, nothing stored", () => {
+  const cases = [
+    ['no referral', ibMsg(ICEBREAKER, null), ibCtx()],
+    ['another text', ibMsg('Yes I agree with you'), ibCtx()],
+    ['the ad prefill', ibMsg("Hi, I'd like to book a 30-minute call with an adviser."), ibCtx()],
+    ['env unset', ibMsg(ICEBREAKER), ibCtx({ icebreaker: { consent: '', welcome: WELCOME_TEXT } })],
+    ['no ctx.icebreaker at all', ibMsg(ICEBREAKER), ibCtx({ icebreaker: undefined })],
+    ['no welcome wording anywhere', ibMsg(ICEBREAKER), ibCtx({ icebreaker: { consent: ICEBREAKER, welcome: '' } })],
+  ];
+  for (const [why, msg, ctx] of cases) {
+    const r = W3.step(null, msg, ctx);
+    assert.ok(!r.actions.some((a) => a.kind === 'insert_lead'), why);
+    assert.equal(sends(r.actions)[0].message.type, 'button', why);
+    assert.deepEqual(sends(r.actions)[0].message.buttons.map((b) => b.id), ['consent_yes', 'consent_no'], why);
+    assert.equal(r.thread.stage, 'await_consent', why);
+  }
+  // an existing open lead who taps the ad again: merged, never a second consent or a second lead
+  const again = W3.step(null, ibMsg(ICEBREAKER), ibCtx({ existing_open_lead_id: 'lead_ib_1', lead: { id: 'lead_ib_1', conv_state: { state: 'unbooked' }, origin: 'ctwa', broker_id: MARK.broker_id } }));
+  assert.ok(!again.actions.some((a) => a.kind === 'insert_lead'));
+  assert.ok(again.actions.every((a) => a.kind === 'forward_w07'));
+  // a suppressed (STOP) number is W15's, whatever it taps
+  assert.deepEqual(W3.step(null, ibMsg(ICEBREAKER), ibCtx({ suppressed: true })).actions, [{ kind: 'ignore', reason: 'suppressed' }]);
+});
+
+test('W03.json "W03 step": with SMC_CTWA_ICEBREAKER_CONSENT + SMC_CTWA_WELCOME_TEXT set the ice breaker creates the lead and sends the card; unset, the consent question with its +2 h clock', async () => {
+  const msg = { msg: { from: '27600000124', id: 'SMib0', timestamp: '1792822369', type: 'text', text: { body: 'Yes, I agree' }, referral: REFERRAL }, at: '2026-10-24T08:12:49+02:00', mobile: '+27600000124', profile_name: 'Cassiem', external_id: 'SMib0', hops: 0 };
+  const row = { brand_id: 'b-smc', broker: { ...MARK, consent_mode: 'named' }, existing_open_lead_id: null, lead: null, suppressed: false, thread: null, new_lead_id: '11111111-2222-4333-8444-555555555556', start_page: true };
+  const run = async (env) => (await runCode(WF, 'W03 step', { items: [row], refs: { 'W07 hand-off -> Cloud API message': msg }, env: { LEAD_TOKEN_SECRET: 'x'.repeat(40), ...env } }))[0].json;
+  const on = await run({ SMC_CTWA_ICEBREAKER_CONSENT: ICEBREAKER, SMC_CTWA_WELCOME_TEXT: WELCOME_TEXT });
+  assert.equal(on.actions.find((a) => a.kind === 'insert_lead').row.consent_text, WELCOME_TEXT);
+  assert.equal(on.actions.find((a) => a.kind === 'send').message.type, 'cta_url');
+  assert.equal(on.thread.stage, 'start_page'); assert.equal(on.lead_id, '11111111-2222-4333-8444-555555555556');
+  assert.equal(on.stall_due_at, new Date(Date.parse('2026-10-24T08:12:49+02:00') + 1 * 3600e3).toISOString(), 'the start_page stall, as after a Yes tap');
+  const off = await run({});
+  assert.ok(!off.actions.some((a) => a.kind === 'insert_lead'));
+  assert.equal(off.actions.find((a) => a.kind === 'send').message.type, 'button');
+  assert.equal(off.stall_due_at, new Date(Date.parse('2026-10-24T08:12:49+02:00') + 2 * 3600e3).toISOString(), 'the consent question now carries its +2 h re-ask clock (was NULL)');
+});
+
+// ---------------------------------------------------------------- consent-stall re-asks (Jono, 24 Oct 2026)
+test('the consent question schedules the +2 h / +20 h re-ask clock; a free-text re-ask restarts it; a yes replaces it, a no cancels it', () => {
+  const first = typedFirst();
+  assert.deepEqual(first.actions.filter((a) => a.kind === 'schedule_stall').map((s) => [s.stage, s.hours, s.from]), [['await_consent', [2, 20], '2026-10-21T09:00:00+02:00']]);
+  const again = W3.step(first.thread, typedMsg('what is this?'), typedCtx('SMt1'));
+  assert.equal(again.thread.stage, 'await_consent');
+  assert.deepEqual(again.actions.filter((a) => a.kind === 'schedule_stall').map((s) => [s.stage, s.hours]), [['await_consent', [2, 20]]]);
+  const yes = W3.step(first.thread, typedMsg('yes'), typedCtx('SMt2'));
+  assert.deepEqual(yes.actions.filter((a) => a.kind === 'schedule_stall').map((s) => s.stage), ['q_age'], 'consent given: the qualifying stall replaces it');
+  const no = W3.step(first.thread, typedMsg('no thanks'), typedCtx('SMt3'));
+  assert.ok(no.actions.some((a) => a.kind === 'cancel_stall')); assert.ok(!no.actions.some((a) => a.kind === 'schedule_stall'));
+  assert.deepEqual(W3.CONSENT_STALL_HOURS, [2, 20]); assert.equal(W3.CONSENT_REASK_MAX, 2);
+});
+
+test('consentReask: re-ask 1 and 2 as session buttons (an authorised financial adviser, reply "Yes, I agree", STOP), one reply key per stage, nothing past the last', () => {
+  const state = { stage: 'await_consent', consent: { version: 'ctwa-generic-v4', mode: 'generic', yes: 'Yes, I agree', text: 'x' }, first_wamid: 'SMq1', answers: {} };
+  const one = W3.consentReask({ n: 1, state, first_wamid: 'SMq1' });
+  assert.equal(one.kind, 'send'); assert.equal(one.reply_key, 'reask:SMq1:1'); assert.equal(one.n, 1);
+  assert.equal(one.message.type, 'button'); assert.deepEqual(one.message.buttons, [{ id: 'consent_yes', title: 'Yes, I agree' }, { id: 'consent_no', title: 'No thanks' }]);
+  assert.match(one.message.body, /an authorised financial adviser/); assert.match(one.message.body, /reply "Yes, I agree"/); assert.match(one.message.body, /Reply STOP to opt out\.$/);
+  assert.match(one.message.body, /SortMyCover may message you on WhatsApp about your call and share your details/);
+  const two = W3.consentReask({ n: 2, state, first_wamid: 'SMq1' });
+  assert.equal(two.reply_key, 'reask:SMq1:2'); assert.match(two.message.body, /one last check/); assert.match(two.message.body, /an authorised financial adviser/);
+  assert.match(two.message.body, /won't message again/); assert.match(two.message.body, /Reply STOP to opt out\.$/);
+  for (const m of [one, two]) {
+    assert.ok(m.message.body.length <= 1024); assert.doesNotMatch(m.message.body, /\bfree\b|\bAI\b|Lead Velocity|licensed/i);
+    const api = W3.toCloudApi('+27600000001', m.message).interactive;
+    assert.equal(api.type, 'button'); for (const b of api.action.buttons) assert.ok(b.reply.title.length <= 20);
+  }
+  // a thread that got the named v3 question ("Yes, continue"): the button and the quoted words follow the thread's own consent
+  const v3 = W3.consentReask({ n: 1, state: { ...state, consent: W3.consentFor('named', MARK) }, first_wamid: 'SMq2' });
+  assert.equal(v3.message.buttons[0].title, 'Yes, continue'); assert.match(v3.message.body, /reply "Yes, continue"/);
+  assert.equal(W3.consentReask({ n: 3, state, first_wamid: 'SMq1' }), null, 'never a third');
+  assert.equal(W3.consentReask({ n: 1, state: { ...state, stage: 'q_age' } }), null, 'not waiting for consent');
+  assert.equal(W3.consentReask({ n: 0, state }), null); assert.equal(W3.consentReask(null), null);
+});
+
+test('W03.json: the consent-stall schedule claims due threads (UPDATE = claim; window, suppression, read-or-sent anchor, night gate) and feeds Action? as a plain send', async () => {
+  const names = (n) => WF.nodes.find((x) => x.name === n);
+  const trig = names('Every 5 minutes (consent stall)');
+  assert.equal(trig.type, 'n8n-nodes-base.scheduleTrigger'); assert.equal(trig.parameters.rule.interval[0].expression, '*/5 * * * *');
+  const q = names('Stalled consent threads (claim + advance)').parameters.query;
+  assert.match(q, /UPDATE public\.wa_threads t/); assert.match(q, /t\.stage = 'await_consent'/); assert.match(q, /t\.last_inbound_at > now\(\) - interval '24 hours'/);
+  assert.match(q, /coalesce\(c\.read_at, c\.created_at\) AS asked_at/, 'read receipt first, else the send time');
+  assert.match(q, /interval '2 hours'/); assert.match(q, /interval '20 hours'/); assert.match(q, /n <= 2/);
+  assert.match(q, /NOT EXISTS \(SELECT 1 FROM public\.suppression s/); assert.match(q, /coalesce\(c\.status, ''\) <> 'failed'/); assert.match(q, /t\.expires_at > now\(\)/);
+  assert.match(q, /c\.metadata->>'reply_to' = t\.state->>'first_wamid'/, "the phone comes from the consent question's own outbound row");
+  assert.match(q, /public\.smc_hash_contact\(c\.recipient_contact\) = t\.mobile_hash/);
+  assert.match(q, /t\.stall_due_at = d\.stall_due_at/, 'optimistic: a reply that moved the clock meanwhile wins');
+  assert.match(q, /BETWEEN 7 AND 20/); assert.match(q, /'consent_reasks'/); assert.match(q, /ELSE NULL END/);
+  assert.equal(WF.connections['Every 5 minutes (consent stall)'].main[0][0].node, 'Stalled consent threads (claim + advance)');
+  assert.equal(WF.connections['Stalled consent threads (claim + advance)'].main[0][0].node, 'Consent re-ask (w03.consentReask)');
+  assert.equal(WF.connections['Consent re-ask (w03.consentReask)'].main[0][0].node, 'Action?');
+  const { checkSql, workflowSql } = await import('./_sqlcheck.mjs');
+  assert.deepEqual(checkSql(workflowSql(WF)), []);
+  // the real Code node: a claimed row -> the send item in the fan-out shape; it then takes the normal reply claim + sender + outbound log
+  const state = { stage: 'await_consent', consent: { version: 'ctwa-generic-v4', mode: 'generic', yes: 'Yes, I agree', text: 'x' }, first_wamid: 'SMq1' };
+  const items = await runCode(WF, 'Consent re-ask (w03.consentReask)', { items: [
+    { brand_id: 'b-smc', mobile: '+27600000124', phone_number_id: 'pn1', n: 1, state, first_wamid: 'SMq1' },
+    { brand_id: 'b-smc', mobile: '+27600000125', phone_number_id: 'pn1', n: 3, state, first_wamid: 'SMq9' }], env: {} });
+  assert.equal(items.length, 1, 'past the last re-ask: nothing');
+  const it = items[0].json;
+  assert.deepEqual([it.kind, it._wamid, it._mobile, it._brand_id, it._pnid, it._lead_id, it.reask], ['send', 'reask:SMq1:1', '+27600000124', 'b-smc', 'pn1', null, 1]);
+  const [b] = await runCode(WF, 'Build Cloud API body', { items: [it], env: {} });
+  assert.equal(b.json.body.interactive.type, 'button'); assert.equal(b.json.wamid, 'reask:SMq1:1'); assert.equal(b.json.lead_id, null); assert.equal(b.json.close_line, false);
+  assert.match(b.json.content, /an authorised financial adviser/);
+  assert.ok(names('W03 step').parameters.jsCode.includes('SMC_CTWA_ICEBREAKER_CONSENT') && names('W03 step').parameters.jsCode.includes('SMC_CTWA_WELCOME_TEXT'), 'the step reads the ice-breaker env');
 });

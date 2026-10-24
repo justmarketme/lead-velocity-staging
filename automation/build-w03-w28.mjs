@@ -11,6 +11,8 @@ import { inlineModule } from './security/inline-for-n8n.mjs';
 // I-54c: every sender node ends up behind a DRY_RUN_SENDS gate (lib/egress-gate.cjs; idempotent, W03 already gated).
 const { gateSenders } = createRequire(import.meta.url)('./lib/egress-gate.cjs');
 const { routeWaSends } = createRequire(import.meta.url)('./lib/wa-route.cjs');
+// consent-stall re-asks (24 Oct 2026): the hours live in ctwa/w03.js (CONSENT_STALL_HOURS) and are stamped into the SQL below
+const { CONSENT_STALL_HOURS, CONSENT_REASK_MAX } = createRequire(import.meta.url)('./ctwa/w03.js');
 import { LINES } from '../conversation/lines.mjs';
 // I-39k: the lines.mjs keys W28 uses outside the Flow screens, inlined as data (n8n Code nodes cannot import ESM).
 const LINES_W28 = `const LINES = ${JSON.stringify(Object.fromEntries(Object.entries(LINES).map(([lang, L]) => [lang, { SLOTS_INTRO: L.SLOTS_INTRO, ASK_DAY: L.ASK_DAY, METHOD_CHANGED: L.METHOD_CHANGED, EMAIL_Q: L.EMAIL_Q, TZ: L.TZ }])))};\n`;
@@ -57,8 +59,9 @@ function buildW03() {
     'W03 Click-to-WhatsApp intake (automation-engineer). Sub-workflow since I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply) and calls W03 for unknown numbers / CTWA entries / qualifying taps (automation/CONTRACTS.md "Inbound ownership"). ' +
     'The adapter rebuilds the Cloud API message from W07\'s normalised msg -> W03 step. GET /whatsapp verify handshake stays here until W07 has one (one GET handler only). ' +
     'W03 step = automation/ctwa/w03.js inlined (tested by automation/tests/W03.test.mjs): consent FIRST (named mode, 0.1) -> tap-only age/budget/bond/method -> W01 Lead core routes and W06 sends the intro card < 60 s. ' +
-    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of unfinished-CTWA stall nudges (+1/+20/+68 h, inside the 72-h window; before consent they only re-ask the consent question); W08 skips every lead without broker_id. Consent text version ctwa-named-v3 (responsible party + STOP + privacy link; v3 scope "insurance and financial planning"). Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
-    'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto.' }));
+    'No consent = only smc_hash_contact(mobile) in suppression. Forwards to W07 carry origin w03 and W07 never routes them back here (I-37e). W03 is the SINGLE owner of pre-consent stall nudges: "Every 5 minutes (consent stall)" re-asks the consent question once 2 h after it was read (or sent) and once more at 20 h, inside the 24-h window, never to a suppressed number (24 Oct 2026; before that the consent question scheduled no stall and stall_due_at stayed NULL). After consent W08 owns the Start here / unbooked nudges. ' +
+    'One-tap consent from the ad (24 Oct 2026): a first message with referral data equal to env SMC_CTWA_ICEBREAKER_CONSENT (the ad welcome message\'s one ice breaker) is the consent itself, stored as env SMC_CTWA_WELCOME_TEXT (version ctwa-icebreaker-v1; automation/meta/CTWA-WELCOME.md), and the Start here card follows at once. Consent text version ctwa-named-v3 (responsible party + STOP + privacy link; v3 scope "insurance and financial planning"). Pre-consent state lives in public.wa_threads (needs_human: schema pass 3). lead_token minted on insert (CONTRACTS.md). ' +
+    'Second entry: GET /wa/:ref tracked redirect (I-09) -> 302 wa.me only. Env: META_APP_SECRET, META_WEBHOOK_VERIFY_TOKEN, META_GRAPH_VERSION, LEAD_TOKEN_SECRET, WA_DISPLAY_NUMBER_DIGITS, SMC_CTWA_ICEBREAKER_CONSENT, SMC_CTWA_WELCOME_TEXT. Needs NODE_FUNCTION_ALLOW_BUILTIN=crypto. The schedule trigger only runs while the workflow is active (publish it on import).' }));
 
   // I-35d: W07 owns POST /whatsapp (signature, 200, wamid claim, statuses, STOP, brokers, nfm_reply). W03 is a sub-workflow:
   // W07 calls it with { source: 'W07', route, msg, lead, booking } where msg is W07's normaliseInbound() shape. The adapter below
@@ -153,9 +156,11 @@ for (const [i, item] of $input.all().entries()) {
     try { start_page = { token: LT.mintLeadToken(ctxRow.new_lead_id, { secret: $env.LEAD_TOKEN_SECRET }).token }; } catch (e) { start_page = null; }
   }
   const synthetic = WAL.isSyntheticNumber(m.mobile, $env);
+  // one-tap consent from the ad (24 Oct 2026, w03.js iceBreakerConsent): the ice breaker's words and the welcome wording shown above it
+  const icebreaker = { consent: String($env.SMC_CTWA_ICEBREAKER_CONSENT || ''), welcome: String($env.SMC_CTWA_WELCOME_TEXT || '') };
   const r = W3.step(ctxRow.thread || null, m.msg, { at: m.at, mobile: m.mobile, profile_name: m.profile_name, lead_id: ctxRow.new_lead_id,
     broker, brand, existing_open_lead_id: ctxRow.existing_open_lead_id, suppressed: ctxRow.suppressed, wamid: m.external_id, is_synthetic: synthetic,
-    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page });
+    lead: ctxRow.lead || null, typed: m.typed || null, hops: m.hops || 0, phone_number_id: m.phone_number_id, start_page, icebreaker });
   const st = r.actions.find((a) => a.kind === 'schedule_stall');
   const cancel = r.actions.some((a) => a.kind === 'cancel_stall');
   const stallDue = st && !cancel ? new Date(Date.parse(m.at) + st.hours[0] * 3600e3).toISOString() : null;
@@ -168,7 +173,8 @@ return out;`));
   n.push(ifTrue('Store thread? (brand known)', [1700, 60], '={{ $json.store_thread === true }}'));
   n.push(pg('Save thread', [1780, 120],
 `-- No PII in state: stage, answers (bands), origin (ad id / ctwa_clid / ref), consent text + version. Purged after expires_at.
--- W08 polls stall_due_at for the +1 h / +20 h / +68 h nudges (4.6 step 7); a reply moves it forward.
+-- stall_due_at: at await_consent it is the consent re-ask clock, consumed by this workflow's "Every 5 minutes (consent stall)"
+-- (24 Oct 2026); a reply moves it forward. After consent W08 owns the nudges (it reads leads, not this column).
 INSERT INTO public.wa_threads (brand_id, mobile_hash, state, stage, last_inbound_at, stall_due_at, expires_at, updated_at)
 VALUES ($1::uuid, public.smc_hash_contact($2), $3::jsonb, $3::jsonb->>'stage', $4::timestamptz, $5::timestamptz, $4::timestamptz + interval '72 hours', now())
 ON CONFLICT (brand_id, mobile_hash) DO UPDATE
@@ -340,6 +346,56 @@ RETURNING id;`,
     { name: 'Referrer-Policy', value: 'no-referrer' },
   ]));
 
+  // Consent-stall re-asks (Jono, 24 Oct 2026; ctwa/w03.js consentReask). Third entry: a 5-minute schedule claims every thread still
+  // at await_consent whose re-ask is due and feeds 'Action?' as a plain `send`, so the reply claim (reask:<sid>:<n>), the DRY_RUN
+  // gate, the provider route, the session banner and 'Store outbound (W03)' are exactly the ones every other W03 reply uses.
+  n.push(node('Every 5 minutes (consent stall)', 'scheduleTrigger', 1.2, [0, 1300], { rule: { interval: [{ field: 'cronExpression', expression: '*/5 * * * *' }] } }));
+  n.push(pg('Stalled consent threads (claim + advance)', [220, 1300],
+`-- Consent re-asks (24 Oct 2026): a thread still at await_consent gets ONE re-ask ${CONSENT_STALL_HOURS[0]} h after the consent question was
+-- READ (or sent, with no read receipt) and a last one at ${CONSENT_STALL_HOURS[1]} h, both inside the 24-h session window the person's own
+-- message opened. This UPDATE is the claim: it moves stall_due_at on (NULL after the last) and appends the re-ask number to
+-- state.consent_reasks, so two overlapping runs never pick a thread twice (the reply claim reask:<sid>:<n> is the second lock).
+-- The phone comes from the consent question's own outbound row (wa_threads holds only the hash; the inbound row holds our number).
+-- Never: a STOP / suppressed number, a closed window, a question that failed to send, an expired thread, SAST night (21:00-07:00:
+-- the re-ask waits for 07:00 and is dropped if the window closed by then). Synthetic numbers dry-run in smc-whatsapp-send.
+WITH q AS (
+  SELECT t.brand_id, t.mobile_hash, t.stall_due_at, t.state->>'first_wamid' AS first_wamid,
+         coalesce(jsonb_array_length(CASE WHEN jsonb_typeof(t.state->'consent_reasks') = 'array' THEN t.state->'consent_reasks' END), 0) + 1 AS n,
+         c.recipient_contact AS mobile, coalesce(c.read_at, c.created_at) AS asked_at, br.phone_number_id
+    FROM public.wa_threads t
+    JOIN public.brands br ON br.id = t.brand_id
+    JOIN LATERAL (SELECT c.recipient_contact, c.read_at, c.created_at, c.status FROM public.communications c
+                   WHERE c.channel = 'whatsapp' AND c.direction = 'outbound' AND c.workflow = 'W03' AND c.brand_id = t.brand_id
+                     AND c.metadata->>'reply_to' = t.state->>'first_wamid'
+                   ORDER BY c.created_at LIMIT 1) c ON true
+   WHERE t.stage = 'await_consent' AND t.stall_due_at IS NOT NULL AND t.stall_due_at <= now() AND t.expires_at > now()
+     AND t.last_inbound_at > now() - interval '24 hours'
+     AND coalesce(c.status, '') <> 'failed' AND c.recipient_contact IS NOT NULL
+     AND public.smc_hash_contact(c.recipient_contact) = t.mobile_hash
+     AND NOT EXISTS (SELECT 1 FROM public.suppression s WHERE s.mobile_hash = t.mobile_hash AND (s.brand_id IS NULL OR s.brand_id = t.brand_id))
+     AND extract(hour FROM now() AT TIME ZONE 'Africa/Johannesburg') BETWEEN 7 AND 20),
+due AS (
+  SELECT * FROM q
+   WHERE n <= ${CONSENT_REASK_MAX}
+     AND asked_at + (CASE n WHEN 1 THEN interval '${CONSENT_STALL_HOURS[0]} hours' ELSE interval '${CONSENT_STALL_HOURS[1]} hours' END) <= now())
+UPDATE public.wa_threads t
+   SET stall_due_at = CASE WHEN d.n < ${CONSENT_REASK_MAX} THEN d.asked_at + interval '${CONSENT_STALL_HOURS[1]} hours' ELSE NULL END,
+       state = coalesce(t.state, '{}'::jsonb) || jsonb_build_object('consent_reasks',
+                 coalesce(CASE WHEN jsonb_typeof(t.state->'consent_reasks') = 'array' THEN t.state->'consent_reasks' END, '[]'::jsonb) || jsonb_build_array(d.n)),
+       updated_at = now()
+  FROM due d
+ WHERE t.brand_id = d.brand_id AND t.mobile_hash = d.mobile_hash AND t.stage = 'await_consent' AND t.stall_due_at = d.stall_due_at
+RETURNING t.brand_id, d.mobile, d.phone_number_id, d.n, d.asked_at, d.first_wamid, t.state, t.last_inbound_at, t.expires_at;`,
+    '={{ [] }}'));
+  n.push(code('Consent re-ask (w03.consentReask)', [440, 1300], W3 +
+`// each claimed thread -> one 'send' action in the shape 'Fan out actions' emits (the reply key stands in for the inbound wamid)
+const now = new Date().toISOString();
+return $input.all().flatMap((it) => {
+  const r = W3.consentReask(it.json);
+  if (!r) return [];
+  return [{ json: { kind: 'send', message: r.message, reask: r.n, _brand_id: it.json.brand_id, _mobile: it.json.mobile, _wamid: r.reply_key, _at: now, _pnid: it.json.phone_number_id || null, _broker: null, _lead_id: null, _hops: 0 } }];
+});`));
+
   // Meta GET handshake
   n.push(node('Meta webhook verify (GET)', 'webhook', 2, [0, 900], { httpMethod: 'GET', path: 'whatsapp', responseMode: 'responseNode', options: {} }, { webhookId: 'w03-waba-get' }));
   n.push(code('Check hub.verify_token', [220, 900], VW + "const q = $input.first().json.query || {};\nconst r = VW.metaVerifyHandshake(q, $env.META_WEBHOOK_VERIFY_TOKEN);\nreturn [{ json: r }];"));
@@ -374,6 +430,9 @@ RETURNING id;`,
   link(c, 'Build redirect', 'Respond 302 to wa.me');
   link(c, 'Meta webhook verify (GET)', 'Check hub.verify_token');
   link(c, 'Check hub.verify_token', 'Respond hub.challenge');
+  link(c, 'Every 5 minutes (consent stall)', 'Stalled consent threads (claim + advance)');
+  link(c, 'Stalled consent threads (claim + advance)', 'Consent re-ask (w03.consentReask)');
+  link(c, 'Consent re-ask (w03.consentReask)', 'Action?');
   return { id: 'smc-w03', name: 'W03 Lead intake (Click-to-WhatsApp)', nodes: n, connections: c, active: false, settings: SETTINGS, pinData: {}, tags: [{ name: 'intake' }, { name: 'whatsapp' }], meta: { notes: 'automation-engineer. Logic: automation/ctwa/w03.js. Generated by automation/build-w03-w28.mjs; do not hand-edit Code nodes.' } };
 }
 

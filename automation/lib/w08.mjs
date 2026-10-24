@@ -37,10 +37,21 @@ export const OFFSETS = {
   start: [{ touch: 'start_nudge_2h', after: 2 * H }, { touch: 'start_nudge_24h', after: 24 * H }, { touch: 'start_nudge_final', after: 72 * H }],
   start_ctwa: [{ touch: 'start_nudge_2h', after: 2 * H }, { touch: 'start_nudge_24h', after: 24 * H }, { touch: 'start_nudge_final', after: 68 * H }]
 };
+// 30-minute "where you left off" nudge (Jono, 24 Oct 2026): a Start here lead who OPENED the page (lead_activities start_page_* /
+// adviser_disclosed; W08.json page_last_at) and left without booking gets the first nudge 30 min after the last page activity instead
+// of 2 h after the card: the smc_start_cta session card with the left-off words (the approved start_nudge_2h template when the
+// 24-h window has closed). Leads that never opened the page keep the 2-h timing. The two are ONE first nudge: whichever went out
+// first satisfies both (never a second "first" nudge), and the +24 h / final nudges follow as today, at least MIN_NUDGE_GAP apart.
+export const PAGE_NUDGE_AFTER = 30 * 60_000;
+export const FIRST_START_TOUCHES = new Set(['start_nudge_2h', 'start_nudge_30m']);
+/** The last /start/ page activity as ms (W08.json page_last_at), or null when the lead never opened the page. */
+export const pageActivityAt = (lead) => { const p = Date.parse(lead.page_last_at || ''); return Number.isFinite(p) ? p : null; };
 export const START_LINK = 'https://sortmycover.co.za/start/#lt=';
 export const HEADER_BASE = 'https://n8n.sortmycover.co.za/media/whatsapp/headers/';
-/** touch -> banner card (checklist/whatsapp-kit/profile/headers). */
+/** touch -> banner card (checklist/whatsapp-kit/profile/headers). Its keys are also the approved start_nudge_* templates
+ *  (templates/twilio/build-content.mjs START_NUDGES), so the 30-min card is NOT a key: it rides on start_nudge_2h (startBanner). */
 export const START_BANNER = { start_nudge_2h: 'welcome', start_nudge_24h: 'video', start_nudge_final: 'adviser' };
+export const startBanner = (touch) => START_BANNER[touch === 'start_nudge_30m' ? 'start_nudge_2h' : touch] || null;
 const TOKEN_SAFE = /^lt1\.[A-Za-z0-9._-]{10,400}$/;
 /** Start here went out and nothing is booked yet; a lead W06 already introduced (first_message_at) keeps the classic track. */
 export function isStartPending(lead) {
@@ -76,10 +87,13 @@ export function nurturePlan(lead) {
   const restart = restartFrom(lead);
   const tr = restart ? 'unbooked' : track(lead);
   const t0 = restart ?? Date.parse(tr.startsWith('start') ? (lead.start_sent_at || lead.created_at) : lead.first_message_at);
+  // the page was opened: the first nudge is the 30-min "where you left off" card, counted from the last page activity (never before the card)
+  const page = tr.startsWith('start') ? pageActivityAt(lead) : null;
+  const offsets = page !== null ? [{ touch: 'start_nudge_30m', at_ms: Math.max(page, t0) + PAGE_NUDGE_AFTER }, ...OFFSETS[tr].slice(1)] : OFFSETS[tr];
   const steps = [];
-  for (const s of OFFSETS[tr]) {
+  for (const s of offsets) {
     const prev = steps.length ? steps[steps.length - 1].due_ms : null;
-    let due = outOfQuiet(t0 + s.after);
+    let due = outOfQuiet(s.at_ms !== undefined ? s.at_ms : t0 + s.after);
     if (prev !== null && due < prev + MIN_NUDGE_GAP) due = outOfQuiet(prev + MIN_NUDGE_GAP);
     if (tr === 'ctwa_stall' && due >= t0 + CTWA_WINDOW) continue; // never spend outside the free entry window on a stall nudge
     if (restart !== null && due >= restart + RESTART_LAST_BEFORE) {
@@ -136,7 +150,9 @@ export function due(lead, ctx, now_ms) {
   const why = stopReason(lead, ctx);
   if (why) return { action: 'stop', reason: why };
   const p = nurturePlan(lead);
-  const next = p.steps.find((s) => !(ctx.sent || new Set()).has(s.touch));
+  const sent = ctx.sent || new Set();
+  const firstDone = [...FIRST_START_TOUCHES].some((t) => sent.has(t)); // the 2-h and the 30-min card are one first nudge
+  const next = p.steps.find((s) => !sent.has(s.touch) && !(FIRST_START_TOUCHES.has(s.touch) && firstDone));
   const cyc = p.restart_ms ? `:r${p.restart_ms}` : ''; // new idempotency keys for the restarted sequence
   if (!next) {
     if (p.restart_ms) return { action: 'stop', reason: 'post_cancel_sequence_done_w10_sweep_decides' };
@@ -150,7 +166,7 @@ export function due(lead, ctx, now_ms) {
 const firstName = (l) => (l.first_name || '').trim() || 'there';
 const adviserFirst = (b) => String(b.contact_person || '').split(' ')[0];
 export function message(lead, ctx, touch, now_ms) {
-  if (START_BANNER[touch]) return startMessage(lead, ctx, touch, now_ms);
+  if (startBanner(touch)) return startMessage(lead, ctx, touch, now_ms);
   const b = ctx.broker || {};
   const lang = lead.language === 'af' ? 'af' : 'en';
   const video = (b.intro_video_url && (b.intro_video_url[lang] || b.intro_video_url.en)) || null;
@@ -169,13 +185,18 @@ export function message(lead, ctx, touch, now_ms) {
 
 // ---------- Start here nudges (templates start_nudge_2h / _24h / _final; session = the smc_start_cta card) ----------
 const START_EN = {
+  // 30 min after the page was left (24 Oct 2026). `chosen`: the lead confirmed the adviser on the page (adviser_disclosed -> routed).
+  // No "free" (Jono, 19 Oct 2026: client wording), no STOP line (20 Oct 2026).
+  start_nudge_30m: (v, o = {}) => (o.chosen
+    ? `Hi ${v[0]}, you got as far as choosing ${v[1]} as your adviser, an authorised financial adviser. Tap below to finish where you left off and book your 30-minute call, on Microsoft Teams or by phone. No obligation.`
+    : `Hi ${v[0]}, you got as far as the booking page. Tap below to finish where you left off and book your 30-minute call with an authorised financial adviser, on Microsoft Teams or by phone. No obligation.`),
   start_nudge_2h: (v) => `Hi ${v[0]}, your 30-minute call with ${v[1]} is one tap away. Pick a time that suits you, by Microsoft Teams or phone. It takes about a minute.`,
   start_nudge_24h: (v) => `Hi ${v[0]}, ${v[1]} still has open times this week for your 30-minute call. There's no obligation to buy anything, and any next step is your choice. Tap below to pick a time.`,
   start_nudge_final: (v) => `Hi ${v[0]}, this is our last message about your call with ${v[1]}. If you'd still like to talk it through, tap below to pick a time. If not, no problem, we won't message again.`
 };
 // 20 Oct 2026 (Jono's final rule: only the W03 consent says "Reply STOP to opt out."): no STOP line, in session and in the
 // *_v2 templates. The 19 Oct start_nudge_* Content keeps it as submitted (templates/twilio/build-content.mjs START_NUDGE_V1_TAIL).
-export const startWords = (touch, vars) => (START_EN[touch] ? START_EN[touch](vars) : '');
+export const startWords = (touch, vars, opts = {}) => (START_EN[touch] ? START_EN[touch](vars, opts) : '');
 /**
  * One Start here nudge. channel 'session' inside the 24-h window (a cta_url card: welcome banner, "Start here" URL button,
  * which lib/wa-provider.mjs maps to the smc_start_cta Content under Twilio), else the start_nudge_* template: banner image
@@ -188,9 +209,12 @@ export function startMessage(lead, ctx, touch, now_ms) {
   const vars = [firstName(lead), adviserFirst(b) || 'an adviser'];
   const window = Number.isFinite(ctx.last_inbound_ms) && now_ms - ctx.last_inbound_ms < 24 * H;
   const reply = touch === 'start_nudge_final' ? ['no_thanks', 'No thanks'] : ['not_now', 'Not now'];
-  return { kind: 'start', channel: window ? 'session' : 'template', template: touch, template_lang: 'en', lang: 'en', vars,
-    header: { type: 'image', link: HEADER_BASE + 'header-' + START_BANNER[touch] + '.png' }, banner: START_BANNER[touch],
-    buttons: [reply], payload_suffix: `:${lead.id}`, needs_token: true, session: { body: startWords(touch, vars), lang: 'en' } };
+  // the 30-min card has no template of its own: outside the window it goes as the approved start_nudge_2h template (same banner, token, reply)
+  const template = touch === 'start_nudge_30m' ? 'start_nudge_2h' : touch;
+  const chosen = !!lead.broker_id && !!adviserFirst(b);
+  return { kind: 'start', channel: window ? 'session' : 'template', template, template_lang: 'en', lang: 'en', vars,
+    header: { type: 'image', link: HEADER_BASE + 'header-' + startBanner(touch) + '.png' }, banner: startBanner(touch),
+    buttons: [reply], payload_suffix: `:${lead.id}`, needs_token: true, session: { body: startWords(touch, vars, { chosen }), lang: 'en' } };
 }
 /** Cloud API body for a start nudge, given the minted token. null on a bad token or no phone (W08 then skips the send). */
 export function startPayload(d, token) {
