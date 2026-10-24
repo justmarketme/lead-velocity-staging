@@ -124,6 +124,15 @@ the never-silent and rebook-failed alerts, voice call-backs and amber ops alerts
 
 ### 4.1 One helper, one transport, one template
 
+**As built (branch `feat/smc-owner-whatsapp-alerts`, reviewed 24 Oct):** the helper's signature is
+`ownerAlert({ what, detail, who: 'owner' | 'kg' | 'both', source, key, subject, window_open }, env)`; the utility template is
+named **`ops_update`** (not `owner_update`) and has the same three body variables as `ops_alert` (`[name, what, detail]`),
+so one variable plan serves both; the owner number is `SMC_OWNER_WHATSAPP`, else `OPS_WHATSAPP_JONATHAN`, else the
+documented default (never empty, so a missing env never silences the owner); the `lead_activities` union also sweeps W01's
+`routed` row, so a lead routed after its own tick (every Click-to-WhatsApp lead: routing follows `/start/answers`) gets a
+`Routed: <first name>, phone ends ###, to <practice> (real adviser)` line, and a routed row inside the lead's own tick is
+folded into the lead line. The text below is the design record it was built from.
+
 **`automation/lib/owner-alert.mjs`** (exported as `require('lv-automation').ownerAlert`; pure, tested), used by every
 path:
 

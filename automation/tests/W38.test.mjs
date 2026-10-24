@@ -68,6 +68,7 @@ test('the query: columns exist in the migrations; email / full number / note / m
   assert.match(q, /CASE WHEN coalesce\(e\.note, ''\) LIKE 'esc_kind=%' THEN split_part\(split_part\(e\.note, ';', 1\), '=', 2\) ELSE '' END/);
   // lead_activities: the short allow-list of types; only payload->>'to' (the new booking time) leaves
   assert.match(q, new RegExp(`la\\.brand_id = \\$1::uuid AND la\\.occurred_at > nullif\\(\\$2, ''\\)::timestamptz AND la\\.activity_type IN \\(${L.ACTIVITY_TYPES.map((t) => `'${t}'`).join(', ')}\\)`));
+  assert.equal((q.match(/'lead', left\(l\.id::text, 8\)/g) || []).length, 4, 'every union carries the 8-character lead ref (plan() folds a same-tick routed row into the lead line)');
   assert.deepEqual(q.match(/la\.payload->>'[a-z_]+'/g), ["la.payload->>'to'"]);
   assert.match(q, new RegExp(`LIMIT ${L.ROW_LIMIT}\\)`));
   for (const col of ['l.broker_id', 'a.broker_id', 'e.broker_id', 'la.broker_id']) {
@@ -205,13 +206,28 @@ test('formatter: console escalations and booking changes (24 Oct 2026): kind + s
   assert.equal(L.line(activity('a1', 0, { activity: 'booking_cancelled', at: null })), '- Booking cancelled: Thandi, phone ends 234, with Oracle Private Wealth');
   assert.equal(L.line(activity('a1', 0, { activity: 'voice_callback_requested', at: null, practice: null })), '- Call-back asked (phone): Thandi, phone ends 234');
   assert.equal(L.line(activity('a1', 0, { activity: 'voice_callback_scheduled', at: null, practice: null })), '- Missed call, automatic call-back set: Thandi, phone ends 234');
+  // W01 routing (review, 24 Oct 2026): "to <practice>" with the side label, so the owner learns which adviser got a lead routed after its tick
+  assert.ok(L.ACTIVITY_TYPES.includes('routed'));
+  assert.equal(L.line(activity('a1', 0, { activity: 'routed', at: null, test_practice: false, test_lead: false })), '- Routed: Thandi, phone ends 234, to Oracle Private Wealth (real adviser)');
+  assert.match(L.line(activity('a1', 0, { activity: 'routed', at: null, test_practice: true, test_lead: false })), /^- Routed: Thandi, phone ends 234, to Oracle Private Wealth \(TEST practice\) \[WRONG SIDE/);
+  assert.equal(L.line(activity('a1', 0, { activity: 'routed', at: null, practice: null })), '- Routed: Thandi, phone ends 234, practice not found');
   const m = L.format([lead('l1', 0), activity('a1', 1), escalation('e1', 2), escalation('e2', 3)]);
   assert.match(m, /^SortMyCover: 1 new lead, 1 booking change, 2 need a person\n/);
   assert.equal(m.split('\n').length, 5);
+  assert.match(L.format([activity('a1', 0, { activity: 'routed' }), activity('a2', 1), activity('a3', 2, { activity: 'routed' })]), /^SortMyCover: 2 leads routed, 1 booking change\n/, 'routing is counted apart from booking changes');
   assert.doesNotMatch(JSON.stringify(L.format([escalation('e1', 0, { note: 'esc_kind=broker_no_show; Thandi N.: the lead says Mark did not call', deep_link: '/console/x' })])), /did not call Mark|console\/x/);
   // plan() keeps every kind, each under its own key
   const p = L.plan({ watermark: at(0), seen: {} }, [lead('l1', 10), escalation('e1', 20), activity('a1', 30), { kind: 'weird', id: 'w1', created_at: at(40) }], at(60));
   assert.deepEqual(p.keys, ['lead:l1', 'escalation:e1', 'activity:a1']);
+  // a routed row in the same tick as its lead (same `lead` ref, practice set): the Lead line already says "routed to"; one line, both ids seen
+  const same = L.plan({ watermark: at(0), seen: {} }, [lead('l1', 10, { lead: 'aaaaaaaa' }), activity('a2', 12, { activity: 'routed', lead: 'aaaaaaaa', practice: 'SortMyCover test practice' })], at(60));
+  assert.deepEqual([same.keys, same.items], [['lead:l1', 'activity:a2'], 1]);
+  assert.match(same.message, /^SortMyCover: 1 new lead\n- Lead: Thandi.*, routed to SortMyCover test practice$/);
+  // the lead arrived "not routed" a tick earlier (a Click-to-WhatsApp lead is routed only after /start/answers): the routed row is its own line next tick
+  const later = L.plan({ watermark: at(60), seen: { 'lead:l1': Date.parse(at(10)) } },
+    [lead('l1', 10, { lead: 'aaaaaaaa', practice: null }), activity('a2', 70, { activity: 'routed', at: null, lead: 'aaaaaaaa', practice: 'Oracle Private Wealth', test_practice: false, test_lead: false })], at(120));
+  assert.deepEqual([later.keys, later.items], [['activity:a2'], 1]);
+  assert.equal(later.message, 'SortMyCover: 1 lead routed\n- Routed: Thandi, phone ends 234, to Oracle Private Wealth (real adviser)');
 });
 
 test('formatter: long ticks stay short (25 lines, "...and N more", under 3500 characters); the template variable is clipped on a word', () => {
@@ -273,6 +289,11 @@ test('commit: the sender\'s ok commits (channel whatsapp, Twilio id kept); ok:fa
   assert.deepEqual([held.delivered, held.state.watermark, held.state.fails, held.state.last_error.detail], [false, at(0), 1, 'twilio_content_sid_missing']);
   const emma = L.commit(st0, p, { statusCode: 200, body: { delivered: true } }, at(61));
   assert.deepEqual([emma.delivered, emma.channel, emma.state.last.channel], [true, 'emma', 'emma']);
+  // EMMA carried the tick: why the WhatsApp rung said no is kept on `last` (nothing else records it; last_error is only written when EMMA failed too)
+  const carried = L.commit(st0, p, { statusCode: 200, body: { delivered: true } }, at(61), { ok: false, external_id: null, error: 'twilio_content_sid_missing' });
+  assert.deepEqual([carried.channel, carried.state.last.sender_error, carried.state.last_error], ['emma', 'twilio_content_sid_missing', undefined]);
+  assert.equal(L.commit(st0, p, { statusCode: 200 }, at(61), { error: 'Workflow did not finish' }).state.last.sender_error, 'Workflow did not finish', 'the sub node errored (continueRegularOutput item)');
+  assert.equal(ok.state.last.sender_error, undefined, 'a WhatsApp commit records no sender error');
   const dry = L.commit(st0, p, { ok: true, external_id: 'dry:owner:W38:tick:x:owner' }, at(61));
   assert.deepEqual([dry.delivered, dry.dry_run, dry.channel, dry.state.watermark, dry.state.last.message], [false, true, 'dry', at(60), p.message]);
 });
@@ -350,7 +371,7 @@ test('the real nodes across ticks: first run silent, a held send retries, the se
     const viaWhatsApp = ifBranch(WF, OWNER_OK, { json: answer.sub });
     let res = answer.sub;
     if (!viaWhatsApp) { assert.equal(ifBranch(WF, GATE, { json: answer.sub, env: {} }), true); res = answer.emma; }
-    const c = await runCode(WF, COMMIT, { items: [res], staticData: sd, refs: { [PLAN]: p } });
+    const c = await runCode(WF, COMMIT, { items: [res], staticData: sd, refs: { [PLAN]: p, [OWNER_SEND]: answer.sub } });
     return { since: s[0].json.since, message: p.message, vars: built[0].json.wa.template.components[0].parameters.map((x) => x.text), commit: c[0].json, failing: ifBranch(WF, FAILING, { json: c[0].json }) };
   };
   const NO = { ok: false, external_id: null, error: 'twilio_content_sid_missing' };
@@ -363,12 +384,12 @@ test('the real nodes across ticks: first run silent, a held send retries, the se
   assert.equal(t3.since, new Date(Date.parse(at(0)) - L.OVERLAP_MS).toISOString(), 'the window still starts at the held watermark');
   assert.match(t3.message, /^SortMyCover: 1 new lead, 1 new booking, 1 needs a person\n- Lead: Thandi.*\n- Booking: Thandi.*\n- Needs a person \(urgent\)/);
   assert.deepEqual(t3.vars.slice(0, 2), ['Jono', '1 new lead, 1 new booking, 1 needs a person']);
-  assert.deepEqual([t3.commit.delivered, t3.commit.channel, t3.commit.fails, sd.watermark, sd.last.external_id], [true, 'whatsapp', 0, at(120), 'SM0123']);
+  assert.deepEqual([t3.commit.delivered, t3.commit.channel, t3.commit.fails, sd.watermark, sd.last.external_id, sd.last.sender_error], [true, 'whatsapp', 0, at(120), 'SM0123', undefined]);
   assert.deepEqual(await tick([lead('l1', 30), booking('b1', 90), escalation('e1', 100)], at(180), null), { stopped: 'plan', since: new Date(Date.parse(at(120)) - L.OVERLAP_MS).toISOString() }, 'the overlap re-read sends nothing twice');
   assert.equal(sd.watermark, at(180));
   // the sender says no, EMMA delivers: committed as the emma channel
   const t5 = await tick([activity('a1', 200)], at(240), { sub: NO, emma: { statusCode: 200, body: { delivered: true } } });
-  assert.deepEqual([t5.commit.delivered, t5.commit.channel, sd.watermark], [true, 'emma', at(240)]);
+  assert.deepEqual([t5.commit.delivered, t5.commit.channel, sd.watermark, sd.last.sender_error], [true, 'emma', at(240), 'twilio_content_sid_missing']);
   // three failures in a row (sender no, EMMA 502) -> the IF to "Fail the run once" is true exactly once
   const fails = [];
   for (let i = 0; i < 4; i++) fails.push((await tick([lead('l9', 300)], at(360 + i * 60), { sub: NO, emma: { statusCode: 502 } })).failing);

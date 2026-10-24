@@ -18,8 +18,8 @@ repo checkout at `/opt/leadvelocity-n8n/repo`. Env changes reach n8n only on a c
 | Piece | Before | After |
 |---|---|---|
 | `automation/lib/owner-alert.mjs` (new, `require('lv-automation').ownerAlert`) | - | The one helper: owner number, template choice (`ops_update` else `ops_alert`), redaction, clipping, synthetic skip, `record:false` + `bypass_suppression:true` items for `smc-whatsapp-send` |
-| **W38** `smc-w38` | leads + bookings -> EMMA `/api/notify` (Teams / Telegram) | leads + bookings + **console escalations** (`public.escalations`, not W07's own) + **booking moved / cancelled / voice call-backs** (`public.lead_activities`) -> ONE WhatsApp to the owner through `smc-whatsapp-send`; EMMA only when the sender answers `ok:false`; watermark committed on the sender's `ok` |
-| **W22** `smc-w22` | WhatsApp for red / `notify_now` only | WhatsApp for **every** alert (red and amber), through the helper; still email-only: synthetic signals and the sender's own `whatsapp_send_failed` (no loop); 24-h dedupe unchanged |
+| **W38** `smc-w38` | leads + bookings -> EMMA `/api/notify` (Teams / Telegram) | leads + bookings + **console escalations** (`public.escalations`, not W07's own) + **booking moved / cancelled / voice call-backs / W01 routing** (`public.lead_activities`; a lead routed after its own tick gets a `Routed: ..., to <practice> (real adviser)` line, one routed in the same minute stays one line) -> ONE WhatsApp to the owner through `smc-whatsapp-send`; EMMA only when the sender answers `ok:false` (`last.sender_error` keeps why); watermark committed on the sender's `ok` |
+| **W22** `smc-w22` | WhatsApp for red / `notify_now` only | WhatsApp for **every** alert (red and amber), through the helper; still email-only: synthetic signals, the sender's own `whatsapp_send_failed` and an n8n failure of the sender workflow itself (no loop); 24-h dedupe unchanged |
 | **W07** `smc-w07` | "Alert ops" put the text in the name slot, "now" as the event, a dead URL button; pre-consent sent the **full phone number**; never-silent -> EMMA | "Alert ops" / "Pre-consent" build helper items (first name + phone last 3, KG on a sensitive chat / pre-consent); never-silent -> WhatsApp sender first, EMMA fallback (`patch-owner-alerts.mjs`) |
 | **W10** `smc-w10` | rebook failed -> EMMA | rebook failed -> WhatsApp sender first, EMMA fallback |
 | Template `ops_update` (new, UTILITY) | - | "Hi {{1}}, SortMyCover update: {{2}}. Details: {{3}}. Reply here if a person needs to step in." Not yet submitted: every path uses the approved `ops_alert` until its SID is in `TWILIO_CONTENT_SIDS` |
@@ -75,9 +75,12 @@ four workflows are independent and `smc-whatsapp-send` is unchanged.
 **Pass:** the four `publish:workflow` lines succeed; `ssh -n emma-vps 'docker exec lv-n8n-postgres-1 psql -U $(grep -E "^POSTGRES_USER=" /opt/leadvelocity-n8n/repo/.env | cut -d= -f2) -d $(grep -E "^POSTGRES_DB=" /opt/leadvelocity-n8n/repo/.env | cut -d= -f2) -Atc "select id, active, \"versionId\" from workflow_entity where id in ('"'"'smc-w38'"'"','"'"'smc-w22'"'"','"'"'smc-w07'"'"','"'"'smc-w10'"'"')"'` shows all four `active = t`.
 
 W38's static data (`watermark`, `seen`) survives the import: the next tick carries on from the last committed watermark;
-nothing is replayed. If `last` later shows `channel: emma` instead of `whatsapp`, the sender answered `ok:false`: read
-`last_error.detail` (`twilio_content_sid_missing` = the SIDs JSON lost `ops_alert`; a Twilio error code = check the
-sender execution).
+nothing is replayed. If `last` later shows `channel: emma` instead of `whatsapp`, the sender answered `ok:false` and EMMA
+carried the tick: read `last.sender_error` (`twilio_content_sid_missing` = the SIDs JSON lost `ops_alert`;
+`not_allow_listed` = `WHATSAPP_TEST_RECIPIENTS` is set without Jono's number; a Twilio error code = open the
+`smc-whatsapp-send` execution for correlation `owner:W38:tick:...`). The sender also hands W22 a `whatsapp_send_failed`
+signal (email only, deduped 24 h). `last_error` is written only when EMMA failed too: the watermark is then held and every
+tick retries.
 
 ## 4. Verification **[Jono's go, one real send]**
 
@@ -86,13 +89,17 @@ One test lead from Jono's own number (it is on `SMC_TEST_PHONES`, so it routes t
 1. From +27 72 554 8057, send the Click-to-WhatsApp opener to +27 60 015 6480 ("Check my life cover") and answer the consent question "Yes".
 2. Within 60 s of the `leads` row, Jono receives a WhatsApp **from +27 60 015 6480**: with the stopgap template it reads
    "Hi Jono, a SortMyCover system alert needs your attention. What happened: 1 new lead. Impact: Lead: Jono, WhatsApp ad,
-   phone ends 057, routed to SortMyCover test practice (TEST practice) [test data]. The full details are in your email."
-   (W22 sends no email for W38 ticks: that sentence is the template's fixed text, which `ops_update` replaces.)
+   phone ends 057, not routed [test data]. The full details are in your email." (A Click-to-WhatsApp lead is routed only
+   after the Start-here answers, so the first tick says "not routed"; W22 sends no email for W38 ticks: that sentence is
+   the template's fixed text, which `ops_update` replaces.) Answer the Start-here card; within 60 s of W01 routing the
+   lead a second WhatsApp arrives: "What happened: 1 lead routed. Impact: Routed: Jono, phone ends 057, to SortMyCover
+   test practice (TEST practice) [test data]." (A lead routed inside the same minute as its row shows as one line,
+   "routed to ...".)
 3. Proof (read-only):
    - Twilio: `GET https://api.twilio.com/2010-04-01/Accounts/$TWILIO_ACCOUNT_SID/Messages.json?To=whatsapp:%2B27725548057&PageSize=3`
-     shows a new `SM...` from `whatsapp:+27600156480` with status `delivered` / `read`.
+     shows the new `SM...` messages from `whatsapp:+27600156480` with status `delivered` / `read`.
    - W38 static data: `select "staticData"::jsonb -> 'global' -> 'last' from workflow_entity where id = 'smc-w38'` ->
-     `channel: whatsapp`, `external_id: SM...`, `items: 1`, `status: 200`.
+     `channel: whatsapp`, `external_id: SM...`, `items: 1`, `status: 200`, no `sender_error`.
    - EMMA journal (`journalctl -u emma --since "10 min ago"`): no `/api/notify` for that tick (or only one if the sender had said no).
 4. The escalation sweep: reply "I want to speak to a person" in the same chat -> W07 raises a `human_handoff` escalation
    and WhatsApps Jono itself (W07's rows are left out of W38's sweep on purpose, so this proves W07's path, not W38's). To
@@ -141,4 +148,6 @@ today every send uses `TWILIO_WHATSAPP_FROM`; a per-recipient sender is a small 
 - W38 reports a booking when its row is created; a held booking that is later verified (W05 promotes the row in place) is not reported again. The adviser gets `broker_new_booking` at that point; the owner line said "(held until the email is verified)" when it arrived.
 - Plain W12 outcomes (attended / disposition without a dispute) are not alerted: W12 writes no escalation and no `lead_activities` row of its own for them; only disputes, no-shows, unconfirmed and no-WhatsApp cases reach the owner (through escalations). Adding `outcome_recorded` to `w38.ACTIVITY_TYPES` is the hook if wanted.
 - The voice function's `voice_callback_requested` rows carry `brand_id` (SMC) and `lead_id`; rows for callers with no lead yet have none and cannot be swept.
+- A W34 data-subject request reaches the owner twice: W22 `dsar_received` (`notify_now`) and W38's sweep of the `escalations` row (kind `dsr`). Both are legitimate and the volume is a few a month at most; drop `kind = 'dsr'` from the W38 union if it ever grates.
+- W38's `seen` map keys on the row id; an `escalations` row that is later resolved and re-raised as a NEW row (W12 re-checks every 5 min but inserts only when no open row of that kind exists for the booking: `WHERE NOT EXISTS ... resolved_at IS NULL`) alerts again, once per new row. That is the intended "needs a person again".
 - The EMMA fallback in W07 / W10 reads the build node with `.first()`: correct for the one-item executions these paths run as; a multi-item execution would send the first item's EMMA body for every failed item.

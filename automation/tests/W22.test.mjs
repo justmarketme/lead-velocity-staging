@@ -97,6 +97,11 @@ test('plan: email always (SortMyCover relay body); WhatsApp to the owner for EVE
   // the one amber that stays email-only: the WhatsApp sender's own failure (W22 can never loop on WhatsApp)
   assert.ok(L.EMAIL_ONLY_SIGNALS.has('whatsapp_send_failed'));
   assert.deepEqual(L.plan(L.normalise({ signal_key: 'whatsapp_send_failed', scope: 'lead:null', severity: 'amber', what: 'WhatsApp send failed (ops_alert): x' }), ENV, NOW).map((x) => x.channel), ['email']);
+  // ...and an n8n failure OF the sender (red: "WhatsApp Send" is a critical workflow) is never sent back through the sender (review, 24 Oct 2026)
+  const senderDown = L.normalise({ ...errorTrigger('WhatsApp Send', 'Twilio POST /Messages'), workflow: { id: 'smc-whatsapp-send', name: 'WhatsApp Send' } });
+  assert.deepEqual([senderDown.severity, senderDown.scope, L.emailOnly(senderDown)], ['red', 'workflow:smc-whatsapp-send:Twilio POST /Messages', true]);
+  assert.deepEqual(L.plan(senderDown, ENV, NOW).map((x) => x.channel), ['email'], 'the sender failing never loops back through the sender');
+  assert.equal(L.emailOnly(L.normalise(errorTrigger())), false, 'every other workflow failure still reaches the owner on WhatsApp');
   const both = L.plan(L.normalise({ kind: 'popia_breach', severity: 'red' }), { ...ENV, OPS_WHATSAPP_KG: '+27725550001' }, NOW).filter((x) => x.channel === 'whatsapp');
   assert.deepEqual(both.map((x) => [x.who, x.send.to, x.send.wa.template.components[0].parameters[0].text]), [['jonathan', '+27725550000', 'Jono'], ['kg', '+27725550001', 'KG']]);
   assert.equal(L.plan(red, { ...ENV, SMC_OWNER_WHATSAPP: '+27820000009' }, NOW).find((x) => x.channel === 'whatsapp').send.to, '+27820000009', 'SMC_OWNER_WHATSAPP wins (Zoe Experience later)');

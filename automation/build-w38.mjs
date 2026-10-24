@@ -3,8 +3,8 @@
 // booking comes through; the dry-run ads route every lead to his own test practice, which has no WhatsApp number on purpose).
 //   node automation/build-w38.mjs
 // Logic: automation/lib/w38.mjs (tests: automation/tests/W38.test.mjs). Contract: CONTRACTS.md "W38 SMC lead alert (owner)".
-// Every minute: new leads + bookings + console escalations + booking changes / voice call-backs since the watermark (workflow
-// static data) -> ONE WhatsApp to the owner from the SortMyCover number through smc-whatsapp-send (lib/owner-alert.mjs; owner
+// Every minute: new leads + bookings + console escalations + booking changes / voice call-backs / W01 routing since the watermark
+// (workflow static data) -> ONE WhatsApp to the owner from the SortMyCover number through smc-whatsapp-send (lib/owner-alert.mjs; owner
 // rule 24 Oct 2026, docs/OWNER-ALERTS-AUDIT.md). The sender answering ok:false falls back to EMMA POST
 // https://emmadoesit.cloud/api/notify (x-emma-secret). The watermark moves only after an ok / 2xx, so a failed send is retried.
 // Env: SMC_LEAD_ALERT_ENABLED ('true' = on; anything else: nothing runs), SMC_OWNER_WHATSAPP (else OPS_WHATSAPP_JONATHAN, else
@@ -40,8 +40,11 @@ const FAILING = 'Third failure in a row?';
 const STOP = 'Fail the run once (W22 emails ops)';
 
 // Data minimisation at the source: only these fields leave the database (and so reach n8n's execution data).
+// `lead` = the first 8 characters of the lead id (an internal reference, not personal information): plan() folds a W01
+// `routed` row that arrives in the same tick as its lead into the lead's own "routed to ..." line.
 const PERSON = `'first_name', split_part(btrim(coalesce(l.first_name, '')), ' ', 1),
-                    'phone_last3', right(regexp_replace(coalesce(l.phone, ''), '[^0-9]', '', 'g'), 3)`;
+                    'phone_last3', right(regexp_replace(coalesce(l.phone, ''), '[^0-9]', '', 'g'), 3),
+                    'lead', left(l.id::text, 8)`;
 // Test / real split (23 Oct 2026, lib/routing-split.mjs; $3 = SMC_TEST_BROKER_IDS, $4 = the test numbers as E.164 digits, from
 // w38.splitParams): only two booleans leave the database. The number is compared here, in E.164 digits (SA local 0... -> 27...).
 const PHONE_E164 = `regexp_replace(regexp_replace(regexp_replace(coalesce(l.phone, ''), '[^0-9]', '', 'g'), '^00', ''), '^0([0-9]{9})$', '27\\1')`;
@@ -105,9 +108,9 @@ SELECT to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS db_
 const n = [];
 n.push(node('Sticky: read me', 'stickyNote', 1, [0, -460], { width: 820, height: 410, content:
   '## W38 SMC owner alert (leads, bookings, escalations), 18 Oct 2026 / owner rule 24 Oct 2026\n' +
-  'Every minute: new SortMyCover leads (public.leads), bookings (public.appointments), console escalations (public.escalations, not the ones W07 alerts itself) and booking changes / voice call-backs (public.lead_activities) since the watermark in this workflow\'s static data -> ONE WhatsApp to the owner from the SortMyCover number through smc-whatsapp-send (lib/owner-alert.mjs: template ops_update, else ops_alert; SMC_OWNER_WHATSAPP, else OPS_WHATSAPP_JONATHAN). The sender answering ok:false -> EMMA POST https://emmadoesit.cloud/api/notify (Teams / Telegram) as the fallback.\n' +
+  'Every minute: new SortMyCover leads (public.leads), bookings (public.appointments), console escalations (public.escalations, not the ones W07 alerts itself) and booking changes / voice call-backs / W01 routing (public.lead_activities; a lead routed after its own tick gets a "Routed: ..., to <practice>" line) since the watermark in this workflow\'s static data -> ONE WhatsApp to the owner from the SortMyCover number through smc-whatsapp-send (lib/owner-alert.mjs: template ops_update, else ops_alert; SMC_OWNER_WHATSAPP, else OPS_WHATSAPP_JONATHAN). The sender answering ok:false -> EMMA POST https://emmadoesit.cloud/api/notify (Teams / Telegram) as the fallback.\n' +
   '- First run: watermark = the database\'s now(), nothing sent (history is never replayed). Each tick re-reads a 5-minute overlap and skips ids already sent (de-dupe map, at most 200).\n' +
-  '- The watermark moves only after the sender answered ok (or EMMA 2xx); a failed send is retried on the next tick; the 3rd failure in a row fails the run once, so W22 emails ops.\n' +
+  '- The watermark moves only after the sender answered ok (or EMMA 2xx: last.channel = emma, last.sender_error = why the sender said no); a failed send is retried on the next tick; the 3rd failure in a row fails the run once, so W22 emails ops.\n' +
   '- POPIA: first name, the last 3 digits of the number, source / ad angle, the routed practice, booking time (SAST) and method, an escalation\'s kind + severity + esc_kind token. Never email, the full number, ID numbers, note or message text.\n' +
   '- Test / real split (23 Oct 2026): each line says TEST practice / real adviser and [test data]; WRONG SIDE flags an item routed across the line; a top warning when SMC_TEST_BROKER_IDS names an id that is no broker.\n' +
   'Env: SMC_LEAD_ALERT_ENABLED=true (anything else: nothing runs and the state is dropped), SMC_OWNER_WHATSAPP / OPS_WHATSAPP_JONATHAN, TWILIO_CONTENT_SIDS (ops_update | ops_alert), EMMA_SHARED_SECRET (fallback), DRY_RUN_SENDS (the sender dry-runs: logged, watermark advances); SMC_TEST_BROKER_IDS / SMC_TEST_PHONES / SYNTHETIC_TEST_NUMBERS for the labels.\n' +
@@ -154,7 +157,9 @@ n.push(code(COMMIT, [1980, 0],
 // Sender ok (or EMMA 2xx on the fallback, or the dry-run stub): keep the new watermark. Anything else: keep the old one, so the next tick sends the same items.
 const sd = $getWorkflowStaticData('global');
 const p = $('${PLAN}').first().json;
-const c = L.commit(sd, p, $input.first().json || {}, new Date().toISOString());
+// the sender's own answer: when EMMA carried the tick, last.sender_error keeps why the WhatsApp rung said no
+let sender = null; try { sender = $('${OWNER_SEND}').first().json; } catch (_) { sender = null; }
+const c = L.commit(sd, p, $input.first().json || {}, new Date().toISOString(), sender);
 for (const k of Object.keys(sd)) delete sd[k];
 Object.assign(sd, c.state);
 if (c.dry_run) console.log('[W38 DRY_RUN_SENDS=true: logged, not sent]\\n' + p.message);

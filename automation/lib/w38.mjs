@@ -43,8 +43,15 @@ export const MAX_LINES = 25;
 export const MAX_CHARS = 3500; // EMMA keeps the first 4000
 export const ALERT_AFTER_FAILS = 3;
 export const KINDS = ['lead', 'booking', 'escalation', 'activity'];
-/** lead_activities rows the tick reports (W10 booking changes, smc-voice call-backs): the SQL's IN list in build-w38.mjs. */
-export const ACTIVITY_TYPES = ['booking_moved', 'booking_cancelled', 'voice_callback_requested', 'voice_callback_scheduled'];
+/**
+ * lead_activities rows the tick reports (W10 booking changes, smc-voice call-backs, W01 routing): the SQL's IN list in
+ * build-w38.mjs. `routed` (W01, key w01:routed:<lead>) closes the gap of 24 Oct: the lead line is written at the tick after
+ * the leads row ("not routed" for a Click-to-WhatsApp lead, routed only after /start/answers), and nothing said afterwards
+ * which adviser got it. A routed row that arrives in the same tick as its lead, whose line already says "routed to", is
+ * dropped (plan()), so a lead-ad lead stays one line.
+ */
+export const ACTIVITY_TYPES = ['booking_moved', 'booking_cancelled', 'voice_callback_requested', 'voice_callback_scheduled', 'routed'];
+const isRouted = (r) => r && r.kind === 'activity' && r.activity === 'routed';
 
 /** The two switches, read exactly as the other workflows read DRY_RUN_SENDS. */
 export const gates = (env = {}) => ({ enabled: env.SMC_LEAD_ALERT_ENABLED === 'true', dryRun: env.DRY_RUN_SENDS === 'true' });
@@ -95,8 +102,11 @@ export function plan(state = {}, rows = [], dbNow, opts = {}) {
   for (const r of fresh) seen[keyOf(r)] = Number.isFinite(ms(r.created_at)) ? ms(r.created_at) : now;
   const next = { watermark: new Date(wm).toISOString(), seen: prune(seen, wm) };
   if (!fresh.length) return { action: 'idle', next };
-  const message = format(fresh, opts); // opts.split_unknown_ids: the misconfiguration warning line
-  return { action: 'send', next, items: fresh.length, keys: fresh.map(keyOf), message, request: requestBody(message) };
+  // a `routed` row whose lead is in the same tick with its practice already set: the Lead line says "routed to ..." (one line, not two)
+  const covered = (r) => isRouted(r) && r.lead && fresh.some((x) => x.kind === 'lead' && x.lead === r.lead && x.practice);
+  const shown = fresh.filter((r) => !covered(r));
+  const message = format(shown, opts); // opts.split_unknown_ids: the misconfiguration warning line
+  return { action: 'send', next, items: shown.length, keys: fresh.map(keyOf), message, request: requestBody(message) };
 }
 
 /**
@@ -113,9 +123,12 @@ export function ownerItems(p = {}, env = {}) {
  * After the send: the sender's { ok: true } (external_id `dry:` = the DRY_RUN_SENDS / synthetic dry run), EMMA's 2xx on the
  * fallback, or the dry-run stub commits plan.next; anything else keeps the old watermark and seen map (the next tick sends
  * the same items again) and counts the failure.
+ * `sender` = the WhatsApp sender's own answer when the commit comes from the EMMA fallback: its error is kept as
+ * `last.sender_error` (EMMA carried the tick, so nothing else records why the WhatsApp rung said no).
  * -> { state, delivered, dry_run, status, channel, alert } (alert: the ALERT_AFTER_FAILS-th failure in a row; the run fails once -> W22).
  */
-export function commit(state = {}, p = {}, res = {}, nowIso = new Date().toISOString()) {
+const errorText = (r) => String((r && ((r.body && (r.body.error || r.body.message)) || (r.error && (r.error.message || r.error)))) || '');
+export function commit(state = {}, p = {}, res = {}, nowIso = new Date().toISOString(), sender = null) {
   const r = res || {};
   const viaSender = r.ok === true || r.ok === false; // smc-whatsapp-send Result { ok, external_id, error }
   const dry = r.dry_run === true || (viaSender && r.ok && /^dry:/.test(String(r.external_id || '')));
@@ -123,11 +136,13 @@ export function commit(state = {}, p = {}, res = {}, nowIso = new Date().toISOSt
   const status = r.dry_run === true ? Number(r.statusCode || 200) : viaSender ? (r.ok ? 200 : 0) : Number(r.statusCode || 0);
   if (dry || (status >= 200 && status < 300)) {
     const channel = dry ? 'dry' : viaSender ? 'whatsapp' : 'emma';
-    const last = { at: nowIso, items: p.items || 0, status, dry_run: dry, channel, ...(viaSender && r.external_id ? { external_id: String(r.external_id) } : {}), ...(dry ? { message: p.message } : {}) };
+    const senderError = channel === 'emma' && sender && sender.ok !== true ? (errorText(sender) || 'no answer').slice(0, 200) : null;
+    const last = { at: nowIso, items: p.items || 0, status, dry_run: dry, channel, ...(viaSender && r.external_id ? { external_id: String(r.external_id) } : {}),
+      ...(senderError ? { sender_error: senderError } : {}), ...(dry ? { message: p.message } : {}) };
     return { delivered: !dry, dry_run: dry, status, channel, alert: false, state: { ...p.next, fails: 0, last } };
   }
   const fails = (Number(state && state.fails) || 0) + 1;
-  const err = (viaSender && r.error) || (r.body && (r.body.error || r.body.message)) || (r.error && (r.error.message || r.error)) || '';
+  const err = (viaSender && r.error) || errorText(r);
   const last_error = { at: nowIso, status, detail: String(err).slice(0, 200) };
   return { delivered: false, dry_run: false, status, channel: null, alert: fails === ALERT_AFTER_FAILS, state: { ...state, fails, last_error } };
 }
@@ -189,7 +204,7 @@ const escText = (r) => {
   const k = safeLabel(r.esc_kind || '').trim().replace(/\s+/g, '_').toLowerCase().replace(/^_+|_+$/g, '');
   return ESC_LABEL[k] || (k ? k.replace(/_/g, ' ') : ESC_LABEL[String(r.esc || '')] || 'needs a person'); // an unknown token: its words, never free text
 };
-const ACTIVITY_LABEL = { booking_moved: 'Booking moved', booking_cancelled: 'Booking cancelled', voice_callback_requested: 'Call-back asked (phone)', voice_callback_scheduled: 'Missed call, automatic call-back set' };
+const ACTIVITY_LABEL = { booking_moved: 'Booking moved', booking_cancelled: 'Booking cancelled', voice_callback_requested: 'Call-back asked (phone)', voice_callback_scheduled: 'Missed call, automatic call-back set', routed: 'Routed' };
 
 /** One line per item. Only the allowed fields are ever read. */
 export function line(r = {}) {
@@ -211,7 +226,8 @@ export function line(r = {}) {
   if (r.kind === 'activity') {
     const label = ACTIVITY_LABEL[r.activity] || safeLabel(String(r.activity || '').replace(/_/g, ' ')) || 'Update';
     const when = r.activity === 'booking_moved' && r.at ? `, to ${sastText(r.at)}` : '';
-    const practice = r.practice ? `, with ${practiceText(r)}` : '';
+    // routed: "to <practice> (real adviser)" is the point of the line (the side label + WRONG SIDE flag come with it)
+    const practice = r.practice ? `, ${isRouted(r) ? 'to' : 'with'} ${practiceText(r)}` : isRouted(r) ? ', practice not found' : '';
     return `- ${label}: ${firstName(r.first_name)}${when}, ${phone}${practice}${test}`;
   }
   const src = sourceText(r);
@@ -222,9 +238,10 @@ export function line(r = {}) {
 /** The message for a tick's new items (oldest first), plain text, at most MAX_LINES lines and MAX_CHARS characters. */
 export function format(items = [], opts = {}) {
   const count = (k) => items.filter((r) => r.kind === k).length;
+  const routed = items.filter(isRouted).length;
   const n = (k, one, many) => (k ? `${k} ${k === 1 ? one : many}` : null);
-  const head = `SortMyCover: ${[n(count('lead'), 'new lead', 'new leads'), n(count('booking'), 'new booking', 'new bookings'),
-    n(count('activity'), 'booking change', 'booking changes'), n(count('escalation'), 'needs a person', 'need a person')].filter(Boolean).join(', ')}`;
+  const head = `SortMyCover: ${[n(count('lead'), 'new lead', 'new leads'), n(routed, 'lead routed', 'leads routed'), n(count('booking'), 'new booking', 'new bookings'),
+    n(count('activity') - routed, 'booking change', 'booking changes'), n(count('escalation'), 'needs a person', 'need a person')].filter(Boolean).join(', ')}`;
   const lines = items.slice(0, MAX_LINES).map(line);
   if (items.length > MAX_LINES) lines.push(`...and ${items.length - MAX_LINES} more (see the CRM)`);
   let text = [head, ...(opts && opts.split_unknown_ids === true ? [SPLIT_WARNING] : []), ...lines].join('\n');

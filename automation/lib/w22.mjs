@@ -8,14 +8,18 @@
 //   - WhatsApp to the owner (lib/owner-alert.mjs: SMC_OWNER_WHATSAPP / OPS_WHATSAPP_JONATHAN, + OPS_WHATSAPP_KG for `to: both`)
 //     through smc-whatsapp-send for EVERY alert, red and amber (owner rule, 24 Oct 2026: every SortMyCover notification is a
 //     WhatsApp to Jono from the SMC number), with the utility template ops_update once TWILIO_CONTENT_SIDS has its SID, else
-//     the approved ops_alert; no SID at all -> email only. Two exceptions stay email-only: a synthetic signal
-//     (SYNTHETIC_TEST_NUMBERS) and the sender's own `whatsapp_send_failed` (EMAIL_ONLY_SIGNALS: W22 can never loop on WhatsApp).
+//     the approved ops_alert; no SID at all -> email only. Three exceptions stay email-only: a synthetic signal
+//     (SYNTHETIC_TEST_NUMBERS), the sender's own `whatsapp_send_failed` and an n8n failure of the sender workflow itself
+//     (emailOnly(): W22 can never loop on WhatsApp).
 // Alerts never carry a lead's name, phone, email or ID number (redact()).
 import { ownerAlert, hasOwnerTemplate, redact } from './owner-alert.mjs';
 export { redact };
 export const DEDUPE_MS = 24 * 3600_000;
 /** Never a WhatsApp, whatever the severity: the WhatsApp sender's own failure (a WhatsApp about it could fail the same way). */
 export const EMAIL_ONLY_SIGNALS = new Set(['whatsapp_send_failed']);
+/** The same rule for the Error Trigger: an n8n failure OF smc-whatsapp-send (scope workflow:<id|name>:<node>) must not be sent through it. */
+export const SENDER_WORKFLOW_SCOPE = /^workflow:(smc-whatsapp-send|WhatsApp Send):/;
+export const emailOnly = (s = {}) => EMAIL_ONLY_SIGNALS.has(s.signal_key) || (s.signal_key === 'workflow_failed' && SENDER_WORKFLOW_SCOPE.test(String(s.scope || '')));
 // A failure here touches a lead or a booking now: red (WhatsApp + email). Any other workflow failing: amber (email).
 export const CRITICAL_WORKFLOWS = /^(W01|W02|W03|W04|W05|W06|W07|W09|W10|W15|W28|WhatsApp Send|Email Verify)\b/;
 export const PARTNERS = ['jonathan', 'kg'];
@@ -144,7 +148,7 @@ export function plan(s, env = {}, now = Date.now()) {
       idempotency_key: `w22:${key}:${day}`.slice(0, 256) } });
   }
   // Owner rule (24 Oct 2026): every alert is a WhatsApp to the owner, amber too; the 24-h dedupe above keeps the volume down.
-  if (!s.synthetic && !EMAIL_ONLY_SIGNALS.has(s.signal_key) && hasOwnerTemplate(env)) {
+  if (!s.synthetic && !emailOnly(s) && hasOwnerTemplate(env)) {
     for (const who of s.recipients.length ? s.recipients : ['jonathan']) {
       const items = ownerAlert({ what: `${label}: ${sentence(s.what, 180)}`, detail: sentence(s.impact || s.first_action || 'See the email for details', 300),
         who: who === 'kg' ? 'kg' : 'owner', source: 'W22', key: `${key}:${day}` }, env);
