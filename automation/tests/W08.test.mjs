@@ -339,3 +339,103 @@ test('review #13: a restarted sequence\'s nudges all land before W10\'s 96 h C1A
   const plain = N.nurturePlan({ id: 'l', origin: 'web', conv_state: { state: 'unbooked' }, first_message_at: '2026-10-01T08:00:00Z', cancelled_at: '2026-10-19T08:00:00Z' });
   assert.deepEqual(plain.steps.map((s) => (s.due_ms - Date.parse('2026-10-19T08:00:00Z')) / N.H), [2, 24, 72]);
 });
+
+// ---------- 30-minute "where you left off" nudge (Jono, 24 Oct 2026): the page was opened, nothing booked ----------
+const pageLead = (over = {}) => startLead({ broker_id: 'b1', conv_state: { state: 'unbooked', via: 'start_page' }, page_last_at: '2026-10-20T08:08:00+02:00', ...over });
+
+test('page opened: the first nudge is start_nudge_30m 30 min after the last page activity, then +24 h / final as before; no page -> the 2-h timing', () => {
+  const p = N.nurturePlan(pageLead());
+  assert.equal(p.track, 'start_ctwa');
+  assert.deepEqual(p.steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_30m', '2026-10-20T08:38'], ['start_nudge_24h', '2026-10-21T08:00'], ['start_nudge_final', '2026-10-22T19:30']]);
+  assert.equal(SAST_ISO(p.close_ms), '2026-10-23T19:30');
+  assert.deepEqual(N.nurturePlan(startLead()).steps.map((s) => s.touch), ['start_nudge_2h', 'start_nudge_24h', 'start_nudge_final'], 'never opened the page: unchanged');
+  assert.equal(N.nurturePlan(startLead({ page_last_at: 'not a date' })).steps[0].touch, 'start_nudge_2h');
+  assert.equal(N.nurturePlan(pageLead({ origin: 'lead_ad' })).steps[0].touch, 'start_nudge_30m', 'form leads on the start track too');
+  // a late page visit: the 30-min card first, the +24 h nudge at least MIN_NUDGE_GAP after it, the last one still inside the free window
+  const late = N.nurturePlan(pageLead({ page_last_at: '2026-10-21T07:50:00+02:00' }));
+  assert.deepEqual(late.steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_30m', '2026-10-21T08:20'], ['start_nudge_24h', '2026-10-21T14:20'], ['start_nudge_final', '2026-10-22T19:30']]);
+  for (let i = 1; i < late.steps.length; i++) assert.ok(late.steps[i].due_ms - late.steps[i - 1].due_ms >= N.MIN_NUDGE_GAP, 'never two within 6 h');
+  assert.ok(late.steps.every((s) => s.due_ms < Date.parse('2026-10-20T08:00:00+02:00') + N.CTWA_WINDOW));
+  // page activity stamped before the card (clock skew) counts from the card; contact hours still apply (a page left at 21:00 -> 08:00)
+  assert.equal(SAST_ISO(N.nurturePlan(pageLead({ page_last_at: '2026-10-20T07:00:00+02:00' })).steps[0].due_ms), '2026-10-20T08:30');
+  assert.equal(SAST_ISO(N.nurturePlan(pageLead({ page_last_at: '2026-10-20T21:00:00+02:00' })).steps[0].due_ms), '2026-10-21T08:00');
+  // the unbooked track (W06 intro sent) never gets it
+  assert.equal(N.nurturePlan(l02({ page_last_at: '2026-10-12T10:00:00+02:00' })).steps[0].touch, 'unbooked_nudge_2h');
+});
+
+test('30-min nudge: the smc_start_cta session card with the left-off words (adviser chosen or not), the start_nudge_2h template outside the window, its own idempotency key', () => {
+  const at = Date.parse('2026-10-20T08:40:00+02:00');
+  const d = N.due(pageLead(), ctx({ broker: { contact_person: 'Mark Weston' }, last_inbound_ms: Date.parse('2026-10-20T08:00:00+02:00') }), at);
+  assert.equal(d.action, 'send'); assert.equal(d.touch, 'start_nudge_30m'); assert.equal(d.kind, 'start'); assert.equal(d.channel, 'session');
+  assert.equal(d.idempotency_key, 'w08:lead_start:start_nudge_30m'); assert.equal(d.template, 'start_nudge_2h'); assert.equal(d.banner, 'welcome');
+  assert.equal(d.session.body, 'Hi Naledi, you got as far as choosing Mark as your adviser, an authorised financial adviser. Tap below to finish where you left off and book your 30-minute call, on Microsoft Teams or by phone. No obligation.');
+  assert.doesNotMatch(d.session.body, /\bfree\b|\bAI\b|Lead Velocity|licensed|STOP/i, 'client wording rules');
+  assert.deepEqual(d.buttons, [['not_now', 'Not now']]);
+  const tok = 'lt1.abcdefghijklmnop.qrstuvwxyz0123';
+  const wa = N.startPayload({ ...d, phone: '+27 82 123 4567' }, tok);
+  assert.equal(wa.interactive.type, 'cta_url'); assert.equal(wa.interactive.body.text, d.session.body); assert.equal(wa.interactive.action.parameters.url, N.START_LINK + tok);
+  assert.deepEqual(P.startCtaContent(wa.interactive), { key: 'smc_start_cta', vars: { 1: d.session.body, 2: tok } }, 'Twilio: the smc_start_cta Content carries the words');
+  // the page was opened but no adviser confirmed yet
+  const g = N.due(pageLead({ broker_id: null }), ctx({ broker: {}, last_inbound_ms: Date.parse('2026-10-20T08:00:00+02:00') }), at);
+  assert.equal(g.session.body, 'Hi Naledi, you got as far as the booking page. Tap below to finish where you left off and book your 30-minute call with an authorised financial adviser, on Microsoft Teams or by phone. No obligation.');
+  // the 24-h window closed (last inbound more than 24 h ago): the approved start_nudge_2h template, same banner, token and reply
+  const t = N.due(pageLead({ created_at: '2026-10-19T08:00:00+02:00' }), ctx({ broker: { contact_person: 'Mark Weston' }, last_inbound_ms: Date.parse('2026-10-19T08:00:00+02:00') }), at);
+  assert.equal(t.touch, 'start_nudge_30m'); assert.equal(t.channel, 'template'); assert.equal(t.template, 'start_nudge_2h'); assert.deepEqual(t.vars, ['Naledi', 'Mark']);
+  const tp = N.startPayload({ ...t, phone: '+27821234567' }, tok);
+  assert.equal(tp.template.name, 'start_nudge_2h'); assert.match(tp.template.components[0].parameters[0].image.link, /header-welcome\.png$/);
+  assert.equal(tp.template.components[3].parameters[0].payload, 'not_now:lead_start');
+});
+
+test('one first nudge: a 2-h nudge already sent satisfies the 30-min one (and the other way round); the rest of the sequence is unchanged', () => {
+  const c = ctx({ broker: { contact_person: 'Mark Weston' } });
+  const after2h = N.due(pageLead({ page_last_at: '2026-10-20T10:05:00+02:00' }), { ...c, sent: new Set(['start_nudge_2h']) }, Date.parse('2026-10-20T10:40:00+02:00'));
+  assert.equal(after2h.action, 'wait'); assert.equal(after2h.touch, 'start_nudge_24h', 'the page was opened after the 2-h nudge: no second first nudge');
+  const after30 = N.due(pageLead(), { ...c, sent: new Set(['start_nudge_30m']) }, Date.parse('2026-10-20T10:30:00+02:00'));
+  assert.equal(after30.action, 'wait'); assert.equal(after30.touch, 'start_nudge_24h');
+  const d24 = N.due(pageLead(), { ...c, sent: new Set(['start_nudge_30m']) }, Date.parse('2026-10-21T08:01:00+02:00'));
+  assert.equal(d24.action, 'send'); assert.equal(d24.touch, 'start_nudge_24h'); assert.equal(d24.idempotency_key, 'w08:lead_start:start_nudge_24h');
+  assert.equal(N.due(pageLead(), { ...c, sent: new Set(['start_nudge_30m', 'start_nudge_24h', 'start_nudge_final']) }, Date.parse('2026-10-23T19:31:00+02:00')).action, 'close');
+  assert.equal(N.due(pageLead(), { ...c, has_live_booking: true }, Date.parse('2026-10-20T08:40:00+02:00')).reason, 'booked', 'booked from the page: nothing');
+});
+
+test('review 24 Oct: a page visit after the first nudge changes nothing (the +24 h and final keep their times, a CTWA final is never dropped), and no nudge goes within MIN_NUDGE_GAP of the last one actually sent', () => {
+  const c = ctx({ broker: { contact_person: 'Mark Weston' } });
+  const mon = pageLead({ created_at: '2026-10-19T08:00:00+02:00', page_last_at: null }); // Mon 08:00: 2h Mon 10:00, 24h Tue 08:00, final Wed 19:30 (68 h = Thu 04:00, back inside the 72-h window)
+  assert.deepEqual(N.nurturePlan(mon).steps.map((s) => [s.touch, SAST_ISO(s.due_ms)]), [['start_nudge_2h', '2026-10-19T10:00'], ['start_nudge_24h', '2026-10-20T08:00'], ['start_nudge_final', '2026-10-21T19:30']]);
+  const two = { ...c, sent: new Set(['start_nudge_2h', 'start_nudge_24h']), last_nudge_ms: Date.parse('2026-10-20T08:00:00+02:00') };
+  // a Wed 18:00 visit after both went out: the final still goes Wed 19:30 (before: the plan became [30m@18:30] alone and waited for ever)
+  const wed = { ...mon, page_last_at: '2026-10-21T18:00:00+02:00' };
+  assert.deepEqual(N.due(wed, two, Date.parse('2026-10-21T19:00:00+02:00')), { action: 'wait', touch: 'start_nudge_final', due_ms: Date.parse('2026-10-21T19:30:00+02:00') });
+  const fin = N.due(wed, two, Date.parse('2026-10-21T19:31:00+02:00'));
+  assert.equal(fin.action, 'send'); assert.equal(fin.touch, 'start_nudge_final'); assert.equal(fin.idempotency_key, 'w08:lead_start:start_nudge_final');
+  assert.equal(N.due({ ...mon, page_last_at: '2026-10-21T07:00:00+02:00' }, two, Date.parse('2026-10-21T19:31:00+02:00')).touch, 'start_nudge_final', 'a Wed 07:00 visit: the same');
+  // a visit after the 2-h nudge only: the +24 h keeps Tue 08:00 (no second first nudge, no 6-h push)
+  const one = { ...c, sent: new Set(['start_nudge_2h']), last_nudge_ms: Date.parse('2026-10-19T10:00:00+02:00') };
+  const monPm = { ...mon, page_last_at: '2026-10-19T15:00:00+02:00' };
+  assert.deepEqual(N.due(monPm, one, Date.parse('2026-10-19T15:40:00+02:00')), { action: 'wait', touch: 'start_nudge_24h', due_ms: Date.parse('2026-10-20T08:00:00+02:00') });
+  assert.equal(N.due(monPm, one, Date.parse('2026-10-20T08:01:00+02:00')).touch, 'start_nudge_24h');
+  // the web track too: the final stays at +72 h (Thu 08:00), not 6 h later
+  assert.deepEqual(N.due({ ...wed, origin: 'page' }, two, Date.parse('2026-10-22T07:59:00+02:00')), { action: 'wait', touch: 'start_nudge_final', due_ms: Date.parse('2026-10-22T08:00:00+02:00') });
+  // the gap from the nudge actually sent: a 30-min card at Wed 08:20 (page 07:50, card Tue 08:00) -> the +24 h one (plan slot Wed 08:00) waits until 14:20
+  const late = pageLead({ page_last_at: '2026-10-21T07:50:00+02:00' });
+  const sent30 = { ...c, sent: new Set(['start_nudge_30m']), last_nudge_ms: Date.parse('2026-10-21T08:20:00+02:00') };
+  assert.deepEqual(N.due(late, sent30, Date.parse('2026-10-21T08:25:00+02:00')), { action: 'wait', reason: 'min gap', touch: 'start_nudge_24h', due_ms: Date.parse('2026-10-21T14:20:00+02:00') });
+  assert.equal(N.due(late, sent30, Date.parse('2026-10-21T14:21:00+02:00')).touch, 'start_nudge_24h');
+  // the same guard on the classic track; with no sent time on record (NaN) there is no guard, as before
+  const t24 = N.nurturePlan(l02()).steps[1].due_ms;
+  const g = N.due(l02(), { ...ctx(), sent: new Set(['unbooked_nudge_2h']), last_nudge_ms: t24 - N.H }, t24 + 60_000);
+  assert.equal(g.action, 'wait'); assert.equal(g.reason, 'min gap'); assert.equal(g.touch, 'unbooked_nudge_24h');
+  assert.equal(N.due(l02(), { ...ctx(), sent: new Set(['unbooked_nudge_2h']), last_nudge_ms: NaN }, t24 + 60_000).action, 'send');
+});
+
+test('W08.json: candidates carry page_last_at (W39 start_page_* / adviser_disclosed, never W01 start_page_pending) and last_nudge_at, Decide passes both, physical columns only', () => {
+  const wf = JSON.parse(readFileSync(new URL('../W08.json', import.meta.url), 'utf8'));
+  const q = wf.nodes.find((n) => /^Candidates/.test(n.name)).parameters.query;
+  // review 24 Oct: start_page_pending is W01's intake row (occurred_at = the insert), not a page visit; a lead with only that row keeps the 2-h timing
+  assert.match(q, /x\.activity_type LIKE 'start_page_%' OR x\.activity_type = 'adviser_disclosed'\)\s+AND x\.activity_type <> 'start_page_pending'\) AS page_last_at/);
+  assert.match(q, /x\.activity_type = 'nurture_sent' AND \(ca\.cancelled_at IS NULL OR x\.occurred_at >= ca\.cancelled_at\)\) AS last_nudge_at/, 'the same rows as sent');
+  const decide = wf.nodes.find((n) => n.name === 'Decide (w08.due)').parameters.jsCode;
+  assert.match(decide, /page_last_at: r\.page_last_at \|\| null/); assert.match(decide, /last_nudge_ms: r\.last_nudge_at \? Date\.parse\(r\.last_nudge_at\) : NaN/);
+  assert.deepEqual(checkSql(workflowSql(wf)), []);
+  assert.match(wf.nodes.find((n) => n.name === 'Sticky: read me').parameters.content, /start_nudge_30m/);
+});

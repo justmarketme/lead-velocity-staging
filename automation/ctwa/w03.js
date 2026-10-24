@@ -66,6 +66,62 @@ function consentV4(profileName) {
   return { version: CONSENT_V4_VERSION, mode: 'generic', yes: CONSENT_V4_YES,
     text: `${f ? `Thanks, ${f}.` : 'Thanks.'} Before we book your call, we need your consent (POPIA):\n\nDo you agree that SortMyCover may message you on WhatsApp to book and remind you about your call, and share your details with an authorised financial adviser who will contact you about it?\n\n${CONSENT_V4_FOOTER}` };
 }
+// ---------------------------------------------------------------- one-tap consent from the ad (Jono, 24 Oct 2026)
+// The click-to-WhatsApp ad's welcome message (Marketing API page_welcome_message: landing_screen_type welcome_message,
+// customer_action_type ice_breakers; automation/meta/ctwa-welcome-message.json + CTWA-WELCOME.md) shows the POPIA wording
+// BEFORE anything is sent, and its one ice breaker "Yes, I agree" becomes the person's first message. That first message IS
+// the consent: informed (the wording was on screen above the button), specific (it says what we do with the name and number),
+// voluntary (typing anything else instead gets the normal consent question). It is recorded exactly as a "Yes, I agree" tap
+// on the consent question would be: consent_text = the welcome wording (the referral's welcome_message.text when the provider
+// passes what was shown, else env SMC_CTWA_WELCOME_TEXT), version ctwa-icebreaker-v1, mode generic, consent_source = the
+// referral door (ctwa_ad). Needs referral data (a real click-to-WhatsApp entry) and the text to equal env
+// SMC_CTWA_ICEBREAKER_CONSENT after trim + case-fold; anything else keeps today's behaviour. When the referral's greeting and the
+// env wording both exist and differ (trim + case-fold) the ad drifted from the recorded version: the referral text is still what is
+// stored, and provenance.welcome_text_mismatch + a W22 signal (ctwa_welcome_text_mismatch) make the change-control slip visible.
+const ICEBREAKER_CONSENT_VERSION = 'ctwa-icebreaker-v1';
+const foldText = (s) => String(s || '').normalize('NFKC').trim().toLowerCase();
+/** First inbound of a new CTWA thread -> { version, mode, text, yes, shown_from } or null (not the ad's ice breaker). */
+function iceBreakerConsent(msg, ctx) {
+  const ib = (ctx && ctx.icebreaker) || {};
+  if (!msg || msg.type !== 'text' || !msg.referral || typeof msg.referral !== 'object') return null;
+  const want = foldText(ib.consent);
+  if (!want) return null; // env SMC_CTWA_ICEBREAKER_CONSENT unset = feature off
+  const body = msg.text && typeof msg.text === 'object' ? msg.text.body : msg.text;
+  if (foldText(body) !== want) return null;
+  const wm = msg.referral.welcome_message;
+  const fromReferral = wm && typeof wm === 'object' && String(wm.text || '').trim() ? String(wm.text) : '';
+  const fromEnv = String(ib.welcome || '');
+  const shown = fromReferral || fromEnv;
+  if (!shown.trim()) return null; // no wording on record = nothing to store as consent: the question is asked as before
+  const mismatch = !!(fromReferral && fromEnv.trim() && foldText(fromReferral) !== foldText(fromEnv));
+  return { version: ICEBREAKER_CONSENT_VERSION, mode: 'generic', text: shown, yes: CONSENT_V4_YES, shown_from: fromReferral ? 'referral' : 'env', mismatch };
+}
+
+// ---------------------------------------------------------------- consent-stall re-asks (Jono, 24 Oct 2026)
+// A thread left at await_consent gets ONE friendly re-ask 2 h after the consent question was read (or sent, with no read
+// receipt) and a last one at 20 h, both inside the 24-h session window the person's own message opened. W03.json's own
+// 5-minute trigger claims the due threads (the UPDATE on wa_threads.stall_due_at + state.consent_reasks) and sends through the
+// same reply claim / sender / outbound log as every other W03 reply (reply key reask:<first inbound sid>:<n>). Before this the
+// consent question scheduled no stall at all (stall_due_at stayed NULL), so nobody was ever re-asked.
+const CONSENT_STALL_HOURS = [2, 20];
+const CONSENT_REASK_MAX = CONSENT_STALL_HOURS.length;
+const REASK_EN = {
+  1: (yes) => `Hi there, Lindi from SortMyCover here. Just checking you saw my message above. Before we can book your call, we need your consent (POPIA): that SortMyCover may message you on WhatsApp about your call and share your details with an authorised financial adviser who will contact you about it. Tap below, or reply "${yes}". Reply STOP to opt out.`,
+  2: (yes) => `Hi there, one last check from Lindi at SortMyCover. If you'd still like to talk to an authorised financial adviser about your cover, tap below or reply "${yes}" and I'll help you book your 30-minute call. If not, no problem, we won't message again. Reply STOP to opt out.`,
+};
+/**
+ * One claimed row of "Stalled consent threads" ({ n (1-based re-ask number), state (the thread), first_wamid }) -> the send action
+ * for W03's 'Action?' fan-out, or null (past the last re-ask, or a thread that is not waiting for consent).
+ */
+function consentReask(row) {
+  const n = Number(row && row.n);
+  const t = (row && row.state) || {};
+  if (!Number.isInteger(n) || n < 1 || n > CONSENT_REASK_MAX || t.stage !== 'await_consent') return null;
+  const yes = (t.consent && t.consent.yes) || CONSENT_YES;
+  const key = `reask:${row.first_wamid || (t.first_wamid || 'none')}:${n}`;
+  return { kind: 'send', n, reply_key: key, message: buttons(REASK_EN[n](yes).slice(0, WA_BUTTON_BODY_MAX), [['consent_yes', yes], ['consent_no', 'No thanks']]) };
+}
+
 function consentFor(mode, broker) {
   if (mode === 'generic') return { version: CONSENT_GENERIC_VERSION, mode: 'generic', text: CONSENT_GENERIC_TEXT };
   if (!broker || !broker.practice_name || !broker.fsp_number) return null; // named mode needs a named broker
@@ -336,7 +392,7 @@ function step(thread, msg, ctx) {
   // a stored placeholder ({ stage: 'none' }, written before I-47a when there was no thread) counts as no thread
   const t = thread && thread.stage && thread.stage !== 'none' ? { ...thread, answers: { ...(thread.answers || {}) } } : null;
   const send = (m) => actions.push({ kind: 'send', message: m });
-  const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });
+  const stall = (stage, hours = STALL_HOURS) => actions.push({ kind: 'schedule_stall', stage, hours, from: ctx.at, replaces: true });
 
   // I-47b: no brand row for the receiving number -> log + W22 signal; never stop silently, never store a thread.
   if (!ctx.brand || !ctx.brand.brand_id) return { thread: null, no_thread: true, actions: [{ kind: 'log_no_brand', phone_number_id: ctx.phone_number_id || null },
@@ -361,12 +417,16 @@ function step(thread, msg, ctx) {
     const firstText = origin.text_without_ref;
     delete origin.text_without_ref; // the thread is stored (wa_threads.state, "no PII in state"): the message text stays on the inbound row
     if (op) return openerIntake(op, origin, { ...ctx, referral: msg.referral || null, text: firstText }, actions);
+    // the ad's "Yes, I agree" ice breaker (referral + the configured text): consent given on first contact, no question
+    const ib = iceBreakerConsent(msg, ctx);
+    if (ib) return iceBreakerIntake(ib, origin, { ...ctx, referral: msg.referral, text: firstText }, actions);
     const consent = ctx.brand.start_page === true ? consentV4(ctx.profile_name) : consentFor(ctx.brand.consent_mode, ctx.broker);
     if (!consent) {
       send({ type: 'text', body: "Thanks for getting in touch. We can't take new enquiries right now. Please try again in a few days." });
       return { thread: { stage: 'closed', origin, closed_reason: 'no_named_broker', at: ctx.at }, actions: actions.concat([{ kind: 'alert', signal_key: 'ctwa_no_broker' }]) };
     }
     send(buttons(consent.text, [['consent_yes', consent.yes || CONSENT_YES], ['consent_no', 'No thanks']]));
+    stall('await_consent', CONSENT_STALL_HOURS); // +2 h / +20 h re-asks (W03.json "Every 5 minutes (consent stall)")
     return { thread: { stage: 'await_consent', origin, consent, answers: {}, first_at: ctx.at, broker_id: ctx.broker ? ctx.broker.broker_id : null,
       first_wamid: ctx.wamid || null, first_referral: msg.referral || null }, actions }; // no free text in thread state: the SID points at the stored inbound
   }
@@ -405,38 +465,77 @@ function step(thread, msg, ctx) {
       // business-messaging Lead (4.6: consent + valid number); needs Meta's ctwa_clid to attribute (W03-notes rule 1)
       // lead_id + ctwa_clid travel with it: smc-capi-send rejects a business_messaging event without them (invalid_input)
       if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging', lead_id: row.id, brand_id: row.brand_id, ctwa_clid: row.ctwa_clid });
-      t.stage = 'q_age';
-      t.lead_id = row.id;
-      // Capture Flow v2 (2026-10-07): when the brand has switched to the Flow and the workflow supplied a minted
-      // 'capture' flow_token, the consent tap opens the Flow instead of the tap-by-tap questions. Anything missing -> tap path.
-      const cf = ctx.brand.capture_ui === 'flow_v2' && ctx.capture_flow && ctx.capture_flow.flow_id && ctx.capture_flow.flow_token ? ctx.capture_flow : null;
-      if (cf) {
-        t.stage = 'capture_flow';
-        row.conv_state = { state: 'capture_flow' };
-        row.wa_id = ctx.mobile.replace(/^\+/, ''); row.wa_verified = true; // the inbound message itself proves the WhatsApp number
-        send({ type: 'flow', body: `Thanks${ctx.profile_name ? ` ${String(ctx.profile_name).split(/\s+/)[0]}` : ''}. A few quick taps and you can pick a time with an adviser.`, flow: { flow_id: cf.flow_id, flow_token: cf.flow_token, flow_cta: 'Start', flow_action: 'navigate', screen: 'REASONS' } });
-        stall('capture_flow');
-        return { thread: t, actions };
-      }
-      if (ctx.brand.capture_ui === 'flow_v2') actions.push({ kind: 'log', reason: 'capture_flow_unavailable_tap_path' });
-      const sp = startPageToken(ctx);
-      if (sp) {
-        t.stage = 'start_page';
-        row.conv_state = { state: 'start_page' };
-        send(startPageMessage(sp, ctx));
-        stall('start_page');
-        return { thread: t, actions };
-      }
-      row.conv_state = { state: 'q_age' }; // I-48k: W03 owns leads.conv_state.state while qualifying
-      send(question('q_age'));
-      stall('q_age');
-      return { thread: t, actions };
+      return afterConsent(t, row, ctx, actions);
     }
     send(buttons(t.consent.text, [['consent_yes', t.consent.yes || CONSENT_YES], ['consent_no', 'No thanks']])); // free text before consent: ask again
+    stall('await_consent', CONSENT_STALL_HOURS); // the re-asks count from this question (state.consent_reasks is kept: still at most two)
     return { thread: t, actions };
   }
 
   return qualify(t, msg, ctx, actions);
+}
+
+/** Consent is recorded (a tap, a typed yes, or the ad's ice breaker): the capture Flow, the /start/ card, or the first tap question. */
+function afterConsent(t, row, ctx, actions) {
+  const send = (m) => actions.push({ kind: 'send', message: m });
+  const stall = (stage) => actions.push({ kind: 'schedule_stall', stage, hours: STALL_HOURS, from: ctx.at, replaces: true });
+  t.stage = 'q_age';
+  t.lead_id = row.id;
+  // Capture Flow v2 (2026-10-07): when the brand has switched to the Flow and the workflow supplied a minted
+  // 'capture' flow_token, the consent tap opens the Flow instead of the tap-by-tap questions. Anything missing -> tap path.
+  const cf = ctx.brand.capture_ui === 'flow_v2' && ctx.capture_flow && ctx.capture_flow.flow_id && ctx.capture_flow.flow_token ? ctx.capture_flow : null;
+  if (cf) {
+    t.stage = 'capture_flow';
+    row.conv_state = { state: 'capture_flow' };
+    row.wa_id = ctx.mobile.replace(/^\+/, ''); row.wa_verified = true; // the inbound message itself proves the WhatsApp number
+    send({ type: 'flow', body: `Thanks${ctx.profile_name ? ` ${String(ctx.profile_name).split(/\s+/)[0]}` : ''}. A few quick taps and you can pick a time with an adviser.`, flow: { flow_id: cf.flow_id, flow_token: cf.flow_token, flow_cta: 'Start', flow_action: 'navigate', screen: 'REASONS' } });
+    stall('capture_flow');
+    return { thread: t, actions };
+  }
+  if (ctx.brand.capture_ui === 'flow_v2') actions.push({ kind: 'log', reason: 'capture_flow_unavailable_tap_path' });
+  const sp = startPageToken(ctx);
+  if (sp) {
+    t.stage = 'start_page';
+    row.conv_state = { state: 'start_page' };
+    send(startPageMessage(sp, ctx));
+    stall('start_page');
+    return { thread: t, actions };
+  }
+  row.conv_state = { state: 'q_age' }; // I-48k: W03 owns leads.conv_state.state while qualifying
+  send(question('q_age'));
+  stall('q_age');
+  return { thread: t, actions };
+}
+
+/**
+ * The ad's ice breaker as the first message (iceBreakerConsent): the lead row now, consent = the welcome wording the person
+ * read above the button, evidence = this inbound (sid + the tapped words in provenance.opener_text / lead_optins.opener_text,
+ * consent_method 'icebreaker'), then the normal post-consent path, with no consent question in between.
+ */
+function iceBreakerIntake(ib, origin, ctx, actions) {
+  const row = {
+    id: ctx.lead_id, brand_id: ctx.brand.brand_id, origin: origin.origin || 'ctwa', ref: origin.ref || null, ad_id: origin.ad_id || null,
+    ctwa_clid: origin.ctwa_clid || null, phone: ctx.mobile, first_name: cleanName(ctx.profile_name),
+    consent_text: ib.text, consent_text_version: ib.version, consent_mode: ib.mode,
+    consent_at: ctx.at, consent_source: 'ctwa', verified_at: ctx.at, wa_delivered_at: ctx.at, stage: 'verified',
+    is_synthetic: !!ctx.is_synthetic,
+  };
+  row.provenance = provenanceFor({ origin, referral: ctx.referral, wamid: ctx.wamid, at: ctx.at, text: ctx.text, version: ib.version });
+  row.provenance.first_inbound_sid = ctx.wamid || null;
+  row.provenance.consent_method = 'icebreaker';
+  row.provenance.welcome_text_from = ib.shown_from; // 'referral' = the words Meta says were shown; 'env' = SMC_CTWA_WELCOME_TEXT
+  if (ib.mismatch) row.provenance.welcome_text_mismatch = true; // the ad's greeting is not the recorded wording (stored as shown; W22 signal below)
+  row.consent_source = row.provenance.door;
+  row.optin = optinRecord(row);
+  actions.push({ kind: 'insert_lead', row });
+  if (ib.mismatch) actions.push({ kind: 'alert', signal_key: 'ctwa_welcome_text_mismatch', scope: `ad:${row.ad_id || 'none'}`, severity: 'amber', source: 'W03',
+    what: 'A click-to-WhatsApp ad greeting (referral.welcome_message.text) differs from SMC_CTWA_WELCOME_TEXT',
+    impact: "ctwa-icebreaker-v1 consents from this ad store the ad's own wording (provenance.welcome_text_mismatch): one version now covers two texts",
+    first_action: 'Align the ad greeting, SMC_CTWA_WELCOME_TEXT and automation/meta/ctwa-welcome-message.json; bump ICEBREAKER_CONSENT_VERSION if the change was meant' });
+  if (row.ctwa_clid) actions.push({ kind: 'capi', event_name: 'Lead', event_id: `evt_${row.id}_ctwa_lead`, action_source: 'business_messaging', lead_id: row.id, brand_id: row.brand_id, ctwa_clid: row.ctwa_clid });
+  const t = { stage: 'await_consent', origin, consent: { version: ib.version, mode: ib.mode, text: ib.text, yes: ib.yes }, answers: {}, first_at: ctx.at,
+    broker_id: ctx.broker ? ctx.broker.broker_id : null, first_wamid: ctx.wamid || null, first_referral: ctx.referral || null };
+  return afterConsent(t, row, ctx, actions);
 }
 
 /**
@@ -624,4 +723,4 @@ function toCloudApi(to, m) {
   return { ...base, type: 'interactive', interactive: { type: 'list', body: { text: m.body }, action: { button: m.button.slice(0, 20), sections: [{ title: 'Options', rows: m.rows.map((r) => ({ id: r.id, title: r.title.slice(0, 24) })) }] } } };
 }
 
-module.exports = { cleanName, typedConsent, consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
+module.exports = { iceBreakerConsent, ICEBREAKER_CONSENT_VERSION, consentReask, CONSENT_STALL_HOURS, CONSENT_REASK_MAX, cleanName, typedConsent, consentV4, CONSENT_V4_VERSION, CONSENT_V4_FOOTER, startPageBody, startPageMessage, START_PAGE_STEPS, START_PAGE_LINK, START_PAGE_HEADER, START_PAGE_BUTTON, parseOpener, openerGreeting, provenanceFor, optinRecord, OPENER_RE, OPENER_CONSENT_VERSION, OPENER_CONSENT_SOURCE, BUDGET_ROWS, QUAL_BUDGET, LOW_BUDGET, typedTap, threadFromLead, hopNext, MAX_HOPS, Q_STAGES, NEXT_STATE, redirectFor, readOrigin, consentFor, CONSENT_NAMED_VERSION, CONSENT_GENERIC_VERSION, CONSENT_NAMED_FOOTER, WA_BUTTON_BODY_MAX, step, question, tapId, toCloudApi, hashMobile, CONSENT_GENERIC_TEXT, AGE_TO_DB, BUDGET_TO_DB, METHOD_TO_DB, STALL_HOURS, REDIRECT_REF_RE };
