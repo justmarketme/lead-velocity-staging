@@ -3,6 +3,7 @@
 #   bash scripts/go-live-20261024.sh                  # steps 1-4, asks before each one (Enter = yes, n = skip)
 #   bash scripts/go-live-20261024.sh db|vps|portal|template      # one step only
 #   bash scripts/go-live-20261024.sh switch-on HXxxxxxxxx        # LATER, once Meta approves broker_lead_routed
+#   GO_LIVE_YES=1 bash scripts/go-live-20261024.sh               # same, no questions (a Claude session on the laptop)
 # Steps:
 #   1 db        broker visibility change (docs/APPLY-LIVE-20261024-broker-visibility.sql) + check. Safe to re-run.
 #   2 vps       ship this branch to the VPS n8n, import + publish W01 W03 W41. From then on a consented WhatsApp-ad client is
@@ -27,7 +28,9 @@ say()  { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 ok()   { printf '   \033[32mOK\033[0m %s\n' "$*"; }
 warn() { printf '   \033[33m!!\033[0m %s\n' "$*"; }
 die()  { printf '   \033[31mSTOPPED\033[0m %s\n' "$*"; exit 1; }
-ask()  { local a; read -r -p "   $1 [Y/n] " a </dev/tty || a=n; [[ ! "$a" =~ ^[Nn] ]]; }
+# GO_LIVE_YES=1: answer yes to every question (for a Claude session or any run without a keyboard; without it a run with
+# no terminal answers no and skips the step)
+ask()  { local a; if [ "${GO_LIVE_YES:-}" = 1 ]; then printf '   %s [yes: GO_LIVE_YES=1]\n' "$1"; return 0; fi; read -r -p "   $1 [Y/n] " a </dev/tty || a=n; [[ ! "$a" =~ ^[Nn] ]]; }
 envget() { [ -f .env ] && grep -E "^$1=" .env | tail -1 | cut -d= -f2- | tr -d '\r' | sed -E "s/^['\"]|['\"]$//g" || true; }
 # Set KEY=VALUE in the VPS .env (value travels base64, so JSON and quotes survive), keep a dated backup.
 vps_set() {
