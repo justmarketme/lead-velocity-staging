@@ -5,14 +5,24 @@
 // by other workflows (Execute Workflow, the producer contract in W22.md). Each one becomes at most ONE alert per 24 h
 // (key signal_key|scope|severity, kept in the workflow's static data; no ops schema). Delivery:
 //   - email to OPS_ALERT_EMAIL through the smc-email-send relay (Resend, SortMyCover <hello@sortmycover.co.za>), every alert;
-//   - WhatsApp to OPS_WHATSAPP_JONATHAN / OPS_WHATSAPP_KG through smc-whatsapp-send, red alerts (and notify_now) only, with
-//     the utility template ops_alert once TWILIO_CONTENT_SIDS has its SID (until then: email only).
+//   - WhatsApp to the owner (lib/owner-alert.mjs: SMC_OWNER_WHATSAPP / OPS_WHATSAPP_JONATHAN, + OPS_WHATSAPP_KG for `to: both`)
+//     through smc-whatsapp-send for EVERY alert, red and amber (owner rule, 24 Oct 2026: every SortMyCover notification is a
+//     WhatsApp to Jono from the SMC number), with the utility template ops_update once TWILIO_CONTENT_SIDS has its SID, else
+//     the approved ops_alert; no SID at all -> email only. Three exceptions stay email-only: a synthetic signal
+//     (SYNTHETIC_TEST_NUMBERS), the sender's own `whatsapp_send_failed` and an n8n failure of the sender workflow itself
+//     (emailOnly(): W22 can never loop on WhatsApp).
 // Alerts never carry a lead's name, phone, email or ID number (redact()).
+import { ownerAlert, hasOwnerTemplate, redact } from './owner-alert.mjs';
+export { redact };
 export const DEDUPE_MS = 24 * 3600_000;
+/** Never a WhatsApp, whatever the severity: the WhatsApp sender's own failure (a WhatsApp about it could fail the same way). */
+export const EMAIL_ONLY_SIGNALS = new Set(['whatsapp_send_failed']);
+/** The same rule for the Error Trigger: an n8n failure OF smc-whatsapp-send (scope workflow:<id|name>:<node>) must not be sent through it. */
+export const SENDER_WORKFLOW_SCOPE = /^workflow:(smc-whatsapp-send|WhatsApp Send):/;
+export const emailOnly = (s = {}) => EMAIL_ONLY_SIGNALS.has(s.signal_key) || (s.signal_key === 'workflow_failed' && SENDER_WORKFLOW_SCOPE.test(String(s.scope || '')));
 // A failure here touches a lead or a booking now: red (WhatsApp + email). Any other workflow failing: amber (email).
 export const CRITICAL_WORKFLOWS = /^(W01|W02|W03|W04|W05|W06|W07|W09|W10|W15|W28|WhatsApp Send|Email Verify)\b/;
 export const PARTNERS = ['jonathan', 'kg'];
-const NAME = { jonathan: 'Jono', kg: 'KG' };
 
 // Registered producer signals: defaults under the producer's own fields (W20, W27, W30/W31, W34). Unregistered keys pass through.
 export const PRODUCER_SIGNALS = {
@@ -32,11 +42,7 @@ export const PRODUCER_SIGNALS = {
   w34_monthly_report: { severity: 'amber', to: 'jonathan', scope: 'w34:monthly', source: 'W34', what: 'W34 monthly POPIA report ready', impact: 'Monthly POPIA evidence', first_action: 'Read the monthly report' },
 };
 
-const EMAIL = /([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9])[A-Za-z0-9.-]*\.([A-Za-z]{2,})/g;
-const SA_ID = /(?<!\d)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{7}(?!\d)/g;
-const PHONE = /(?<![\w./-])(\+?(?:27|0)[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{4})(?![\w])/g;
-/** Mask emails, SA phone numbers and SA ID numbers (an alert never carries a lead's contact details). */
-export const redact = (s) => String(s == null ? '' : s).replace(EMAIL, '$1***@$2***.$3').replace(SA_ID, '[id]').replace(PHONE, '[phone]');
+// redact(): lib/owner-alert.mjs (emails, SA phone numbers, SA ID numbers), re-exported above for the existing callers.
 const clip = (s, n) => { const t = redact(s).replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
 
 /**
@@ -106,16 +112,16 @@ export function dedupe(sent = {}, key, now = Date.now()) {
   return { send: true, sent: fresh };
 }
 
-const contentSids = (env) => { try { const o = JSON.parse(env.TWILIO_CONTENT_SIDS || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } };
 const sentence = (s, n) => clip(s, n).replace(/[.\s]+$/, '');
 const sast = (iso) => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t + 2 * 3600_000).toISOString().slice(0, 16).replace('T', ' ') + ' SAST' : String(iso); };
 
 /**
  * A signal that passed the dedupe -> the items W22 sends:
  *   { channel: 'email', key, relay: { body, idempotency_key } }       (always, when OPS_ALERT_EMAIL is set)
- *   { channel: 'whatsapp', key, who, send: <smc-whatsapp-send input> } (red / notify_now, per recipient with a number,
- *                                                                        only once TWILIO_CONTENT_SIDS has ops_alert;
- *                                                                        never for a synthetic signal)
+ *   { channel: 'whatsapp', key, who, send: <smc-whatsapp-send input> } (EVERY alert since 24 Oct 2026, red and amber, per
+ *                                                                        recipient with a number, through lib/owner-alert.mjs,
+ *                                                                        once TWILIO_CONTENT_SIDS has ops_update or ops_alert;
+ *                                                                        never for a synthetic signal or EMAIL_ONLY_SIGNALS)
  */
 export function plan(s, env = {}, now = Date.now()) {
   const key = dedupeKey(s);
@@ -141,16 +147,12 @@ export function plan(s, env = {}, now = Date.now()) {
         text: lines.join('\n'), tags: [{ name: 'kind', value: 'ops_alert' }] },
       idempotency_key: `w22:${key}:${day}`.slice(0, 256) } });
   }
-  if ((s.severity === 'red' || s.notify_now) && !s.synthetic && contentSids(env).ops_alert) {
-    const phones = { jonathan: env.OPS_WHATSAPP_JONATHAN, kg: env.OPS_WHATSAPP_KG };
+  // Owner rule (24 Oct 2026): every alert is a WhatsApp to the owner, amber too; the 24-h dedupe above keeps the volume down.
+  if (!s.synthetic && !emailOnly(s) && hasOwnerTemplate(env)) {
     for (const who of s.recipients.length ? s.recipients : ['jonathan']) {
-      const to = phones[who];
-      if (!to) continue;
-      const vars = [NAME[who] || 'there', sentence(s.what, 300), sentence(s.impact || s.first_action || 'See the email for details', 300)];
-      out.push({ channel: 'whatsapp', key, who, send: {
-        kind: 'prebuilt', to, record: false, caller: 'W22', bypass_suppression: true, correlation: `w22:${key}:${who}:${day}`,
-        wa: { messaging_product: 'whatsapp', to, type: 'template', template: { name: 'ops_alert', language: { code: 'en' },
-          components: [{ type: 'body', parameters: vars.map((t) => ({ type: 'text', text: t })) }] } } } });
+      const items = ownerAlert({ what: `${label}: ${sentence(s.what, 180)}`, detail: sentence(s.impact || s.first_action || 'See the email for details', 300),
+        who: who === 'kg' ? 'kg' : 'owner', source: 'W22', key: `${key}:${day}` }, env);
+      for (const send of items) out.push({ channel: 'whatsapp', key, who, send });
     }
   }
   return out;

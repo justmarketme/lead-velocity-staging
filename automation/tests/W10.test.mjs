@@ -679,9 +679,15 @@ test('v4b21 W10.json: W05 waits; old booking -> rescheduled and messages only af
   assert.deepEqual(outs('Rebooked? (booked / confirmed)', 0), ['Old booking -> rescheduled'], 'the old booking moves only once the new one exists');
   assert.deepEqual(outs('Rebooked? (booked / confirmed)', 1), [], 'not booked: W05 answered the lead itself (held / slot taken); W07 never-silent guards the rest');
   assert.deepEqual(outs('Rebook failed: holding line (w07.neverSilentText)'), ['Has WhatsApp payload + live?']);
-  assert.deepEqual(outs('Rebook failed: owner alert (w07.neverSilentAlert)'), ['Live alert? (rebook failed)']);
+  // owner rule (24 Oct 2026, patch-owner-alerts.mjs): the alert is a WhatsApp through smc-whatsapp-send; ok:false -> the EMMA gate
+  assert.deepEqual(outs('Rebook failed: owner alert (w07.neverSilentAlert)'), ['Rebook failed: owner WhatsApp (smc-whatsapp-send)']);
+  const rbSub = WF.nodes.find((x) => x.name === 'Rebook failed: owner WhatsApp (smc-whatsapp-send)');
+  assert.deepEqual([rbSub.parameters.workflowId.value, rbSub.parameters.options.waitForSubWorkflow, rbSub.onError], ['smc-whatsapp-send', true, 'continueRegularOutput']);
+  assert.deepEqual(outs('Rebook failed: owner WhatsApp (smc-whatsapp-send)'), ['Rebook failed: WhatsApp sent? (ok)']);
+  assert.deepEqual([outs('Rebook failed: WhatsApp sent? (ok)', 0), outs('Rebook failed: WhatsApp sent? (ok)', 1)], [[], ['Live alert? (rebook failed)']]);
   assert.match(WF.nodes.find((x) => x.name === 'Live alert? (rebook failed)').parameters.conditions.conditions[0].leftValue, /DRY_RUN_SENDS !== 'true'/);
   assert.deepEqual(outs('Live alert? (rebook failed)', 0), ['Notify Jono (EMMA /api/notify, rebook failed)']);
+  assert.equal(WF.nodes.find((x) => x.name === 'Notify Jono (EMMA /api/notify, rebook failed)').parameters.jsonBody, "={{ JSON.stringify($('Rebook failed: owner alert (w07.neverSilentAlert)').first().json.request) }}");
   assert.match(WF.nodes.find((x) => x.name === 'Lead + broker messages (moved)').parameters.jsCode, /if \(j\.d\.action !== 'move'\) return \[\];/);
   // nothing reaches "Old booking -> rescheduled" except the booked branch
   const into = Object.entries(C).filter(([, v]) => (v.main || []).some((o) => (o || []).some((t) => t.node === 'Old booking -> rescheduled'))).map(([k]) => k);

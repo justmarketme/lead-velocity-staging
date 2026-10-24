@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "key": "ops_update",
+    "source": "automation/templates/ops_update.json",
+    "approval": {
+      "name": "smc_ops_update",
+      "category": "UTILITY"
+    },
+    "var_plan": [
+      {
+        "n": 1,
+        "kind": "body"
+      },
+      {
+        "n": 2,
+        "kind": "body"
+      },
+      {
+        "n": 3,
+        "kind": "body"
+      }
+    ],
+    "core": false
+  },
+  "content": {
+    "friendly_name": "smc_ops_update",
+    "language": "en",
+    "variables": {
+      "1": "Jono",
+      "2": "1 new lead",
+      "3": "Lead: Thandi, WhatsApp ad, phone ends 234, routed to Smith Financial (real adviser)"
+    },
+    "types": {
+      "whatsapp/card": {
+        "body": "Hi {{1}}, SortMyCover update: {{2}}. Details: {{3}}. Reply here if a person needs to step in.",
+        "footer": "SortMyCover"
+      }
+    }
+  }
+}

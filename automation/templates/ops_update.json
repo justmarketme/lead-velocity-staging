@@ -1,0 +1,24 @@
+{
+  "name": "ops_update",
+  "language": "en",
+  "category": "UTILITY",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hi {{1}}, SortMyCover update: {{2}}. Details: {{3}}. Reply here if a person needs to step in.",
+      "example": {
+        "body_text": [
+          [
+            "Jono",
+            "1 new lead",
+            "Lead: Thandi, WhatsApp ad, phone ends 234, routed to Smith Financial (real adviser)"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "FOOTER",
+      "text": "SortMyCover"
+    }
+  ]
+}

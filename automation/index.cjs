@@ -34,6 +34,7 @@ const MODULES = {
   w13: './lib/w13.mjs',
   w15: './lib/w15.mjs',
   w22: './lib/w22.mjs', // W22 Alerts (lean, 18 Oct 2026): normalise, 24 h dedupe, email + WhatsApp plan
+  ownerAlert: './lib/owner-alert.mjs', // 24 Oct 2026: every owner notification = one WhatsApp to Jono from the SMC number (W38, W22, W07, W10)
   w37: './lib/w37-cal.mjs',
   w38: './lib/w38.mjs', // W38 SMC lead alert (owner): watermark, de-dupe, minimised message, commit-after-2xx
   w39: './lib/w39.mjs', // W39 Start page API (18 Oct 2026): GET /start + POST /start/answers for sortmycover.co.za/start/
