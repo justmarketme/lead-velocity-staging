@@ -291,7 +291,7 @@ return out;`));
                    LEFT JOIN LATERAL (SELECT sum(c.capacity)::int AS capacity, sum(c.attached)::int AS attached, sum(c.remaining)::int AS remaining
                                         FROM public.smc_order_capacity c WHERE c.broker_id = b.id AND c.brand_id = q.brand_id AND c.open) oc ON true
                   WHERE b.brand_id = q.brand_id), '[]'::jsonb) AS brokers,
-       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only
+       $2 <> 'false' AS first_touch, NULLIF($3, '') AS expect_broker_id, $4 = 'true' AS hold_only, $5 = 'true' AS route_on_consent
   FROM (SELECT l.id, l.brand_id, l.origin, l.broker_id, l.routed_at, l.opted_out_at, l.disqualified_reason, l.consent_text, l.consent_mode,
                l.consent_text_version, l.routing_reason, l.consent_ads_at, l.lead_event_id, l.created_at, l.budget_band, l.phone, l.first_name, l.product_interest,
                l.is_synthetic, -- test / real routing pool (lib/routing-split.mjs, with the phone)
@@ -309,7 +309,8 @@ return out;`));
           FROM public.leads l WHERE l.id = $1::uuid) q;`,
     // first_touch: false = W39 (the /start/ page shows the slots itself): route the same way, no W06 first touch
     // W39 also passes expect_broker_id (route only the adviser the lead confirmed) or hold_only (record a hold, never route)
-    "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}"));
+    // route_on_consent: W03 / W41 route at the click-to-WhatsApp consent (no adviser-naming text first, Jonathan 24 Oct 2026)
+    "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true), String($json.route_on_consent === true)] }}"));
   n.push(code('Route (w01.routeExisting)', pos(3, 7), prelude('w01.mjs') +
 `const out = [];
 for (const it of $input.all()) {
@@ -317,7 +318,7 @@ for (const it of $input.all()) {
   // closed -> held_disclosure_pending). routeExisting enforces the generic rule itself; require_disclosure adds the lead-ad one.
   // pool: a test lead routes only to a test practice, a real lead never to one (SMC_TEST_BROKER_IDS; unset = no filter)
   const r = L.routeExisting(it.json.lead, { brokers: it.json.brokers || [], now: Date.now(), first_touch: it.json.first_touch !== false,
-    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env),
+    expect_broker_id: it.json.expect_broker_id || null, hold_only: it.json.hold_only === true, require_disclosure: L.disclosureRequired(it.json.lead, $env), route_on_consent: it.json.route_on_consent === true,
     pool: L.routingPool(it.json.lead, $env) });
   out.push({ json: { lead_id: it.json.lead && it.json.lead.id, r, routed: r.action === 'routed', update: r.update || null } });
 }
@@ -345,7 +346,7 @@ LIMIT 1;`,
 `const x = $('Load CTWA lead + brokers').first().json;
 const logged = ($input.first() && $input.first().json && $input.first().json.broker_id) || null;
 const r = L.routeAfterDisclosure(x.lead, { brokers: x.brokers || [], now: Date.now(), first_touch: x.first_touch !== false,
-  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env),
+  expect_broker_id: x.expect_broker_id || null, hold_only: x.hold_only === true, require_disclosure: L.disclosureRequired(x.lead, $env), route_on_consent: x.route_on_consent === true,
   pool: L.routingPool(x.lead, $env) }, logged);
 return [{ json: { lead_id: x.lead && x.lead.id, r, routed: r.action === 'routed', update: r.update || null } }];`));
   n.push(ifTrue('Routed or held? (write it)', pos(4, 7), "['routed', 'held'].includes($json.r.action)"));

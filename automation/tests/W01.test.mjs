@@ -1033,7 +1033,7 @@ test('W39 /start/ page (18 Oct 2026): routeExisting first_touch:false routes the
   const load = WF.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
   assert.match(load.parameters.query, /\$2 <> 'false' AS first_touch/);
   assert.match(load.parameters.query, /NULLIF\(\$3, ''\) AS expect_broker_id, \$4 = 'true' AS hold_only/);
-  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true)] }}");
+  assert.equal(load.parameters.options.queryReplacement, "={{ [$json.lead_id, String($json.first_touch !== false), $json.expect_broker_id || '', String($json.hold_only === true), String($json.route_on_consent === true)] }}");
   const routeOut = await runCode(WF, 'Route (w01.routeExisting)', { items: [{ lead: { ...lead, routed_at: null, broker_id: null, suppressed: false }, brokers: [tcBroker()], first_touch: false }] });
   assert.equal(routeOut[0].json.r.first_touch, null);
   const w06 = await runCode(WF, 'W06 input (CTWA)', { items: [{ lead_id: lead.id, broker_id: tcBroker().id }], refs: { 'Route (w01.routeExisting)': routeOut[0].json } });
@@ -1359,4 +1359,23 @@ test('W01 core: a click-to-WhatsApp consent counts as the open 24-h window (rout
   const wf = JSON.parse(readFileSync(new URL('../W01.json', import.meta.url), 'utf8'));
   const q = wf.nodes.find((n) => n.name === 'Load CTWA lead + brokers').parameters.query;
   assert.match(q, /cm\.sender_type = 'client' AND cm\.created_at > now\(\) - interval '24 hours'\)\s+-- [^\n]*\n(\s+-- [^\n]*\n)*\s+OR \(l\.origin = 'ctwa' AND l\.verified_at > now\(\) - interval '24 hours'\) AS window_open/);
+});
+
+test('route at consent (Jonathan, 24 Oct 2026): a generic CTWA consent routes at once with route_on_consent, no adviser-naming text; lead ads and other callers unchanged', () => {
+  const lead = GEN_LEAD();
+  const r = W01.routeExisting(lead, { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, route_on_consent: true });
+  assert.deepEqual([r.action, r.update.broker_id, r.first_touch], ['routed', LD_BROKER.id, null], 'the consent covers "an authorised financial adviser, who will contact you"');
+  assert.equal(r.disclose, undefined);
+  // a closed window does not matter: nothing is sent to the lead
+  assert.equal(W01.routeExisting(GEN_LEAD({ window_open: false }), { brokers: [LD_BROKER], now: TC_NOW, first_touch: false, route_on_consent: true }).action, 'routed');
+  // without the flag (the old tap path, W39): the 19 Oct rule still names the adviser first
+  assert.equal(W01.routeExisting(lead, { brokers: [LD_BROKER], now: TC_NOW }).action, 'disclose');
+  // a lead-ad lead keeps its own disclosure rule even with the flag
+  assert.equal(W01.routeExisting({ ...lead, origin: 'lead_ad' }, { brokers: [LD_BROKER], now: TC_NOW, route_on_consent: true, require_disclosure: true }).action, 'disclose');
+  // the core passes the flag through: query parameter 5 and both routeExisting calls
+  const wf = JSON.parse(readFileSync(new URL('../W01.json', import.meta.url), 'utf8'));
+  const load = wf.nodes.find((n) => n.name === 'Load CTWA lead + brokers');
+  assert.match(load.parameters.query, /\$5 = 'true' AS route_on_consent/);
+  assert.match(load.parameters.options.queryReplacement, /String\(\$json\.route_on_consent === true\)/);
+  for (const name of ['Route (w01.routeExisting)', 'Route after the disclosure (w01.routeExisting)']) assert.match(wf.nodes.find((n) => n.name === name).parameters.jsCode, /route_on_consent: (it|x)\.json\.route_on_consent === true|route_on_consent: x\.route_on_consent === true/, name);
 });

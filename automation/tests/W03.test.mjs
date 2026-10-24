@@ -980,7 +980,7 @@ test('route at consent: with the start page, the consent hands the lead to W01 c
     const kinds = r.actions.map((a) => a.kind);
     const route = r.actions.filter((a) => a.kind === 'route_and_first_touch');
     assert.equal(route.length, 1);
-    assert.deepEqual(route[0], { kind: 'route_and_first_touch', lead_id: r.thread.lead_id, first_touch: false, source: 'W03:consent' });
+    assert.deepEqual(route[0], { kind: 'route_and_first_touch', lead_id: r.thread.lead_id, first_touch: false, route_on_consent: true, source: 'W03:consent' });
     assert.ok(kinds.indexOf('insert_lead') < kinds.indexOf('route_and_first_touch'), 'the lead row first');
     assert.deepEqual(sends(r.actions).map((a) => a.message.type), ['cta_url'], 'the client still gets the one Start here card from W03');
     assert.equal(r.thread.stage, 'start_page');

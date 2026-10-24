@@ -55,8 +55,8 @@ export const keyOf = (leadId) => `${KEY_PREFIX}${leadId}`;
 // His second real lead consented on the ad at 18:06 and never opened the page, so no adviser had him. W03 now routes at
 // consent; this sweep catches every consented click-to-WhatsApp lead that is still unrouted (W03 ran before that change, or
 // its routing call failed) while the 24-h WhatsApp window is open, so W01 core can name the adviser and hand the lead over.
-// W01 core does the work (the same call as W03 / W39: routing pool, capacity, tier rules, the CHAT-DISCLOSE session text +
-// adviser_disclosed before routing, idempotent). Separate switch from the notice: SMC_ROUTE_AT_CONSENT ('false' = off).
+// W01 core does the work (the same call as W03 / W39: routing pool, capacity, tier rules, idempotent); route_on_consent: the
+// consent already covers "an authorised financial adviser, who will contact you", so no adviser-naming text first. Separate switch from the notice: SMC_ROUTE_AT_CONSENT ('false' = off).
 export const SWEEP_WINDOW_H = 23; // under the 24-h session, so the disclosure text can still be delivered
 export const routeAtConsent = (env = {}) => String(env.SMC_ROUTE_AT_CONSENT == null ? '' : env.SMC_ROUTE_AT_CONSENT).trim().toLowerCase() !== 'false';
 
@@ -70,7 +70,7 @@ export function sweepStart(env = {}) {
 export const routeInputs = (rows = []) => {
   const seen = new Set();
   return rows.filter((r) => r && r.lead_id && !seen.has(String(r.lead_id)) && seen.add(String(r.lead_id)))
-    .map((r) => ({ kind: 'route_and_first_touch', lead_id: String(r.lead_id), first_touch: false, source: 'W41:consent_sweep' }));
+    .map((r) => ({ kind: 'route_and_first_touch', lead_id: String(r.lead_id), first_touch: false, route_on_consent: true, source: 'W41:consent_sweep' }));
 };
 
 /** "Lerato M." (first name only, an initial when there is a surname). The surname itself never leaves the row. */

@@ -2735,7 +2735,7 @@
   },
   {
    "id": "W41",
-   "title": "W41 SMC broker lead notice (routed, not booked; hourly on the VPS n8n, names the ad by its headline): a consented client routed to an adviser with no booking after a 10-min grace -> ONE WhatsApp (broker_lead_routed) + ONE email to the adviser, claimed once per lead in lead_activities. Built 24 Oct 2026 (build-w41.mjs, lib/w41.mjs, tests/W41.test.mjs, CONTRACTS 'W41'); portal 'Waiting to book' card shows the same leads with the timeline. Route at consent (24 Oct, Jonathan chose 'name the adviser, then send'): W03 routes at the consent and a second hourly W41 branch hands every consented, unrouted CTWA lead (23-h window) to W01 core, which names the adviser (CHAT-DISCLOSE) then routes; W01's window counts the CTWA consent; portal card shows the pipeline stage. SMC_ROUTE_AT_CONSENT (on unless 'false').",
+   "title": "W41 SMC broker lead notice (routed, not booked; hourly on the VPS n8n, names the ad by its headline): a consented client routed to an adviser with no booking after a 10-min grace -> ONE WhatsApp (broker_lead_routed) + ONE email to the adviser, claimed once per lead in lead_activities. Built 24 Oct 2026 (build-w41.mjs, lib/w41.mjs, tests/W41.test.mjs, CONTRACTS 'W41'); portal 'Waiting to book' card shows the same leads with the timeline. Route at consent (24 Oct, Jonathan: the consent covers 'an authorised financial adviser', no naming text first): W03 routes at the consent and a second hourly W41 branch hands every consented, unrouted CTWA lead (23-h window) to W01 core (route_on_consent); W01's window counts the CTWA consent; portal card shows the pipeline stage. SMC_ROUTE_AT_CONSENT (on unless 'false').",
    "owner": "automation-engineer",
    "phase": "5",
    "depends_on": [

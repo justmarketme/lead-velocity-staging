@@ -792,7 +792,7 @@ export function capiLead(row) {
  * never routes (a broker that became free meanwhile -> 'skip', reason 'not_disclosed').
  * pool (23 Oct 2026): routingPool(lead, $env) from the caller; a test lead routes only to a test practice, a real lead never.
  */
-export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false, require_disclosure = false, pool = null } = {}) {
+export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mode = 'named', first_touch = true, expect_broker_id = null, hold_only = false, require_disclosure = false, pool = null, route_on_consent = false } = {}) {
   const at = isoSast(now);
   if (!lead || lead.opted_out_at || lead.disqualified_reason) return { action: 'skip', reason: !lead ? 'no_lead' : lead.opted_out_at ? 'opted_out' : 'out_of_band' };
   if (lead.broker_id && lead.routed_at) return { action: 'already_routed', first_touch: null };
@@ -807,7 +807,11 @@ export function routeExisting(lead, { brokers = [], now = Date.now(), consent_mo
   // after that adviser was named to the lead) is routed only with adviser_disclosed on its timeline for THIS broker. Without it:
   // 'disclose' (the session text, then route) when the 24-h window may be open, or a visible hold (held_disclosure_pending)
   // when the caller knows it is closed (lead.window_open === false): never routed, nothing sent to the broker.
-  if ((require_disclosure || isGenericConsent(lead)) && !disclosedTo(lead, brokerIdOf(b))) {
+  // Route at consent (Jonathan, 24 Oct 2026): the click-to-WhatsApp consent already says the name and number go to "an
+  // authorised financial adviser, who will contact you", so W03 / W41 hand a CTWA lead over at the consent without naming
+  // the adviser first; the adviser introduces himself when he makes contact. Lead-ad leads keep their own disclosure rule.
+  const consentCovers = route_on_consent === true && (lead.origin || 'ctwa') === 'ctwa';
+  if ((require_disclosure || (isGenericConsent(lead) && !consentCovers)) && !disclosedTo(lead, brokerIdOf(b))) {
     if (lead.window_open === false) return { action: 'held', update: { routing_reason: DISCLOSURE_PENDING }, notice: null };
     return { action: 'disclose', broker_id: brokerIdOf(b), disclose: leadAdDisclosure(lead, b) };
   }

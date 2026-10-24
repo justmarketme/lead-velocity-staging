@@ -24,7 +24,7 @@ const EMAIL = 'Email adviser from SortMyCover (smc-email-send)';
 const SWEEP = 'Route at consent? (w41.sweepStart)';
 const SWEEP_READ = 'Read consented, unrouted CTWA leads (WhatsApp window open)';
 const SWEEP_PLAN = 'W01 inputs (w41.routeInputs)';
-const SWEEP_ROUTE = '-> W01 Lead core (name the adviser, then route; one lead per call)';
+const SWEEP_ROUTE = '-> W01 Lead core (route at consent; one lead per call)';
 const ON = { SMC_BROKER_LEAD_NOTICE_ENABLED: 'true' };
 const LEAD = '5730e361-1635-413f-b258-e3157a305a92';
 const BROKER = '306062a1-c271-4ae1-8b1e-bb9aed10a5f6';
@@ -171,12 +171,12 @@ test('route at consent: the hourly branch hands consented, unrouted CTWA leads t
   assert.deepEqual(out(SWEEP_READ), [SWEEP_PLAN]);
   assert.deepEqual(out(SWEEP_PLAN), [SWEEP_ROUTE]);
   const r = node(SWEEP_ROUTE).parameters;
-  assert.equal(r.workflowId.value, 'smc-w01', 'W01 Lead core: the same routing, pool, capacity and disclosure as W03 / W39');
+  assert.equal(r.workflowId.value, 'smc-w01', 'W01 Lead core: the same routing, pool, capacity and tier rules as W03 / W39');
   assert.equal(r.mode, 'each', 'one lead per call: W01 core\'s disclosure branch reads one lead');
   assert.equal(r.options.waitForSubWorkflow, true);
   const q = node(SWEEP_READ).parameters.query;
   assert.match(q, /l\.origin = 'ctwa'/); assert.match(q, /l\.broker_id IS NULL/);
-  assert.match(q, /l\.verified_at > now\(\) - make_interval\(hours => \$2::int\)/, 'inside the WhatsApp window, so the adviser can be named first');
+  assert.match(q, /l\.verified_at > now\(\) - make_interval\(hours => \$2::int\)/, 'inside the WhatsApp window');
   assert.match(q, /coalesce\(l\.is_synthetic, false\) = false/, 'test data never reaches a real adviser through the sweep');
   assert.match(q, /l\.opted_out_at IS NULL/); assert.match(q, /l\.disqualified_reason IS NULL/);
   assert.match(q, /l\.routing_reason IS NULL OR l\.routing_reason IN \('held_disclosure_pending', 'start_page_pending'\)/, 'other holds (budget, capacity, a failed disclosure) are not retried hourly');
@@ -186,11 +186,11 @@ test('route at consent: the hourly branch hands consented, unrouted CTWA leads t
   for (const v of ['false', 'FALSE', ' false ']) assert.deepEqual(L.sweepStart({ SMC_ROUTE_AT_CONSENT: v }), { run: false, reason: 'disabled' });
   assert.equal(L.sweepStart({ SMC_ROUTE_AT_CONSENT: 'true' }).run, true);
   assert.deepEqual(L.routeInputs([{ lead_id: 'a' }, { lead_id: 'a' }, null, {}, { lead_id: 'b' }]),
-    [{ kind: 'route_and_first_touch', lead_id: 'a', first_touch: false, source: 'W41:consent_sweep' }, { kind: 'route_and_first_touch', lead_id: 'b', first_touch: false, source: 'W41:consent_sweep' }]);
+    [{ kind: 'route_and_first_touch', lead_id: 'a', first_touch: false, route_on_consent: true, source: 'W41:consent_sweep' }, { kind: 'route_and_first_touch', lead_id: 'b', first_touch: false, route_on_consent: true, source: 'W41:consent_sweep' }]);
   assert.deepEqual(await runCode(WF, SWEEP, { env: { SMC_ROUTE_AT_CONSENT: 'false' } }), []);
   const [s] = await runCode(WF, SWEEP, { env: {} });
   assert.deepEqual(s.json, { brand_id: L.SMC_BRAND_ID, window_h: 23, limit: L.ROW_LIMIT });
   const items = await runCode(WF, SWEEP_PLAN, { items: [{ lead_id: '3e280148-ef6d-4775-809a-ccd024ddf586' }] });
-  assert.deepEqual(items.map((i) => [i.json.kind, i.json.first_touch]), [['route_and_first_touch', false]]);
+  assert.deepEqual(items.map((i) => [i.json.kind, i.json.first_touch, i.json.route_on_consent]), [['route_and_first_touch', false, true]]);
   assert.deepEqual(await runCode(WF, START, { env: { SMC_ROUTE_AT_CONSENT: 'true' } }), [], 'the notice keeps its own switch');
 });
