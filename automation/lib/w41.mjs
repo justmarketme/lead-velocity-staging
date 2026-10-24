@@ -8,8 +8,9 @@
 // are nudging them, and where the details are (portal "Waiting to book"). Everything that follows (nudges, a reply, the
 // booking) shows in the portal timeline and the booking itself still sends broker_new_booking as before.
 //
-// Every 5 minutes: SortMyCover leads routed at least GRACE minutes ago (so a client who books straight away gets the
-// adviser ONE message, the booking one), inside the last 7 days, not synthetic, not opted out, not disqualified, with no
+// Every hour (Jonathan: "it can check every hour"; the VPS n8n runs it, nothing depends on a laptop): SortMyCover leads
+// routed at least GRACE minutes ago (so a client who books straight away gets the adviser ONE message, the booking one),
+// inside the last 7 days, not synthetic, not opted out, not disqualified, with no
 // live booking and no notice yet -> claim (ONE lead_activities row per lead, idempotency_key w41:broker_routed:<lead>,
 // ON CONFLICT DO NOTHING RETURNING) -> for the claimed leads only: WhatsApp template broker_lead_routed through
 // smc-whatsapp-send (the sub honours DRY_RUN_SENDS, skips when the template has no Content SID yet, raises W22 on a
@@ -57,11 +58,18 @@ export function personLabel(r = {}) {
   return ini ? `${f} ${ini}.` : f;
 }
 
-/** "on Sat 24 Oct at 08:12 via a SortMyCover ad on WhatsApp" (SAST; the consent time, else when the lead was created). */
+/** The ad's own headline from the CTWA referral (kept in the ctwa_consent row), cleaned and short; '' when there is none. */
+export const adHeadline = (r = {}) => clean(r.ad_headline).replace(/["“”]/g, "'").slice(0, 80);
+
+/**
+ * "on Sat 24 Oct at 08:12 via a SortMyCover ad on WhatsApp ('Book a 30-minute call with Mark')" (SAST; the consent time,
+ * else when the lead was created; the ad headline when the referral carried one).
+ */
 export function cameInText(r = {}) {
   const when = sastText(r.consent_at || r.created_at).replace(/ SAST$/, '').replace(/^(\w+ \d+ \w+) (\d\d:\d\d)$/, 'on $1 at $2');
   const via = ORIGIN[String(r.origin || '').toLowerCase()] || 'SortMyCover';
-  return `${when} via ${via}`;
+  const h = adHeadline(r);
+  return `${when} via ${via}${h ? ` ('${h}')` : ''}`;
 }
 
 /** How far they got, as the template's {{4}} reads it. */
@@ -97,7 +105,7 @@ export function planOne(r = {}, env = {}) {
   }, `${keyOf(r.lead_id)}:email`, TEMPLATE) : null;
   return {
     lead_id: r.lead_id, brand_id: r.brand_id || SMC_BRAND_ID, broker_id: r.broker_id, key: keyOf(r.lead_id),
-    payload: { template: TEMPLATE, channels: [to ? 'whatsapp' : null, email ? 'email' : null].filter(Boolean), routed_at: r.routed_at || null, origin: r.origin || null, opened_page: r.opened_page === true, nudges: Number(r.nudges) || 0 },
+    payload: { template: TEMPLATE, channels: [to ? 'whatsapp' : null, email ? 'email' : null].filter(Boolean), routed_at: r.routed_at || null, origin: r.origin || null, ad_headline: adHeadline(r) || null, opened_page: r.opened_page === true, nudges: Number(r.nudges) || 0 },
     wa, relay,
   };
 }

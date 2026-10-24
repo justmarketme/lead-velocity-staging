@@ -35,13 +35,21 @@ const actLabel = (a: LeadAct) => {
   const touch = a.activity_type === "nurture_sent" ? String(a.payload?.touch || a.payload?.template || "") : "";
   return touch ? `${base} (${touch.replace(/_/g, " ")})` : base;
 };
-const sourceLabel = (l: WaitingLead) => {
-  const ad = l.ad_id ? ` (ad …${l.ad_id.slice(-4)})` : "";
-  if (l.origin === "ctwa") return `a click-to-WhatsApp ad${ad}`;
+/** The ad's own headline, kept by W03 in the consent row's referral ("Book a 30-minute call with Mark"). */
+const adHeadline = (acts: LeadAct[]) => {
+  const c = acts.find((a) => a.activity_type === "ctwa_consent" || a.activity_type === "consent");
+  const ref = (c?.payload as { provenance?: { referral?: { headline?: string } } } | null)?.provenance?.referral;
+  return ref?.headline ? String(ref.headline).replace(/\s+/g, " ").trim().slice(0, 80) : "";
+};
+const sourceLabel = (l: WaitingLead, acts: LeadAct[]) => {
+  const h = adHeadline(acts);
+  const ad = h ? ` “${h}”${l.ad_id ? ` (ad …${l.ad_id.slice(-4)})` : ""}` : l.ad_id ? ` (ad …${l.ad_id.slice(-4)})` : "";
+  if (l.origin === "ctwa") return `a WhatsApp ad${ad}`;
   if (l.origin === "lead_ad" || l.origin === "instant_form") return `an Instant Form ad${ad}`;
   if (l.ad_id) return `a Meta ad${ad}`;
   return "the SortMyCover page";
 };
+const waLink = (phone: string) => `https://wa.me/${phone.replace(/\D/g, "")}`;
 
 function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
   const [open, setOpen] = useState(false);
@@ -54,8 +62,8 @@ function WaitingOne({ l, acts }: { l: WaitingLead; acts: LeadAct[] }) {
     <div data-lead-id={l.id} style={{ marginBottom: 12 }}>
       <b>{fullName(l as unknown as SmcLead)}</b>
       {l.lead_tier && <b className="tag"> · {l.lead_tier}-tier</b>}{isPremium1500(l.budget_band) && <b className="tag"> · R1,500+</b>}<br />
-      <span className="small">{l.phone}{l.language ? ` · ${l.language}` : ""}{l.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}{l.method_pref ? ` · prefers ${methodLabel(l.method_pref)}` : ""}</span><br />
-      <span className="small">Came in {fmtDayTime(l.consent_at || l.created_at)} via {sourceLabel(l)}.</span>
+      <span className="small">WhatsApp <a href={waLink(l.phone)} target="_blank" rel="noreferrer">{l.phone}</a>{l.language ? ` · ${l.language}` : ""}{l.age_band ? ` · ${AGE_LABEL[l.age_band]}` : ""}{l.budget_band ? ` · ${BUDGET_LABEL[l.budget_band]}` : ""}{l.method_pref ? ` · prefers ${methodLabel(l.method_pref)}` : ""}</span><br />
+      <span className="small">Consented {fmtDayTime(l.consent_at || l.created_at)}, via {sourceLabel(l, acts)}.</span>
       <p className="alert" style={{ margin: "6px 0" }}>
         {openedPage ? "Opened the booking page but stopped before confirming a time." : "Gave consent but hasn't opened the booking page yet."}{" "}
         {nudges.length ? `We're nudging them: ${nudges.length} nudge${nudges.length === 1 ? "" : "s"} sent, last ${fmtDayTime(nudges[nudges.length - 1].occurred_at)}.` : "The first nudge goes out automatically."}

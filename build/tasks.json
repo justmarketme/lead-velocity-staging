@@ -2735,7 +2735,7 @@
   },
   {
    "id": "W41",
-   "title": "W41 SMC broker lead notice (routed, not booked): a consented client routed to an adviser with no booking after a 10-min grace -> ONE WhatsApp (broker_lead_routed) + ONE email to the adviser, claimed once per lead in lead_activities. Built 24 Oct 2026 (build-w41.mjs, lib/w41.mjs, tests/W41.test.mjs, CONTRACTS 'W41'); portal 'Waiting to book' card shows the same leads with the timeline.",
+   "title": "W41 SMC broker lead notice (routed, not booked; hourly on the VPS n8n, names the ad by its headline): a consented client routed to an adviser with no booking after a 10-min grace -> ONE WhatsApp (broker_lead_routed) + ONE email to the adviser, claimed once per lead in lead_activities. Built 24 Oct 2026 (build-w41.mjs, lib/w41.mjs, tests/W41.test.mjs, CONTRACTS 'W41'); portal 'Waiting to book' card shows the same leads with the timeline.",
    "owner": "automation-engineer",
    "phase": "5",
    "depends_on": [
